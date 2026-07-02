@@ -110,6 +110,28 @@ app.post("/api/events", upload.single("image"), async (req, res) => {
     const ticketingType = ["weyn", "external", "cash", "registration"].includes(b.ticketingType) ? b.ticketingType : "weyn";
     // an already-imported/uploaded image (e.g. pulled from Instagram) can be reused without a new file upload
     const existingImage = typeof b.existingImage === "string" && b.existingImage.startsWith("/uploads/") ? b.existingImage : null;
+
+    // Ticket tiers (weyn ticketing only). Sent as a JSON string from the form.
+    // When present, price/capacity/sold on the event mirror the tiers so cards,
+    // sold-out checks, etc. keep working unchanged.
+    let tiers = null;
+    if (ticketingType === "weyn" && b.tiers) {
+      try {
+        const parsed = typeof b.tiers === "string" ? JSON.parse(b.tiers) : b.tiers;
+        if (Array.isArray(parsed)) {
+          tiers = parsed
+            .filter((t) => t && String(t.name).trim())
+            .map((t) => ({
+              id: crypto.randomUUID().slice(0, 8),
+              name: String(t.name).trim().slice(0, 40),
+              price: Math.max(0, Number(t.price) || 0),
+              capacity: Math.max(1, Number(t.capacity) || 1),
+              sold: 0,
+            }));
+          if (!tiers.length) tiers = null;
+        }
+      } catch { tiers = null; }
+    }
     const ev = {
       id,
       title: refined.title,
@@ -122,9 +144,11 @@ app.post("/api/events", upload.single("image"), async (req, res) => {
       lat: b.lat ? Number(b.lat) : 23.6100,
       lng: b.lng ? Number(b.lng) : 58.5400,
       distanceKm: Number(b.distanceKm) || +(Math.random() * 8 + 1).toFixed(1),
-      price: Math.max(0, Number(b.price) || 0),
-      capacity: Math.max(1, Number(b.capacity) || 50),
+      // when tiers exist, event price = cheapest tier, capacity = sum of tiers
+      price: tiers ? Math.min(...tiers.map((t) => t.price)) : Math.max(0, Number(b.price) || 0),
+      capacity: tiers ? tiers.reduce((s, t) => s + t.capacity, 0) : Math.max(1, Number(b.capacity) || 50),
       sold: 0,
+      tiers,
       image: req.file ? `/uploads/${req.file.filename}` : existingImage,
       color: b.color || "#3A4668",
       glyph: b.glyph || "🎟",
@@ -154,15 +178,26 @@ app.post("/api/events/:id/book", async (req, res) => {
     return res.status(400).json({ error: "This event isn't ticketed through Weyn — see externalTicketUrl/organizerContact instead" });
   }
   const qty = Math.max(1, Number(req.body?.qty) || 1);
-  if (e.sold + qty > e.capacity) return res.status(409).json({ error: "Not enough tickets left" });
-  db.update(e.id, { sold: e.sold + qty });
+  let bookedTier = null;
+  if (Array.isArray(e.tiers) && e.tiers.length) {
+    // tiered event: must pick a tier, and check/decrement that tier's stock
+    const tier = e.tiers.find((t) => t.id === req.body?.tierId);
+    if (!tier) return res.status(400).json({ error: "Please choose a ticket type" });
+    if (tier.sold + qty > tier.capacity) return res.status(409).json({ error: `${tier.name} is sold out` });
+    const tiers = e.tiers.map((t) => (t.id === tier.id ? { ...t, sold: t.sold + qty } : t));
+    db.update(e.id, { tiers, sold: tiers.reduce((s, t) => s + t.sold, 0) });
+    bookedTier = tier.name;
+  } else {
+    if (e.sold + qty > e.capacity) return res.status(409).json({ error: "Not enough tickets left" });
+    db.update(e.id, { sold: e.sold + qty });
+  }
 
   const deviceId = req.body?.deviceId;
   if (deviceId) {
     const account = req.body?.email ? { email: req.body.email, name: req.body.name } : null;
     db.addBooking(deviceId, e.id, account);
     const token = db.tokenForDevice(deviceId);
-    if (token) sendPush(token, { title: "You're going! 🎟", body: `${e.title} — we'll remind you before it starts.` }).catch(() => {});
+    if (token) sendPush(token, { title: "You're going! 🎟", body: `${e.title}${bookedTier ? ` (${bookedTier})` : ""} — we'll remind you before it starts.` }).catch(() => {});
   }
   res.json(db.get(e.id));
 });

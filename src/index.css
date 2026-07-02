@@ -581,6 +581,35 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ticketing-opt.on { border-color: var(--accent); background: var(--accent-soft); }
 .ticketing-opt.on .ti { color: var(--accent); }
 
+/* ---------- ticket tiers: organizer editor ---------- */
+.tier-toggle { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--text); cursor: pointer; }
+.tier-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+.tier-editor { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.tier-head, .tier-row { display: grid; grid-template-columns: 1fr 72px 72px 34px; gap: 8px; align-items: center; }
+.tier-head { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .3px; padding: 0 2px; }
+.tier-row input {
+  width: 100%; padding: 11px 12px; font-size: 15px; color: var(--text);
+  background: var(--glass-soft); border: 1px solid var(--glass-line); border-radius: var(--radius-sm);
+}
+.tier-del { display: grid; place-items: center; height: 40px; border-radius: var(--radius-sm); color: var(--danger); background: var(--chip-soft); border: 1px solid var(--glass-line); }
+.tier-del:disabled { opacity: .35; }
+.tier-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--accent); padding: 8px 4px; }
+
+/* ---------- ticket tiers: buyer picker (event detail) ---------- */
+.tier-picker { margin-top: 20px; }
+.tier-picker-title { font-size: 15px; margin-bottom: 10px; }
+.tier-opt {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  text-align: left; padding: 13px 15px; margin-bottom: 8px; border-radius: var(--radius-sm);
+  background: var(--glass-soft); border: 1.5px solid var(--glass-line); transition: border-color .18s, background .18s;
+}
+.tier-opt-main b { display: block; font-size: 14.5px; font-weight: 600; color: var(--text); }
+.tier-opt-main span { font-size: 12px; color: var(--text-2); }
+.tier-opt-price { font-size: 15px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.tier-opt.on { border-color: var(--accent); background: var(--accent-soft); }
+.tier-opt.soldout { opacity: .5; }
+.tier-opt.soldout .tier-opt-price { text-decoration: line-through; }
+
 /* ---------- Marketing sheet (Feature 2) ---------- */
 .marketing-card {
   text-align: left; margin-bottom: 14px; padding: 13px 14px; border-radius: var(--radius-sm);

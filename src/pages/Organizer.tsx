@@ -49,6 +49,14 @@ export default function Organizer() {
   });
   const set = (k: keyof typeof f) => (e: any) => setF({ ...f, [k]: e.target.value });
 
+  // multiple ticket tiers (weyn ticketing only)
+  const [useTiers, setUseTiers] = useState(false);
+  const [tiers, setTiers] = useState([{ name: "General", price: "5", capacity: "50" }]);
+  const setTier = (i: number, k: "name" | "price" | "capacity") => (e: any) =>
+    setTiers((ts) => ts.map((t, j) => (j === i ? { ...t, [k]: e.target.value } : t)));
+  const addTier = () => setTiers((ts) => [...ts, { name: "", price: "", capacity: "" }]);
+  const removeTier = (i: number) => setTiers((ts) => ts.filter((_, j) => j !== i));
+
   function pickImage(file?: File) {
     if (!file) return;
     if (!file.type.startsWith("image/")) { setErr("That file isn't an image."); return; }
@@ -95,6 +103,13 @@ export default function Organizer() {
     if ((f.ticketingType === "external" || f.ticketingType === "registration") && !f.externalTicketUrl.trim()) {
       setErr("Add the link where people get tickets/register."); return;
     }
+    const tierPayload = f.ticketingType === "weyn" && useTiers
+      ? tiers.map((t) => ({ name: t.name.trim(), price: Number(t.price) || 0, capacity: Number(t.capacity) || 0 }))
+             .filter((t) => t.name)
+      : null;
+    if (f.ticketingType === "weyn" && useTiers && (!tierPayload || tierPayload.length === 0 || tierPayload.some((t) => t.capacity < 1))) {
+      setErr("Give each ticket type a name and a capacity of at least 1."); return;
+    }
     setBusy(true); setErr("");
     try {
       const fd = new FormData();
@@ -107,6 +122,7 @@ export default function Organizer() {
         ticketingType: f.ticketingType, externalTicketUrl: f.externalTicketUrl, organizerContact: f.organizerContact,
         sourceUrl: sourceUrl || "", importedFromInstagram: String(importedFromInstagram),
       }).forEach(([k, v]) => fd.append(k, String(v)));
+      if (tierPayload) fd.append("tiers", JSON.stringify(tierPayload));
       if (img) fd.append("image", img.file);
       else if (importedImagePath) fd.append("existingImage", importedImagePath);
 
@@ -227,16 +243,18 @@ export default function Organizer() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 12 }}>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Price (OMR)</label>
-            <input value={f.price} onChange={set("price")} inputMode="decimal" placeholder="0 = free" />
+        {!(f.ticketingType === "weyn" && useTiers) && (
+          <div style={{ display: "flex", gap: 12 }}>
+            <div className="field" style={{ flex: 1 }}>
+              <label>Price (OMR)</label>
+              <input value={f.price} onChange={set("price")} inputMode="decimal" placeholder="0 = free" />
+            </div>
+            <div className="field" style={{ flex: 1 }}>
+              <label>Capacity</label>
+              <input value={f.capacity} onChange={set("capacity")} inputMode="numeric" />
+            </div>
           </div>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Capacity</label>
-            <input value={f.capacity} onChange={set("capacity")} inputMode="numeric" />
-          </div>
-        </div>
+        )}
 
         {/* Feature 8: Bring Your Own Tickets */}
         <div className="field">
@@ -255,6 +273,30 @@ export default function Organizer() {
             ))}
           </div>
         </div>
+        {f.ticketingType === "weyn" && (
+          <div className="field">
+            <label className="tier-toggle">
+              <input type="checkbox" checked={useTiers} onChange={(e) => setUseTiers(e.target.checked)} />
+              Multiple ticket types (e.g. General, VIP, Early Bird)
+            </label>
+            {useTiers && (
+              <div className="tier-editor">
+                <div className="tier-head"><span>Type</span><span>OMR</span><span>Qty</span><span /></div>
+                {tiers.map((t, i) => (
+                  <div className="tier-row" key={i}>
+                    <input placeholder="e.g. VIP" value={t.name} onChange={setTier(i, "name")} />
+                    <input placeholder="0" inputMode="decimal" value={t.price} onChange={setTier(i, "price")} />
+                    <input placeholder="50" inputMode="numeric" value={t.capacity} onChange={setTier(i, "capacity")} />
+                    <button type="button" className="tier-del" onClick={() => removeTier(i)} disabled={tiers.length === 1} aria-label="Remove">
+                      <i className="ti ti-x" />
+                    </button>
+                  </div>
+                ))}
+                <button type="button" className="tier-add" onClick={addTier}><i className="ti ti-plus" /> Add ticket type</button>
+              </div>
+            )}
+          </div>
+        )}
         {(f.ticketingType === "external" || f.ticketingType === "registration") && (
           <div className="field">
             <label>{f.ticketingType === "external" ? "Ticket link" : "Registration link"}</label>

@@ -40,6 +40,32 @@ git commit -m "Recovered after external drive failure"
 gh repo create weyn --private --source=. --push   # or push to an existing remote
 ```
 
+## 0.5 Recent work (most recent session)
+
+- **AI draft validation** (`server/refine.js` + `server/ai.js`): every event (typed
+  or Instagram-imported) is cleaned before storing. Deterministic layer ALWAYS
+  enforces: title = event name only, no emoji, no date/time/address. AI layer
+  (Groq/Gemini/Anthropic auto-detected from whichever key is in `.env`) adds
+  typo/description/tag polish + pulls date/venue into empty fields. Currently
+  `GROQ_API_KEY` is set and working. (A Gemini key was tried but 429'd — wrong
+  key format; removed.)
+- **External ticket URLs** normalized to `https://` so redirects leave the app.
+- **Ticket tiers** (this session): events can have multiple ticket types
+  (General/VIP/etc). Data model: `event.tiers = [{id,name,price,capacity,sold}]`;
+  `event.price`/`capacity`/`sold` mirror the tiers (min price / sum capacity /
+  sum sold) so cards & sold-out logic are unchanged. Organizer form has a
+  "Multiple ticket types" toggle + editor. EventDetail shows a tier picker;
+  booking requires a tier and decrements that tier's stock. All verified.
+- **UI fixes**: overscroll locked both axes; frosted top scrim so content doesn't
+  peek behind the floating top bar; tab bar lowered; Explore top bar shows the W
+  mark only (no wordmark).
+
+⚠️ **Open UI item the user still wants:** the bottom tab bar is "still too high"
+on their phone. Current: `.tabs { bottom: max(4px, env(safe-area-inset-bottom)) }`
+in `src/index.css`. On a device WITH a home indicator, safe-area (~34px) keeps it
+up by design. If they want it flush to the edge, reduce the safe-area reliance
+(risking home-indicator overlap). Confirm the tradeoff with them.
+
 ## 1. What Weyn is
 
 A Muscat, Oman events-discovery + hosting app. Users browse upcoming events,

@@ -13,6 +13,7 @@ export default function EventDetail() {
   const [booked, setBooked] = useState<Weyn | null>(null);
   const [booking, setBooking] = useState(false);
   const [bookErr, setBookErr] = useState("");
+  const [tierId, setTierId] = useState<string | null>(null);
 
   if (loading) return <div className="detail"><div className="spin" /></div>;
   if (error || !e) return (
@@ -28,14 +29,22 @@ export default function EventDetail() {
 
   const ev = booked || e;
   const cat = CATS.find((c) => c.key === ev.cat);
-  const fee = +(ev.price * 0.08).toFixed(2);
   const saved = isSaved(ev.id);
   const out = isSoldOut(ev);
   const left = ticketsLeft(ev);
 
+  const tiers = ev.tiers || [];
+  const hasTiers = tiers.length > 0;
+  const selectedTier = hasTiers ? tiers.find((t) => t.id === tierId) || null : null;
+  const tierLeft = (t: { capacity: number; sold: number }) => Math.max(0, t.capacity - t.sold);
+  // price the buyer actually pays: selected tier if tiered, else the flat price
+  const payPrice = hasTiers ? (selectedTier?.price ?? 0) : ev.price;
+  const payFee = +(payPrice * 0.08).toFixed(2);
+
   async function book() {
+    if (hasTiers && !selectedTier) { setBookErr("Choose a ticket type first."); return; }
     setBooking(true); setBookErr("");
-    try { setBooked(await api.bookEvent(ev.id, 1, getDeviceId(), getAccount())); addTicket(ev.id); }
+    try { setBooked(await api.bookEvent(ev.id, 1, getDeviceId(), getAccount(), selectedTier?.id)); addTicket(ev.id); }
     catch (err: any) { setBookErr(err.message || "Couldn't book"); }
     finally { setBooking(false); }
   }
@@ -64,8 +73,11 @@ export default function EventDetail() {
         <div className="facts">
           <div className="fact"><i className="ti ti-calendar-event" /><div><b>{dayLabel(ev)} · {timeLabel(ev)}</b><span>Add to your calendar after you book</span></div></div>
           <div className="fact"><i className="ti ti-map-pin" /><div><b>{ev.venue}</b><span>{ev.area} · {ev.distanceKm} km away</span></div></div>
-          {ev.ticketingType === "weyn" && (
+          {ev.ticketingType === "weyn" && !hasTiers && (
             <div className="fact"><i className="ti ti-ticket" /><div><b>{ev.price === 0 ? "Free entry" : `${ev.price} OMR per ticket`}</b><span>{out ? "Sold out" : ev.capacity >= 9000 ? "Open entry" : `${left} of ${ev.capacity} tickets left`}</span></div></div>
+          )}
+          {ev.ticketingType === "weyn" && hasTiers && (
+            <div className="fact"><i className="ti ti-ticket" /><div><b>From {Math.min(...tiers.map((t) => t.price))} OMR</b><span>{tiers.length} ticket types available</span></div></div>
           )}
           {ev.ticketingType === "external" && (
             <div className="fact"><i className="ti ti-ticket" /><div><b>Tickets via external site</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR`}</span></div></div>
@@ -88,11 +100,33 @@ export default function EventDetail() {
           </a>
         </div>
 
-        {ev.ticketingType === "weyn" && ev.price > 0 && !out && (
+        {ev.ticketingType === "weyn" && hasTiers && !booked && (
+          <div className="tier-picker">
+            <h3 className="tier-picker-title">Choose your ticket</h3>
+            {tiers.map((t) => {
+              const soldOut = tierLeft(t) <= 0;
+              return (
+                <button
+                  key={t.id} type="button" disabled={soldOut}
+                  className={"tier-opt" + (tierId === t.id ? " on" : "") + (soldOut ? " soldout" : "")}
+                  onClick={() => { setTierId(t.id); setBookErr(""); }}
+                >
+                  <div className="tier-opt-main">
+                    <b>{t.name}</b>
+                    <span>{soldOut ? "Sold out" : `${tierLeft(t)} left`}</span>
+                  </div>
+                  <div className="tier-opt-price">{t.price === 0 ? "Free" : `${t.price} OMR`}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {ev.ticketingType === "weyn" && payPrice > 0 && !out && (
           <div className="fee-box">
-            <div className="ln"><span>Ticket</span><span>{ev.price.toFixed(2)} OMR</span></div>
-            <div className="ln"><span>Weyn service fee (8%)</span><span>{fee.toFixed(2)} OMR</span></div>
-            <div className="ln total"><span>Total</span><span>{(ev.price + fee).toFixed(2)} OMR</span></div>
+            <div className="ln"><span>Ticket{selectedTier ? ` · ${selectedTier.name}` : ""}</span><span>{payPrice.toFixed(2)} OMR</span></div>
+            <div className="ln"><span>Weyn service fee (8%)</span><span>{payFee.toFixed(2)} OMR</span></div>
+            <div className="ln total"><span>Total</span><span>{(payPrice + payFee).toFixed(2)} OMR</span></div>
           </div>
         )}
         {bookErr && <p className="errline" style={{ marginTop: 14 }}>{bookErr}</p>}
@@ -122,11 +156,11 @@ export default function EventDetail() {
         ) : (
           <>
             <div className="lead">
-              <div className="p">{ev.price === 0 ? "Free" : `${(ev.price + fee).toFixed(2)} OMR`}</div>
-              <div className="s">{ev.price === 0 ? "RSVP to reserve" : "incl. 8% fee"}</div>
+              <div className="p">{hasTiers && !selectedTier ? `From ${Math.min(...tiers.map((t) => t.price))} OMR` : payPrice === 0 ? "Free" : `${(payPrice + payFee).toFixed(2)} OMR`}</div>
+              <div className="s">{hasTiers && !selectedTier ? "Pick a ticket type" : payPrice === 0 ? "RSVP to reserve" : "incl. 8% fee"}</div>
             </div>
-            <button className="btn" style={{ width: "auto", padding: "14px 26px" }} onClick={book} disabled={booking}>
-              {booking ? "Booking…" : ev.price === 0 ? "RSVP" : "Get ticket"}
+            <button className="btn" style={{ width: "auto", padding: "14px 26px" }} onClick={book} disabled={booking || (hasTiers && !selectedTier)}>
+              {booking ? "Booking…" : payPrice === 0 ? "RSVP" : "Get ticket"}
             </button>
           </>
         )}

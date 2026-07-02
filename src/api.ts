@@ -3,6 +3,14 @@
 export type Cat = "sports" | "music" | "food" | "culture" | "cars" | "workshop" | "community";
 export type TicketingType = "weyn" | "external" | "cash" | "registration";
 
+export interface Tier {
+  id: string;
+  name: string;      // "General", "VIP", "Early Bird"…
+  price: number;     // OMR
+  capacity: number;
+  sold: number;
+}
+
 export interface Weyn {
   id: string;
   title: string;
@@ -29,6 +37,7 @@ export interface Weyn {
   ticketingType: TicketingType;
   externalTicketUrl: string | null;
   organizerContact: string | null;
+  tiers?: Tier[];         // multiple ticket types (weyn ticketing only)
   sourceUrl?: string | null;
   importedFromInstagram?: boolean;
 }
@@ -128,11 +137,11 @@ export const api = {
   createEvent(form: FormData): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events`, { method: "POST", body: form }).then((r) => json<Weyn>(r)).then(absMedia);
   },
-  bookEvent(id: string, qty = 1, deviceId?: string, account?: GoogleAccount | null): Promise<Weyn> {
+  bookEvent(id: string, qty = 1, deviceId?: string, account?: GoogleAccount | null, tierId?: string): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events/${id}/book`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId }),
     }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   registerPush(deviceId: string, token: string, platform: string): Promise<{ ok: boolean }> {
