@@ -9,13 +9,13 @@ services:
     dockerContext: .
     plan: free
     healthCheckPath: /api/health
-    disk:
-      name: weyn-data
-      mountPath: /data
-      sizeGB: 1
+    # ⚠️ Render's free tier doesn't support persistent disks. Events/bookings
+    # are safe either way (they live in Postgres via DATABASE_URL below), but
+    # uploaded event photos (server/uploads/, DATA_DIR) are ephemeral on free
+    # tier — they're wiped on every redeploy/restart. Fine for now; move to
+    # S3/Cloudflare R2 (or upgrade to a paid Render plan + re-add a `disk:`
+    # block) before this matters for real organizers uploading real photos.
     envVars:
-      - key: DATA_DIR
-        value: /data
       - key: NODE_ENV
         value: production   # enforces a real CORS_ORIGIN allowlist instead of the permissive local-dev default
       - key: CORS_ORIGIN
