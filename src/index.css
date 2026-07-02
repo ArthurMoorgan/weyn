@@ -55,6 +55,15 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; }
 
+/* Lock both axes against rubber-band-into-blank-space (iOS Safari + standalone
+   PWA), and kill any horizontal drift — the app is a single vertical column, so
+   nothing should ever scroll sideways at the page level. overscroll-behavior is
+   set on html AND body because iOS applies it to whichever is the scroller. */
+html, body {
+  overscroll-behavior: none;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -62,7 +71,6 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   background: var(--bg);
-  overscroll-behavior-y: none; /* no rubber-band-into-blank-space on iOS/PWA standalone */
 }
 
 /* soft colour field that the glass refracts */
@@ -122,6 +130,21 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: relative;
   padding-top: env(safe-area-inset-top);
   padding-bottom: calc(92px + env(safe-area-inset-bottom));
+}
+
+/* Frosted top scrim — a fixed blurred strip behind the floating top bar so
+   page content that scrolls up is faded/blurred out before the very top,
+   instead of peeking above or beside the rounded bar. (EventDetail is outside
+   .shell, so its full-bleed cover photo is unaffected.) */
+.shell::before {
+  content: "";
+  position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  height: calc(env(safe-area-inset-top) + 92px);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent);
+  mask-image: linear-gradient(to bottom, #000 60%, transparent);
+  pointer-events: none;
 }
 
 /* ---------- top bar ---------- */
@@ -263,7 +286,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- tab bar ---------- */
 .tabs {
-  position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  position: fixed; bottom: max(4px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
   width: calc(100% - 28px); max-width: calc(var(--maxw) - 28px); z-index: 40;
   display: flex; align-items: center;
   padding: 8px; border-radius: var(--radius-pill);

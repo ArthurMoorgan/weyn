@@ -25,11 +25,11 @@ export function Mark({ size = 26, gradient = false }: { size?: number; gradient?
   );
 }
 
-export default function Logo({ size = 26 }: { size?: number }) {
+export default function Logo({ size = 26, wordmark = true }: { size?: number; wordmark?: boolean }) {
   return (
     <span className="logo">
       <Mark size={size} />
-      <span className="wm">Weyn</span>
+      {wordmark && <span className="wm">Weyn</span>}
     </span>
   );
 }

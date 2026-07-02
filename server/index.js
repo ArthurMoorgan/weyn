@@ -10,6 +10,18 @@ import { db } from "./db.js";
 import { sendPush, pushConfigured } from "./push.js";
 import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./instagram-import.js";
 import { generateMarketingCopy } from "./marketing.js";
+import { refineEventDraft, cleanEventTitle } from "./refine.js";
+
+// Normalise a user-typed ticket URL so it always redirects OUT of the app.
+// A value like "eventbrite.com/x" with no scheme is treated by the browser as a
+// relative link (navigating inside the SPA); prefixing https:// fixes that.
+function normalizeUrl(raw) {
+  const s = (raw || "").trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^\/\//.test(s)) return "https:" + s;
+  return "https://" + s.replace(/^\/+/, "");
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // same DATA_DIR convention as db.js — point both at a persistent disk in production
@@ -72,27 +84,41 @@ app.get("/api/events/:id", (req, res) => {
   res.json(e);
 });
 
-app.post("/api/events", upload.single("image"), (req, res) => {
+app.post("/api/events", upload.single("image"), async (req, res) => {
   try {
     const b = req.body;
     if (!b.title || !b.title.trim()) return res.status(400).json({ error: "Title is required" });
     if (!b.venue || !b.venue.trim()) return res.status(400).json({ error: "Venue is required" });
 
-    const id = slug(b.title) + "-" + crypto.randomUUID().slice(0, 4);
-    const tags = b.tags ? String(b.tags).split(",").map((t) => t.trim()).filter(Boolean) : [];
+    const rawTags = b.tags ? String(b.tags).split(",").map((t) => t.trim()).filter(Boolean) : [];
+    // Validate & clean the draft before storing. AI pass when configured; the
+    // deterministic pass always enforces the title rules (name only, no emoji,
+    // no date/time/address). Date/venue/area only backfill EMPTY fields so we
+    // never clobber what the organizer explicitly entered.
+    const refined = await refineEventDraft({
+      title: b.title,
+      blurb: b.blurb,
+      tags: rawTags,
+      startsAt: b.startsAt || null,
+      venue: b.venue && b.venue.trim() ? b.venue.trim() : null,
+      area: b.area && b.area.trim() ? b.area.trim() : null,
+    });
+
+    const id = slug(refined.title || b.title) + "-" + crypto.randomUUID().slice(0, 4);
+    const tags = refined.tags;
     // BYOT: how attendees actually get in. "weyn" is the only type Weyn tracks capacity/sales for.
     const ticketingType = ["weyn", "external", "cash", "registration"].includes(b.ticketingType) ? b.ticketingType : "weyn";
     // an already-imported/uploaded image (e.g. pulled from Instagram) can be reused without a new file upload
     const existingImage = typeof b.existingImage === "string" && b.existingImage.startsWith("/uploads/") ? b.existingImage : null;
     const ev = {
       id,
-      title: b.title.trim(),
+      title: refined.title,
       organizer: (b.organizer || "You").trim(),
       cat: b.cat || "community",
-      startsAt: b.startsAt || new Date(Date.now() + 3 * 3600e3).toISOString(),
+      startsAt: refined.startsAt || new Date(Date.now() + 3 * 3600e3).toISOString(),
       endsAt: b.endsAt || null,
-      venue: b.venue.trim(),
-      area: (b.area || "Muscat").trim(),
+      venue: (refined.venue || b.venue).trim(),
+      area: (refined.area || b.area || "Muscat").trim(),
       lat: b.lat ? Number(b.lat) : 23.6100,
       lng: b.lng ? Number(b.lng) : 58.5400,
       distanceKm: Number(b.distanceKm) || +(Math.random() * 8 + 1).toFixed(1),
@@ -102,12 +128,12 @@ app.post("/api/events", upload.single("image"), (req, res) => {
       image: req.file ? `/uploads/${req.file.filename}` : existingImage,
       color: b.color || "#3A4668",
       glyph: b.glyph || "🎟",
-      blurb: (b.blurb || "Join us — details to follow.").trim(),
+      blurb: (refined.blurb || b.blurb || "Join us — details to follow.").trim(),
       tags,
       refundPolicy: b.refundPolicy || "Set by organizer",
       minAge: Number(b.minAge) || 0,
       ticketingType,
-      externalTicketUrl: (ticketingType === "external" || ticketingType === "registration") ? (b.externalTicketUrl || "").trim() || null : null,
+      externalTicketUrl: (ticketingType === "external" || ticketingType === "registration") ? normalizeUrl(b.externalTicketUrl) : null,
       organizerContact: ticketingType === "cash" ? (b.organizerContact || "").trim() || null : null,
       sourceUrl: b.sourceUrl || null,
       importedFromInstagram: b.importedFromInstagram === "true" || b.importedFromInstagram === true,
@@ -154,6 +180,8 @@ app.patch("/api/events/:id", (req, res) => {
     else if (key === "minAge") patch.minAge = Math.max(0, Number(req.body.minAge) || 0);
     else if (key === "tags") patch.tags = Array.isArray(req.body.tags) ? req.body.tags : String(req.body.tags).split(",").map((t) => t.trim()).filter(Boolean);
     else if (key === "ticketingType") patch.ticketingType = ["weyn", "external", "cash", "registration"].includes(req.body.ticketingType) ? req.body.ticketingType : e.ticketingType;
+    else if (key === "externalTicketUrl") patch.externalTicketUrl = normalizeUrl(req.body.externalTicketUrl);
+    else if (key === "title") patch.title = cleanEventTitle(req.body.title) || e.title;
     else patch[key] = req.body[key];
   }
   res.json(db.update(e.id, patch));

@@ -30,7 +30,7 @@ export default function Explore() {
   return (
     <>
       <header className="topbar">
-        <Logo />
+        <Logo wordmark={false} size={30} />
         <div className="tb-right">
           <ThemeToggle />
           <span className="pill"><i className="ti ti-map-pin" /> Muscat</span>

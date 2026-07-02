@@ -16,6 +16,7 @@ import crypto from "crypto";
 import path from "path";
 import fs from "fs";
 import { aiConfigured, askClaudeJson } from "./ai.js";
+import { cleanEventTitle } from "./refine.js";
 
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
@@ -44,25 +45,40 @@ export async function scrapeInstagramPost(url) {
 
 const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
+const stripHashtags = (s) => s.replace(/#[\p{L}\p{N}_]+/gu, "").trim();
+
 function heuristicParse(caption) {
-  const tags = [...caption.matchAll(/#(\w+)/g)].map((m) => m[1].toLowerCase()).slice(0, 8);
-  const firstLine = caption.split(/\n|\.\s|!\s/)[0].replace(/#\w+/g, "").trim();
-  const title = (firstLine || "Imported event").slice(0, 70);
+  const raw = (caption || "").trim();
+  const tags = [...raw.matchAll(/#([\p{L}\p{N}_]+)/gu)]
+    .map((m) => m[1].toLowerCase())
+    .filter((t) => t.length > 1 && !/^\d+$/.test(t)) // drop "#1" / bare numbers
+    .filter((t, i, a) => a.indexOf(t) === i) // dedupe
+    .slice(0, 6);
+
+  // Title: shared deterministic cleaner — name only, no emoji/date/time/address.
+  const title = cleanEventTitle(raw) || "Imported event";
+
+  // Blurb: whole caption minus hashtags, collapsed whitespace, trimmed to a
+  // sensible length — but never just repeat the title if there's more to say.
+  let blurb = stripHashtags(raw).replace(/\n{2,}/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
+  if (blurb.length > 400) blurb = blurb.slice(0, 397).replace(/\s+\S*$/, "") + "…";
+  if (!blurb) blurb = "Imported from Instagram — details to follow.";
 
   // guess a start time: look for "8pm" / "20:00" style patterns, and a day-of-week or "tonight"/"tomorrow"
-  const timeMatch = caption.match(/(\d{1,2})(:\d{2})?\s?(am|pm)/i);
-  const dayMatch = caption.toLowerCase().match(new RegExp(DAY_NAMES.join("|")));
+  const timeMatch = raw.match(/(\d{1,2})(:\d{2})?\s?(am|pm)/i) || raw.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+  const dayMatch = raw.toLowerCase().match(new RegExp(DAY_NAMES.join("|")));
   let startsAt = null;
   if (timeMatch) {
     const d = new Date();
     let hour = parseInt(timeMatch[1], 10);
-    const min = timeMatch[2] ? parseInt(timeMatch[2].slice(1), 10) : 0;
-    if (/pm/i.test(timeMatch[3]) && hour < 12) hour += 12;
+    const min = timeMatch[2] ? parseInt(String(timeMatch[2]).replace(":", ""), 10) : 0;
+    if (timeMatch[3] && /pm/i.test(timeMatch[3]) && hour < 12) hour += 12;
+    if (timeMatch[3] && /am/i.test(timeMatch[3]) && hour === 12) hour = 0;
     if (dayMatch) {
       const target = DAY_NAMES.indexOf(dayMatch[0]);
       const diff = (target - d.getDay() + 7) % 7 || 7;
       d.setDate(d.getDate() + diff);
-    } else if (/tomorrow/i.test(caption)) {
+    } else if (/tomorrow/i.test(raw)) {
       d.setDate(d.getDate() + 1);
     }
     d.setHours(hour, min, 0, 0);
@@ -71,7 +87,7 @@ function heuristicParse(caption) {
 
   return {
     title,
-    blurb: caption.replace(/#\w+/g, "").trim().slice(0, 400) || "Imported from Instagram — details to follow.",
+    blurb,
     tags: tags.length ? tags : ["imported"],
     startsAt,
   };
