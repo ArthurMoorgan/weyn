@@ -40,7 +40,7 @@ export default function GoogleLoginButton() {
           callback: async (resp: { credential: string }) => {
             try {
               const acc = await api.googleAuth(resp.credential);
-              setAccount(acc);
+              setAccount(acc, acc.sessionToken);
             } catch (e: any) {
               setErr(e.message || "Sign-in failed");
             }

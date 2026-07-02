@@ -16,5 +16,17 @@ services:
     envVars:
       - key: DATA_DIR
         value: /data
+      - key: NODE_ENV
+        value: production   # enforces a real CORS_ORIGIN allowlist instead of the permissive local-dev default
       - key: CORS_ORIGIN
-        value: "*" # tighten to your app's real origin(s) once known, comma-separated
+        sync: false # set in the Render dashboard to your real deployed frontend origin(s), comma-separated — required in production
+      - key: DATABASE_URL
+        sync: false # set in the Render dashboard — your Neon Postgres connection string
+      - key: SESSION_SECRET
+        sync: false # set in the Render dashboard — generate with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+      - key: PAYTABS_PROFILE_ID
+        sync: false
+      - key: PAYTABS_SERVER_KEY
+        sync: false
+      - key: PAYTABS_API_BASE
+        value: https://secure.paytabs.com # confirm your account's actual regional domain in the PayTabs dashboard

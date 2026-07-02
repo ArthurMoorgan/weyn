@@ -19,3 +19,5 @@ server/uploads/
 
 # capacitor build output (native project is committed; copied web assets are not)
 ios/App/App/public/
+
+/src/generated/prisma

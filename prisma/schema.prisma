@@ -1,0 +1,167 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ATTENDEE
+  ORGANIZER
+  ADMIN
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String
+  avatarUrl String?
+  googleSub String?   @unique
+  // Everyone who signs in can organize — Weyn doesn't gate "who's allowed to
+  // host" today, just "can you edit what you didn't create." ADMIN is a
+  // manually-granted moderation role, never self-assigned.
+  role      Role      @default(ORGANIZER)
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  events          Event[]
+  analyticsEvents AnalyticsEvent[]
+
+  @@index([email])
+}
+
+model Category {
+  id    String  @id @default(cuid())
+  key   String  @unique // "music", "sports" — matches Event.cat, validated against this table
+  label String
+  icon  String?
+}
+
+model Event {
+  id                    String    @id
+  title                 String
+  organizer             String
+  // ownerId is the real, enforced identity (nullable only for pre-auth seed
+  // data — see migration notes). `organizer` stays as the display name so
+  // existing frontend code and old data keep working unchanged.
+  ownerId               String?
+  cat                   String
+  startsAt              DateTime
+  endsAt                DateTime?
+  venue                 String
+  area                  String
+  lat                   Float
+  lng                   Float
+  distanceKm            Float
+  price                 Float
+  capacity              Int
+  sold                  Int       @default(0)
+  image                 String?
+  color                 String
+  glyph                 String
+  blurb                 String
+  tags                  String[]
+  refundPolicy          String
+  minAge                Int       @default(0)
+  cancelled             Boolean   @default(false)
+  ticketingType         String    @default("weyn")
+  externalTicketUrl     String?
+  organizerContact      String?
+  sourceUrl             String?
+  importedFromInstagram Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  deletedAt             DateTime? // soft delete — reads filter this out by default
+
+  owner    User?     @relation(fields: [ownerId], references: [id])
+  tiers    Tier[]
+  bookings Booking[]
+
+  @@index([organizer])
+  @@index([startsAt])
+  @@index([ownerId])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String   // "event_view" | "event_save" | "search" | "category_click" | "profile_visit"
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([type, createdAt])
+  @@index([entityId])
+}
+
+model Tier {
+  id       String @id @default(cuid())
+  eventId  String
+  name     String
+  price    Float
+  capacity Int
+  sold     Int    @default(0)
+
+  event    Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([eventId])
+}
+
+model Booking {
+  id       String   @id @default(cuid())
+  eventId  String
+  tierId   String?
+  status   String   @default("pending") // pending | paid | cancelled | expired
+  deviceId String?
+  email    String?
+  name     String?
+  qty      Int      @default(1)
+  bookedAt DateTime @default(now())
+  reminded Boolean  @default(false)
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tier    Tier?    @relation(fields: [tierId], references: [id])
+  payment Payment?
+
+  @@index([eventId])
+  @@index([deviceId])
+  @@index([status])
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  bookingId      String   @unique
+  paytabsTranRef String?  @unique
+  amount         Float
+  status         String   @default("pending") // pending | paid | failed
+  rawWebhook     Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model PushToken {
+  id           String   @id @default(cuid())
+  deviceId     String   @unique
+  token        String
+  platform     String   @default("ios")
+  registeredAt DateTime @default(now())
+}
+
+model MarketingAsset {
+  eventId     String   @id
+  instagram   String
+  whatsapp    String
+  telegram    String
+  twitter     String
+  generatedAt DateTime @default(now())
+  aiGenerated Boolean  @default(false)
+}

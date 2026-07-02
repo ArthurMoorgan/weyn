@@ -9,6 +9,8 @@ import EventDetail from "./pages/EventDetail";
 import Saved from "./pages/Saved";
 import Organizer from "./pages/Organizer";
 import You from "./pages/You";
+import CheckoutSuccess from "./pages/CheckoutSuccess";
+import CheckoutCancel from "./pages/CheckoutCancel";
 import { initPush } from "./push";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -22,6 +24,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/you" element={<You />} />
         </Route>
         <Route path="/e/:id" element={<EventDetail />} />
+        <Route path="/checkout/success" element={<CheckoutSuccess />} />
+        <Route path="/checkout/cancel" element={<CheckoutCancel />} />
       </Routes>
     </HashRouter>
   </React.StrictMode>

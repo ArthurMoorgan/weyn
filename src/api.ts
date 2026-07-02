@@ -1,4 +1,5 @@
 // Frontend API client — talks to the real Express backend via the Vite proxy.
+import { getSessionToken } from "./store";
 
 export type Cat = "sports" | "music" | "food" | "culture" | "cars" | "workshop" | "community";
 export type TicketingType = "weyn" | "external" | "cash" | "registration";
@@ -42,6 +43,13 @@ export interface Weyn {
   importedFromInstagram?: boolean;
 }
 
+export interface BookingStatus {
+  id: string;
+  status: "pending" | "paid" | "cancelled" | "expired";
+  eventId: string;
+  eventTitle: string | null;
+}
+
 export interface Attendee {
   name: string | null;
   email: string | null;
@@ -52,6 +60,7 @@ export interface GoogleAccount {
   email: string;
   name: string;
   picture: string | null;
+  sessionToken?: string | null; // present once real auth (SESSION_SECRET) is configured server-side
 }
 
 export interface MarketingCopy {
@@ -99,6 +108,13 @@ export const CATS: { key: Cat | "all"; label: string }[] = [
 // backend URL at build time, e.g. VITE_API_BASE=https://api.weyn.app
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "";
 
+// Attached to every write/PII-reading request — server/auth.js's requireAuth
+// and requireEventOwner check this, not just "did Google verify you once."
+function authHeaders(): Record<string, string> {
+  const token = getSessionToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // make relative /uploads image paths absolute against the backend for native builds
 function absMedia<T extends { image?: string | null }>(e: T): T {
   if (API_BASE && e && typeof e.image === "string" && e.image.startsWith("/")) e.image = API_BASE + e.image;
@@ -109,7 +125,11 @@ async function json<T>(res: Response): Promise<T> {
   const isJson = (res.headers.get("content-type") || "").includes("application/json");
   if (!res.ok) {
     const body = isJson ? await res.json().catch(() => ({})) : {};
-    throw new Error((body as any).error || `Request failed (${res.status})`);
+    // errors come in two shapes: legacy plain string, or the newer
+    // { code, message } — handle both rather than assuming one
+    const err = (body as any).error;
+    const message = typeof err === "string" ? err : err?.message;
+    throw new Error(message || `Request failed (${res.status})`);
   }
   if (!isJson) {
     // most common cause: the frontend is calling a URL that doesn't reach the
@@ -135,7 +155,7 @@ export const api = {
     return fetch(`${API_BASE}/api/events/${id}`).then((r) => json<Weyn>(r)).then(absMedia);
   },
   createEvent(form: FormData): Promise<Weyn> {
-    return fetch(`${API_BASE}/api/events`, { method: "POST", body: form }).then((r) => json<Weyn>(r)).then(absMedia);
+    return fetch(`${API_BASE}/api/events`, { method: "POST", headers: authHeaders(), body: form }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   bookEvent(id: string, qty = 1, deviceId?: string, account?: GoogleAccount | null, tierId?: string): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events/${id}/book`, {
@@ -143,6 +163,18 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId }),
     }).then((r) => json<Weyn>(r)).then(absMedia);
+  },
+  // paid tickets: returns a hosted Thawani checkout URL to redirect to — the
+  // ticket isn't actually booked until Thawani confirms payment (see BookingStatus)
+  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: GoogleAccount | null, tierId?: string): Promise<{ checkoutUrl: string; bookingId: string }> {
+    return fetch(`${API_BASE}/api/events/${id}/checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, origin: window.location.origin }),
+    }).then((r) => json(r));
+  },
+  getBooking(bookingId: string): Promise<BookingStatus> {
+    return fetch(`${API_BASE}/api/bookings/${bookingId}`).then((r) => json<BookingStatus>(r));
   },
   registerPush(deviceId: string, token: string, platform: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/push/register`, {
@@ -159,18 +191,18 @@ export const api = {
   updateEvent(id: string, patch: Partial<Weyn>): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(patch),
     }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   cancelEvent(id: string): Promise<Weyn> {
-    return fetch(`${API_BASE}/api/events/${id}/cancel`, { method: "POST" }).then((r) => json<Weyn>(r)).then(absMedia);
+    return fetch(`${API_BASE}/api/events/${id}/cancel`, { method: "POST", headers: authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   duplicateEvent(id: string): Promise<Weyn> {
-    return fetch(`${API_BASE}/api/events/${id}/duplicate`, { method: "POST" }).then((r) => json<Weyn>(r)).then(absMedia);
+    return fetch(`${API_BASE}/api/events/${id}/duplicate`, { method: "POST", headers: authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   getAttendees(id: string): Promise<Attendee[]> {
-    return fetch(`${API_BASE}/api/events/${id}/attendees`).then((r) => json<Attendee[]>(r));
+    return fetch(`${API_BASE}/api/events/${id}/attendees`, { headers: authHeaders() }).then((r) => json<Attendee[]>(r));
   },
   googleAuth(idToken: string): Promise<GoogleAccount> {
     return fetch(`${API_BASE}/api/auth/google`, {
@@ -182,15 +214,15 @@ export const api = {
   importInstagram(input: { url?: string; caption?: string }): Promise<InstagramImportResult> {
     return fetch(`${API_BASE}/api/import/instagram`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(input),
     }).then((r) => json<InstagramImportResult>(r));
   },
   getMarketing(id: string): Promise<MarketingCopy> {
-    return fetch(`${API_BASE}/api/events/${id}/marketing`).then((r) => json<MarketingCopy>(r));
+    return fetch(`${API_BASE}/api/events/${id}/marketing`, { headers: authHeaders() }).then((r) => json<MarketingCopy>(r));
   },
   regenerateMarketing(id: string): Promise<MarketingCopy> {
-    return fetch(`${API_BASE}/api/events/${id}/marketing/regenerate`, { method: "POST" }).then((r) => json<MarketingCopy>(r));
+    return fetch(`${API_BASE}/api/events/${id}/marketing/regenerate`, { method: "POST", headers: authHeaders() }).then((r) => json<MarketingCopy>(r));
   },
 };
 

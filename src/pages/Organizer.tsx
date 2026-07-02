@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, CATS, type Cat, type TicketingType } from "../api";
-import { getOrganizer, setOrganizer } from "../store";
+import { getOrganizer, setOrganizer, useAccount } from "../store";
 import MapPicker from "../components/MapPicker";
 import ThemeToggle from "../components/ThemeToggle";
+import GoogleLoginButton from "../components/GoogleLoginButton";
 
 // default datetime-local value = ~3h from now, rounded
 function defaultWhen() {
@@ -22,6 +23,7 @@ const TICKETING_OPTIONS: { key: TicketingType; label: string; icon: string; hint
 
 export default function Organizer() {
   const nav = useNavigate();
+  const account = useAccount();
   const fileRef = useRef<HTMLInputElement>(null);
   const [img, setImg] = useState<{ file: File; url: string } | null>(null);
   const [loc, setLoc] = useState<{ lat: number; lng: number }>({ lat: 23.61, lng: 58.54 });
@@ -140,6 +142,28 @@ export default function Organizer() {
   const fee = (price * 0.08).toFixed(2);
   const keep = price > 0 ? (price - Number(fee)).toFixed(2) : "0.00";
   const coverUrl = img?.url || (importedImagePath ? importedImagePath : null);
+
+  // Publishing an event now requires a real, verified identity — this is
+  // what the backend's ownership checks (server/auth.js) are actually keyed
+  // to, not just a typed display name. Signing in also becomes the identity
+  // that can later edit/cancel this exact event.
+  if (!account) {
+    return (
+      <>
+        <header className="topbar">
+          <div className="brand"><span className="en">Host an event</span></div>
+          <div className="tb-right"><ThemeToggle /></div>
+        </header>
+        <div className="page-head">
+          <h1>Sign in to host</h1>
+          <p className="sub">We use your Google account to verify who owns each event — so only you can edit or cancel what you publish.</p>
+        </div>
+        <div className="form" style={{ paddingTop: 8 }}>
+          <GoogleLoginButton />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

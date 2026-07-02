@@ -1,20 +1,17 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { PrismaClient } from "../src/generated/prisma/index.js";
+import { PrismaPg } from "@prisma/adapter-pg";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// DATA_DIR lets a host with a persistent disk (Render, Fly volumes, etc.) survive
-// redeploys. Defaults to the repo folder for local dev.
-const DATA_DIR = process.env.DATA_DIR || __dirname;
-fs.mkdirSync(DATA_DIR, { recursive: true });
-const DATA_FILE = path.join(DATA_DIR, "data.json");
+// Prisma 7 requires an explicit driver adapter instead of a datasource url
+// in schema.prisma — see https://pris.ly/d/prisma7-client-config
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+export const prisma = new PrismaClient({ adapter });
 
 // ---- date helpers: build seed relative to "now" so it's always upcoming ----
 function at(dayOffset, hour, min = 0) {
   const d = new Date();
   d.setDate(d.getDate() + dayOffset);
   d.setHours(hour, min, 0, 0);
-  return d.toISOString();
+  return d;
 }
 function nextWeekday(target, hour, min = 0) {
   // target: 0=Sun..6=Sat ; returns next occurrence (>= today)
@@ -22,7 +19,7 @@ function nextWeekday(target, hour, min = 0) {
   const diff = (target - d.getDay() + 7) % 7;
   d.setDate(d.getDate() + diff);
   d.setHours(hour, min, 0, 0);
-  return d.toISOString();
+  return d;
 }
 
 // approximate lat/lng for each seed venue (Muscat)
@@ -40,7 +37,7 @@ const COORDS = {
   "half-marathon": [23.6210, 58.5670],
 };
 
-function seed() {
+export function seed() {
   return [
     {
       id: "street-food", title: "Mutrah Night Food Market", organizer: "Mutrah Collective",
@@ -130,81 +127,195 @@ function seed() {
       blurb: "21km along the water before the heat. Chip timing, finisher medal, hydration every 3km.",
       tags: ["outdoor", "registration"], refundPolicy: "No refunds", minAge: 16,
     },
-  ].map((e) => ({ ...e, lat: COORDS[e.id]?.[0] ?? 23.6100, lng: COORDS[e.id]?.[1] ?? 58.5400 }));
+  ].map((e) => ({ ...e, cancelled: false, lat: COORDS[e.id]?.[0] ?? 23.6100, lng: COORDS[e.id]?.[1] ?? 58.5400 }));
 }
 
-function load() {
-  try {
-    const raw = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-    if (Array.isArray(raw.events)) {
-      raw.pushTokens ||= [];
-      raw.bookings ||= [];
-      raw.marketingAssets ||= [];
-      return raw;
-    }
-  } catch { /* fall through to seed */ }
-  const data = { events: seed(), pushTokens: [], bookings: [], marketingAssets: [] };
-  save(data);
-  return data;
+// ---- shape a Prisma Event (with tiers include) into the flat frontend shape ----
+function shape(e) {
+  if (!e) return null;
+  const { tiers, bookings, createdAt, deletedAt, ...rest } = e;
+  return {
+    ...rest,
+    tiers: tiers && tiers.length ? tiers.map(({ event, bookings: _b, ...t }) => t) : null,
+  };
 }
 
-let data = load();
-function save(d = data) { fs.writeFileSync(DATA_FILE, JSON.stringify(d, null, 2)); }
+// Matches src/api.ts's CATS (minus the "all" filter pseudo-value) — the
+// source of truth for which `cat` strings are valid, so event creation can
+// no longer silently accept an arbitrary typo'd category.
+export const CATEGORY_SEED = [
+  { key: "music", label: "Live music" },
+  { key: "sports", label: "Sports" },
+  { key: "food", label: "Food" },
+  { key: "culture", label: "Culture" },
+  { key: "cars", label: "Car meets" },
+  { key: "workshop", label: "Workshops" },
+  { key: "community", label: "Community" },
+];
+
+async function seedIfEmpty() {
+  const count = await prisma.event.count();
+  if (count > 0) return;
+  for (const e of seed()) {
+    await prisma.event.create({ data: e });
+  }
+}
+async function seedCategoriesIfEmpty() {
+  const count = await prisma.category.count();
+  if (count > 0) return;
+  for (const c of CATEGORY_SEED) await prisma.category.create({ data: c });
+}
+await seedIfEmpty();
+await seedCategoriesIfEmpty();
 
 export const db = {
-  all() { return data.events; },
-  get(id) { return data.events.find((e) => e.id === id); },
-  insert(ev) { data.events.unshift({ cancelled: false, ...ev }); save(); return ev; },
-  update(id, patch) {
-    const e = db.get(id);
-    if (!e) return null;
-    Object.assign(e, patch);
-    save();
-    return e;
+  async all() {
+    const events = await prisma.event.findMany({ where: { deletedAt: null }, include: { tiers: true } });
+    return events.map(shape);
   },
-  reseed() { data = { events: seed(), pushTokens: [], bookings: [], marketingAssets: [] }; save(); return data.events; },
+  async get(id) {
+    const e = await prisma.event.findUnique({ where: { id, deletedAt: null }, include: { tiers: true } });
+    return shape(e);
+  },
+  async remove(id) {
+    return prisma.event.update({ where: { id }, data: { deletedAt: new Date() } });
+  },
+  async insert(ev) {
+    const { tiers, ...rest } = ev;
+    const e = await prisma.event.create({
+      data: {
+        ...rest,
+        cancelled: rest.cancelled ?? false,
+        tiers: tiers && tiers.length
+          ? { create: tiers.map(({ id, ...t }) => t) }
+          : undefined,
+      },
+      include: { tiers: true },
+    });
+    return shape(e);
+  },
+  async update(id, patch) {
+    const { tiers, ...scalar } = patch;
+    if (tiers) {
+      await prisma.$transaction(
+        tiers.map((t) => prisma.tier.update({ where: { id: t.id }, data: { sold: t.sold } }))
+      );
+    }
+    const exists = await prisma.event.findUnique({ where: { id } });
+    if (!exists) return null;
+    const e = await prisma.event.update({ where: { id }, data: scalar, include: { tiers: true } });
+    return shape(e);
+  },
+  async reseed() {
+    await prisma.payment.deleteMany();
+    await prisma.booking.deleteMany();
+    await prisma.tier.deleteMany();
+    await prisma.event.deleteMany();
+    await prisma.pushToken.deleteMany();
+    await prisma.marketingAsset.deleteMany();
+    for (const e of seed()) await prisma.event.create({ data: e });
+    return db.all();
+  },
 
   // ---- generated marketing copy (cached per event) ----
-  getMarketing(eventId) { return data.marketingAssets.find((m) => m.eventId === eventId) || null; },
-  setMarketing(eventId, copy) {
-    data.marketingAssets = data.marketingAssets.filter((m) => m.eventId !== eventId);
-    data.marketingAssets.push({ eventId, ...copy });
-    save();
+  async getMarketing(eventId) {
+    return prisma.marketingAsset.findUnique({ where: { eventId } });
+  },
+  async setMarketing(eventId, copy) {
+    await prisma.marketingAsset.upsert({
+      where: { eventId },
+      create: { eventId, ...copy },
+      update: { ...copy },
+    });
   },
 
   // ---- push tokens (one active token per device) ----
-  upsertPushToken(deviceId, token, platform) {
-    data.pushTokens = data.pushTokens.filter((t) => t.deviceId !== deviceId);
-    data.pushTokens.push({ deviceId, token, platform, registeredAt: new Date().toISOString() });
-    save();
+  async upsertPushToken(deviceId, token, platform) {
+    await prisma.pushToken.upsert({
+      where: { deviceId },
+      create: { deviceId, token, platform },
+      update: { token, platform, registeredAt: new Date() },
+    });
   },
-  tokenForDevice(deviceId) { return data.pushTokens.find((t) => t.deviceId === deviceId)?.token; },
+  async tokenForDevice(deviceId) {
+    const t = await prisma.pushToken.findUnique({ where: { deviceId } });
+    return t?.token;
+  },
 
   // ---- bookings (device -> event, for reminder targeting + attendee lists) ----
-  addBooking(deviceId, eventId, account) {
+  async addBooking(deviceId, eventId, account, tierId) {
     if (!deviceId) return;
-    data.bookings.push({
-      deviceId, eventId, bookedAt: new Date().toISOString(), reminded: false,
-      email: account?.email || null, name: account?.name || null,
-    });
-    save();
-  },
-  attendeesForEvent(eventId) {
-    return data.bookings
-      .filter((b) => b.eventId === eventId)
-      .map((b) => ({ name: b.name, email: b.email, bookedAt: b.bookedAt }));
-  },
-  duePendingReminders(windowStartMs, windowEndMs) {
-    return data.bookings.filter((b) => {
-      if (b.reminded) return false;
-      const e = db.get(b.eventId);
-      if (!e) return false;
-      const t = new Date(e.startsAt).getTime();
-      return t >= windowStartMs && t <= windowEndMs;
+    await prisma.booking.create({
+      data: {
+        deviceId, eventId, tierId: tierId || null, status: "paid",
+        email: account?.email || null, name: account?.name || null,
+      },
     });
   },
-  markReminded(deviceId, eventId) {
-    const b = data.bookings.find((x) => x.deviceId === deviceId && x.eventId === eventId);
-    if (b) { b.reminded = true; save(); }
+  async attendeesForEvent(eventId) {
+    const bookings = await prisma.booking.findMany({
+      where: { eventId, status: "paid" },
+      select: { name: true, email: true, bookedAt: true },
+    });
+    return bookings;
+  },
+  async duePendingReminders(windowStartMs, windowEndMs) {
+    const bookings = await prisma.booking.findMany({
+      where: {
+        reminded: false,
+        status: "paid",
+        event: { startsAt: { gte: new Date(windowStartMs), lte: new Date(windowEndMs) } },
+      },
+      select: { deviceId: true, eventId: true },
+    });
+    return bookings.filter((b) => b.deviceId);
+  },
+  async markReminded(deviceId, eventId) {
+    await prisma.booking.updateMany({ where: { deviceId, eventId }, data: { reminded: true } });
+  },
+
+  // ---- checkout / payments ----
+  async createPendingBooking({ eventId, tierId, deviceId, account, qty }) {
+    return prisma.booking.create({
+      data: {
+        eventId, tierId: tierId || null, deviceId: deviceId || null, qty: qty || 1,
+        status: "pending",
+        email: account?.email || null, name: account?.name || null,
+      },
+    });
+  },
+  async getBooking(id) {
+    return prisma.booking.findUnique({ where: { id }, include: { payment: true, event: true, tier: true } });
+  },
+  async expireStalePendingBookings(olderThanMs) {
+    await prisma.booking.updateMany({
+      where: { status: "pending", bookedAt: { lt: new Date(Date.now() - olderThanMs) } },
+      data: { status: "expired" },
+    });
+  },
+
+  // ---- users (real identity, backing auth — see server/auth.js) ----
+  async upsertUserFromGoogle({ googleSub, email, name, avatarUrl }) {
+    return prisma.user.upsert({
+      where: { email },
+      create: { email, name, avatarUrl, googleSub },
+      update: { name, avatarUrl, googleSub },
+    });
+  },
+  async getUserById(id) {
+    return prisma.user.findUnique({ where: { id, deletedAt: null } });
+  },
+
+  // ---- categories ----
+  async listCategories() {
+    return prisma.category.findMany({ orderBy: { label: "asc" } });
+  },
+  async isValidCategory(key) {
+    return !!(await prisma.category.findUnique({ where: { key } }));
+  },
+
+  // ---- analytics (fire-and-forget; callers should .catch(() => {})) ----
+  async track(type, { userId, entityId, metadata } = {}) {
+    await prisma.analyticsEvent.create({ data: { type, userId: userId || null, entityId: entityId || null, metadata } });
   },
 };

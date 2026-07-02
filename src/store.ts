@@ -56,20 +56,31 @@ export function setOrganizer(name: string) { if (name.trim()) localStorage.setIt
 
 // ---- Google account (real identity, once signed in) ----
 const ACCOUNT_KEY = "weyn.account";
+// The session token is what the backend actually checks on every write route
+// (see server/auth.js) — the Google account object alone is just display info.
+const SESSION_KEY = "weyn.session";
 let account: GoogleAccount | null = read<GoogleAccount | null>(ACCOUNT_KEY, null);
-export function setAccount(a: GoogleAccount) {
+let sessionToken: string | null = localStorage.getItem(SESSION_KEY);
+export function setAccount(a: GoogleAccount, token?: string | null) {
   account = a;
   localStorage.setItem(ACCOUNT_KEY, JSON.stringify(a));
+  if (token) {
+    sessionToken = token;
+    localStorage.setItem(SESSION_KEY, token);
+  }
   setOrganizer(a.name); // signing in becomes your organizer identity too — no more typing a name that could be anyone's
   emit();
 }
 export function clearAccount() {
   account = null;
+  sessionToken = null;
   localStorage.removeItem(ACCOUNT_KEY);
+  localStorage.removeItem(SESSION_KEY);
   emit();
 }
 export function useAccount(): GoogleAccount | null { return useSyncExternalStore(subscribe, () => account); }
 export function getAccount(): GoogleAccount | null { return account; }
+export function getSessionToken(): string | null { return sessionToken; }
 
 // ---- theme ----
 const THEME_KEY = "weyn.theme";

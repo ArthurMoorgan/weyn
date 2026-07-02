@@ -10,6 +10,10 @@ primary_region = "fra" # pick the region closest to Muscat available on your pla
 
 [env]
   DATA_DIR = "/data"
+  NODE_ENV = "production"   # enforces a real CORS_ORIGIN allowlist instead of the permissive local-dev default
+  PAYTABS_API_BASE = "https://secure.paytabs.com" # confirm your account's actual regional domain in the PayTabs dashboard
+  # DATABASE_URL, SESSION_SECRET, CORS_ORIGIN, PAYTABS_PROFILE_ID, PAYTABS_SERVER_KEY are secrets —
+  # set with: fly secrets set DATABASE_URL=... SESSION_SECRET=... CORS_ORIGIN=... PAYTABS_PROFILE_ID=... PAYTABS_SERVER_KEY=...
 
 [[mounts]]
   source = "weyn_data"

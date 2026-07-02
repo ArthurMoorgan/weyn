@@ -44,7 +44,17 @@ export default function EventDetail() {
   async function book() {
     if (hasTiers && !selectedTier) { setBookErr("Choose a ticket type first."); return; }
     setBooking(true); setBookErr("");
-    try { setBooked(await api.bookEvent(ev.id, 1, getDeviceId(), getAccount(), selectedTier?.id)); addTicket(ev.id); }
+    try {
+      if (payPrice > 0) {
+        // paid ticket: redirect to Thawani's hosted checkout — the booking is
+        // only confirmed once payment succeeds (see /checkout/success)
+        const { checkoutUrl } = await api.checkoutEvent(ev.id, 1, getDeviceId(), getAccount(), selectedTier?.id);
+        window.location.href = checkoutUrl;
+        return;
+      }
+      setBooked(await api.bookEvent(ev.id, 1, getDeviceId(), getAccount(), selectedTier?.id));
+      addTicket(ev.id);
+    }
     catch (err: any) { setBookErr(err.message || "Couldn't book"); }
     finally { setBooking(false); }
   }

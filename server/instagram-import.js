@@ -30,7 +30,7 @@ export async function scrapeInstagramPost(url) {
   if (!/^https?:\/\/(www\.)?instagram\.com\//i.test(url)) {
     throw Object.assign(new Error("That doesn't look like an Instagram post URL"), { needsCaption: true });
   }
-  const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "en" } });
+  const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "en" }, signal: AbortSignal.timeout(8000) });
   const html = await res.text();
   const ogDesc = metaTag(html, "og:description");
   const ogImage = metaTag(html, "og:image");
@@ -118,7 +118,7 @@ export async function parseEventFromCaption(caption) {
 
 export async function downloadImage(imageUrl, uploadDir) {
   try {
-    const res = await fetch(imageUrl, { headers: { "User-Agent": UA } });
+    const res = await fetch(imageUrl, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
     const ext = (res.headers.get("content-type") || "").includes("png") ? ".png" : ".jpg";
