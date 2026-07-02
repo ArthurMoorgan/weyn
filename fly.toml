@@ -1,0 +1,35 @@
+# Fly.io config — alternative to Render. Deploy with:
+#   fly launch --copy-config --no-deploy   (first time, creates the app)
+#   fly volumes create weyn_data --size 1  (persistent disk for uploads/data.json)
+#   fly deploy
+app = "weyn-api" # must be globally unique — fly will prompt to rename if taken
+primary_region = "fra" # pick the region closest to Muscat available on your plan
+
+[build]
+  dockerfile = "server/Dockerfile"
+
+[env]
+  DATA_DIR = "/data"
+
+[[mounts]]
+  source = "weyn_data"
+  destination = "/data"
+
+[[services]]
+  internal_port = 4000
+  protocol = "tcp"
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    path = "/api/health"
+    interval = "15s"
+    timeout = "5s"

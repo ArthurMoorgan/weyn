@@ -1,0 +1,20 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# One-click deploy: push this repo to GitHub, then in the Render dashboard
+# choose "New +" → "Blueprint" and point it at the repo. Render reads this file automatically.
+services:
+  - type: web
+    name: weyn-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/health
+    disk:
+      name: weyn-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: CORS_ORIGIN
+        value: "*" # tighten to your app's real origin(s) once known, comma-separated

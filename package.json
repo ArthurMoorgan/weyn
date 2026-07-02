@@ -1,0 +1,45 @@
+{
+  "name": "weyn",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c green,cyan \"npm:server\" \"npm:web\"",
+    "server": "node server/index.js",
+    "start": "node server/index.js",
+    "web": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "ios:sync": "npm run build && npx cap sync ios",
+    "ios:open": "npx cap open ios",
+    "ios:assets": "npx capacitor-assets generate --ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
+    "@capacitor/push-notifications": "^8.1.1",
+    "@parse/node-apn": "^8.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "leaflet": "^1.9.4",
+    "multer": "^1.4.5-lts.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.4.1",
+    "@types/google.maps": "^3.58.1",
+    "@types/leaflet": "^1.9.21",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.1.0",
+    "playwright": "^1.48.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.6"
+  }
+}

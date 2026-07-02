@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.npm-cache/
+*.log
+
+# backend runtime data (regenerated from seed)
+server/data.json
+server/uploads/
+
+# macOS junk (external drive)
+.DS_Store
+._*
+
+# env (keep .env.example)
+.env
+.env.local
+.env.production
+.env.*.local
+
+# capacitor build output (native project is committed; copied web assets are not)
+ios/App/App/public/

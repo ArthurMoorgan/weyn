@@ -1,0 +1,136 @@
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn } from "../api";
+import { useAsync } from "../hooks";
+import { isSaved, toggleSave, useSaved, addTicket, getDeviceId, getAccount } from "../store";
+import MiniMap from "../components/MiniMap";
+
+export default function EventDetail() {
+  const { id } = useParams();
+  const nav = useNavigate();
+  useSaved();
+  const { data: e, loading, error, reload } = useAsync(() => api.getEvent(id!), [id]);
+  const [booked, setBooked] = useState<Weyn | null>(null);
+  const [booking, setBooking] = useState(false);
+  const [bookErr, setBookErr] = useState("");
+
+  if (loading) return <div className="detail"><div className="spin" /></div>;
+  if (error || !e) return (
+    <div className="detail">
+      <div className="empty" style={{ paddingTop: 120 }}>
+        <div className="ic"><i className="ti ti-cloud-off" /></div>
+        <p>{error || "Event not found."}</p>
+        <button className="btn glass" style={{ maxWidth: 200, margin: "0 auto 10px" }} onClick={reload}>Try again</button>
+        <button className="btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => nav("/")}>Back to Explore</button>
+      </div>
+    </div>
+  );
+
+  const ev = booked || e;
+  const cat = CATS.find((c) => c.key === ev.cat);
+  const fee = +(ev.price * 0.08).toFixed(2);
+  const saved = isSaved(ev.id);
+  const out = isSoldOut(ev);
+  const left = ticketsLeft(ev);
+
+  async function book() {
+    setBooking(true); setBookErr("");
+    try { setBooked(await api.bookEvent(ev.id, 1, getDeviceId(), getAccount())); addTicket(ev.id); }
+    catch (err: any) { setBookErr(err.message || "Couldn't book"); }
+    finally { setBooking(false); }
+  }
+
+  const coverStyle: React.CSSProperties = ev.image ? { backgroundImage: `url(${ev.image})` } : { background: ev.color };
+
+  return (
+    <div className="detail">
+      <div className="cover" style={coverStyle}>
+        <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="ti ti-arrow-left" /></button>
+        <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => toggleSave(ev.id)} aria-label="Save">
+          <i className={"ti " + (saved ? "ti-heart-filled" : "ti-heart")} />
+        </button>
+        {!ev.image && <span className="glyph">{ev.glyph}</span>}
+      </div>
+
+      <div className="sheet glass">
+        <span className="catpill">{cat?.label}</span>
+        <h1 style={{ marginTop: 12 }}>{ev.title}</h1>
+        <p className="host">Hosted by {ev.organizer}</p>
+
+        {ev.tags.length > 0 && (
+          <div className="tagrow">{ev.tags.map((t) => <span key={t} className="tg">{t}</span>)}</div>
+        )}
+
+        <div className="facts">
+          <div className="fact"><i className="ti ti-calendar-event" /><div><b>{dayLabel(ev)} · {timeLabel(ev)}</b><span>Add to your calendar after you book</span></div></div>
+          <div className="fact"><i className="ti ti-map-pin" /><div><b>{ev.venue}</b><span>{ev.area} · {ev.distanceKm} km away</span></div></div>
+          {ev.ticketingType === "weyn" && (
+            <div className="fact"><i className="ti ti-ticket" /><div><b>{ev.price === 0 ? "Free entry" : `${ev.price} OMR per ticket`}</b><span>{out ? "Sold out" : ev.capacity >= 9000 ? "Open entry" : `${left} of ${ev.capacity} tickets left`}</span></div></div>
+          )}
+          {ev.ticketingType === "external" && (
+            <div className="fact"><i className="ti ti-ticket" /><div><b>Tickets via external site</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR`}</span></div></div>
+          )}
+          {ev.ticketingType === "registration" && (
+            <div className="fact"><i className="ti ti-clipboard-list" /><div><b>Registration required</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR`}</span></div></div>
+          )}
+          {ev.ticketingType === "cash" && (
+            <div className="fact"><i className="ti ti-cash" /><div><b>Pay at the door</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR, cash`}</span></div></div>
+          )}
+          {ev.minAge > 0 && <div className="fact"><i className="ti ti-shield" /><div><b>Ages {ev.minAge}+</b><span>{ev.refundPolicy}</span></div></div>}
+        </div>
+
+        <p className="blurb">{ev.blurb}</p>
+
+        <div style={{ marginTop: 18 }}>
+          <MiniMap lat={ev.lat} lng={ev.lng} />
+          <a className="gmaps-link" href={`https://www.google.com/maps/search/?api=1&query=${ev.lat},${ev.lng}`} target="_blank" rel="noreferrer">
+            <i className="ti ti-map-2" /> Open in Google Maps
+          </a>
+        </div>
+
+        {ev.ticketingType === "weyn" && ev.price > 0 && !out && (
+          <div className="fee-box">
+            <div className="ln"><span>Ticket</span><span>{ev.price.toFixed(2)} OMR</span></div>
+            <div className="ln"><span>Weyn service fee (8%)</span><span>{fee.toFixed(2)} OMR</span></div>
+            <div className="ln total"><span>Total</span><span>{(ev.price + fee).toFixed(2)} OMR</span></div>
+          </div>
+        )}
+        {bookErr && <p className="errline" style={{ marginTop: 14 }}>{bookErr}</p>}
+      </div>
+
+      <div className="buybar">
+        {ev.cancelled ? (
+          <button className="btn" disabled><i className="ti ti-ban" /> Event cancelled</button>
+        ) : ev.ticketingType === "external" ? (
+          <a className="btn" href={ev.externalTicketUrl || "#"} target="_blank" rel="noreferrer">
+            <i className="ti ti-external-link" /> Visit ticket website
+          </a>
+        ) : ev.ticketingType === "registration" ? (
+          <a className="btn" href={ev.externalTicketUrl || "#"} target="_blank" rel="noreferrer">
+            <i className="ti ti-clipboard-list" /> Register now
+          </a>
+        ) : ev.ticketingType === "cash" ? (
+          <div className="btn dark" style={{ cursor: "default" }}>
+            <i className="ti ti-cash" /> {ev.organizerContact ? `Contact: ${ev.organizerContact}` : "Pay at the door"}
+          </div>
+        ) : booked ? (
+          <button className="btn done" disabled>
+            <i className="ti ti-circle-check" /> {ev.price === 0 ? "You're going" : "Ticket reserved"}
+          </button>
+        ) : out ? (
+          <button className="btn" disabled><i className="ti ti-ticket-off" /> Sold out</button>
+        ) : (
+          <>
+            <div className="lead">
+              <div className="p">{ev.price === 0 ? "Free" : `${(ev.price + fee).toFixed(2)} OMR`}</div>
+              <div className="s">{ev.price === 0 ? "RSVP to reserve" : "incl. 8% fee"}</div>
+            </div>
+            <button className="btn" style={{ width: "auto", padding: "14px 26px" }} onClick={book} disabled={booking}>
+              {booking ? "Booking…" : ev.price === 0 ? "RSVP" : "Get ticket"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

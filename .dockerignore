@@ -1,0 +1,10 @@
+node_modules
+dist
+ios
+.git
+.npm-cache
+*.log
+server/data.json
+server/uploads
+public/icons
+assets
