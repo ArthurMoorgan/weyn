@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn } from "../api";
 import { useAsync } from "../hooks";
-import { getOrganizer, useTickets } from "../store";
+import { getOrganizer, useAccount, useTickets } from "../store";
 import Stub from "../components/Stub";
 import ThemeToggle from "../components/ThemeToggle";
 import InstallPrompt from "../components/InstallPrompt";
@@ -13,6 +13,10 @@ const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n 
 export default function You() {
   const name = getOrganizer();
   const tickets = useTickets();
+  // hooks must all run before the loading/error early-returns below —
+  // calling one conditionally crashes the whole tree on the render where
+  // the condition flips (React counts hooks per render)
+  const account = useAccount();
   const summary = useAsync(() => api.organizerSummary(name), [name]);
   const allEvents = useAsync(() => api.listEvents(), []);
 
@@ -47,17 +51,28 @@ export default function You() {
 
       <div className="page-head">
         <h1>You</h1>
-        <p className="sub">Signed in as {name}</p>
+        <p className="sub">{myTickets.length > 0 ? `${myTickets.length} upcoming ${myTickets.length === 1 ? "ticket" : "tickets"}` : "Your tickets and events"}</p>
       </div>
 
-      <div style={{ padding: "0 16px" }}>
-        <GoogleLoginButton />
-      </div>
+      {/* Sign-in is only a prominent, full card BEFORE you're signed in — once
+          verified, it steps back into a small footer row (see below) so
+          tickets stay the focus of this screen, not account chrome. */}
+      {!account && (
+        <div style={{ padding: "0 16px" }}>
+          <GoogleLoginButton />
+        </div>
+      )}
 
       <TicketsSection tickets={myTickets} />
       <OrganizerSection name={name} summary={summary.data!} reload={summary.reload} />
 
       <div style={{ padding: "0 16px" }}><InstallPrompt /></div>
+
+      {account && (
+        <div className="account-compact-wrap">
+          <GoogleLoginButton />
+        </div>
+      )}
     </>
   );
 }
@@ -77,7 +92,7 @@ function TicketsSection({ tickets }: { tickets: Weyn[] }) {
     <section>
       <div className="date-head"><h2>My tickets</h2><span>{tickets.length}</span></div>
       {tickets.length > 0 ? (
-        <div className="feed" style={{ paddingBottom: 4 }}>{tickets.map((e) => <Stub key={e.id} e={e} />)}</div>
+        <div className="feed" style={{ paddingBottom: 4 }}>{tickets.map((e) => <Stub key={e.id} e={e} ticket />)}</div>
       ) : (
         <div className="empty" style={{ padding: "24px 36px 32px" }}>
           <div className="ic"><i className="ti ti-ticket" /></div>
@@ -145,7 +160,7 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
         return (
           <div key={e.id} className="dash-card">
             <Link to={`/e/${e.id}`} className="dash-row" style={{ marginBottom: 0 }}>
-              <div className="thumb" style={e.image ? { backgroundImage: `url(${e.image})` } : { background: e.color }}>
+              <div className="thumb" style={e.image ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" } : { background: e.color }}>
                 {!e.image && e.glyph}
               </div>
               <div className="info">

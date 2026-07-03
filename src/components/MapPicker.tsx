@@ -64,35 +64,72 @@ export default function MapPicker({
     setResults([]);
   }
 
-  // ---- Google Places Autocomplete (much better address matching, needs an API key) ----
+  // ---- Google Places (much better address matching, needs an API key) ----
+  // Deliberately NOT using google.maps.places.Autocomplete (the legacy widget
+  // that injects its own `.pac-container` dropdown) — when the underlying
+  // Places API call fails (e.g. billing/API-not-enabled on the Cloud project),
+  // that widget renders broken icon glyphs into its dropdown on every
+  // keystroke instead of failing cleanly. Driving AutocompleteService
+  // ourselves and rendering into the SAME `.map-results` list already built
+  // for the free OSM fallback means a Google failure just falls through to
+  // our own error/empty state, never garbled default-widget output.
+  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    if (!GOOGLE_MAPS_KEY || !inputRef.current) return;
-    let ac: google.maps.places.Autocomplete | null = null;
+    if (!GOOGLE_MAPS_KEY) return;
     let cancelled = false;
     loadGoogleMaps()
       ?.then((g) => {
-        if (cancelled || !inputRef.current) return;
-        ac = new g.maps.places.Autocomplete(inputRef.current, {
-          fields: ["geometry", "name", "formatted_address"],
-          componentRestrictions: { country: "om" },
-        });
-        ac.addListener("place_changed", () => {
-          const place = ac!.getPlace();
-          const loc = place.geometry?.location;
-          if (!loc) { setErr("No details for that place — try another suggestion."); return; }
-          setErr("");
-          jumpTo(+loc.lat().toFixed(6), +loc.lng().toFixed(6), place.name || place.formatted_address);
-          setQ(place.name || place.formatted_address || "");
-        });
+        if (cancelled) return;
+        autocompleteServiceRef.current = new g.maps.places.AutocompleteService();
+        // PlacesService needs a Map or a DOM node to attach to — a detached
+        // div works fine, we never render anything from it.
+        placesServiceRef.current = new g.maps.places.PlacesService(document.createElement("div"));
         setUsingGoogle(true);
       })
       .catch(() => setUsingGoogle(false)); // key present but script failed (bad key/network) — fall back silently
-    return () => {
-      cancelled = true;
-      if (ac) google.maps.event.clearInstanceListeners(ac);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { cancelled = true; };
   }, []);
+
+  function onGoogleQueryChange(value: string) {
+    setQ(value);
+    setErr("");
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!value.trim() || !autocompleteServiceRef.current) { setGooglePredictions([]); return; }
+    debounceRef.current = setTimeout(() => {
+      autocompleteServiceRef.current!.getPlacePredictions(
+        { input: value, componentRestrictions: { country: "om" } },
+        (predictions, status) => {
+          if (status !== "OK" || !predictions?.length) {
+            // includes billing/API-not-enabled failures — degrade to an empty
+            // list + hint rather than any broken Google-rendered UI
+            setGooglePredictions([]);
+            if (status !== "ZERO_RESULTS") {
+              setErr("Address search isn't available right now — drop the pin manually.");
+            }
+            return;
+          }
+          setGooglePredictions(predictions);
+        }
+      );
+    }, 300);
+  }
+
+  const [googlePredictions, setGooglePredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+
+  function pickGooglePrediction(p: google.maps.places.AutocompletePrediction) {
+    if (!placesServiceRef.current) return;
+    placesServiceRef.current.getDetails({ placeId: p.place_id, fields: ["geometry", "name", "formatted_address"] }, (place, status) => {
+      const loc = place?.geometry?.location;
+      if (status !== "OK" || !loc) { setErr("No details for that place — try another suggestion."); return; }
+      setErr("");
+      jumpTo(+loc.lat().toFixed(6), +loc.lng().toFixed(6), place?.name || place?.formatted_address);
+      setQ(place?.name || place?.formatted_address || "");
+      setGooglePredictions([]);
+    });
+  }
 
   // ---- free OpenStreetMap/Nominatim fallback (used only without a Google key) ----
   async function searchOSM(e: React.FormEvent) {
@@ -124,13 +161,22 @@ export default function MapPicker({
         <input
           ref={inputRef}
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => (usingGoogle ? onGoogleQueryChange(e.target.value) : setQ(e.target.value))}
           placeholder={usingGoogle ? "Search any address…" : "Search a place in Muscat…"}
         />
         {!usingGoogle && <button type="submit" disabled={searching}>{searching ? "…" : "Find"}</button>}
       </form>
 
-      {results.length > 0 && (
+      {usingGoogle && googlePredictions.length > 0 && (
+        <div className="map-results">
+          {googlePredictions.map((p) => (
+            <button key={p.place_id} type="button" onClick={() => pickGooglePrediction(p)}>
+              <i className="ti ti-map-pin" /> {p.description}
+            </button>
+          ))}
+        </div>
+      )}
+      {!usingGoogle && results.length > 0 && (
         <div className="map-results">
           {results.map((r, i) => (
             <button key={i} type="button" onClick={() => jumpTo(r.lat, r.lng, r.label.split(",")[0])}>

@@ -155,11 +155,18 @@ export default function Organizer() {
           <div className="tb-right"><ThemeToggle /></div>
         </header>
         <div className="page-head">
-          <h1>Sign in to host</h1>
-          <p className="sub">We use your Google account to verify who owns each event — so only you can edit or cancel what you publish.</p>
+          <h1>Everything you need to run an event</h1>
+          <p className="sub">Free to publish. Weyn handles the page, the guest list, and the tickets — you just show up.</p>
         </div>
-        <div className="form" style={{ paddingTop: 8 }}>
-          <GoogleLoginButton />
+
+        <OnboardingGrid />
+
+        <div className="form" style={{ paddingTop: 4 }}>
+          <div className="onboard-cta">
+            <b>Sign in to get started</b>
+            <span>We use your Google account to verify who owns each event — so only you can edit or cancel what you publish.</span>
+            <div className="onboard-signin"><GoogleLoginButton /></div>
+          </div>
         </div>
       </>
     );
@@ -298,6 +305,12 @@ export default function Organizer() {
           </div>
         </div>
         {f.ticketingType === "weyn" && (
+          <div className="note" style={{ marginTop: -6 }}>
+            <i className="ti ti-alert-triangle" style={{ marginRight: 6 }} />
+            <b>Temporary:</b> card payments aren't set up yet — Weyn tickets can be created and RSVP'd to, but paid checkout isn't live. Use "Cash at the Door" or an external link if you need to charge for entry right now.
+          </div>
+        )}
+        {f.ticketingType === "weyn" && (
           <div className="field">
             <label className="tier-toggle">
               <input type="checkbox" checked={useTiers} onChange={(e) => setUseTiers(e.target.checked)} />
@@ -373,5 +386,26 @@ export default function Organizer() {
 
       {toast && <div className="toast"><i className="ti ti-check" /> Published — opening your dashboard</div>}
     </>
+  );
+}
+
+const ONBOARD_ITEMS = [
+  { icon: "calendar-plus", title: "Create events", body: "A page with your photo, details, and location — live in under a minute." },
+  { icon: "users", title: "Manage attendees", body: "See who's coming, with names and emails for anyone signed in with Google." },
+  { icon: "ticket", title: "Sell tickets", body: "Free, paid, cash-at-door, or your own external link — you choose per event." },
+  { icon: "chart-bar", title: "Track registrations", body: "Live sold counts, revenue, and capacity from your dashboard on You." },
+] as const;
+
+function OnboardingGrid() {
+  return (
+    <div className="onboard-grid">
+      {ONBOARD_ITEMS.map((item) => (
+        <div key={item.title} className="onboard-item">
+          <div className="onboard-ic"><i className={"ti ti-" + item.icon} /></div>
+          <b>{item.title}</b>
+          <span>{item.body}</span>
+        </div>
+      ))}
+    </div>
   );
 }

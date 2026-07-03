@@ -12,6 +12,7 @@ import { sendPush, pushConfigured } from "./push.js";
 import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./instagram-import.js";
 import { generateMarketingCopy } from "./marketing.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
+import { suggestImageFocalPoint } from "./ai.js";
 import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
 import { attachUser, requireAuth, requireRole, requireEventOwner, issueSessionToken, authConfigured } from "./auth.js";
 import { createEventSchema, updateEventSchema, googleAuthSchema, validateBody } from "./validators.js";
@@ -80,6 +81,18 @@ const upload = multer({
 
 const slug = (s) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40) || "event";
+
+const MIME_BY_EXT = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif" };
+async function suggestFocalPointFor(absPath) {
+  if (!absPath) return null;
+  try {
+    const buf = fs.readFileSync(absPath);
+    const mime = MIME_BY_EXT[path.extname(absPath).toLowerCase()] || "image/jpeg";
+    return await suggestImageFocalPoint(buf, mime);
+  } catch {
+    return null; // missing file, unreadable, etc — never block publishing over this
+  }
+}
 
 // ---- routes ----
 app.get("/", (_req, res) => res.json({ name: "weyn-api", ok: true }));
@@ -176,6 +189,10 @@ app.post("/api/events", createEventLimiter, requireAuth, upload.single("image"),
       sold: 0,
       tiers,
       image: req.file ? `/uploads/${req.file.filename}` : existingImage,
+      // best-guess focal point (Groq vision) so the same photo crops sensibly
+      // across the card/detail/dashboard's different aspect ratios — cosmetic
+      // only, silently null (plain center crop) if AI isn't configured/fails
+      imageFocalPoint: await suggestFocalPointFor(req.file ? path.join(UPLOAD_DIR, req.file.filename) : existingImage && path.join(UPLOAD_DIR, path.basename(existingImage))),
       color: b.color || "#3A4668",
       glyph: b.glyph || "🎟",
       blurb: (refined.blurb || b.blurb || "Join us — details to follow.").trim(),

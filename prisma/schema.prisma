@@ -62,6 +62,11 @@ model Event {
   capacity              Int
   sold                  Int       @default(0)
   image                 String?
+  // "50% 30%" CSS background-position — Groq vision's best guess at the
+  // photo's focal point, so cover crops (card/detail/dashboard, each a
+  // different aspect ratio) don't just default to a dead-center crop that
+  // might cut off the actual subject. Null = plain center crop.
+  imageFocalPoint       String?
   color                 String
   glyph                 String
   blurb                 String

@@ -28,6 +28,7 @@ export interface Weyn {
   capacity: number;
   sold: number;
   image: string | null;   // /uploads/xxx or null
+  imageFocalPoint?: string | null; // "50% 30%" CSS background-position, from Groq vision — null = center crop
   color: string;
   glyph: string;
   blurb: string;
@@ -41,6 +42,11 @@ export interface Weyn {
   tiers?: Tier[];         // multiple ticket types (weyn ticketing only)
   sourceUrl?: string | null;
   importedFromInstagram?: boolean;
+  // Real signals, not yet populated by the backend — the UI supports them so
+  // no card redesign is needed once verification/curation exist server-side.
+  // Never fabricate these client-side (no fake attendee counts / social proof).
+  organizerVerified?: boolean;
+  featured?: boolean;
 }
 
 export interface BookingStatus {

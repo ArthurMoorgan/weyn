@@ -59,7 +59,9 @@ export default function EventDetail() {
     finally { setBooking(false); }
   }
 
-  const coverStyle: React.CSSProperties = ev.image ? { backgroundImage: `url(${ev.image})` } : { background: ev.color };
+  const coverStyle: React.CSSProperties = ev.image
+    ? { backgroundImage: `url(${ev.image})`, backgroundPosition: ev.imageFocalPoint || "center" }
+    : { background: ev.color };
 
   return (
     <div className="detail">

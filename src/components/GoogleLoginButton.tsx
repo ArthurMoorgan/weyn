@@ -37,6 +37,12 @@ export default function GoogleLoginButton() {
         if (cancelled || !btnRef.current) return;
         window.google.accounts.id.initialize({
           client_id: CLIENT_ID,
+          // Safari's Intelligent Tracking Prevention blocks the storage the
+          // button's iframe normally relies on, which is what renders as a
+          // blank/distorted pill (chrome loads, the "G" + text content
+          // inside doesn't) — this flag is Google's own documented fix for
+          // that exact ITP-browser class of bug (Safari, Firefox, Chrome-iOS).
+          itp_support: true,
           callback: async (resp: { credential: string }) => {
             try {
               const acc = await api.googleAuth(resp.credential);
@@ -46,7 +52,7 @@ export default function GoogleLoginButton() {
             }
           },
         });
-        window.google.accounts.id.renderButton(btnRef.current, { theme: "outline", size: "medium", shape: "pill" });
+        window.google.accounts.id.renderButton(btnRef.current, { theme: "outline", size: "large", shape: "pill", width: 280 });
       })
       .catch(() => setErr("Couldn't load Google sign-in"));
     return () => { cancelled = true; };

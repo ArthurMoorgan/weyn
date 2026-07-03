@@ -5,9 +5,12 @@ import Stub from "../components/Stub";
 import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
 
-const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 type TimeFilter = "all" | "tonight" | "weekend";
 const GROUP_ORDER = ["Today", "Tomorrow", "This week", "Next week", "Later"];
+const TIME_FILTERS: { key: TimeFilter; label: string }[] = [
+  { key: "tonight", label: "Tonight" },
+  { key: "weekend", label: "This weekend" },
+];
 
 export default function Explore() {
   const [cat, setCat] = useState<Cat | "all">("all");
@@ -30,42 +33,37 @@ export default function Explore() {
   return (
     <>
       <header className="topbar">
-        <Logo wordmark={false} size={30} />
+        <Logo wordmark size={26} />
         <div className="tb-right">
           <ThemeToggle />
           <span className="pill"><i className="ti ti-map-pin" /> Muscat</span>
         </div>
       </header>
 
-      <div className="page-head">
-        <div className="kicker">{today}</div>
-        <h1>What's on in Muscat</h1>
-        <p className="sub">Discover events near you — tonight and in the weeks ahead</p>
-      </div>
-
-      <div className="search">
+      <div className="search" style={{ marginTop: 10 }}>
         <i className="ti ti-search" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search events, venues, tags…" />
         {q && <button className="clearx" onClick={() => setQ("")} aria-label="Clear"><i className="ti ti-x" /></button>}
       </div>
 
+      {/* Time filters and categories share ONE scrollable row instead of
+          three separate chrome tiers (title/segment/chips) — events start
+          appearing much sooner on screen; discovery first, controls second. */}
       {!searching && (
-        <div className="segwrap">
-          <div className="segment">
-            {([["all", "All upcoming"], ["tonight", "Tonight"], ["weekend", "This weekend"]] as const).map(([k, l]) => (
-              <button key={k} className={tf === k ? "on" : ""} onClick={() => setTf(k)}>{l}</button>
-            ))}
-          </div>
+        <div className="chips compact">
+          {TIME_FILTERS.map((t) => (
+            <button key={t.key} className={"chip" + (tf === t.key ? " on" : "")} onClick={() => setTf(tf === t.key ? "all" : t.key)}>
+              {t.label}
+            </button>
+          ))}
+          <span className="chip-divider" />
+          {CATS.map((c) => (
+            <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")}>
+              {c.label}
+            </button>
+          ))}
         </div>
       )}
-
-      <div className="chips">
-        {CATS.map((c) => (
-          <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")}>
-            {c.label}
-          </button>
-        ))}
-      </div>
 
       {loading && (
         <div className="feed">

@@ -32,8 +32,10 @@ export default function Saved() {
       ) : (
         <div className="empty">
           <div className="ic"><i className="ti ti-heart" /></div>
-          <p>Tap the heart on any event and it will appear here.</p>
-          <Link to="/" className="btn" style={{ maxWidth: 240, margin: "0 auto" }}>Explore events</Link>
+          <p><b style={{ color: "var(--text)" }}>Nothing saved yet.</b><br />Tap the heart on any event to keep it here for later.</p>
+          <Link to="/" className="btn" style={{ maxWidth: 240, margin: "0 auto" }}>
+            <i className="ti ti-compass" /> Explore events
+          </Link>
         </div>
       ))}
     </>
