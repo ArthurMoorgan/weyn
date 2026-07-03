@@ -1,88 +1,91 @@
 /* ============================================================
-   WEYN — Liquid Glass
-   Translucent layered materials over a soft colour field.
+   WEYN — Premium minimal (Linear/Airbnb/Stripe reference)
+   Flat surfaces, strong typography, large imagery. No glassmorphism.
    ============================================================ */
 
 :root {
-  color-scheme: light;
-  --text:      #14151A;
-  --text-2:    #5A5C66;
-  --text-3:    #8A8C96;
-  --accent:    #4F46E5;   /* brand indigo */
-  --accent-2:  #4338CA;
-  --accent-soft: rgba(79,70,229,0.12);
-  --danger:    #C7402C;
-  --amber:     #C77A1E;
-  --ink:       #0E1320;   /* logo ink */
-  --radius:    20px;
-  --radius-sm: 14px;
+  color-scheme: dark;
+  --bg:        #0B0D12;
+  --surface:   #121622;
+  --surface-2: #171B29;
+  --text:      #FFFFFF;
+  --text-2:    #A6AEC2;
+  --text-3:    #6E7690;
+  --accent:    #7C5CFF;
+  --accent-2:  #8F73FF;
+  --accent-soft: rgba(124,92,255,0.14);
+  --success:   #32D583;
+  --success-soft: rgba(50,213,131,0.14);
+  --warning:   #F79009;
+  --danger:    #F04438;
+  --ink:       #FFFFFF;
+  --radius:    16px;
+  --radius-sm: 12px;
   --radius-pill: 999px;
   --maxw:      468px;
 
-  --bg: #EAF0F2;
-  /* glass tokens */
-  --glass:        rgba(255,255,255,0.52);
-  --glass-strong: rgba(255,255,255,0.68);
-  --glass-soft:   rgba(255,255,255,0.38);
-  --glass-edge:   rgba(255,255,255,0.65);
-  --glass-line:   rgba(255,255,255,0.45);
-  --glass-shadow: 0 8px 30px rgba(31,41,61,0.12);
-  --shadow-float: 0 10px 36px rgba(31,41,61,0.20); /* the one big "floating" shadow — tabs, buybar */
-  --hair:         rgba(20,21,26,0.08);
-  --chip-soft:    rgba(255,255,255,0.55);
+  /* thin, low-contrast hairlines — used sparingly, never as the primary
+     way to separate content (spacing/surface-color does that instead) */
+  --hair:      rgba(255,255,255,0.08);
+  --line:      rgba(255,255,255,0.10);
+  --chip-soft: var(--surface-2);
 
-  /* Liquid Glass lensing rim only — light bending through the curved edge of
-     the material. A full-perimeter rim: brightest along the top edge, a
-     clear catch-light along the bottom edge, faint on the sides. Applied via
-     box-shadow so it hugs any border-radius exactly. Layered ON TOP of the
-     existing 1px border below, not replacing it. */
-  --lens:
-    inset 0 1.5px 1px -0.5px rgba(255,255,255,0.95),
-    inset 0 -1.5px 1px -0.5px rgba(255,255,255,0.55),
-    inset 1px 0 1px -0.5px rgba(255,255,255,0.40),
-    inset -1px 0 1px -0.5px rgba(255,255,255,0.40);
+  /* subtle shadows only — no colored glow, no multi-layer "float" shadows */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.35);
 
-  /* spacing scale — 4px base. New/updated components should use these
-     instead of one-off pixel values so spacing stays consistent as the app
-     grows past a handful of hand-tuned screens. */
+  /* back-compat aliases so components not yet touched in this pass still
+     resolve to something reasonable instead of breaking outright */
+  --glass:        var(--surface);
+  --glass-strong: var(--surface-2);
+  --glass-soft:   var(--surface);
+  --glass-edge:   transparent;
+  --glass-line:   var(--line);
+  --glass-shadow: var(--shadow-sm);
+  --shadow-float: var(--shadow-md);
+  --lens: none;
+
+  /* spacing scale — 8pt grid per the design brief (was 4px base) */
   --space-1: 4px;
   --space-2: 8px;
-  --space-3: 12px;
+  --space-3: 16px;
   --space-4: 16px;
-  --space-5: 20px;
+  --space-5: 24px;
   --space-6: 24px;
   --space-8: 32px;
 }
 
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --text:      #EAECF3;
-  --text-2:    #9BA1B0;
-  --text-3:    #6B7180;
-  --accent:    #8B8FFF;
-  --accent-2:  #A5AAFF;
-  --accent-soft: rgba(139,143,255,0.18);
-  --danger:    #F27059;
-  --ink:       #EAECF3;
-  --bg: #0A0D15;
-  --glass:        rgba(26,30,42,0.55);
-  --glass-strong: rgba(30,34,48,0.66);
-  --glass-soft:   rgba(30,34,48,0.42);
-  --glass-edge:   rgba(255,255,255,0.10);
-  --glass-line:   rgba(255,255,255,0.12);
-  --glass-shadow: 0 10px 34px rgba(0,0,0,0.55);
-  --shadow-float: 0 18px 48px rgba(0,0,0,0.60), 0 2px 10px rgba(0,0,0,0.35);
-  --hair:         rgba(255,255,255,0.10);
-  --chip-soft:    rgba(255,255,255,0.08);
-
-  /* dark-mode lensing: the rim catch-lights stay white but much quieter —
-     on real hardware the dark material still bends light at its edges,
-     it just reflects far less of it */
-  --lens:
-    inset 0 1.5px 1px -0.5px rgba(255,255,255,0.40),
-    inset 0 -1.5px 1px -0.5px rgba(255,255,255,0.16),
-    inset 1px 0 1px -0.5px rgba(255,255,255,0.12),
-    inset -1px 0 1px -0.5px rgba(255,255,255,0.12);
+/* Light mode kept as a real, distinct theme (not deleted — the toggle stays)
+   but built on the same flat/minimal philosophy: white surface, near-black
+   text, sparse low-contrast borders instead of glass. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg:        #F7F8FA;
+  --surface:   #FFFFFF;
+  --surface-2: #F0F1F5;
+  --text:      #14151A;
+  --text-2:    #5B6072;
+  --text-3:    #8B90A0;
+  --accent:    #6D4CFF;
+  --accent-2:  #5B3CE8;
+  --accent-soft: rgba(109,76,255,0.10);
+  --success:   #12875A;
+  --success-soft: rgba(18,135,90,0.10);
+  --warning:   #B45F06;
+  --danger:    #D0392B;
+  --ink:       #14151A;
+  --hair:      rgba(20,21,26,0.07);
+  --line:      rgba(20,21,26,0.10);
+  --chip-soft: var(--surface-2);
+  --shadow-sm: 0 1px 2px rgba(20,21,26,0.06);
+  --shadow-md: 0 4px 16px rgba(20,21,26,0.08);
+  --glass:        var(--surface);
+  --glass-strong: var(--surface-2);
+  --glass-soft:   var(--surface);
+  --glass-edge:   transparent;
+  --glass-line:   var(--line);
+  --glass-shadow: var(--shadow-sm);
+  --shadow-float: var(--shadow-md);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -106,56 +109,17 @@ body {
   background: var(--bg);
 }
 
-/* soft colour field that the glass refracts */
-body::before {
-  content: "";
-  position: fixed; inset: -10% -10% -10% -10%;
-  z-index: -2;
-  background:
-    radial-gradient(40% 35% at 12% 8%,  rgba(99,102,241,0.42), transparent 70%),
-    radial-gradient(38% 32% at 88% 6%,  rgba(245,170,90,0.40), transparent 70%),
-    radial-gradient(45% 40% at 78% 92%, rgba(120,120,230,0.40), transparent 70%),
-    radial-gradient(42% 38% at 10% 95%, rgba(224,150,120,0.34), transparent 70%),
-    linear-gradient(160deg, #EEF1FB, #E7ECF4);
-  filter: saturate(110%);
-}
-/* "Muscat after dark" — warm lantern amber + deep sea teal, brand indigo kept
-   as a quiet accent rather than the whole story (no generic purple wash). */
-:root[data-theme="dark"] body::before {
-  background:
-    radial-gradient(40% 34% at 10% 6%,  rgba(224,150,90,0.20), transparent 72%),
-    radial-gradient(42% 36% at 92% 10%, rgba(40,140,130,0.26), transparent 74%),
-    radial-gradient(46% 40% at 84% 92%, rgba(79,70,229,0.16), transparent 74%),
-    radial-gradient(42% 38% at 6% 94%,  rgba(180,88,64,0.18), transparent 72%),
-    linear-gradient(160deg, #100D0C, #0A0D11);
-  filter: saturate(108%);
-}
-body::after {
-  content: "";
-  position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
-}
-
 h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.4px; line-height: 1.2; }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 
-/* ---------- glass primitive ----------
-   Fill + a 1px edge + a lensing rim (--lens) layered on top, simulating
-   light refracting through the curved edge of the material — brightest
-   along the top, a clear catch-light along the bottom, faint on the sides. */
+/* ---------- flat surface primitive (replaces the old glass/blur material) ----------
+   Solid surface color + a subtle shadow. No blur, no translucency, no inset
+   highlight rim — this is the whole point of the redesign. */
 .glass {
-  background: var(--glass);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  border: 1px solid var(--glass-line);
-  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge), var(--lens);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
   position: relative;
-}
-/* specular sheen across the top of any glass surface */
-.glass::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: linear-gradient(180deg, rgba(255,255,255,0.30), rgba(255,255,255,0) 42%);
 }
 
 /* phone column */
@@ -165,77 +129,41 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   min-height: 100%;
   position: relative;
   padding-top: env(safe-area-inset-top);
-  padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  padding-bottom: calc(76px + env(safe-area-inset-bottom));
 }
 
-/* Frosted top scrim — a fixed blurred strip behind the floating top bar so
-   page content that scrolls up is faded/blurred out before the very top,
-   instead of peeking above or beside the rounded bar. (EventDetail is outside
-   .shell, so its full-bleed cover photo is unaffected.) */
-.shell::before {
-  content: "";
-  position: fixed; top: 0; left: 0; right: 0; z-index: 20;
-  height: calc(env(safe-area-inset-top) + 92px);
-  backdrop-filter: blur(14px) saturate(150%);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent);
-  mask-image: linear-gradient(to bottom, #000 60%, transparent);
-  pointer-events: none;
-}
-
-/* Same idea, mirrored, behind the floating tab bar — page content scrolling
-   down fades/blurs out before it reaches the very bottom edge instead of
-   showing through underneath the tab bar. */
-.shell::after {
-  content: "";
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
-  height: calc(env(safe-area-inset-bottom) + 92px);
-  backdrop-filter: blur(14px) saturate(150%);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
-  -webkit-mask-image: linear-gradient(to top, #000 60%, transparent);
-  mask-image: linear-gradient(to top, #000 60%, transparent);
-  pointer-events: none;
-}
-
-/* ---------- top bar ---------- */
+/* ---------- top bar ---------- flat, minimal-height, not a floating pill */
 .topbar {
-  position: sticky; top: 12px; z-index: 30; margin: 12px 12px 0;
+  position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px;
-  border-radius: var(--radius);
-  background: var(--glass-strong);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  border: 1px solid var(--glass-line);
-  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
+  padding: 10px 16px;
+  min-height: 52px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--hair);
 }
 .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.brand .en { font-size: 19px; font-weight: 700; letter-spacing: -0.5px; }
+.brand .en { font-size: 17px; font-weight: 700; letter-spacing: -0.4px; }
 .brand .ar { font-family: "Noto Naskh Arabic", serif; font-size: 16px; color: var(--accent); }
 
 /* logo lockup */
 .logo { display: inline-flex; align-items: center; gap: 9px; color: var(--ink); }
-.logo .wm { font-size: 20px; font-weight: 700; letter-spacing: -0.6px; color: var(--text); }
+.logo .wm { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; color: var(--text); }
 
 /* topbar right cluster */
-.tb-right { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.tb-right { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .theme-toggle {
-  width: 44px; height: 44px; border-radius: var(--radius-pill);
-  display: grid; place-items: center; font-size: 18px; color: var(--text);
-  background: var(--chip-soft); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  transition: transform .15s, background .2s;
+  width: 36px; height: 36px; border-radius: var(--radius-pill);
+  display: grid; place-items: center; font-size: 16px; color: var(--text-2);
+  background: transparent;
+  transition: background .15s;
 }
-.theme-toggle:active { transform: scale(0.92); }
-.theme-toggle .ti { transition: transform .3s ease; }
-.theme-toggle:hover .ti { transform: rotate(-18deg); }
+.theme-toggle:active { background: var(--surface-2); }
 .pill {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13px; font-weight: 500; color: var(--text);
-  background: var(--chip-soft); border: 1px solid var(--glass-line);
-  padding: 6px 12px; border-radius: var(--radius-pill);
+  font-size: 13px; font-weight: 500; color: var(--text-2);
+  padding: 6px 10px; border-radius: var(--radius-pill);
 }
-.pill .ti { font-size: 15px; color: var(--accent); }
+.pill .ti { font-size: 15px; color: var(--text-2); }
 
 /* ---------- page header ---------- */
 .page-head { padding: 18px 22px 6px; }
@@ -257,7 +185,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   /* lighter than the app's signature blur — small text sits directly on
      this, and stacking heavy blur under heavy blur (topbar behind it) softens
      it more than it needs to be */
-  backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%);
+  
 }
 .segment button {
   flex: 1; font-size: 13.5px; font-weight: 600; color: var(--text-2);
@@ -281,7 +209,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   flex: 0 0 auto; font-size: 13px; font-weight: 500; color: var(--text-2);
   padding: 7px 14px; border-radius: var(--radius-pill);
   background: var(--glass-soft); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  
   white-space: nowrap; transition: all .15s;
 }
 .chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
@@ -294,26 +222,26 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .date-head h2 { font-size: 17px; font-weight: 700; }
 .date-head span { font-size: 13px; color: var(--text-2); }
 
-/* ---------- event card ---------- */
-.feed { padding: 4px 16px 4px; display: flex; flex-direction: column; gap: 14px; }
+/* ---------- event card ---------- image-dominant (16:9, ~65% of the card),
+   flat body below with strong typographic hierarchy instead of floating
+   badges. Matches the brief's example: IMAGE / Title / Date+Time / Venue /
+   Distance / Price / CTA. */
+.feed { padding: 4px 16px 4px; display: flex; flex-direction: column; gap: var(--space-5); }
 .card {
   display: block; border-radius: var(--radius); overflow: hidden;
-  background: var(--glass-strong);
-  backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--glass-line);
-  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
-  transition: transform .14s ease, box-shadow .14s ease;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform .14s ease;
 }
 .card:active { transform: scale(0.988); }
 .card .cover {
-  height: 150px; position: relative; background-size: cover; background-position: center;
-  display: flex; align-items: flex-start; justify-content: space-between; padding: 12px;
+  aspect-ratio: 16 / 9; position: relative; background-size: cover; background-position: center;
+  display: flex; align-items: flex-start; justify-content: space-between; padding: var(--space-3);
 }
 .card .cover::after {
   content: ""; position: absolute; inset: 0;
-  /* slightly stronger than before — the card now stacks two badges over
-     photos in some cases, so contrast has a bit more to protect */
-  background: linear-gradient(180deg, rgba(0,0,0,0.20), rgba(0,0,0,0) 45%, rgba(0,0,0,0.10));
+  /* subtle dark overlay only — just enough to keep badges legible */
+  background: linear-gradient(180deg, rgba(0,0,0,0.16), rgba(0,0,0,0) 40%);
 }
 .card .cover .glyph {
   position: absolute; right: 14px; bottom: 12px; font-size: 40px;
@@ -324,66 +252,62 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: relative; z-index: 1;
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: var(--radius-pill);
-  /* always a light frosted chip over a photo/cover — fixed dark ink regardless of
-     app theme, since this sits on unpredictable photo backgrounds, not app chrome */
-  background: rgba(255,255,255,0.82); color: #14151A;
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  background: rgba(255,255,255,0.92); color: #14151A;
+  box-shadow: var(--shadow-sm);
 }
-.gbadge.live { color: #C7402C; }
-.gbadge.live .pulse { width: 6px; height: 6px; border-radius: 50%; background: #C7402C; animation: pulse 1.3s infinite; }
-.gbadge.out { color: #fff; background: rgba(20,21,26,0.7); }
-.gbadge.featured { background: linear-gradient(120deg, #F5A45A, #E1306C); color: #fff; }
+.gbadge.live { color: #D0392B; }
+.gbadge.live .pulse { width: 6px; height: 6px; border-radius: 50%; background: #D0392B; animation: pulse 1.3s infinite; }
+.gbadge.out { color: #fff; background: rgba(20,21,26,0.75); }
+.gbadge.featured { background: var(--accent); color: #fff; }
 .gbadge.featured .ti { font-size: 12px; }
-.gbadge.confirmed { color: #1F7A4D; }
+.gbadge.confirmed { color: var(--success); }
 .gbadge.confirmed .ti { font-size: 13px; }
-/* booked tickets: the glass itself is faintly tinted with the brand color */
-.ticket-card .body { background: linear-gradient(180deg, var(--accent-soft), transparent 60%); }
+.ticket-card .body { border-left: 2px solid var(--accent); }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+/* price pill — free = green success badge, paid = plain neutral chip. Lives
+   in the metadata row under the title, never floating on the image corner. */
 .price-tag {
-  position: relative; z-index: 1;
-  font-size: 12.5px; font-weight: 600; padding: 5px 10px; border-radius: var(--radius-pill);
-  background: rgba(20,21,26,0.42); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--text);
 }
-.card .body { padding: 13px 15px 15px; }
+.price-tag.free { background: var(--success-soft); color: var(--success); }
+.card .body { padding: var(--space-4); }
 .card .body .organizer-row { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
 .card .body .organizer-name { font-size: 12.5px; color: var(--text-2); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card .body .verified-badge { font-size: 14px; color: var(--accent); flex: 0 0 auto; }
-.card .body h3 { font-size: 17.5px; font-weight: 600; }
-.card .body .card-facts { display: flex; flex-direction: column; gap: 3px; margin-top: 7px; }
-.card .body .cf { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); }
-.card .body .cf .ti { font-size: 14px; color: var(--text-3); flex: 0 0 auto; }
-.card .body .row { display: flex; align-items: center; justify-content: space-between; margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--hair); }
-.card .body .dist { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
-.card .body .dist .ti { font-size: 15px; }
+.card .body h3 { font-size: 20px; font-weight: 600; line-height: 1.25; }
+/* date/venue/distance stack directly under the title — no separate badges */
+.card .body .card-facts { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.card .body .cf { font-size: 13.5px; color: var(--text-2); }
+.card .body .cf .ti { display: none; } /* text-first per the brief's example — icons were adding noise, not clarity */
+.card .body .row { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-3); }
+.card .body .row-right { display: flex; align-items: center; gap: 10px; }
+.card .body .dist { font-size: 13px; color: var(--text-3); }
+.card .body .dist .ti { display: none; }
 .card .body .dist.scarce { color: var(--danger); }
-.card .body .cta { font-size: 13px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
+.card .body .cta { font-size: 14px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
 .card .body .cta.muted { color: var(--text-3); }
 
-/* ---------- tab bar ---------- */
+/* ---------- tab bar ---------- native iOS bottom bar: full-width, flat,
+   fixed to the edge. Not a floating pill, no glow. */
 .tabs {
-  position: fixed; bottom: max(4px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
-  width: calc(100% - 28px); max-width: calc(var(--maxw) - 28px); z-index: 40;
-  display: flex; align-items: center;
-  padding: 8px; border-radius: var(--radius-pill);
-  background: var(--glass-strong);
-  backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid var(--glass-line);
-  box-shadow: var(--shadow-float), inset 0 1px 0 var(--glass-edge);
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+  margin: 0 auto; max-width: var(--maxw);
+  display: flex; align-items: stretch;
+  padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--hair);
 }
 .tab {
   position: relative; z-index: 2; flex: 1 1 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  min-height: 44px;
-  font-size: 10px; font-weight: 600; color: var(--text-3); padding: 7px 4px;
-  transition: color .35s ease;
+  min-height: 48px;
+  font-size: 10px; font-weight: 600; color: var(--text-3); padding: 6px 4px;
+  transition: color .2s ease;
 }
-.tab .ti { font-size: 21px; transition: transform .45s cubic-bezier(.34,1.45,.5,1); }
+.tab .ti { font-size: 21px; }
 .tab.on { color: var(--accent); }
-.tab.on .ti { color: var(--accent); transform: translateY(-1px) scale(1.08); }
-@media (prefers-reduced-motion: reduce) {
-  .tab .ti { transition: none; }
-}
+.tab.on .ti { color: var(--accent); }
 
 /* ---------- map ---------- */
 .mappick { margin-top: 2px; }
@@ -446,7 +370,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .host-cta {
   margin: 22px 16px 0; padding: 14px 16px; border-radius: var(--radius);
   background: var(--glass-strong); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: var(--glass-shadow);
+  box-shadow: var(--glass-shadow);
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .host-cta b { font-size: 14.5px; display: block; }
@@ -457,7 +381,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .onboard-item {
   padding: 15px 14px; border-radius: var(--radius); text-align: left;
   background: var(--glass-strong); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
+  
   box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
 }
 .onboard-ic {
@@ -478,7 +402,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .account-row {
   display: flex; align-items: center; gap: 12px; padding: 13px 15px; margin: 12px 16px 0;
   border-radius: var(--radius); background: var(--glass-strong); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: var(--glass-shadow);
+  box-shadow: var(--glass-shadow);
 }
 .account-pic { width: 38px; height: 38px; border-radius: 50%; flex: 0 0 auto; object-fit: cover; }
 .account-row .ti-user-circle { font-size: 38px; color: var(--text-3); flex: 0 0 auto; }
@@ -490,7 +414,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    component, much lower visual weight so tickets stay the focus above it */
 .account-compact-wrap { padding: 0 16px; margin-top: 4px; opacity: 0.85; }
 .account-compact-wrap .account-row {
-  margin: 0; padding: 9px 12px; background: transparent; border: none; box-shadow: none; backdrop-filter: none;
+  margin: 0; padding: 9px 12px; background: transparent; border: none; box-shadow: none; 
   border-top: 1px solid var(--hair); border-radius: 0;
 }
 .account-compact-wrap .account-pic,
@@ -503,7 +427,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .install-card {
   margin: 12px 16px 0; padding: 14px 16px; border-radius: var(--radius);
   background: var(--glass-strong); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: var(--glass-shadow);
+  box-shadow: var(--glass-shadow);
   display: flex; align-items: center; gap: 12px;
 }
 .ic-mark { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center;
@@ -515,7 +439,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .sheet-backdrop {
   position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center;
-  background: rgba(10,13,21,0.5); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  background: rgba(10,13,21,0.5); 
   animation: fade .2s ease;
 }
 .install-sheet {
@@ -537,63 +461,62 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   width: 100%; font-family: inherit; font-size: 16px; padding: 12px 14px 12px 42px;
   border-radius: var(--radius-sm); color: var(--text);
   background: var(--glass-strong); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; /* never hard-clip long text/placeholders */
 }
 .search input::placeholder { color: var(--text-3); }
 .search input:focus { outline: none; border-color: rgba(79,70,229,0.6); }
 .search .clearx { position: absolute; right: 28px; top: calc(50% + 3px); transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; background: rgba(20,21,26,0.12); color: var(--text-2); display: grid; place-items: center; font-size: 13px; }
 
-/* ---------- detail ---------- */
-.detail { max-width: var(--maxw); margin: 0 auto; min-height: 100%; padding-bottom: calc(96px + env(safe-area-inset-bottom)); position: relative; }
+/* ---------- detail ---------- hero dominates the top (35-45% of viewport),
+   content begins immediately below it, minimal sticky CTA at the bottom.
+   No floating glass sheet overlapping the image — Airbnb/Apple Wallet style. */
+.detail { max-width: var(--maxw); margin: 0 auto; min-height: 100%; padding-bottom: calc(84px + env(safe-area-inset-bottom)); position: relative; }
 .detail .cover {
-  height: 320px; position: relative; background-size: cover; background-position: center;
+  height: 40vh; min-height: 280px; max-height: 420px;
+  position: relative; background-size: cover; background-position: center;
   display: flex; align-items: flex-start; justify-content: space-between;
   padding: calc(16px + env(safe-area-inset-top)) 16px 16px;
 }
-.detail .cover::after { content:""; position:absolute; inset:0; background: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0) 40%); }
+.detail .cover::after { content:""; position:absolute; inset:0; background: linear-gradient(180deg, rgba(0,0,0,0.22), rgba(0,0,0,0) 35%); }
 .detail .cover .glyph { position: absolute; left: 50%; top: 44%; transform: translate(-50%,-50%); font-size: 92px; filter: drop-shadow(0 3px 8px rgba(0,0,0,0.3)); z-index: 1; }
 .icon-btn {
   position: relative; z-index: 2;
-  width: 44px; height: 44px; border-radius: var(--radius-pill);
-  background: rgba(255,255,255,0.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  display: grid; place-items: center; font-size: 19px; color: var(--text);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.12); border: 1px solid var(--glass-line);
+  width: 40px; height: 40px; border-radius: var(--radius-pill);
+  background: rgba(0,0,0,0.35);
+  display: grid; place-items: center; font-size: 18px; color: #fff;
 }
 .icon-btn.on { color: var(--danger); }
 .detail .sheet {
-  margin: -28px 12px 0; position: relative; z-index: 2;
-  border-radius: 26px 26px var(--radius) var(--radius);
-  background: var(--glass-strong);
-  backdrop-filter: blur(24px) saturate(185%); -webkit-backdrop-filter: blur(24px) saturate(185%);
-  border: 1px solid var(--glass-line);
-  box-shadow: 0 -2px 24px rgba(31,41,61,0.10), inset 0 1px 0 var(--glass-edge);
-  padding: 22px 20px 26px;
+  position: relative; z-index: 2;
+  background: var(--bg);
+  padding: 20px 20px 26px;
 }
-.detail .sheet h1 { font-size: 26px; }
-.detail .host { font-size: 14px; color: var(--text-2); margin-top: 7px; }
+.detail .sheet h1 { font-size: 24px; margin-top: 8px; }
+.detail .host { font-size: 14px; color: var(--text-2); margin-top: 6px; }
 .tagrow { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
-.tagrow .tg { font-size: 12px; font-weight: 500; color: var(--text-2); background: var(--chip-soft); border: 1px solid var(--glass-line); padding: 4px 10px; border-radius: var(--radius-pill); }
+.tagrow .tg { font-size: 12px; font-weight: 500; color: var(--text-2); background: var(--surface-2); padding: 4px 10px; border-radius: var(--radius-pill); }
 .catpill { display: inline-block; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 4px 11px; border-radius: var(--radius-pill); }
-.facts { margin: 18px 0 6px; }
-.fact { display: flex; gap: 13px; align-items: flex-start; padding: 13px 0; border-top: 1px solid var(--hair); }
-.fact:last-child { border-bottom: 1px solid var(--hair); }
-.fact .ti { font-size: 20px; color: var(--accent); width: 24px; text-align: center; flex: 0 0 auto; margin-top: 1px; }
+/* metadata grouped into one compact, scannable block — no per-row divider
+   lines, just consistent vertical rhythm inside a single surface */
+.facts { margin: 18px 0 6px; padding: 4px 16px; border-radius: var(--radius-sm); background: var(--surface); }
+.fact { display: flex; gap: 13px; align-items: flex-start; padding: 13px 0; }
+.fact + .fact { border-top: 1px solid var(--hair); }
+.fact .ti { font-size: 19px; color: var(--text-2); width: 22px; text-align: center; flex: 0 0 auto; margin-top: 1px; }
 .fact b { font-size: 14.5px; font-weight: 600; display: block; }
 .fact span { font-size: 13px; color: var(--text-2); }
-.blurb { font-size: 15px; line-height: 1.65; margin-top: 18px; }
-.fee-box { margin-top: 20px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--glass-soft); border: 1px solid var(--glass-line); font-size: 13.5px; }
+.blurb { font-size: 15px; line-height: 1.7; margin-top: 20px; color: var(--text-2); }
+.fee-box { margin-top: 20px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--surface); font-size: 13.5px; }
 .fee-box .ln { display: flex; justify-content: space-between; padding: 3px 0; color: var(--text-2); }
 .fee-box .ln.total { color: var(--text); font-weight: 600; border-top: 1px solid var(--hair); margin-top: 6px; padding-top: 9px; }
 
+/* minimal native sticky CTA bar — full-width, flat, not a floating pill */
 .buybar {
-  position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
-  width: calc(100% - 28px); max-width: calc(var(--maxw) - 28px); z-index: 50;
-  border-radius: var(--radius-pill); padding: 9px 9px 9px 16px;
-  background: var(--glass-strong);
-  backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid var(--glass-line);
-  box-shadow: var(--shadow-float), inset 0 1px 0 var(--glass-edge);
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+  margin: 0 auto; max-width: var(--maxw);
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--hair);
   display: flex; gap: 10px; align-items: center;
 }
 .buybar .lead { flex: 1; }
@@ -604,18 +527,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* ---------- buttons ---------- */
 .btn {
   font-family: inherit; font-size: 15px; font-weight: 600;
-  border-radius: var(--radius-pill); padding: 14px 20px;
+  border-radius: var(--radius-sm); padding: 14px 20px;
   background: var(--accent); color: #fff;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
-  box-shadow: 0 4px 14px rgba(79,70,229,0.32), inset 0 1px 0 rgba(255,255,255,0.25);
   transition: transform .1s, opacity .12s;
 }
-.btn:hover { opacity: 0.95; }
+.btn:hover { opacity: 0.92; }
 .btn:active { transform: scale(0.98); }
-.btn:disabled { background: rgba(20,21,26,0.18); color: rgba(20,21,26,0.5); box-shadow: none; cursor: not-allowed; }
-.btn.dark { background: var(--text); box-shadow: 0 4px 14px rgba(20,21,26,0.3); }
-.btn.glass { background: var(--glass-strong); color: var(--text); border: 1px solid var(--glass-line); backdrop-filter: blur(14px); box-shadow: var(--glass-shadow); }
-.btn.done { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+.btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; }
+.btn.dark { background: var(--text); color: var(--bg); }
+.btn.glass { background: var(--surface-2); color: var(--text); }
+.btn.done { background: var(--success-soft); color: var(--success); }
 .btn.sq { width: 50px; flex: 0 0 auto; padding: 0; height: 50px; }
 
 /* ---------- forms ---------- */
@@ -626,7 +548,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   width: 100%; font-family: inherit; font-size: 16px; padding: 12px 13px;
   border-radius: var(--radius-sm); color: var(--text);
   background: var(--glass-strong); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  
 }
 .field input { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* checkboxes must NOT inherit the text-input treatment above (that padding +
@@ -683,7 +605,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-size: 14px; font-weight: 600; color: var(--text);
   padding: 13px 15px; margin-bottom: 14px; border-radius: var(--radius-sm);
   background: var(--glass-strong); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  
 }
 .ig-import-toggle .ti-brand-instagram { color: #E1306C; font-size: 18px; }
 .ig-import-body {
@@ -764,7 +686,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .stat {
   border-radius: var(--radius); padding: 15px 16px;
   background: var(--glass-strong); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%);
+  
   box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
 }
 .stat .k { font-size: 12.5px; color: var(--text-2); font-weight: 500; }
@@ -774,7 +696,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .dash-card {
   margin-bottom: 10px; border-radius: var(--radius); overflow: hidden;
   background: var(--glass-strong); border: 1px solid var(--glass-line);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: var(--glass-shadow);
+  box-shadow: var(--glass-shadow);
 }
 .dash-row {
   display: flex; align-items: center; gap: 12px; padding: 13px 14px;
@@ -839,19 +761,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 /* ============================================================
-   LIQUID GLASS — lensing rim only, layered onto the existing
-   borders/shadows of the major glass surfaces. Everything else
-   (blur amount, opacity, specular streaks) stays as it was.
-   ============================================================ */
-.topbar, .tabs, .buybar, .card, .stat, .dash-card,
-.install-card, .host-cta, .account-row, .onboard-item, .detail .sheet {
-  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge), var(--lens);
-}
-.tabs, .buybar {
-  box-shadow: var(--shadow-float), inset 0 1px 0 var(--glass-edge), var(--lens);
-}
-
-/* ============================================================
    MOTION — entrances, presses, and theme crossfade
    ============================================================ */
 
@@ -906,7 +815,7 @@ body,
 /* desktop hover lift for cards — keep the lens rim while lifting */
 @media (hover: hover) {
   .card { transition: transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s, background-color .35s; }
-  .card:hover { transform: translateY(-3px); box-shadow: 0 14px 40px rgba(31,41,61,.18), var(--lens); }
+  .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
   .dash-actions button { transition: color .15s, background-color .15s; }
   .dash-actions button:hover { color: var(--accent); background: var(--accent-soft); }
   .dash-actions button.danger:hover { color: var(--danger); background: rgba(199,64,44,.1); }

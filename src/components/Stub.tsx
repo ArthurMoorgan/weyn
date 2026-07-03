@@ -24,6 +24,8 @@ export default function Stub({ e, ticket = false }: { e: Weyn; ticket?: boolean 
   return (
     <Link to={`/e/${e.id}`} className={"card" + (ticket ? " ticket-card" : "")}>
       <div className="cover" style={coverStyle}>
+        {/* only status signals live on the image — date/price/venue moved
+            into the body below, per the "never place price in corners" rule */}
         <div className="cover-badges">
           {ticket ? (
             <span className="gbadge confirmed"><i className="ti ti-circle-check" />{e.cancelled ? "Cancelled" : "Confirmed"}</span>
@@ -31,12 +33,9 @@ export default function Stub({ e, ticket = false }: { e: Weyn; ticket?: boolean 
             <span className="gbadge out">Sold out</span>
           ) : live ? (
             <span className="gbadge live"><span className="pulse" />Live now</span>
-          ) : (
-            <span className="gbadge">{dayLabel(e)} · {timeLabel(e)}</span>
-          )}
+          ) : null}
           {!ticket && e.featured && <span className="gbadge featured"><i className="ti ti-sparkles" />Featured</span>}
         </div>
-        <span className="price-tag">{e.price === 0 ? "Free" : `${e.price} OMR`}</span>
         {!e.image && <span className="glyph">{e.glyph}</span>}
       </div>
 
@@ -47,22 +46,25 @@ export default function Stub({ e, ticket = false }: { e: Weyn; ticket?: boolean 
         </div>
         <h3>{e.title}</h3>
         <div className="card-facts">
-          <span className="cf"><i className="ti ti-calendar-event" /> {dayLabel(e)} · {timeLabel(e)}</span>
-          <span className="cf"><i className="ti ti-map-pin" /> {e.venue}</span>
+          <span className="cf">{dayLabel(e)} · {timeLabel(e)}</span>
+          <span className="cf">{e.venue}</span>
         </div>
         <div className="row">
           {ticket ? (
-            <span className="dist"><i className="ti ti-map-pin" /> {e.area}</span>
+            <span className="dist">{e.area}</span>
           ) : out ? (
-            <span className="dist"><i className="ti ti-ticket-off" /> Sold out</span>
+            <span className="dist">Sold out</span>
           ) : scarce ? (
-            <span className="dist scarce"><i className="ti ti-flame" /> {left} left</span>
+            <span className="dist scarce">{left} left</span>
           ) : (
-            <span className="dist"><i className="ti ti-walk" /> {e.distanceKm} km away</span>
+            <span className="dist">{e.distanceKm} km away</span>
           )}
-          <span className={"cta" + (out && !ticket ? " muted" : "")}>
-            {ticket ? "View ticket" : out ? "Full" : e.price === 0 ? "RSVP" : "Get tickets"}
-            <i className="ti ti-arrow-right" />
+          <span className="row-right">
+            <span className={"price-tag" + (e.price === 0 ? " free" : "")}>{e.price === 0 ? "Free" : `${e.price} OMR`}</span>
+            <span className={"cta" + (out && !ticket ? " muted" : "")}>
+              {ticket ? "View ticket" : out ? "Full" : e.price === 0 ? "RSVP" : "Get tickets"}
+              <i className="ti ti-arrow-right" />
+            </span>
           </span>
         </div>
       </div>
