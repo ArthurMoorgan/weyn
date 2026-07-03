@@ -1,0 +1,55 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "weyn",
+  "main": "server/worker.js",
+  "compatibility_date": "2026-03-17",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Express's body-parser (loaded by Express itself, regardless of whether
+  // our code calls express.json()) requires iconv-lite at import time,
+  // which crashes the Workers bundle — see server/stubs/iconv-lite-stub.js
+  // for the full explanation and the upstream issue link.
+  "alias": {
+    "iconv-lite": "./server/stubs/iconv-lite-stub.js"
+  },
+
+  // NODE_ENV/CORS_ORIGIN are plain (non-secret) config — DATABASE_URL,
+  // SESSION_SECRET, GOOGLE_CLIENT_ID, GROQ_API_KEY are set separately via
+  // `wrangler secret put` so they're encrypted, not visible in this file.
+  "vars": {
+    "NODE_ENV": "production",
+    "CORS_ORIGIN": "https://weyntickets.com,https://www.weyntickets.com"
+  },
+
+  // serves the built frontend (npm run build -> dist/) directly from the
+  // Worker — requests that match a file in dist/ are served as static
+  // assets; everything else (API routes) falls through to the Express
+  // handler in server/index.js. Keeps the single-deployment model.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  // event cover photos — Workers have no persistent disk, R2 replaces
+  // server/uploads/ entirely (see server/storage.js)
+  "r2_buckets": [
+    { "binding": "UPLOADS", "bucket_name": "weyn-uploads" }
+  ],
+
+  // temporary live URL until weyntickets.com is transferred into this
+  // account — weynevents.com already lives here, so we borrow a subdomain
+  // of it to get a real working deployment today
+  "routes": [
+    { "pattern": "app.weynevents.com", "custom_domain": true }
+  ],
+
+  // replaces the old setInterval reminder scanner — Workers don't keep a
+  // process alive between requests, so this runs server/index.js's
+  // scheduled() export every 5 minutes instead
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+
+  "observability": { "enabled": true }
+}

@@ -15,7 +15,7 @@ export function authConfigured() {
 }
 
 export function issueSessionToken(user) {
-  return jwt.sign({ sub: user.id, role: user.role }, SESSION_SECRET, { expiresIn: TOKEN_TTL });
+  return jwt.sign({ sub: user.id, role: user.role, tv: user.tokenVersion }, SESSION_SECRET, { expiresIn: TOKEN_TTL });
 }
 
 // Attaches req.user (the full User row) if a valid session is present;
@@ -26,7 +26,11 @@ export async function attachUser(req, _res, next) {
   if (!token || !SESSION_SECRET) return next();
   try {
     const payload = jwt.verify(token, SESSION_SECRET);
-    req.user = await db.getUserById(payload.sub);
+    const user = await db.getUserById(payload.sub);
+    // tokenVersion mismatch = this JWT was issued before a forced sign-out
+    // (ban, role change) bumped it — a 30-day-lived token has no other way
+    // to be revoked early, since we don't keep a server-side session store.
+    if (user && user.tokenVersion === payload.tv) req.user = user;
   } catch {
     // expired/tampered token — treat as signed out rather than erroring the request
   }

@@ -22,15 +22,22 @@ model User {
   name      String
   avatarUrl String?
   googleSub String?   @unique
-  // Everyone who signs in can organize — Weyn doesn't gate "who's allowed to
-  // host" today, just "can you edit what you didn't create." ADMIN is a
-  // manually-granted moderation role, never self-assigned.
-  role      Role      @default(ORGANIZER)
+  // Default is ATTENDEE, not ORGANIZER — hosting is granted by *acting* as an
+  // organizer (Event.ownerId is set the moment you create your first event),
+  // not by the role column. Keeping the default minimal-privilege means a
+  // brand-new session token has the least power a bug in `role` checks could
+  // grant. ADMIN is manually assigned, never self-assigned.
+  role      Role      @default(ATTENDEE)
+  // Bumped to force-invalidate every outstanding session JWT for this user
+  // (ban, role change, "sign out everywhere") — see auth.js's attachUser,
+  // which rejects a token whose embedded tv doesn't match the current value.
+  tokenVersion Int    @default(0)
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
   events          Event[]
   analyticsEvents AnalyticsEvent[]
+  auditLogs       AuditLog[]
 
   @@index([email])
 }
@@ -85,6 +92,7 @@ model Event {
   owner    User?     @relation(fields: [ownerId], references: [id])
   tiers    Tier[]
   bookings Booking[]
+  tickets  Ticket[]
 
   @@index([organizer])
   @@index([startsAt])
@@ -119,38 +127,96 @@ model Tier {
   @@index([eventId])
 }
 
+enum BookingStatus {
+  pending
+  paid
+  cancelled
+  expired
+}
+
 model Booking {
-  id       String   @id @default(cuid())
+  id       String        @id @default(cuid())
   eventId  String
   tierId   String?
-  status   String   @default("pending") // pending | paid | cancelled | expired
+  status   BookingStatus @default(pending)
   deviceId String?
   email    String?
   name     String?
-  qty      Int      @default(1)
-  bookedAt DateTime @default(now())
-  reminded Boolean  @default(false)
+  qty      Int           @default(1)
+  bookedAt DateTime      @default(now())
+  reminded Boolean       @default(false)
 
   event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tier    Tier?    @relation(fields: [tierId], references: [id])
   payment Payment?
+  tickets Ticket[]
 
   @@index([eventId])
   @@index([deviceId])
   @@index([status])
 }
 
+enum PaymentStatus {
+  pending
+  paid
+  failed
+}
+
 model Payment {
-  id             String   @id @default(cuid())
-  bookingId      String   @unique
-  paytabsTranRef String?  @unique
+  id             String        @id @default(cuid())
+  bookingId      String        @unique
+  paytabsTranRef String?       @unique
   amount         Float
-  status         String   @default("pending") // pending | paid | failed
+  status         PaymentStatus @default(pending)
   rawWebhook     Json?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+// One row per admitted seat (booking.qty can be >1) — the actual unit that
+// gets scanned at the door. Deliberately separate from Booking so a
+// multi-ticket purchase can't be checked in "all at once" by reusing a
+// single shared code, and so a leaked/screenshotted code only ever admits
+// one person, once.
+model Ticket {
+  id           String    @id @default(cuid())
+  bookingId    String
+  eventId      String
+  // Long, random, unguessable — rendered as a QR code client-side. Not
+  // sequential/derivable from the booking id, so scraping booking IDs can't
+  // be used to forge admission.
+  code         String    @unique @default(cuid())
+  checkedInAt  DateTime?
+  checkedInBy  String? // User.id of the organizer/staff who scanned it
+  createdAt    DateTime  @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([eventId])
+}
+
+// Append-only trail for anything that mutates state on someone else's
+// behalf or destroys data — moderation, cancellation, check-in. Not meant
+// to be edited or deleted by app code; exists purely for after-the-fact
+// "who did what" review (disputes, fraud investigation, abuse reports).
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String // e.g. "event.cancel", "event.moderate", "ticket.checkin"
+  entityType String
+  entityId  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
 }
 
 model PushToken {

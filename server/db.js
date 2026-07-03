@@ -3,8 +3,24 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 // Prisma 7 requires an explicit driver adapter instead of a datasource url
 // in schema.prisma — see https://pris.ly/d/prisma7-client-config
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-export const prisma = new PrismaClient({ adapter });
+//
+// Lazily constructed (NOT at module top-level): Cloudflare Workers forbid
+// any async I/O — including opening a DB connection pool — outside of an
+// actual request handler's execution ("global scope"). Constructing
+// PrismaClient/pg-pool eagerly at import time crashes the Workers deploy
+// (`Disallowed operation called within global scope`). This Proxy defers
+// the real construction until the first property access, which only ever
+// happens from inside a route handler — same object identity either way,
+// so no call site (`db.prisma.event.findMany()` etc) needs to change.
+let _prisma = null;
+function realPrisma() {
+  if (!_prisma) {
+    const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+    _prisma = new PrismaClient({ adapter });
+  }
+  return _prisma;
+}
+export const prisma = new Proxy({}, { get: (_t, prop) => realPrisma()[prop] });
 
 // ---- date helpers: build seed relative to "now" so it's always upcoming ----
 function at(dayOffset, hour, min = 0) {
@@ -153,20 +169,23 @@ export const CATEGORY_SEED = [
   { key: "community", label: "Community" },
 ];
 
-async function seedIfEmpty() {
+// Exported, NOT auto-run at import time — Cloudflare Workers forbid async
+// I/O at module scope (same reason `prisma` above is a lazy Proxy). Called
+// explicitly from server/index.js (plain Node local dev) on startup; the
+// Workers entry (server/worker.js) never calls these, since production
+// Postgres already has real data from local dev against the same database.
+export async function seedIfEmpty() {
   const count = await prisma.event.count();
   if (count > 0) return;
   for (const e of seed()) {
     await prisma.event.create({ data: e });
   }
 }
-async function seedCategoriesIfEmpty() {
+export async function seedCategoriesIfEmpty() {
   const count = await prisma.category.count();
   if (count > 0) return;
   for (const c of CATEGORY_SEED) await prisma.category.create({ data: c });
 }
-await seedIfEmpty();
-await seedCategoriesIfEmpty();
 
 export const db = {
   async all() {
@@ -274,6 +293,68 @@ export const db = {
     await prisma.booking.updateMany({ where: { deviceId, eventId }, data: { reminded: true } });
   },
 
+  // ---- capacity: atomic, conditional increments (no read-then-write race) ----
+  // Plain `sold += qty` after a separate read (the old approach) is a classic
+  // TOCTOU bug — two concurrent requests can both read `sold=capacity-1` and
+  // both "succeed", overselling by however many requests raced. Prisma can't
+  // express a column-vs-column WHERE (sold + qty <= capacity) through its
+  // query builder, so this is raw SQL: the UPDATE's WHERE clause IS the
+  // capacity check, evaluated atomically by Postgres at write time. Returns
+  // the updated row if the claim succeeded, or null if it didn't fit.
+  async claimTierCapacity(tierId, qty) {
+    const rows = await prisma.$queryRaw`
+      UPDATE "Tier" SET sold = sold + ${qty}
+      WHERE id = ${tierId} AND sold + ${qty} <= capacity
+      RETURNING id, name, capacity, sold
+    `;
+    return rows[0] || null;
+  },
+  async claimEventCapacity(eventId, qty) {
+    const rows = await prisma.$queryRaw`
+      UPDATE "Event" SET sold = sold + ${qty}
+      WHERE id = ${eventId} AND sold + ${qty} <= capacity
+      RETURNING id, capacity, sold
+    `;
+    return rows[0] || null;
+  },
+  async releaseTierCapacity(tierId, qty) {
+    await prisma.$executeRaw`UPDATE "Tier" SET sold = GREATEST(0, sold - ${qty}) WHERE id = ${tierId}`;
+  },
+  async releaseEventCapacity(eventId, qty) {
+    await prisma.$executeRaw`UPDATE "Event" SET sold = GREATEST(0, sold - ${qty}) WHERE id = ${eventId}`;
+  },
+
+  // ---- tickets (one row per admitted seat — see schema.prisma's comment) ----
+  async issueTickets(bookingId, eventId, qty) {
+    const data = Array.from({ length: qty }, () => ({ bookingId, eventId }));
+    await prisma.ticket.createMany({ data });
+    return prisma.ticket.findMany({ where: { bookingId } });
+  },
+  async ticketsForBooking(bookingId) {
+    return prisma.ticket.findMany({ where: { bookingId } });
+  },
+  async getTicketByCode(code) {
+    return prisma.ticket.findUnique({ where: { code }, include: { event: true, booking: true } });
+  },
+  async checkInTicket(code, staffUserId) {
+    // Conditional on checkedInAt still being null — same atomic-claim
+    // pattern as capacity above, so two staff scanning the same code at the
+    // same instant can't both "successfully" admit the same seat.
+    const rows = await prisma.$queryRaw`
+      UPDATE "Ticket" SET "checkedInAt" = now(), "checkedInBy" = ${staffUserId}
+      WHERE code = ${code} AND "checkedInAt" IS NULL
+      RETURNING id, "eventId", "bookingId", "checkedInAt"
+    `;
+    return rows[0] || null;
+  },
+
+  // ---- audit log (see schema.prisma's AuditLog comment) ----
+  async audit(action, { actorId, entityType, entityId, metadata } = {}) {
+    await prisma.auditLog.create({
+      data: { action, actorId: actorId || null, entityType, entityId, metadata },
+    });
+  },
+
   // ---- checkout / payments ----
   async createPendingBooking({ eventId, tierId, deviceId, account, qty }) {
     return prisma.booking.create({
@@ -304,6 +385,11 @@ export const db = {
   },
   async getUserById(id) {
     return prisma.user.findUnique({ where: { id, deletedAt: null } });
+  },
+  // forces every outstanding session JWT for this user to fail attachUser's
+  // tokenVersion check — used when banning a user or changing their role
+  async revokeSessions(userId) {
+    return prisma.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
   },
 
   // ---- categories ----

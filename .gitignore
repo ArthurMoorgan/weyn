@@ -16,8 +16,14 @@ server/uploads/
 .env.local
 .env.production
 .env.*.local
+.dev.vars
+
+# Cloudflare Workers local dev cache/state
+.wrangler/
 
 # capacitor build output (native project is committed; copied web assets are not)
 ios/App/App/public/
 
 /src/generated/prisma
+.vercel
+.env*

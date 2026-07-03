@@ -15,7 +15,11 @@
     "preview": "vite preview",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios",
-    "ios:assets": "npx capacitor-assets generate --ios"
+    "ios:assets": "npx capacitor-assets generate --ios",
+    "cf:dev": "npm run build && wrangler dev",
+    "cf:deploy": "npm run build && wrangler deploy",
+    "vercel:dev": "vercel dev",
+    "vercel:deploy": "vercel deploy --prod"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.1",
@@ -24,14 +28,18 @@
     "@parse/node-apn": "^8.1.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@sentry/node": "^10.63.0",
+    "@vercel/blob": "^2.5.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "leaflet": "^1.9.4",
     "multer": "^1.4.5-lts.1",
     "pg": "^8.22.0",
+    "posthog-node": "^5.39.4",
     "prisma": "^7.8.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -49,6 +57,8 @@
     "concurrently": "^9.1.0",
     "playwright": "^1.48.0",
     "typescript": "^5.5.4",
-    "vite": "^5.4.6"
+    "vercel": "^54.20.1",
+    "vite": "^5.4.6",
+    "wrangler": "^4.107.0"
   }
 }

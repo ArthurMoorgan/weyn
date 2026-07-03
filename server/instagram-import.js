@@ -12,10 +12,8 @@
 ///     if ANTHROPIC_API_KEY is set, else a deterministic regex/heuristic
 //      parser that still gives a genuinely useful prefill.
 
-import crypto from "crypto";
-import path from "path";
-import fs from "fs";
 import { aiConfigured, askClaudeJson } from "./ai.js";
+import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { cleanEventTitle } from "./refine.js";
 
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
@@ -116,15 +114,20 @@ export async function parseEventFromCaption(caption) {
   return { ...heuristicParse(caption), aiParsed: false };
 }
 
-export async function downloadImage(imageUrl, uploadDir) {
+// `storage` is server/storage-disk.js or server/storage-r2.js's export —
+// injected rather than imported directly so this file works unchanged
+// whether the app is running as a plain Node process or a Cloudflare Worker.
+export async function downloadImage(imageUrl, storage) {
   try {
     const res = await fetch(imageUrl, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
-    const ext = (res.headers.get("content-type") || "").includes("png") ? ".png" : ".jpg";
-    const filename = crypto.randomUUID() + ext;
-    fs.writeFileSync(path.join(uploadDir, filename), buf);
-    return `/uploads/${filename}`;
+    // don't trust the remote server's Content-Type header — sniff real
+    // magic bytes (same reasoning as the direct-upload path in app.js)
+    const realMime = sniffImageMime(buf);
+    if (!realMime) return null;
+    const { url } = await storage.saveImage(buf, EXT_BY_MIME[realMime]);
+    return url;
   } catch {
     return null; // image download failing shouldn't block the whole import
   }
