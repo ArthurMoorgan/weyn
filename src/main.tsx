@@ -11,6 +11,7 @@ import Organizer from "./pages/Organizer";
 import You from "./pages/You";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCancel from "./pages/CheckoutCancel";
+import InviteAccept from "./pages/InviteAccept";
 import { initPush } from "./push";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -26,6 +27,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <Route path="/e/:id" element={<EventDetail />} />
         <Route path="/checkout/success" element={<CheckoutSuccess />} />
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+        <Route path="/invite/:token" element={<InviteAccept />} />
       </Routes>
     </HashRouter>
   </React.StrictMode>

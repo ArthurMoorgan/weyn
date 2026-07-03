@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn } from "../api";
+import { Html5Qrcode } from "html5-qrcode";
+import { api, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn, type TeamRole } from "../api";
 import { useAsync } from "../hooks";
 import { getOrganizer, useAccount, useTickets } from "../store";
 import Stub from "../components/Stub";
@@ -17,8 +18,29 @@ export default function You() {
   // calling one conditionally crashes the whole tree on the render where
   // the condition flips (React counts hooks per render)
   const account = useAccount();
-  const summary = useAsync(() => api.organizerSummary(name), [name]);
+  // dashboardEvents/dashboardSummary (not organizerSummary(name)) — they
+  // include events a team member was invited to, not just ones matching
+  // the signed-in user's own organizer display name. Both require auth, so
+  // signed-out visitors just get an empty dashboard (nothing to show yet).
+  const dashEvents = useAsync(() => (account ? api.dashboardEvents() : Promise.resolve([])), [account]);
+  const dashSummary = useAsync(() => (account ? api.dashboardSummary() : Promise.resolve(null)), [account]);
   const allEvents = useAsync(() => api.listEvents(), []);
+
+  const summary = {
+    loading: dashEvents.loading || dashSummary.loading,
+    error: dashEvents.error || dashSummary.error,
+    reload: () => { dashEvents.reload(); dashSummary.reload(); },
+    data: dashSummary.data && dashEvents.data ? {
+      events: dashEvents.data,
+      stats: {
+        eventCount: dashSummary.data.totalEvents,
+        ticketsSold: dashSummary.data.totalAttendees,
+        grossRevenue: dashSummary.data.totalRevenue,
+        netRevenue: +(dashSummary.data.totalRevenue * 0.92).toFixed(2),
+        feePaid: +(dashSummary.data.totalRevenue * 0.08).toFixed(2),
+      },
+    } : null,
+  };
 
   if (summary.loading || allEvents.loading) {
     return (<><Header /><div className="spin" /></>);
@@ -64,7 +86,11 @@ export default function You() {
       )}
 
       <TicketsSection tickets={myTickets} />
-      <OrganizerSection name={name} summary={summary.data!} reload={summary.reload} />
+      <OrganizerSection
+        name={name}
+        summary={summary.data || { events: [], stats: { eventCount: 0, ticketsSold: 0, grossRevenue: 0, netRevenue: 0, feePaid: 0 } }}
+        reload={summary.reload}
+      />
 
       <div style={{ padding: "0 16px" }}><InstallPrompt /></div>
 
@@ -110,6 +136,9 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
   const [editing, setEditing] = useState<Weyn | null>(null);
   const [attendeesFor, setAttendeesFor] = useState<Weyn | null>(null);
   const [marketingFor, setMarketingFor] = useState<Weyn | null>(null);
+  const [analyticsFor, setAnalyticsFor] = useState<Weyn | null>(null);
+  const [teamFor, setTeamFor] = useState<Weyn | null>(null);
+  const [checkinFor, setCheckinFor] = useState<Weyn | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   if (!isHost) {
@@ -176,7 +205,10 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
             {!e.cancelled && (
               <div className="dash-actions">
                 <button onClick={() => setEditing(e)}><i className="ti ti-pencil" /> Edit</button>
+                <button onClick={() => setAnalyticsFor(e)}><i className="ti ti-chart-bar" /> Analytics</button>
                 <button onClick={() => setAttendeesFor(e)}><i className="ti ti-users" /> Attendees</button>
+                <button onClick={() => setCheckinFor(e)}><i className="ti ti-qrcode" /> Check-in</button>
+                <button onClick={() => setTeamFor(e)}><i className="ti ti-users-group" /> Team</button>
                 <button onClick={() => setMarketingFor(e)}><i className="ti ti-speakerphone" /> Marketing</button>
                 <button onClick={() => duplicate(e)} disabled={busyId === e.id}><i className="ti ti-copy" /> Duplicate</button>
                 <button onClick={() => cancel(e)} disabled={busyId === e.id} className="danger"><i className="ti ti-ban" /> Cancel</button>
@@ -191,6 +223,9 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
       {editing && <EditSheet event={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
       {attendeesFor && <AttendeesSheet event={attendeesFor} onClose={() => setAttendeesFor(null)} />}
       {marketingFor && <MarketingSheet event={marketingFor} onClose={() => setMarketingFor(null)} />}
+      {analyticsFor && <AnalyticsSheet event={analyticsFor} onClose={() => setAnalyticsFor(null)} />}
+      {teamFor && <TeamSheet event={teamFor} onClose={() => setTeamFor(null)} />}
+      {checkinFor && <CheckInSheet event={checkinFor} onClose={() => setCheckinFor(null)} />}
     </section>
   );
 }
@@ -231,6 +266,22 @@ function EditSheet({ event, onClose, onSaved }: { event: Weyn; onClose: () => vo
 /* ---------- Attendees sheet ---------- */
 function AttendeesSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
   const { data, loading, error } = useAsync(() => api.getAttendees(event.id), [event.id]);
+
+  function exportCsv() {
+    const rows = data || [];
+    const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const csv = ["Name,Email,Booked At", ...rows.map((a) =>
+      [escape(a.name || ""), escape(a.email || ""), escape(a.bookedAt)].join(",")
+    )].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${event.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-attendees.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="install-sheet glass" style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
@@ -239,19 +290,22 @@ function AttendeesSheet({ event, onClose }: { event: Weyn; onClose: () => void }
         {error && <p className="errline">{error}</p>}
         {!loading && !error && (
           (data || []).length > 0 ? (
-            <ul className="steps" style={{ maxHeight: 280, overflowY: "auto" }}>
-              {data!.map((a, i) => (
-                <li key={i}>
-                  <i className="ti ti-user" />
-                  <span>{a.name || a.email || "Anonymous"}{a.email && a.name && <><br /><small style={{ color: "var(--text-3)" }}>{a.email}</small></>}</span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="steps" style={{ maxHeight: 280, overflowY: "auto" }}>
+                {data!.map((a, i) => (
+                  <li key={i}>
+                    <i className="ti ti-user" />
+                    <span>{a.name || a.email || "Anonymous"}{a.email && a.name && <><br /><small style={{ color: "var(--text-3)" }}>{a.email}</small></>}</span>
+                  </li>
+                ))}
+              </ul>
+              <button className="btn glass" onClick={exportCsv} style={{ marginTop: 10 }}><i className="ti ti-download" /> Export CSV</button>
+            </>
           ) : (
             <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No named attendees yet — people who book while signed in with Google will show up here.</p>
           )
         )}
-        <button className="btn glass" onClick={onClose}>Close</button>
+        <button className="btn glass" onClick={onClose} style={{ marginTop: 8 }}>Close</button>
       </div>
     </div>
   );
@@ -305,6 +359,246 @@ function MarketingSheet({ event, onClose }: { event: Weyn; onClose: () => void }
           <i className="ti ti-refresh" /> {regenerating ? "Regenerating…" : "Regenerate"}
         </button>
         <button className="btn glass" style={{ marginTop: 8 }} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Analytics sheet ---------- */
+function AnalyticsSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
+  const { data, loading, error } = useAsync(() => api.eventAnalytics(event.id), [event.id]);
+  const maxTier = data ? Math.max(1, ...data.tierBreakdown.map((t) => t.sold)) : 1;
+  const maxDay = data ? Math.max(1, ...data.salesByDay.map((d) => d.qty)) : 1;
+
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="install-sheet glass" style={{ textAlign: "left", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginBottom: 14 }}>Analytics — {event.title}</h3>
+        {loading && <div className="spin" style={{ margin: "20px auto" }} />}
+        {error && <p className="errline">{error}</p>}
+        {!loading && !error && data && (
+          <>
+            <div className="stat-grid">
+              <div className="stat"><div className="k">Tickets sold</div><div className="v">{data.ticketsSold} <small>/ {data.capacity >= 9000 ? "∞" : data.capacity}</small></div></div>
+              <div className="stat"><div className="k">Revenue</div><div className="v">{data.revenue.toLocaleString()} <small>OMR</small></div></div>
+            </div>
+
+            {data.tierBreakdown.length > 0 && (
+              <>
+                <p className="hint" style={{ margin: "16px 0 8px" }}>Ticket type performance</p>
+                {data.tierBreakdown.map((t) => (
+                  <div key={t.id} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                      <span>{t.name}</span><span style={{ color: "var(--text-2)" }}>{t.sold}/{t.capacity} · {t.revenue.toLocaleString()} OMR</span>
+                    </div>
+                    <div className="bar"><i style={{ width: `${Math.round((t.sold / maxTier) * 100)}%` }} /></div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {data.salesByDay.length > 0 && (
+              <>
+                <p className="hint" style={{ margin: "16px 0 8px" }}>Sales over time</p>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
+                  {data.salesByDay.map((d) => (
+                    <div key={d.date} title={`${d.date}: ${d.qty}`} style={{
+                      flex: 1, minWidth: 4, borderRadius: 3,
+                      height: `${Math.max(6, Math.round((d.qty / maxDay) * 80))}px`,
+                      background: "var(--accent)",
+                    }} />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {data.conversionRate === null && (
+              <p className="hint" style={{ marginTop: 14 }}>
+                Page-view/conversion tracking isn't wired up on the event page yet — this shows real ticket sales, not fabricated traffic numbers.
+              </p>
+            )}
+          </>
+        )}
+        <button className="btn glass" style={{ marginTop: 14 }} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Team sheet ---------- */
+const ROLE_LABEL: Record<TeamRole, string> = { MANAGER: "Manager", STAFF: "Staff (check-in only)" };
+
+function TeamSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
+  const { data, loading, error, reload } = useAsync(() => api.listTeam(event.id), [event.id]);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<TeamRole>("STAFF");
+  const [inviting, setInviting] = useState(false);
+  const [inviteErr, setInviteErr] = useState("");
+  const [lastLink, setLastLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function invite() {
+    if (!email.trim()) return;
+    setInviting(true); setInviteErr(""); setLastLink(null);
+    try {
+      const res = await api.inviteTeamMember(event.id, email.trim(), role);
+      setLastLink(res.inviteLink);
+      setEmail("");
+      reload();
+    } catch (e: any) {
+      setInviteErr(e.message || "Couldn't send invite");
+    } finally {
+      setInviting(false);
+    }
+  }
+  function copyLink() {
+    if (!lastLink) return;
+    navigator.clipboard?.writeText(lastLink).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  }
+  async function revoke(memberId: string) {
+    if (!confirm("Revoke this person's access to the event?")) return;
+    await api.revokeTeamMember(event.id, memberId);
+    reload();
+  }
+
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="install-sheet glass" style={{ textAlign: "left", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginBottom: 4 }}>Team — {event.title}</h3>
+        <p className="hint" style={{ margin: "0 0 14px" }}>
+          Managers get full event access. Staff can only check people in at the door.
+        </p>
+
+        <div className="field"><label>Invite by email</label><input type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="teammate@email.com" /></div>
+        <div className="field">
+          <label>Role</label>
+          <select value={role} onChange={(ev) => setRole(ev.target.value as TeamRole)}>
+            <option value="STAFF">Staff (check-in only)</option>
+            <option value="MANAGER">Manager (full access)</option>
+          </select>
+        </div>
+        {inviteErr && <p className="errline">{inviteErr}</p>}
+        <button className="btn" onClick={invite} disabled={inviting || !email.trim()}>
+          {inviting ? "Creating invite…" : "Create invite link"}
+        </button>
+
+        {lastLink && (
+          <div className="marketing-card" style={{ marginTop: 10 }}>
+            <div className="marketing-card-head">
+              <i className="ti ti-link" /> <b>Invite link — send it yourself</b>
+              <button className="copy-btn" onClick={copyLink}><i className={"ti " + (copied ? "ti-check" : "ti-copy")} /> {copied ? "Copied" : "Copy"}</button>
+            </div>
+            <pre className="marketing-text" style={{ wordBreak: "break-all" }}>{lastLink}</pre>
+          </div>
+        )}
+
+        <p className="hint" style={{ margin: "18px 0 8px" }}>Team members</p>
+        {loading && <div className="spin" style={{ margin: "20px auto" }} />}
+        {error && <p className="errline">{error}</p>}
+        {!loading && !error && (
+          (data || []).length > 0 ? (
+            <ul className="steps">
+              {data!.map((m) => (
+                <li key={m.id}>
+                  <i className={m.role === "MANAGER" ? "ti ti-shield" : "ti ti-scan"} />
+                  <span>
+                    {m.user?.name || m.email} <small style={{ color: "var(--text-3)" }}>· {ROLE_LABEL[m.role]}{m.status === "PENDING" ? " · invite pending" : ""}</small>
+                  </span>
+                  <button className="copy-btn" onClick={() => revoke(m.id)} style={{ marginLeft: "auto" }}>Revoke</button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No team members yet.</p>
+          )
+        )}
+        <button className="btn glass" style={{ marginTop: 14 }} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Check-in sheet (QR scan + manual code entry) ---------- */
+function CheckInSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
+  const [code, setCode] = useState("");
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [checkedInCount, setCheckedInCount] = useState(0);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  async function submitCode(raw: string) {
+    const value = raw.trim();
+    if (!value || busy) return;
+    setBusy(true); setResult(null);
+    try {
+      const res = await api.checkInTicket(value);
+      setResult({ ok: true, message: "Checked in ✓" });
+      setCheckedInCount((n) => n + 1);
+      void res;
+    } catch (e: any) {
+      setResult({ ok: false, message: e.message || "Couldn't check in that code" });
+    } finally {
+      setBusy(false);
+      setCode("");
+    }
+  }
+
+  async function startScanner() {
+    setScanning(true);
+    setTimeout(async () => {
+      try {
+        const el = document.getElementById("weyn-qr-region");
+        if (!el) return;
+        const scanner = new Html5Qrcode("weyn-qr-region");
+        scannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 220 },
+          (decoded) => { submitCode(decoded); },
+          () => {}
+        );
+      } catch {
+        setResult({ ok: false, message: "Couldn't access the camera — use manual code entry instead." });
+        setScanning(false);
+      }
+    }, 50);
+  }
+  function stopScanner() {
+    scannerRef.current?.stop().catch(() => {});
+    setScanning(false);
+  }
+
+  return (
+    <div className="sheet-backdrop" onClick={() => { stopScanner(); onClose(); }}>
+      <div className="install-sheet glass" style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginBottom: 4 }}>Check-in — {event.title}</h3>
+        <p className="hint" style={{ margin: "0 0 14px" }}>{checkedInCount} checked in this session</p>
+
+        {!scanning ? (
+          <button className="btn" onClick={startScanner}><i className="ti ti-camera" /> Scan QR code</button>
+        ) : (
+          <>
+            <div id="weyn-qr-region" style={{ borderRadius: 12, overflow: "hidden", marginBottom: 10 }} />
+            <button className="btn glass" onClick={stopScanner}>Stop scanning</button>
+          </>
+        )}
+
+        <div className="field" style={{ marginTop: 14 }}>
+          <label>Or enter ticket code manually</label>
+          <input value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitCode(code)} placeholder="Ticket code" />
+        </div>
+        <button className="btn glass" onClick={() => submitCode(code)} disabled={busy || !code.trim()}>
+          {busy ? "Checking…" : "Check in"}
+        </button>
+
+        {result && (
+          <p className={result.ok ? "hint" : "errline"} style={{ marginTop: 10, color: result.ok ? "var(--accent)" : undefined }}>
+            {result.message}
+          </p>
+        )}
+
+        <button className="btn glass" style={{ marginTop: 14 }} onClick={() => { stopScanner(); onClose(); }}>Close</button>
       </div>
     </div>
   );

@@ -38,6 +38,8 @@ model User {
   events          Event[]
   analyticsEvents AnalyticsEvent[]
   auditLogs       AuditLog[]
+  teamMemberships EventTeamMember[] @relation("TeamMembership")
+  teamInvitesSent EventTeamMember[] @relation("TeamInviter")
 
   @@index([email])
 }
@@ -89,14 +91,65 @@ model Event {
   createdAt             DateTime  @default(now())
   deletedAt             DateTime? // soft delete — reads filter this out by default
 
-  owner    User?     @relation(fields: [ownerId], references: [id])
-  tiers    Tier[]
-  bookings Booking[]
-  tickets  Ticket[]
+  owner       User?             @relation(fields: [ownerId], references: [id])
+  tiers       Tier[]
+  bookings    Booking[]
+  tickets     Ticket[]
+  teamMembers EventTeamMember[]
 
   @@index([organizer])
   @@index([startsAt])
   @@index([ownerId])
+}
+
+enum TeamRole {
+  // Same event powers as the owner (edit/cancel/duplicate/attendees/
+  // marketing) except transferring ownership or managing the team itself —
+  // that stays owner (or platform ADMIN) only, so a MANAGER can't remove the
+  // person who invited them.
+  MANAGER
+  // Check-in only — the door-staff role. Deliberately can't see revenue,
+  // attendee emails, or edit the event; scope matches what someone handed a
+  // phone at the entrance actually needs.
+  STAFF
+}
+
+enum TeamInviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+// Grants a User (or a not-yet-registered email) scoped access to one Event
+// without making them its owner. Invites are copy-link based, not emailed —
+// Weyn has no transactional email provider configured; the organizer shares
+// the link themselves (WhatsApp, email, however). userId is null until the
+// invitee signs in and accepts, at which point it's filled in and the
+// invite becomes the durable record of that person's access to this event.
+model EventTeamMember {
+  id           String            @id @default(cuid())
+  eventId      String
+  invitedEmail String
+  userId       String?
+  role         TeamRole
+  status       TeamInviteStatus  @default(PENDING)
+  // Unguessable, single-use — the accept link is /invite/:inviteToken.
+  // Cleared (set null) once accepted so a leaked old link can't be reused
+  // to re-grant access after acceptance.
+  inviteToken  String?           @unique @default(cuid())
+  invitedBy    String
+  createdAt    DateTime          @default(now())
+  acceptedAt   DateTime?
+
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User? @relation("TeamMembership", fields: [userId], references: [id])
+  inviter User  @relation("TeamInviter", fields: [invitedBy], references: [id])
+
+  // one active (non-revoked) membership per person per event — re-inviting
+  // after a revoke creates a new row rather than fighting a unique index
+  @@index([eventId])
+  @@index([userId])
+  @@index([invitedEmail])
 }
 
 model AnalyticsEvent {

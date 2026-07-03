@@ -98,6 +98,54 @@ export interface OrganizerSummary {
   };
 }
 
+export interface DashboardSummary {
+  totalEvents: number;
+  upcomingEvents: number;
+  totalAttendees: number;
+  totalRevenue: number;
+  newRegistrationsToday: number;
+}
+
+export interface ActivityItem {
+  type: "booking" | "audit";
+  eventId: string;
+  at: string;
+  status?: string;
+  qty?: number;
+  who?: string;
+  action?: string;
+}
+
+export interface EventAnalytics {
+  eventId: string;
+  ticketsSold: number;
+  capacity: number;
+  revenue: number;
+  conversionRate: number | null;
+  tierBreakdown: { id: string; name: string; sold: number; capacity: number; revenue: number }[];
+  salesByDay: { date: string; qty: number }[];
+}
+
+export type TeamRole = "MANAGER" | "STAFF";
+export type TeamInviteStatus = "PENDING" | "ACCEPTED" | "REVOKED";
+
+export interface TeamMember {
+  id: string;
+  email: string;
+  role: TeamRole;
+  status: TeamInviteStatus;
+  user: { id: string; name: string; avatarUrl: string | null } | null;
+  createdAt: string;
+  acceptedAt: string | null;
+}
+
+export interface TeamInviteResult {
+  id: string;
+  email: string;
+  role: TeamRole;
+  inviteLink: string;
+}
+
 export const CATS: { key: Cat | "all"; label: string }[] = [
   { key: "all", label: "All" },
   { key: "music", label: "Live music" },
@@ -229,6 +277,46 @@ export const api = {
   },
   regenerateMarketing(id: string): Promise<MarketingCopy> {
     return fetch(`${API_BASE}/api/events/${id}/marketing/regenerate`, { method: "POST", headers: authHeaders() }).then((r) => json<MarketingCopy>(r));
+  },
+
+  // ---- organizer dashboard ----
+  dashboardSummary(): Promise<DashboardSummary> {
+    return fetch(`${API_BASE}/api/dashboard/summary`, { headers: authHeaders() }).then((r) => json(r));
+  },
+  dashboardActivity(): Promise<ActivityItem[]> {
+    return fetch(`${API_BASE}/api/dashboard/activity`, { headers: authHeaders() }).then((r) => json(r));
+  },
+  dashboardEvents(): Promise<Weyn[]> {
+    return fetch(`${API_BASE}/api/dashboard/events`, { headers: authHeaders() }).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));
+  },
+  eventAnalytics(id: string): Promise<EventAnalytics> {
+    return fetch(`${API_BASE}/api/events/${id}/analytics`, { headers: authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- team management ----
+  inviteTeamMember(eventId: string, email: string, role: TeamRole): Promise<TeamInviteResult> {
+    return fetch(`${API_BASE}/api/events/${eventId}/team/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ email, role, origin: window.location.origin }),
+    }).then((r) => json(r));
+  },
+  listTeam(eventId: string): Promise<TeamMember[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/team`, { headers: authHeaders() }).then((r) => json(r));
+  },
+  revokeTeamMember(eventId: string, memberId: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/team/${memberId}`, { method: "DELETE", headers: authHeaders() }).then((r) => json(r));
+  },
+  acceptInvite(token: string): Promise<{ ok: boolean; eventId: string; eventTitle: string; role: TeamRole }> {
+    return fetch(`${API_BASE}/api/team/invites/${token}/accept`, { method: "POST", headers: authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- check-in ----
+  getBookingTickets(bookingId: string): Promise<{ code: string; checkedInAt: string | null }[]> {
+    return fetch(`${API_BASE}/api/bookings/${bookingId}/tickets`).then((r) => json(r));
+  },
+  checkInTicket(code: string): Promise<{ ok: boolean; checkedInAt: string }> {
+    return fetch(`${API_BASE}/api/tickets/${encodeURIComponent(code)}/checkin`, { method: "POST", headers: authHeaders() }).then((r) => json(r));
   },
 };
 

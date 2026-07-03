@@ -20,7 +20,7 @@ import { generateMarketingCopy } from "./marketing.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
 import { suggestImageFocalPoint } from "./ai.js";
 import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
-import { attachUser, requireAuth, requireRole, requireEventOwner, issueSessionToken, authConfigured } from "./auth.js";
+import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, issueSessionToken, authConfigured } from "./auth.js";
 import { createEventSchema, updateEventSchema, googleAuthSchema, validateBody } from "./validators.js";
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
@@ -488,8 +488,14 @@ export function createApp(storage) {
     const ticket = await db.getTicketByCode(req.params.code);
     if (!ticket) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Unknown ticket code" } });
     const isOwner = ticket.event.ownerId && ticket.event.ownerId === req.user.id;
-    if (!isOwner && req.user.role !== "ADMIN") {
-      return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this event" } });
+    const isAdmin = req.user.role === "ADMIN";
+    if (!isOwner && !isAdmin) {
+      // STAFF is the minimum team role that can check people in — this is
+      // the one action a door-staff invite is actually for
+      const membership = await db.getTeamMembership(ticket.eventId, req.user.id);
+      if (!membership) {
+        return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this event" } });
+      }
     }
     if (ticket.checkedInAt) {
       return res.status(409).json({ error: { code: "ALREADY_USED", message: `Already checked in at ${ticket.checkedInAt.toISOString()}` } });
@@ -543,6 +549,70 @@ export function createApp(storage) {
 
   app.get("/api/events/:id/attendees", requireEventOwner(), async (req, res) => {
     res.json(await db.attendeesForEvent(req.event.id));
+  });
+
+  // ---- organizer dashboard ----
+  app.get("/api/dashboard/summary", requireAuth, async (req, res) => {
+    res.json(await db.dashboardSummary(req.user.id));
+  });
+
+  app.get("/api/dashboard/activity", requireAuth, async (req, res) => {
+    res.json(await db.recentActivity(req.user.id));
+  });
+
+  // events the signed-in user owns OR has accepted team access to —
+  // distinct from GET /api/events (the public listing)
+  app.get("/api/dashboard/events", requireAuth, async (req, res) => {
+    res.json(await db.eventsAccessibleTo(req.user.id));
+  });
+
+  app.get("/api/events/:id/analytics", requireEventAccess("MANAGER"), async (req, res) => {
+    res.json(await db.eventAnalytics(req.event.id));
+  });
+
+  // ---- team management (see schema.prisma's EventTeamMember comment) ----
+  // Invite/revoke are owner-only (requireEventOwnerStrict) — a MANAGER runs
+  // the event day-to-day but can't grant or remove other people's access.
+  app.post("/api/events/:id/team/invite", requireEventOwnerStrict(), async (req, res) => {
+    const { email, role } = req.body || {};
+    if (!email || !["MANAGER", "STAFF"].includes(role)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "email and role (MANAGER or STAFF) are required" } });
+    }
+    const invite = await db.createTeamInvite({ eventId: req.event.id, invitedEmail: email, role, invitedBy: req.user.id });
+    await db.audit("event.team.invite", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { email, role } });
+    const origin = req.body?.origin || `${req.protocol}://${req.get("host")}`;
+    res.status(201).json({ id: invite.id, email: invite.invitedEmail, role: invite.role, inviteLink: `${origin}/#/invite/${invite.inviteToken}` });
+  });
+
+  app.get("/api/events/:id/team", requireEventOwner(), async (req, res) => {
+    const members = await db.listTeamMembers(req.event.id);
+    res.json(members.map((m) => ({
+      id: m.id, email: m.invitedEmail, role: m.role, status: m.status,
+      user: m.user ? { id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl } : null,
+      createdAt: m.createdAt, acceptedAt: m.acceptedAt,
+    })));
+  });
+
+  app.delete("/api/events/:id/team/:memberId", requireEventOwnerStrict(), async (req, res) => {
+    const member = await db.getTeamMemberById(req.params.memberId);
+    if (!member || member.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Team member not found" } });
+    await db.revokeTeamMember(member.id);
+    await db.audit("event.team.revoke", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { memberId: member.id } });
+    res.json({ ok: true });
+  });
+
+  // Accepting requires being signed in — the invite is scoped to whatever
+  // email it was sent to, but Weyn has no verified-email-ownership step
+  // today (same trust level as everything else gated on Google Sign-In
+  // identity), so this just requires *a* session, not a matching email.
+  app.post("/api/team/invites/:token/accept", requireAuth, async (req, res) => {
+    const invite = await db.getInviteByToken(req.params.token);
+    if (!invite || invite.status !== "PENDING") {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "This invite link is invalid or already used" } });
+    }
+    const accepted = await db.acceptInvite(req.params.token, req.user.id);
+    await db.audit("event.team.accept", { actorId: req.user.id, entityType: "event", entityId: invite.eventId, metadata: { role: invite.role } });
+    res.json({ ok: true, eventId: accepted.eventId, eventTitle: invite.event.title, role: accepted.role });
   });
 
   app.post("/api/admin/events/:id/moderate", requireAuth, requireRole("ADMIN"), async (req, res) => {

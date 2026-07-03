@@ -404,4 +404,127 @@ export const db = {
   async track(type, { userId, entityId, metadata } = {}) {
     await prisma.analyticsEvent.create({ data: { type, userId: userId || null, entityId: entityId || null, metadata } });
   },
+
+  // ---- team membership (event-scoped roles, see schema.prisma) ----
+  async getTeamMembership(eventId, userId) {
+    return prisma.eventTeamMember.findFirst({ where: { eventId, userId, status: "ACCEPTED" } });
+  },
+  async createTeamInvite({ eventId, invitedEmail, role, invitedBy }) {
+    return prisma.eventTeamMember.create({
+      data: { eventId, invitedEmail: invitedEmail.toLowerCase().trim(), role, invitedBy },
+    });
+  },
+  async listTeamMembers(eventId) {
+    return prisma.eventTeamMember.findMany({
+      where: { eventId, status: { not: "REVOKED" } },
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+  },
+  async getInviteByToken(token) {
+    return prisma.eventTeamMember.findUnique({ where: { inviteToken: token }, include: { event: true } });
+  },
+  async acceptInvite(token, userId) {
+    // token is cleared on accept — see schema.prisma's comment on why a used
+    // link can't be replayed to re-grant access after acceptance
+    return prisma.eventTeamMember.update({
+      where: { inviteToken: token },
+      data: { userId, status: "ACCEPTED", acceptedAt: new Date(), inviteToken: null },
+    });
+  },
+  async revokeTeamMember(id) {
+    return prisma.eventTeamMember.update({ where: { id }, data: { status: "REVOKED", inviteToken: null } });
+  },
+  async getTeamMemberById(id) {
+    return prisma.eventTeamMember.findUnique({ where: { id } });
+  },
+  // events this user can manage: owns, or holds an accepted MANAGER/STAFF
+  // membership on — used by the dashboard's "your events" list and summary
+  async eventsAccessibleTo(userId) {
+    const events = await prisma.event.findMany({
+      where: {
+        deletedAt: null,
+        OR: [{ ownerId: userId }, { teamMembers: { some: { userId, status: "ACCEPTED" } } }],
+      },
+      include: { tiers: true },
+      orderBy: { startsAt: "desc" },
+    });
+    return events.map(shape);
+  },
+
+  // ---- dashboard aggregates ----
+  async dashboardSummary(userId) {
+    const events = await prisma.event.findMany({
+      where: { deletedAt: null, OR: [{ ownerId: userId }, { teamMembers: { some: { userId, status: "ACCEPTED" } } }] },
+      select: { id: true, sold: true, price: true, capacity: true, startsAt: true, cancelled: true, tiers: { select: { sold: true, price: true } } },
+    });
+    const eventIds = events.map((e) => e.id);
+    const now = new Date();
+    const upcoming = events.filter((e) => !e.cancelled && new Date(e.startsAt) >= now).length;
+    const totalAttendees = events.reduce((s, e) => s + e.sold, 0);
+    const totalRevenue = events.reduce((s, e) => {
+      if (e.tiers.length) return s + e.tiers.reduce((ts, t) => ts + t.sold * t.price, 0);
+      return s + e.sold * e.price;
+    }, 0);
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const newRegistrationsToday = eventIds.length
+      ? await prisma.booking.count({ where: { eventId: { in: eventIds }, status: "paid", bookedAt: { gte: todayStart } } })
+      : 0;
+    return {
+      totalEvents: events.length,
+      upcomingEvents: upcoming,
+      totalAttendees,
+      totalRevenue: +totalRevenue.toFixed(2),
+      newRegistrationsToday,
+    };
+  },
+  async recentActivity(userId, limit = 20) {
+    const events = await prisma.event.findMany({
+      where: { OR: [{ ownerId: userId }, { teamMembers: { some: { userId, status: "ACCEPTED" } } }] },
+      select: { id: true },
+    });
+    const eventIds = events.map((e) => e.id);
+    if (!eventIds.length) return [];
+    const [bookings, audits] = await Promise.all([
+      prisma.booking.findMany({
+        where: { eventId: { in: eventIds } },
+        orderBy: { bookedAt: "desc" },
+        take: limit,
+        select: { id: true, eventId: true, status: true, qty: true, bookedAt: true, name: true, email: true },
+      }),
+      prisma.auditLog.findMany({
+        where: { entityType: "event", entityId: { in: eventIds } },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      }),
+    ]);
+    const feed = [
+      ...bookings.map((b) => ({ type: "booking", status: b.status, eventId: b.eventId, qty: b.qty, who: b.name || b.email || "Someone", at: b.bookedAt })),
+      ...audits.map((a) => ({ type: "audit", action: a.action, eventId: a.entityId, at: a.createdAt })),
+    ].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, limit);
+    return feed;
+  },
+  async eventAnalytics(eventId) {
+    const event = await prisma.event.findUnique({ where: { id: eventId }, include: { tiers: true } });
+    if (!event) return null;
+    const bookings = await prisma.booking.findMany({ where: { eventId, status: "paid" }, select: { qty: true, tierId: true, bookedAt: true } });
+    const revenue = event.tiers.length
+      ? event.tiers.reduce((s, t) => s + t.sold * t.price, 0)
+      : event.sold * event.price;
+    const tierBreakdown = event.tiers.map((t) => ({ id: t.id, name: t.name, sold: t.sold, capacity: t.capacity, revenue: +(t.sold * t.price).toFixed(2) }));
+    const salesByDay = {};
+    for (const b of bookings) {
+      const day = b.bookedAt.toISOString().slice(0, 10);
+      salesByDay[day] = (salesByDay[day] || 0) + b.qty;
+    }
+    return {
+      eventId,
+      ticketsSold: event.sold,
+      capacity: event.capacity,
+      revenue: +revenue.toFixed(2),
+      conversionRate: null, // needs page-view tracking — not yet instrumented, see audit notes
+      tierBreakdown,
+      salesByDay: Object.entries(salesByDay).map(([date, qty]) => ({ date, qty })).sort((a, b) => a.date.localeCompare(b.date)),
+    };
+  },
 };
