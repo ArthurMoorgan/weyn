@@ -199,16 +199,17 @@ function TicketsSection({ tickets }: { tickets: Weyn[] }) {
 
 /* ---------- Organizer (always shown — CTA or full dashboard) ---------- */
 // Surfaces the trust & safety pipeline's decision — see server/moderation.js.
-// PENDING_REVIEW/APPROVED show nothing (the common, unremarkable cases);
-// only the states an organizer would actually wonder about get a badge.
+// Growth-priority tuning (2026-07-04): DISCOVERY_LIMITED is no longer shown
+// here (and no longer auto-assigned server-side) — quality/trust scores
+// don't restrict reach right now. Only genuinely fraud/spam-flagged events
+// still surface a badge; everything else (including PENDING_REVIEW/APPROVED)
+// shows nothing, since that's the common, unremarkable case.
 function DiscoveryBadge({ status }: { status?: Weyn["discoveryStatus"] }) {
-  if (!status || status === "APPROVED" || status === "PENDING_REVIEW") return null;
   const copy: Record<string, { label: string; cls: string }> = {
-    DISCOVERY_LIMITED: { label: "Limited reach", cls: "warn" },
     MANUAL_REVIEW: { label: "In review", cls: "warn" },
-    DISCOVERY_BLOCKED: { label: "Not shown publicly", cls: "danger" },
+    DISCOVERY_BLOCKED: { label: "Flagged — contact support", cls: "danger" },
   };
-  const c = copy[status];
+  const c = status ? copy[status] : undefined;
   if (!c) return null;
   return <span className={`discovery-tag ${c.cls}`}>{c.label}</span>;
 }

@@ -140,15 +140,22 @@ async function runAiReview(draft, ruleFlags) {
 
 // ---- 3. Visibility decision ---------------------------------------------
 
+// Growth-priority tuning (2026-07-04): quality/trust score no longer
+// restrict reach at all — DISCOVERY_LIMITED is never auto-assigned. At
+// near-zero volume with no real bad-actor problem yet, holding back
+// honest-but-sloppy events actively hurts growth for no real safety
+// benefit. Only genuine fraud/spam signals still gate visibility. The
+// DISCOVERY_LIMITED status/enum value stays in the schema — re-enable the
+// commented-out line below once discovery volume is high enough that
+// reach-limiting low-quality events is worth the growth tradeoff again.
 export function computeDiscoveryStatus(scores, ruleFlags) {
   if (ruleFlags.hardFail.length) return "DISCOVERY_BLOCKED"; // shouldn't reach here — caller rejects hard-fails before creation
 
-  const { quality_score = 0, trust_score = 0, spam_risk = 0, fraud_risk = 0, confidence = 100 } = scores;
+  const { fraud_risk = 0, spam_risk = 0 } = scores;
 
   if (fraud_risk >= 80) return "DISCOVERY_BLOCKED";
-  if (confidence < 50) return "MANUAL_REVIEW"; // low-confidence AI/heuristic calls always get a human, never guessed into APPROVED
-  if (fraud_risk >= 40 || spam_risk >= 70) return "MANUAL_REVIEW";
-  if (trust_score < 40 || quality_score < 40) return "DISCOVERY_LIMITED";
+  if (fraud_risk >= 50 || spam_risk >= 80) return "MANUAL_REVIEW";
+  // if (trust_score < 40 || quality_score < 40) return "DISCOVERY_LIMITED"; // disabled — see note above
   return "APPROVED";
 }
 
