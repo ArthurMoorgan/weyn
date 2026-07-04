@@ -13,6 +13,7 @@
     "web": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "test": "node --test server/*.test.js",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios",
     "ios:assets": "npx capacitor-assets generate --ios",
