@@ -138,7 +138,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 16px;
   min-height: 52px;
-  background: var(--bg);
+  /* a little native-iOS frosting on the fixed nav chrome only — the one
+     place a touch of translucency reads as "premium" rather than "overdone",
+     per the redesign brief's "just enough to be noticeable" */
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
   border-bottom: 1px solid var(--hair);
 }
 .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
@@ -295,7 +300,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin: 0 auto; max-width: var(--maxw);
   display: flex; align-items: stretch;
   padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
   border-top: 1px solid var(--hair);
 }
 .tab {
@@ -397,6 +404,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* centers Google's injected sign-in button/iframe, which ignores text-align */
 .onboard-signin { display: flex; justify-content: center; }
 .onboard-signin .account-row { width: 100%; text-align: left; }
+
+/* wraps the raw Google-rendered button so it sits inside a real card
+   instead of floating alone against the page background */
+.signin-card {
+  margin: 4px 16px 0; padding: 20px 16px; border-radius: var(--radius);
+  background: var(--surface); text-align: center;
+  display: flex; justify-content: center;
+}
 
 /* ---------- Google account row ---------- */
 .account-row {
@@ -515,7 +530,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
   margin: 0 auto; max-width: var(--maxw);
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
   border-top: 1px solid var(--hair);
   display: flex; gap: 10px; align-items: center;
 }

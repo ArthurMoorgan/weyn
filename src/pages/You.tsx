@@ -80,7 +80,7 @@ export default function You() {
           verified, it steps back into a small footer row (see below) so
           tickets stay the focus of this screen, not account chrome. */}
       {!account && (
-        <div style={{ padding: "0 16px" }}>
+        <div className="signin-card">
           <GoogleLoginButton />
         </div>
       )}
