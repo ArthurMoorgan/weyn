@@ -1,0 +1,40 @@
+name: Nightly database backup
+
+# Free-tier Neon only keeps ~24h of point-in-time recovery — this workflow
+# is the actual safety net beyond that window. Runs every night, dumps the
+# whole database with pg_dump (schema + data, in Postgres's native custom
+# format so it can be restored directly with pg_restore), and keeps it as
+# a workflow artifact. GitHub retains artifacts for 90 days by default, so
+# this gives a 90-day rolling window of nightly snapshots at zero extra cost
+# and no third-party storage account needed.
+on:
+  schedule:
+    # 23:00 UTC = 03:00 Asia/Muscat — low-traffic hours
+    - cron: "0 23 * * *"
+  workflow_dispatch: {} # lets you trigger a manual backup anytime from the Actions tab
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install postgresql-client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+
+      - name: Dump database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not set — see .github/workflows/backup-db.yml for setup"
+            exit 1
+          fi
+          STAMP=$(date -u +%Y-%m-%d)
+          pg_dump "$DATABASE_URL" --format=custom --no-owner --no-privileges --file="weyn-backup-${STAMP}.dump"
+          echo "BACKUP_STAMP=${STAMP}" >> "$GITHUB_ENV"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: weyn-db-backup-${{ env.BACKUP_STAMP }}
+          path: weyn-backup-${{ env.BACKUP_STAMP }}.dump
+          retention-days: 90
