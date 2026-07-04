@@ -131,15 +131,16 @@ export interface InstagramImportResult {
   aiParsed: boolean;
 }
 
-export interface OrganizerSummary {
+// Public organizer profile — deliberately excludes revenue/booking data
+// (see server/db.js's getOrganizerProfile comment for why the old
+// name-keyed /api/organizer/:name/summary this replaces was a privacy bug).
+export interface OrganizerProfile {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  followerCount: number;
+  isFollowing: boolean;
   events: Weyn[];
-  stats: {
-    eventCount: number;
-    ticketsSold: number;
-    grossRevenue: number;
-    netRevenue: number;
-    feePaid: number;
-  };
 }
 
 export interface DashboardSummary {
@@ -281,10 +282,10 @@ export const api = {
       body: JSON.stringify({ deviceId, token, platform }),
     }).then((r) => json(r));
   },
-  organizerSummary(name: string): Promise<OrganizerSummary> {
-    return fetch(`${API_BASE}/api/organizer/${encodeURIComponent(name)}/summary`)
-      .then((r) => json<OrganizerSummary>(r))
-      .then((s) => ({ ...s, events: s.events.map(absMedia) }));
+  getOrganizerProfile(id: string): Promise<OrganizerProfile> {
+    return fetch(`${API_BASE}/api/organizers/${id}`, { headers: authHeaders() })
+      .then((r) => json<OrganizerProfile>(r))
+      .then((p) => ({ ...p, events: p.events.map(absMedia) }));
   },
   updateEvent(id: string, patch: Partial<Weyn>): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events/${id}`, {

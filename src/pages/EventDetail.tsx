@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn } from "../api";
 import { useAsync } from "../hooks";
 import { isSaved, toggleSave, useSaved, addTicket, getDeviceId, getAccount, useAccount } from "../store";
 import MiniMap from "../components/MiniMap";
 import FollowButton from "../components/FollowButton";
 import type { Collection } from "../api";
+import { downloadEventIcs } from "../ics";
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -17,6 +18,7 @@ export default function EventDetail() {
   const [bookErr, setBookErr] = useState("");
   const [tierId, setTierId] = useState<string | null>(null);
   const [listSheet, setListSheet] = useState(false);
+  const [shared, setShared] = useState(false);
   const account = useAccount();
 
   if (loading) return <div className="detail"><div className="spin" /></div>;
@@ -36,6 +38,22 @@ export default function EventDetail() {
   const saved = isSaved(ev.id);
   const out = isSoldOut(ev);
   const left = ticketsLeft(ev);
+
+  async function shareEvent(e: Weyn) {
+    // The event page already has real server-side OG/Twitter meta tags
+    // (see server/app.js's /e/:id route) — this is just giving users an
+    // easy way to actually trigger a share, not building the preview itself.
+    const url = window.location.href;
+    const shareData = { title: e.title, text: `${e.title} — ${e.venue}, ${e.area}`, url };
+    if (navigator.share) {
+      try { await navigator.share(shareData); return; } catch { /* user cancelled — not an error */ }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShared(true);
+      setTimeout(() => setShared(false), 1800);
+    } catch { /* clipboard blocked (e.g. insecure context) — nothing more we can do */ }
+  }
 
   const tiers = ev.tiers || [];
   const hasTiers = tiers.length > 0;
@@ -72,14 +90,19 @@ export default function EventDetail() {
       <div className="detail-grid">
       <div className="cover" style={coverStyle}>
         <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="ti ti-arrow-left" /></button>
-        <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => toggleSave(ev.id)} aria-label="Save">
-          <i className={"ti " + (saved ? "ti-heart-filled" : "ti-heart")} />
-        </button>
-        {account && (
-          <button className="icon-btn" onClick={() => setListSheet(true)} aria-label="Add to a list">
-            <i className="ti ti-folder-plus" />
+        <div style={{ position: "relative", zIndex: 2, display: "flex", gap: 8 }}>
+          <button className="icon-btn" onClick={() => shareEvent(ev)} aria-label="Share">
+            <i className={"ti " + (shared ? "ti-check" : "ti-share-2")} />
           </button>
-        )}
+          <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => toggleSave(ev.id)} aria-label="Save">
+            <i className={"ti " + (saved ? "ti-heart-filled" : "ti-heart")} />
+          </button>
+          {account && (
+            <button className="icon-btn" onClick={() => setListSheet(true)} aria-label="Add to a list">
+              <i className="ti ti-folder-plus" />
+            </button>
+          )}
+        </div>
         {!ev.image && <span className="glyph">{ev.glyph}</span>}
       </div>
       {listSheet && <AddToListSheet eventId={ev.id} onClose={() => setListSheet(false)} />}
@@ -88,7 +111,11 @@ export default function EventDetail() {
         <span className="catpill">{cat?.label}</span>
         <h1 style={{ marginTop: 12 }}>{ev.title}</h1>
         <div className="host-row">
-          <p className="host">Hosted by {ev.organizer}</p>
+          {ev.ownerId ? (
+            <Link to={`/organizer/${ev.ownerId}`} className="host">Hosted by {ev.organizer}</Link>
+          ) : (
+            <p className="host">Hosted by {ev.organizer}</p>
+          )}
           {ev.ownerId && <FollowButton organizerId={ev.ownerId} />}
         </div>
 
@@ -175,9 +202,14 @@ export default function EventDetail() {
             <i className="ti ti-cash" /> {ev.organizerContact ? `Contact: ${ev.organizerContact}` : "Pay at the door"}
           </div>
         ) : booked ? (
-          <button className="btn done" disabled>
-            <i className="ti ti-circle-check" /> {ev.price === 0 ? "You're going" : "Ticket reserved"}
-          </button>
+          <>
+            <button className="btn done" disabled style={{ flex: 1 }}>
+              <i className="ti ti-circle-check" /> {ev.price === 0 ? "You're going" : "Ticket reserved"}
+            </button>
+            <button className="btn glass sq" onClick={() => downloadEventIcs(ev)} aria-label="Add to calendar">
+              <i className="ti ti-calendar-plus" />
+            </button>
+          </>
         ) : out ? (
           <button className="btn" disabled><i className="ti ti-ticket-off" /> Sold out</button>
         ) : (

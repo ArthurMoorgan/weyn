@@ -15,6 +15,8 @@ import CheckoutCancel from "./pages/CheckoutCancel";
 import InviteAccept from "./pages/InviteAccept";
 import CollectionPage from "./pages/Collection";
 import Admin from "./pages/Admin";
+import OrganizerProfile from "./pages/OrganizerProfile";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { initPush } from "./push";
 
 // BrowserRouter (real paths) on web — required for server-side OG/meta tags
@@ -27,22 +29,25 @@ const Router = Capacitor.isNativePlatform() ? HashRouter : BrowserRouter;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <Routes>
-        <Route element={<App />}>
-          <Route path="/" element={<Explore />} />
-          <Route path="/saved" element={<Saved />} />
-          <Route path="/host" element={<Organizer />} />
-          <Route path="/you" element={<You />} />
-          <Route path="/admin" element={<Admin />} />
-        </Route>
-        <Route path="/e/:id" element={<EventDetail />} />
-        <Route path="/checkout/success" element={<CheckoutSuccess />} />
-        <Route path="/checkout/cancel" element={<CheckoutCancel />} />
-        <Route path="/invite/:token" element={<InviteAccept />} />
-        <Route path="/collections/:id" element={<CollectionPage />} />
-      </Routes>
-    </Router>
+    <ErrorBoundary>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Routes>
+          <Route element={<App />}>
+            <Route path="/" element={<Explore />} />
+            <Route path="/saved" element={<Saved />} />
+            <Route path="/host" element={<Organizer />} />
+            <Route path="/you" element={<You />} />
+            <Route path="/admin" element={<Admin />} />
+          </Route>
+          <Route path="/e/:id" element={<EventDetail />} />
+          <Route path="/organizer/:id" element={<OrganizerProfile />} />
+          <Route path="/checkout/success" element={<CheckoutSuccess />} />
+          <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+          <Route path="/invite/:token" element={<InviteAccept />} />
+          <Route path="/collections/:id" element={<CollectionPage />} />
+        </Routes>
+      </Router>
+    </ErrorBoundary>
   </React.StrictMode>
 );
 

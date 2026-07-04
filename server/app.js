@@ -867,20 +867,17 @@ export function createApp(storage) {
     res.json(result);
   });
 
-  app.get("/api/organizer/:name/summary", async (req, res) => {
-    const mine = (await db.all()).filter((e) => e.organizer === req.params.name);
-    const grossRevenue = mine.reduce((s, e) => s + e.sold * e.price, 0);
-    const netRevenue = +(grossRevenue * 0.92).toFixed(2);
-    const ticketsSold = mine.reduce((s, e) => s + e.sold, 0);
+  // Public organizer profile — the destination the Follow feature was
+  // missing (follow buttons existed with nowhere to send people). Keyed by
+  // User.id, not display name (unlike the old /api/organizer/:name/summary
+  // this replaces, which also had no auth check and leaked gross revenue to
+  // anyone who guessed a display name — removed, not just superseded).
+  app.get("/api/organizers/:id", async (req, res) => {
+    const profile = await db.getOrganizerProfile(req.params.id);
+    if (!profile) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Organizer not found" } });
     res.json({
-      events: mine.sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)),
-      stats: {
-        eventCount: mine.length,
-        ticketsSold,
-        grossRevenue: +grossRevenue.toFixed(2),
-        netRevenue,
-        feePaid: +(grossRevenue * 0.08).toFixed(2),
-      },
+      ...profile,
+      isFollowing: req.user ? await db.isFollowing(req.user.id, req.params.id) : false,
     });
   });
 

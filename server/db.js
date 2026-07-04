@@ -546,6 +546,26 @@ export const db = {
   async followerCount(userId) {
     return prisma.follow.count({ where: { followingId: userId } });
   },
+  // Public organizer profile (see /api/organizers/:id) — deliberately
+  // excludes revenue/booking data, unlike the old name-keyed
+  // /api/organizer/:name/summary this replaces. Only APPROVED, non-cancelled
+  // events are shown, same visibility rule as the main discovery feed.
+  async getOrganizerProfile(userId) {
+    const user = await prisma.user.findUnique({ where: { id: userId, deletedAt: null } });
+    if (!user) return null;
+    const events = await prisma.event.findMany({
+      where: { ownerId: userId, deletedAt: null, cancelled: false, discoveryStatus: "APPROVED" },
+      include: { tiers: true },
+      orderBy: { startsAt: "asc" },
+    });
+    return {
+      id: user.id,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+      followerCount: await db.followerCount(userId),
+      events: events.map(shape),
+    };
+  },
   async followingIds(userId) {
     const rows = await prisma.follow.findMany({ where: { followerId: userId }, select: { followingId: true } });
     return rows.map((r) => r.followingId);
