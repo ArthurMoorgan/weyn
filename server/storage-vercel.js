@@ -10,11 +10,13 @@ export const vercelStorage = {
   async saveImage(buffer, ext) {
     const key = crypto.randomUUID() + ext;
     const contentType = MIME_BY_EXT[ext.toLowerCase()] || "image/jpeg";
-    // the store itself is configured private (see HANDOFF notes) — reads go
-    // through readImage() below via a token-authenticated head()+fetch, not
-    // Blob's own public URL, so "public" access here would just mismatch
-    // the store's actual config and fail every upload outright
-    const blob = await put(key, buffer, { access: "private", contentType, addRandomSuffix: false });
+    // Public Blob access, deliberately — the actual blob URL is never
+    // exposed to clients (readImage below streams the bytes through our own
+    // /uploads/:key route), and keys are random UUIDs, so there's no real
+    // exposure beyond what any object storage with a knowable key already
+    // has. Private access requires signed download URLs for every read,
+    // which adds real complexity for images that aren't sensitive data.
+    const blob = await put(key, buffer, { access: "public", contentType, addRandomSuffix: false });
     return { url: `/uploads/${key}`, key, blobUrl: blob.url };
   },
   async readImage(urlOrKey) {
