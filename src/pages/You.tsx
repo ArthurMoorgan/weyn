@@ -85,15 +85,20 @@ export default function You() {
         </div>
       )}
 
-      <TicketsSection tickets={myTickets} />
-      {account && <CollectionsSection />}
-      <OrganizerSection
-        name={name}
-        summary={summary.data || { events: [], stats: { eventCount: 0, ticketsSold: 0, grossRevenue: 0, netRevenue: 0, feePaid: 0 } }}
-        reload={summary.reload}
-      />
-
-      <div style={{ padding: "0 16px" }}><InstallPrompt /></div>
+      <div className="profile-grid">
+        <div className="profile-main">
+          <TicketsSection tickets={myTickets} />
+          {account && <CollectionsSection />}
+          <div style={{ padding: "0 16px" }}><InstallPrompt /></div>
+        </div>
+        <div className="profile-side">
+          <OrganizerSection
+            name={name}
+            summary={summary.data || { events: [], stats: { eventCount: 0, ticketsSold: 0, grossRevenue: 0, netRevenue: 0, feePaid: 0 } }}
+            reload={summary.reload}
+          />
+        </div>
+      </div>
 
       {account && (
         <div className="account-compact-wrap">

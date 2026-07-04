@@ -69,6 +69,7 @@ export default function EventDetail() {
 
   return (
     <div className="detail">
+      <div className="detail-grid">
       <div className="cover" style={coverStyle}>
         <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="ti ti-arrow-left" /></button>
         <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => toggleSave(ev.id)} aria-label="Save">
@@ -155,6 +156,7 @@ export default function EventDetail() {
           </div>
         )}
         {bookErr && <p className="errline" style={{ marginTop: 14 }}>{bookErr}</p>}
+      </div>
       </div>
 
       <div className="buybar">

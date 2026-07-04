@@ -905,4 +905,31 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
      column instead of under the whole (sidebar-included) viewport */
   .buybar { left: 232px; }
   .toast { left: calc(50% + 116px); }
+
+  /* event page: image pinned left, details scroll on the right, instead of
+     the mobile stacked cover-then-sheet layout */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
+    align-items: start;
+    gap: 32px;
+  }
+  .detail-grid .cover {
+    position: sticky; top: 24px;
+    height: 70vh; max-height: 620px;
+    border-radius: 16px;
+  }
+  .detail-grid .sheet {
+    border-radius: 16px;
+    padding-bottom: 32px;
+  }
+
+  /* profile: tickets/lists as the main column, the organizer dashboard as
+     a narrower side column — instead of one long stacked mobile list */
+  .profile-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+    align-items: start;
+    gap: 24px;
+  }
 }
