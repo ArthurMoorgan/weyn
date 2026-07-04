@@ -198,6 +198,21 @@ function TicketsSection({ tickets }: { tickets: Weyn[] }) {
 }
 
 /* ---------- Organizer (always shown — CTA or full dashboard) ---------- */
+// Surfaces the trust & safety pipeline's decision — see server/moderation.js.
+// PENDING_REVIEW/APPROVED show nothing (the common, unremarkable cases);
+// only the states an organizer would actually wonder about get a badge.
+function DiscoveryBadge({ status }: { status?: Weyn["discoveryStatus"] }) {
+  if (!status || status === "APPROVED" || status === "PENDING_REVIEW") return null;
+  const copy: Record<string, { label: string; cls: string }> = {
+    DISCOVERY_LIMITED: { label: "Limited reach", cls: "warn" },
+    MANUAL_REVIEW: { label: "In review", cls: "warn" },
+    DISCOVERY_BLOCKED: { label: "Not shown publicly", cls: "danger" },
+  };
+  const c = copy[status];
+  if (!c) return null;
+  return <span className={`discovery-tag ${c.cls}`}>{c.label}</span>;
+}
+
 function OrganizerSection({ name, summary, reload }: { name: string; summary: any; reload: () => void }) {
   const isHost = summary.events.length > 0;
   const [editing, setEditing] = useState<Weyn | null>(null);
@@ -260,7 +275,7 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
                 {!e.image && e.glyph}
               </div>
               <div className="info">
-                <b>{e.title}{e.cancelled && <span className="cancelled-tag">Cancelled</span>}</b>
+                <b>{e.title}{e.cancelled && <span className="cancelled-tag">Cancelled</span>}{!e.cancelled && <DiscoveryBadge status={e.discoveryStatus} />}</b>
                 <span>{dayLabel(e)} · {timeLabel(e)} · {e.area}</span>
                 {e.capacity < 9000 && !e.cancelled && <div className="bar"><i className={pct >= 100 ? "full" : ""} style={{ width: `${pct}%` }} /></div>}
               </div>

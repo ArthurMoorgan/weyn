@@ -611,6 +611,7 @@ export const db = {
       SELECT e.*, ts_rank_cd(weyn_event_tsvector(e.title, e.organizer, e.venue, e.blurb, e.tags), plainto_tsquery('english', ${q})) AS rank
       FROM "Event" e
       WHERE e."deletedAt" IS NULL
+        AND e."discoveryStatus" IN ('APPROVED', 'DISCOVERY_LIMITED')
         AND (
           weyn_event_tsvector(e.title, e.organizer, e.venue, e.blurb, e.tags) @@ plainto_tsquery('english', ${q})
           OR similarity(e.organizer, ${q}) > 0.3
@@ -673,5 +674,33 @@ export const db = {
       totalRevenue: revenueRows[0]?.total || 0,
       newUsersThisWeek, newEventsThisWeek,
     };
+  },
+
+  // ---- trust & safety (see server/moderation.js) ----
+  async recordModeration(eventId, result) {
+    await prisma.$transaction([
+      prisma.moderationResult.create({ data: { eventId, ...result } }),
+      prisma.event.update({ where: { id: eventId }, data: { discoveryStatus: result.resultingStatus } }),
+    ]);
+  },
+  // Events waiting on a human — MANUAL_REVIEW only (DISCOVERY_LIMITED events
+  // aren't queued, they're just quietly reach-limited forever unless
+  // re-scored, per the design's "don't force sloppy-but-honest organizers
+  // through a review queue" principle).
+  async listReviewQueue() {
+    const events = await prisma.event.findMany({
+      where: { discoveryStatus: "MANUAL_REVIEW", deletedAt: null },
+      include: {
+        tiers: true,
+        moderationResults: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+      orderBy: { createdAt: "asc" }, // oldest-queued first — simple FIFO for the MVP, priority scoring is a scale-version concern
+    });
+    return events.map(({ moderationResults, ...e }) => ({ ...shape(e), latestModeration: moderationResults[0] || null }));
+  },
+  async resolveModeration(eventId, status, reviewerId) {
+    const updated = await prisma.event.update({ where: { id: eventId }, data: { discoveryStatus: status } });
+    await db.audit("event.moderation.resolve", { actorId: reviewerId, entityType: "event", entityId: eventId, metadata: { status } });
+    return shape(updated);
   },
 };

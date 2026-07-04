@@ -25,6 +25,7 @@ import { createEventSchema, updateEventSchema, googleAuthSchema, validateBody } 
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { sendEmail, emailConfigured, teamInviteEmail } from "./email.js";
+import { runModerationPipeline } from "./moderation.js";
 
 // Normalise a user-typed ticket URL so it always redirects OUT of the app.
 function normalizeUrl(raw) {
@@ -203,7 +204,11 @@ export function createApp(storage) {
   app.get("/api/events", async (req, res) => {
     let events = [...(await db.all())].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
     const { cat, q, organizer } = req.query;
-    events = events.filter((e) => !e.cancelled);
+    // Discovery feed only ever shows APPROVED events — DISCOVERY_LIMITED,
+    // MANUAL_REVIEW, PENDING_REVIEW, and DISCOVERY_BLOCKED events are still
+    // real and still reachable by direct link (see GET /api/events/:id),
+    // they just don't get algorithmic reach. See server/moderation.js.
+    events = events.filter((e) => !e.cancelled && e.discoveryStatus === "APPROVED");
     if (cat && cat !== "all") events = events.filter((e) => e.cat === cat);
     if (organizer) events = events.filter((e) => e.organizer === organizer);
     if (q) {
@@ -232,6 +237,13 @@ export function createApp(storage) {
   app.get("/api/events/:id", async (req, res) => {
     const e = await db.get(req.params.id);
     if (!e) return res.status(404).json({ error: "Event not found" });
+    // DISCOVERY_BLOCKED is hidden from everyone except the organizer, who
+    // gets to see WHY (their own dashboard surfaces the moderation reason)
+    // rather than a silent 404 that looks like a bug. See moderation.js.
+    const isOwner = req.user?.id && e.ownerId === req.user.id;
+    if (e.discoveryStatus === "DISCOVERY_BLOCKED" && !isOwner) {
+      return res.status(404).json({ error: "Event not found" });
+    }
     db.track("event_view", { userId: req.user?.id, entityId: e.id }).catch(() => {});
     res.json(e);
   });
@@ -316,9 +328,20 @@ export function createApp(storage) {
         sourceUrl: b.sourceUrl || null,
         importedFromInstagram: b.importedFromInstagram === "true" || b.importedFromInstagram === true,
       };
-      const inserted = await db.insert(ev);
+
+      // Trust & safety: hard-fail rules reject before the event ever exists;
+      // everything else (AI review) runs after creation so the organizer
+      // always gets a shareable link immediately — visibility, not
+      // existence, is what the pipeline gates. See server/moderation.js.
+      const moderation = await runModerationPipeline(ev, { triggeredBy: "publish" });
+      if (moderation.hardFail) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `Couldn't publish: ${moderation.hardFail.join(", ")}` } });
+      }
+
+      const inserted = await db.insert({ ...ev, discoveryStatus: moderation.discoveryStatus });
+      await db.recordModeration(inserted.id, moderation.moderationResult);
       trackEvent(req.user.id, "event_create", { eventId: inserted.id, cat: inserted.cat, ticketingType: inserted.ticketingType });
-      res.status(201).json(inserted);
+      res.status(201).json({ ...inserted, discoveryStatus: moderation.discoveryStatus });
     } catch (err) {
       captureError(err, { route: "POST /api/events" });
       res.status(500).json({ error: err.message });
@@ -540,7 +563,18 @@ export function createApp(storage) {
     }
     const updated = await db.update(e.id, patch);
     await db.audit("event.update", { actorId: req.user.id, entityType: "event", entityId: e.id, metadata: patch });
-    res.json(updated);
+
+    // Re-score on edits to fields the moderation pipeline actually reasons
+    // about — a capacity/price tweak matters, a refund-policy tweak doesn't.
+    // The event KEEPS its current discoveryStatus until this finishes (no
+    // flicker out of the feed for a minor edit) — see moderation.js design notes.
+    const RESCORE_FIELDS = ["title", "blurb", "venue", "area", "price", "startsAt", "cat"];
+    if (RESCORE_FIELDS.some((k) => k in patch)) {
+      const moderation = await runModerationPipeline(updated, { triggeredBy: "edit" });
+      if (!moderation.hardFail) await db.recordModeration(e.id, moderation.moderationResult);
+    }
+
+    res.json(await db.get(e.id));
   });
 
   app.post("/api/events/:id/cancel", requireEventOwner(), async (req, res) => {
@@ -777,6 +811,20 @@ export function createApp(storage) {
 
   app.get("/api/admin/metrics", requireAuth, requireRole("ADMIN"), async (_req, res) => {
     res.json(await db.platformMetrics());
+  });
+
+  // ---- trust & safety review queue (see server/moderation.js) ----
+  app.get("/api/admin/review-queue", requireAuth, requireRole("ADMIN"), async (_req, res) => {
+    res.json(await db.listReviewQueue());
+  });
+
+  app.post("/api/admin/review-queue/:eventId/resolve", requireAuth, requireRole("ADMIN"), async (req, res) => {
+    const status = req.body?.status;
+    if (!["APPROVED", "DISCOVERY_LIMITED", "DISCOVERY_BLOCKED"].includes(status)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "status must be APPROVED, DISCOVERY_LIMITED, or DISCOVERY_BLOCKED" } });
+    }
+    const updated = await db.resolveModeration(req.params.eventId, status, req.user.id);
+    res.json(updated);
   });
 
   app.post("/api/auth/google", authLimiter, validateBody(googleAuthSchema), async (req, res) => {

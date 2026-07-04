@@ -48,6 +48,7 @@ export interface Weyn {
   organizerVerified?: boolean;
   featured?: boolean;
   ownerId?: string | null; // absent on legacy/seeded events created before real auth existed
+  discoveryStatus?: "PENDING_REVIEW" | "APPROVED" | "DISCOVERY_LIMITED" | "MANUAL_REVIEW" | "DISCOVERY_BLOCKED";
 }
 
 export interface BookingStatus {
