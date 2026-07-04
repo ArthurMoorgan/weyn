@@ -47,6 +47,7 @@ export interface Weyn {
   // Never fabricate these client-side (no fake attendee counts / social proof).
   organizerVerified?: boolean;
   featured?: boolean;
+  ownerId?: string | null; // absent on legacy/seeded events created before real auth existed
 }
 
 export interface BookingStatus {
@@ -67,6 +68,48 @@ export interface GoogleAccount {
   name: string;
   picture: string | null;
   sessionToken?: string | null; // present once real auth (SESSION_SECRET) is configured server-side
+  role?: "ATTENDEE" | "ORGANIZER" | "ADMIN"; // present alongside sessionToken — used to show the admin dashboard link
+}
+
+export interface Collection {
+  id: string;
+  name: string;
+  isPublic: boolean;
+  ownerId: string;
+  createdAt?: string;
+  _count?: { items: number };
+}
+
+export interface CollectionDetail {
+  id: string;
+  name: string;
+  isPublic: boolean;
+  ownerId: string;
+  ownerName: string | null;
+  events: Weyn[];
+}
+
+export type ReportReason = "SPAM" | "INAPPROPRIATE" | "FRAUD" | "DUPLICATE" | "OTHER";
+
+export interface PlatformMetrics {
+  totalUsers: number;
+  totalEvents: number;
+  totalBookings: number;
+  openReports: number;
+  totalRevenue: number;
+  newUsersThisWeek: number;
+  newEventsThisWeek: number;
+}
+
+export interface OpenReport {
+  id: string;
+  entityType: string;
+  entityId: string;
+  reason: ReportReason;
+  note: string | null;
+  status: string;
+  createdAt: string;
+  reporter: { name: string | null; email: string | null } | null;
 }
 
 export interface MarketingCopy {
@@ -317,6 +360,74 @@ export const api = {
   },
   checkInTicket(code: string): Promise<{ ok: boolean; checkedInAt: string }> {
     return fetch(`${API_BASE}/api/tickets/${encodeURIComponent(code)}/checkin`, { method: "POST", headers: authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- search ----
+  searchEvents(q: string, cat?: string): Promise<Weyn[]> {
+    const sp = new URLSearchParams({ q });
+    if (cat && cat !== "all") sp.set("cat", cat);
+    return fetch(`${API_BASE}/api/search?${sp}`).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));
+  },
+
+  // ---- following organizers ----
+  followOrganizer(id: string): Promise<{ ok: boolean; followerCount: number }> {
+    return fetch(`${API_BASE}/api/organizers/${id}/follow`, { method: "POST", headers: authHeaders() }).then((r) => json(r));
+  },
+  unfollowOrganizer(id: string): Promise<{ ok: boolean; followerCount: number }> {
+    return fetch(`${API_BASE}/api/organizers/${id}/follow`, { method: "DELETE", headers: authHeaders() }).then((r) => json(r));
+  },
+  getFollowStatus(id: string): Promise<{ following: boolean; followerCount: number }> {
+    return fetch(`${API_BASE}/api/organizers/${id}/follow`, { headers: authHeaders() }).then((r) => json(r));
+  },
+  followingFeed(): Promise<Weyn[]> {
+    return fetch(`${API_BASE}/api/me/following-feed`, { headers: authHeaders() }).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));
+  },
+
+  // ---- collections ----
+  createCollection(name: string): Promise<Collection> {
+    return fetch(`${API_BASE}/api/collections`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ name }),
+    }).then((r) => json(r));
+  },
+  listMyCollections(): Promise<Collection[]> {
+    return fetch(`${API_BASE}/api/collections`, { headers: authHeaders() }).then((r) => json(r));
+  },
+  getCollection(id: string): Promise<CollectionDetail> {
+    return fetch(`${API_BASE}/api/collections/${id}`, { headers: authHeaders() }).then((r) => json<CollectionDetail>(r)).then((c) => ({ ...c, events: c.events.map(absMedia) }));
+  },
+  renameCollection(id: string, name: string): Promise<CollectionDetail> {
+    return fetch(`${API_BASE}/api/collections/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ name }),
+    }).then((r) => json(r));
+  },
+  deleteCollection(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/collections/${id}`, { method: "DELETE", headers: authHeaders() }).then((r) => json(r));
+  },
+  addToCollection(id: string, eventId: string): Promise<CollectionDetail> {
+    return fetch(`${API_BASE}/api/collections/${id}/items`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ eventId }),
+    }).then((r) => json(r));
+  },
+  removeFromCollection(id: string, eventId: string): Promise<CollectionDetail> {
+    return fetch(`${API_BASE}/api/collections/${id}/items/${eventId}`, { method: "DELETE", headers: authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- reports + admin ----
+  reportEntity(entityType: "event" | "organizer" | "user", entityId: string, reason: ReportReason, note?: string): Promise<{ id: string }> {
+    return fetch(`${API_BASE}/api/reports`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ entityType, entityId, reason, note }),
+    }).then((r) => json(r));
+  },
+  adminListReports(): Promise<OpenReport[]> {
+    return fetch(`${API_BASE}/api/admin/reports`, { headers: authHeaders() }).then((r) => json(r));
+  },
+  adminResolveReport(id: string, status: "REVIEWED" | "DISMISSED" | "ACTIONED"): Promise<OpenReport> {
+    return fetch(`${API_BASE}/api/admin/reports/${id}/resolve`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ status }),
+    }).then((r) => json(r));
+  },
+  adminMetrics(): Promise<PlatformMetrics> {
+    return fetch(`${API_BASE}/api/admin/metrics`, { headers: authHeaders() }).then((r) => json(r));
   },
 };
 

@@ -86,6 +86,7 @@ export default function You() {
       )}
 
       <TicketsSection tickets={myTickets} />
+      {account && <CollectionsSection />}
       <OrganizerSection
         name={name}
         summary={summary.data || { events: [], stats: { eventCount: 0, ticketsSold: 0, grossRevenue: 0, netRevenue: 0, feePaid: 0 } }}
@@ -97,9 +98,70 @@ export default function You() {
       {account && (
         <div className="account-compact-wrap">
           <GoogleLoginButton />
+          {account.role === "ADMIN" && (
+            <Link to="/admin" className="copy-btn" style={{ marginTop: 8 }}>
+              <i className="ti ti-shield-lock" /> Admin dashboard
+            </Link>
+          )}
         </div>
       )}
     </>
+  );
+}
+
+/* ---------- Collections (Pinterest-style saved lists) ---------- */
+function CollectionsSection() {
+  const { data, loading, reload } = useAsync(() => api.listMyCollections(), []);
+  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  async function create() {
+    if (!name.trim()) return;
+    setCreating(true);
+    try {
+      await api.createCollection(name.trim());
+      setName("");
+      reload();
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Delete this list? This can't be undone.")) return;
+    await api.deleteCollection(id);
+    reload();
+  }
+
+  return (
+    <section>
+      <div className="date-head"><h2>My lists</h2><span>{data?.length || 0}</span></div>
+      <div style={{ display: "flex", gap: 8, padding: "0 16px 10px" }}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="New list name…"
+          onKeyDown={(e) => e.key === "Enter" && create()}
+          style={{ flex: 1 }}
+        />
+        <button className="copy-btn" onClick={create} disabled={creating || !name.trim()}>Create</button>
+      </div>
+      {loading ? <div className="spin" /> : (data || []).length > 0 ? (
+        <ul className="steps" style={{ padding: "0 16px" }}>
+          {data!.map((c) => (
+            <li key={c.id}>
+              <i className="ti ti-list" />
+              <Link to={`/collections/${c.id}`} style={{ color: "var(--text)" }}>
+                {c.name} <small style={{ color: "var(--text-3)" }}>· {c._count?.items || 0} events{c.isPublic ? "" : " · private"}</small>
+              </Link>
+              <button className="copy-btn" onClick={() => remove(c.id)} style={{ marginLeft: "auto" }}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 16px 10px" }}>No lists yet — group events you want to remember or share.</p>
+      )}
+    </section>
   );
 }
 

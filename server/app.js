@@ -216,6 +216,19 @@ export function createApp(storage) {
     res.json(events);
   });
 
+  // Real Postgres full-text + trigram search (see db.searchEvents) — kept as
+  // its own route rather than folding into /api/events' substring `q` filter
+  // above, since that one loads every event into memory and does a naive
+  // includes() check, fine for the current row count but not what should
+  // power a real search box.
+  app.get("/api/search", async (req, res) => {
+    const { q, cat } = req.query;
+    if (!q || !String(q).trim()) return res.json([]);
+    const results = await db.searchEvents(String(q), { cat: cat ? String(cat) : undefined });
+    db.track("search", { userId: req.user?.id, metadata: { query: q, resultCount: results.length } }).catch(() => {});
+    res.json(results);
+  });
+
   app.get("/api/events/:id", async (req, res) => {
     const e = await db.get(req.params.id);
     if (!e) return res.status(404).json({ error: "Event not found" });
@@ -621,6 +634,93 @@ export function createApp(storage) {
     res.json({ ok: true, eventId: accepted.eventId, eventTitle: invite.event.title, role: accepted.role });
   });
 
+  // ---- following organizers (see schema.prisma's Follow comment) ----
+  app.post("/api/organizers/:id/follow", requireAuth, async (req, res) => {
+    const targetId = req.params.id;
+    const target = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!target) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Organizer not found" } });
+    try {
+      await db.followOrganizer(req.user.id, targetId);
+    } catch (e) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: e.message } });
+    }
+    res.status(201).json({ ok: true, followerCount: await db.followerCount(targetId) });
+  });
+
+  app.delete("/api/organizers/:id/follow", requireAuth, async (req, res) => {
+    await db.unfollowOrganizer(req.user.id, req.params.id);
+    res.json({ ok: true, followerCount: await db.followerCount(req.params.id) });
+  });
+
+  app.get("/api/organizers/:id/follow", requireAuth, async (req, res) => {
+    res.json({
+      following: await db.isFollowing(req.user.id, req.params.id),
+      followerCount: await db.followerCount(req.params.id),
+    });
+  });
+
+  // events from everyone the signed-in user follows — the actual payoff
+  // of the follow graph, surfaced as its own feed rather than just a count
+  app.get("/api/me/following-feed", requireAuth, async (req, res) => {
+    res.json(await db.followingFeed(req.user.id));
+  });
+
+  // ---- collections (Pinterest-style saved lists, see schema.prisma) ----
+  // Ownership is enforced inline rather than via a requireX middleware
+  // family like events get — collections are a much smaller surface (no
+  // team roles, no staff access), a plain id-match check is proportionate.
+  async function loadOwnedCollection(req, res, next) {
+    const c = await prisma.collection.findUnique({ where: { id: req.params.id } });
+    if (!c) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Collection not found" } });
+    if (c.ownerId !== req.user.id) return res.status(403).json({ error: { code: "FORBIDDEN", message: "Not your collection" } });
+    req.collection = c;
+    next();
+  }
+
+  app.post("/api/collections", requireAuth, async (req, res) => {
+    const name = (req.body?.name || "").trim();
+    if (!name) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "name is required" } });
+    res.status(201).json(await db.createCollection(req.user.id, name));
+  });
+
+  app.get("/api/collections", requireAuth, async (req, res) => {
+    res.json(await db.listMyCollections(req.user.id));
+  });
+
+  // public — a collection's whole point is to be shareable via its link,
+  // gated only by isPublic (not by who's asking)
+  app.get("/api/collections/:id", async (req, res) => {
+    const c = await db.getCollection(req.params.id);
+    if (!c || (!c.isPublic && c.ownerId !== req.user?.id)) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Collection not found" } });
+    }
+    res.json(c);
+  });
+
+  app.patch("/api/collections/:id", requireAuth, loadOwnedCollection, async (req, res) => {
+    const { name, isPublic } = req.body || {};
+    if (name !== undefined) await db.renameCollection(req.params.id, name);
+    if (isPublic !== undefined) await prisma.collection.update({ where: { id: req.params.id }, data: { isPublic: !!isPublic } });
+    res.json(await db.getCollection(req.params.id));
+  });
+
+  app.delete("/api/collections/:id", requireAuth, loadOwnedCollection, async (req, res) => {
+    await db.deleteCollection(req.params.id);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/collections/:id/items", requireAuth, loadOwnedCollection, async (req, res) => {
+    const { eventId } = req.body || {};
+    if (!eventId) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "eventId is required" } });
+    await db.addToCollection(req.params.id, eventId);
+    res.status(201).json(await db.getCollection(req.params.id));
+  });
+
+  app.delete("/api/collections/:id/items/:eventId", requireAuth, loadOwnedCollection, async (req, res) => {
+    await db.removeFromCollection(req.params.id, req.params.eventId);
+    res.json(await db.getCollection(req.params.id));
+  });
+
   app.post("/api/admin/events/:id/moderate", requireAuth, requireRole("ADMIN"), async (req, res) => {
     const e = await db.get(req.params.id);
     if (!e) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
@@ -652,6 +752,33 @@ export function createApp(storage) {
     res.json({ id: target.id, email: target.email, role: target.role });
   });
 
+  // ---- reports (moderation queue, see schema.prisma's Report comment) ----
+  // Reporting itself needs no auth — an anonymous visitor can flag something —
+  // but reviewing/resolving the queue is admin-only, same as event moderation.
+  app.post("/api/reports", async (req, res) => {
+    const { entityType, entityId, reason, note } = req.body || {};
+    if (!["event", "organizer", "user"].includes(entityType) || !entityId || !reason) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "entityType, entityId, and reason are required" } });
+    }
+    const report = await db.createReport({ reporterId: req.user?.id || null, entityType, entityId, reason, note });
+    res.status(201).json({ id: report.id });
+  });
+
+  app.get("/api/admin/reports", requireAuth, requireRole("ADMIN"), async (_req, res) => {
+    res.json(await db.listOpenReports());
+  });
+
+  app.post("/api/admin/reports/:id/resolve", requireAuth, requireRole("ADMIN"), async (req, res) => {
+    const status = ["REVIEWED", "DISMISSED", "ACTIONED"].includes(req.body?.status) ? req.body.status : "ACTIONED";
+    const report = await db.resolveReport(req.params.id, req.user.id, status);
+    await db.audit("admin.report.resolve", { actorId: req.user.id, entityType: "report", entityId: report.id, metadata: { status } });
+    res.json(report);
+  });
+
+  app.get("/api/admin/metrics", requireAuth, requireRole("ADMIN"), async (_req, res) => {
+    res.json(await db.platformMetrics());
+  });
+
   app.post("/api/auth/google", authLimiter, validateBody(googleAuthSchema), async (req, res) => {
     const { idToken } = req.body;
     try {
@@ -663,11 +790,13 @@ export function createApp(storage) {
       }
       const account = { email: info.email, name: info.name || info.email, picture: info.picture || null };
       let sessionToken = null;
+      let role;
       if (authConfigured()) {
         const user = await db.upsertUserFromGoogle({ googleSub: info.sub, email: info.email, name: account.name, avatarUrl: account.picture });
         sessionToken = issueSessionToken(user);
+        role = user.role;
       }
-      res.json({ ...account, sessionToken });
+      res.json({ ...account, sessionToken, role });
     } catch {
       res.status(502).json({ error: "Couldn't verify token with Google" });
     }

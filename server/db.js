@@ -1,4 +1,4 @@
-import { PrismaClient } from "../src/generated/prisma/index.js";
+import { PrismaClient, Prisma } from "../src/generated/prisma/index.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 // Prisma 7 requires an explicit driver adapter instead of a datasource url
@@ -616,7 +616,7 @@ export const db = {
           OR similarity(e.organizer, ${q}) > 0.3
           OR similarity(e.venue, ${q}) > 0.3
         )
-        ${cat && cat !== "all" ? prisma.$queryRaw`AND e.cat = ${cat}` : prisma.$queryRaw``}
+        ${cat && cat !== "all" ? Prisma.sql`AND e.cat = ${cat}` : Prisma.empty}
       ORDER BY rank DESC, e."startsAt" ASC
       LIMIT ${limit}
     `;

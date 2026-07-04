@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn } from "../api";
 import { useAsync } from "../hooks";
-import { isSaved, toggleSave, useSaved, addTicket, getDeviceId, getAccount } from "../store";
+import { isSaved, toggleSave, useSaved, addTicket, getDeviceId, getAccount, useAccount } from "../store";
 import MiniMap from "../components/MiniMap";
+import FollowButton from "../components/FollowButton";
+import type { Collection } from "../api";
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -14,6 +16,8 @@ export default function EventDetail() {
   const [booking, setBooking] = useState(false);
   const [bookErr, setBookErr] = useState("");
   const [tierId, setTierId] = useState<string | null>(null);
+  const [listSheet, setListSheet] = useState(false);
+  const account = useAccount();
 
   if (loading) return <div className="detail"><div className="spin" /></div>;
   if (error || !e) return (
@@ -70,13 +74,22 @@ export default function EventDetail() {
         <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => toggleSave(ev.id)} aria-label="Save">
           <i className={"ti " + (saved ? "ti-heart-filled" : "ti-heart")} />
         </button>
+        {account && (
+          <button className="icon-btn" onClick={() => setListSheet(true)} aria-label="Add to a list">
+            <i className="ti ti-folder-plus" />
+          </button>
+        )}
         {!ev.image && <span className="glyph">{ev.glyph}</span>}
       </div>
+      {listSheet && <AddToListSheet eventId={ev.id} onClose={() => setListSheet(false)} />}
 
       <div className="sheet glass">
         <span className="catpill">{cat?.label}</span>
         <h1 style={{ marginTop: 12 }}>{ev.title}</h1>
-        <p className="host">Hosted by {ev.organizer}</p>
+        <div className="host-row">
+          <p className="host">Hosted by {ev.organizer}</p>
+          {ev.ownerId && <FollowButton organizerId={ev.ownerId} />}
+        </div>
 
         {ev.tags.length > 0 && (
           <div className="tagrow">{ev.tags.map((t) => <span key={t} className="tg">{t}</span>)}</div>
@@ -176,6 +189,60 @@ export default function EventDetail() {
             </button>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => void }) {
+  const [lists, setLists] = useState<Collection[] | null>(null);
+  const [name, setName] = useState("");
+  const [added, setAdded] = useState<Set<string>>(new Set());
+
+  function load() {
+    api.listMyCollections().then(setLists).catch(() => setLists([]));
+  }
+  useEffect(load, []);
+
+  async function addTo(id: string) {
+    await api.addToCollection(id, eventId);
+    setAdded((s) => new Set(s).add(id));
+  }
+
+  async function createAndAdd() {
+    if (!name.trim()) return;
+    const c = await api.createCollection(name.trim());
+    setName("");
+    await addTo(c.id);
+    load();
+  }
+
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="install-sheet glass" style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginBottom: 12 }}>Add to a list</h3>
+        {lists === null ? <div className="spin" /> : (
+          <>
+            {lists.length > 0 && (
+              <ul className="steps" style={{ marginBottom: 14 }}>
+                {lists.map((c) => (
+                  <li key={c.id}>
+                    <i className="ti ti-list" />
+                    <span>{c.name}</span>
+                    <button className="copy-btn" style={{ marginLeft: "auto" }} onClick={() => addTo(c.id)} disabled={added.has(c.id)}>
+                      {added.has(c.id) ? <><i className="ti ti-check" /> Added</> : "Add"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Or create a new list…" onKeyDown={(e) => e.key === "Enter" && createAndAdd()} />
+              <button className="copy-btn" onClick={createAndAdd} disabled={!name.trim()}>Create</button>
+            </div>
+          </>
+        )}
+        <button className="btn glass" style={{ marginTop: 14 }} onClick={onClose}>Done</button>
       </div>
     </div>
   );

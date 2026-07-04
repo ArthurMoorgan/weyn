@@ -13,6 +13,8 @@ import You from "./pages/You";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCancel from "./pages/CheckoutCancel";
 import InviteAccept from "./pages/InviteAccept";
+import CollectionPage from "./pages/Collection";
+import Admin from "./pages/Admin";
 import { initPush } from "./push";
 
 // BrowserRouter (real paths) on web — required for server-side OG/meta tags
@@ -32,11 +34,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/saved" element={<Saved />} />
           <Route path="/host" element={<Organizer />} />
           <Route path="/you" element={<You />} />
+          <Route path="/admin" element={<Admin />} />
         </Route>
         <Route path="/e/:id" element={<EventDetail />} />
         <Route path="/checkout/success" element={<CheckoutSuccess />} />
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />
         <Route path="/invite/:token" element={<InviteAccept />} />
+        <Route path="/collections/:id" element={<CollectionPage />} />
       </Routes>
     </Router>
   </React.StrictMode>

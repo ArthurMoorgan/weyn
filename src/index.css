@@ -510,6 +510,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .detail .sheet h1 { font-size: 24px; margin-top: 8px; }
 .detail .host { font-size: 14px; color: var(--text-2); margin-top: 6px; }
+.host-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.host-row .host { margin-top: 0; }
 .tagrow { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
 .tagrow .tg { font-size: 12px; font-weight: 500; color: var(--text-2); background: var(--surface-2); padding: 4px 10px; border-radius: var(--radius-pill); }
 .catpill { display: inline-block; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 4px 11px; border-radius: var(--radius-pill); }
