@@ -24,6 +24,7 @@ import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOw
 import { createEventSchema, updateEventSchema, googleAuthSchema, validateBody } from "./validators.js";
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
+import { sendEmail, emailConfigured, teamInviteEmail } from "./email.js";
 
 // Normalise a user-typed ticket URL so it always redirects OUT of the app.
 function normalizeUrl(raw) {
@@ -390,7 +391,7 @@ export function createApp(storage) {
         booking,
         event: e,
         tier,
-        successUrl: `${origin}/#/checkout/success?booking=${booking.id}`,
+        successUrl: `${origin}/checkout/success?booking=${booking.id}`,
         callbackUrl: `${origin}/api/payments/webhook`,
         customerIp: req.ip,
       });
@@ -581,7 +582,12 @@ export function createApp(storage) {
     const invite = await db.createTeamInvite({ eventId: req.event.id, invitedEmail: email, role, invitedBy: req.user.id });
     await db.audit("event.team.invite", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { email, role } });
     const origin = req.body?.origin || `${req.protocol}://${req.get("host")}`;
-    res.status(201).json({ id: invite.id, email: invite.invitedEmail, role: invite.role, inviteLink: `${origin}/#/invite/${invite.inviteToken}` });
+    const inviteLink = `${origin}/invite/${invite.inviteToken}`;
+    if (emailConfigured()) {
+      sendEmail({ to: email, ...teamInviteEmail({ eventTitle: req.event.title, role, inviteLink }) })
+        .catch((err) => console.error("team invite email failed:", err.message));
+    }
+    res.status(201).json({ id: invite.id, email: invite.invitedEmail, role: invite.role, inviteLink });
   });
 
   app.get("/api/events/:id/team", requireEventOwner(), async (req, res) => {
@@ -761,13 +767,69 @@ export function createApp(storage) {
     res.status(err.status || 400).json({ error: err.message || "Something went wrong" });
   });
 
-  // ---- serve the built frontend (local Node dev / non-Workers deploys) ----
-  // On Cloudflare Workers this is a no-op — the `assets` binding in
-  // wrangler.jsonc serves dist/ at the platform level before requests even
-  // reach this Express app, and there's no real filesystem here for
-  // fs.existsSync to find anyway. Kept for `node server/index.js` and any
-  // future non-Workers deploy target.
+  // ---- real SEO: server-rendered meta tags for shared event links ----
+  // vercel.json rewrites /e/:id here specifically (every other client route
+  // gets Vercel's static SPA fallback directly, skipping this function for
+  // speed). This only works now that the web build uses BrowserRouter
+  // (main.tsx) — with the old HashRouter, the id after "#" never reached
+  // the server at all, making this structurally impossible.
   const DIST_DIR = __dirname && path.join(__dirname, "..", "dist");
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  app.get("/e/:id", async (req, res, next) => {
+    try {
+      // local dev / any environment where dist/ is on disk — read directly.
+      // On Vercel the function bundle doesn't include dist/ (it's deployed
+      // separately as static output), so self-fetch the real built HTML
+      // from this same deployment instead — always in sync with whatever
+      // was actually built, no hardcoded hashed asset filenames to maintain.
+      let html;
+      if (DIST_DIR && fs.existsSync(path.join(DIST_DIR, "index.html"))) {
+        html = fs.readFileSync(path.join(DIST_DIR, "index.html"), "utf8");
+      } else {
+        const proto = req.headers["x-forwarded-proto"] || req.protocol;
+        const selfRes = await fetch(`${proto}://${req.get("host")}/index.html`);
+        html = await selfRes.text();
+      }
+
+      const e = await db.get(req.params.id);
+      if (e) {
+        const title = `${e.title} — Weyn`;
+        const desc = (e.blurb || `${e.title} in ${e.area}`).slice(0, 200);
+        const image = e.image ? `${req.headers["x-forwarded-proto"] || req.protocol}://${req.get("host")}${e.image}` : "";
+        const url = `${req.headers["x-forwarded-proto"] || req.protocol}://${req.get("host")}/e/${e.id}`;
+        const dateStr = new Date(e.startsAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+        const tags = [
+          `<title>${escapeHtml(title)}</title>`,
+          `<meta name="description" content="${escapeHtml(desc)}" />`,
+          `<meta property="og:type" content="website" />`,
+          `<meta property="og:title" content="${escapeHtml(title)}" />`,
+          `<meta property="og:description" content="${escapeHtml(`${dateStr} · ${e.venue}, ${e.area}`)}" />`,
+          `<meta property="og:url" content="${escapeHtml(url)}" />`,
+          image && `<meta property="og:image" content="${escapeHtml(image)}" />`,
+          `<meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}" />`,
+          `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
+          `<meta name="twitter:description" content="${escapeHtml(desc)}" />`,
+          image && `<meta name="twitter:image" content="${escapeHtml(image)}" />`,
+        ].filter(Boolean).join("\n    ");
+
+        // replace the static <title> and inject the rest before </head> —
+        // never string-match on more than the title tag itself, so this
+        // can't accidentally corrupt other head content across builds
+        html = html.replace(/<title>[^<]*<\/title>/, "").replace("</head>", `    ${tags}\n  </head>`);
+      }
+      res.set("Content-Type", "text/html").send(html);
+    } catch (err) {
+      next(err); // fall through to the generic error handler / SPA fallback below
+    }
+  });
+
+  // ---- serve the built frontend (local Node dev / non-Workers deploys) ----
+  // On Vercel this static-file branch is largely a no-op in production
+  // (dist/ isn't bundled into the function; Vercel's own static hosting +
+  // vercel.json's catch-all rewrite handle every other route directly) but
+  // is exactly what `node server/index.js` (local dev) needs.
   if (DIST_DIR && fs.existsSync(DIST_DIR)) {
     app.use(express.static(DIST_DIR));
     app.get(/^(?!\/api\/|\/uploads\/).*/, (_req, res) => res.sendFile(path.join(DIST_DIR, "index.html")));

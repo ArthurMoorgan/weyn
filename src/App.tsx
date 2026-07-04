@@ -12,6 +12,7 @@ export default function App() {
     <div className="shell">
       <Outlet />
       <nav className="tabs">
+        <div className="sidebar-brand"><i className="ti ti-sparkles" /> Weyn</div>
         {TABS.map((t) => (
           <NavLink key={t.to} to={t.to} end={t.to === "/"} className={({ isActive }) => "tab" + (isActive ? " on" : "")}>
             <i className={"ti ti-" + t.icon} />

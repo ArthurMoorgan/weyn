@@ -259,7 +259,17 @@ export default function Organizer() {
           <label>Pin the location</label>
           <MapPicker
             value={loc}
-            onChange={({ lat, lng, label }) => { setLoc({ lat, lng }); if (label && !f.venue.trim()) setF((s) => ({ ...s, venue: label })); }}
+            onChange={({ lat, lng, label }) => {
+              setLoc({ lat, lng });
+              if (!label) return;
+              // Only backfill fields the organizer hasn't already typed into —
+              // never clobber a manually-entered venue name or area.
+              setF((s) => ({
+                ...s,
+                venue: s.venue.trim() ? s.venue : label,
+                area: s.area.trim() ? s.area : label,
+              }));
+            }}
           />
         </div>
 

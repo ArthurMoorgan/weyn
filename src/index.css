@@ -315,6 +315,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .tab .ti { font-size: 21px; }
 .tab.on { color: var(--accent); }
 .tab.on .ti { color: var(--accent); }
+.sidebar-brand { display: none; }
 
 /* ---------- map ---------- */
 .mappick { margin-top: 2px; }
@@ -845,4 +846,61 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* reduced motion: kill it all */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ============================================================
+   Desktop layout — everything above this point is still the mobile
+   layout unchanged. At >=900px the bottom tab bar becomes a fixed left
+   sidebar and content widens from the phone-width column to a real
+   desktop reading width, matching every other flat/minimal surface
+   already defined above (same cards, same tokens — just more room).
+   ============================================================ */
+@media (min-width: 900px) {
+  :root { --maxw: 1080px; }
+
+  body { display: flex; }
+
+  .shell {
+    flex: 1;
+    padding-left: 232px;
+    padding-bottom: 0;
+    box-sizing: border-box;
+  }
+
+  /* bottom tab bar -> left sidebar */
+  .tabs {
+    position: fixed; top: 0; left: 0; bottom: 0; right: auto; z-index: 40;
+    width: 232px; max-width: 232px; margin: 0;
+    flex-direction: column; align-items: stretch; justify-content: flex-start;
+    gap: 2px;
+    padding: 0 12px;
+    padding-top: calc(20px + env(safe-area-inset-top));
+    border-top: none; border-right: 1px solid var(--hair);
+  }
+  .sidebar-brand {
+    display: flex; align-items: center; gap: 9px;
+    padding: 0 10px 20px;
+    font-size: 17px; font-weight: 700; letter-spacing: -0.4px;
+  }
+  .tab {
+    flex: none; flex-direction: row; justify-content: flex-start; gap: 12px;
+    padding: 11px 12px; border-radius: var(--radius-sm);
+    font-size: 14.5px;
+  }
+  .tab .ti { font-size: 19px; }
+  .tab.on { background: var(--accent-soft); }
+
+  /* feed becomes a real grid instead of a single scrolling column */
+  .feed {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    align-items: start;
+    padding: 4px 24px 24px;
+  }
+
+  /* fixed bars anchored to the full viewport need the same left offset
+     the sidebar introduces, so they stay centered under the content
+     column instead of under the whole (sidebar-included) viewport */
+  .buybar { left: 232px; }
+  .toast { left: calc(50% + 116px); }
 }

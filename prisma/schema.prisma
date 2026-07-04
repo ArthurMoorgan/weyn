@@ -40,8 +40,97 @@ model User {
   auditLogs       AuditLog[]
   teamMemberships EventTeamMember[] @relation("TeamMembership")
   teamInvitesSent EventTeamMember[] @relation("TeamInviter")
+  following       Follow[]          @relation("Follower")
+  followers       Follow[]          @relation("Following")
+  collections     Collection[]
+  reportsFiled    Report[]          @relation("Reporter")
+  reportsReviewed Report[]          @relation("ReportReviewer")
 
   @@index([email])
+}
+
+// User → organizer (User who owns events) follow graph. Deliberately
+// User-to-User, not User-to-Event — `Event.ownerId` already IS the real
+// organizer identity, "organizer" the string field is just a display name.
+// Following an organizer surfaces their future events, not just this one.
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+// Pinterest-style named list of saved events. Public by default (link is
+// shareable) — collaborative editing (multiple owners) is a real future
+// step, deliberately not built now since no organizer/user has asked for it
+// yet (see the "defer until needed" call on promo codes/UTM this round).
+model Collection {
+  id        String   @id @default(cuid())
+  ownerId   String
+  name      String
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  owner User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items CollectionItem[]
+
+  @@index([ownerId])
+}
+
+model CollectionItem {
+  id           String   @id @default(cuid())
+  collectionId String
+  eventId      String
+  addedAt      DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  event      Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, eventId])
+  @@index([eventId])
+}
+
+enum ReportReason {
+  SPAM
+  INAPPROPRIATE
+  FRAUD
+  DUPLICATE
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+  ACTIONED
+}
+
+// User-filed reports on an event/organizer/user, reviewed by an ADMIN via
+// the moderation queue. entityType/entityId mirrors AuditLog's pattern
+// rather than three separate nullable foreign keys.
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String?
+  entityType String // "event" | "organizer" | "user"
+  entityId   String
+  reason     ReportReason
+  note       String?
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
+  reviewedBy String?
+  reviewedAt DateTime?
+
+  reporter User? @relation("Reporter", fields: [reporterId], references: [id])
+  reviewer User? @relation("ReportReviewer", fields: [reviewedBy], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([status])
 }
 
 model Category {
@@ -91,11 +180,12 @@ model Event {
   createdAt             DateTime  @default(now())
   deletedAt             DateTime? // soft delete — reads filter this out by default
 
-  owner       User?             @relation(fields: [ownerId], references: [id])
-  tiers       Tier[]
-  bookings    Booking[]
-  tickets     Ticket[]
-  teamMembers EventTeamMember[]
+  owner           User?             @relation(fields: [ownerId], references: [id])
+  tiers           Tier[]
+  bookings        Booking[]
+  tickets         Ticket[]
+  teamMembers     EventTeamMember[]
+  collectionItems CollectionItem[]
 
   @@index([organizer])
   @@index([startsAt])

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { HashRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, BrowserRouter, Routes, Route } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import "leaflet/dist/leaflet.css";
 import "./index.css";
 import App from "./App";
@@ -14,9 +15,17 @@ import CheckoutCancel from "./pages/CheckoutCancel";
 import InviteAccept from "./pages/InviteAccept";
 import { initPush } from "./push";
 
+// BrowserRouter (real paths) on web — required for server-side OG/meta tags
+// on shared event links, which HashRouter makes structurally impossible
+// (the fragment after # never reaches the server). HashRouter stays for the
+// native app: Capacitor loads dist/ from a local file/capacitor:// scheme
+// with no server behind it to rewrite arbitrary paths, so a deep link or
+// in-app reload on a nested route would 404 under BrowserRouter there.
+const Router = Capacitor.isNativePlatform() ? HashRouter : BrowserRouter;
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route element={<App />}>
           <Route path="/" element={<Explore />} />
@@ -29,7 +38,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />
         <Route path="/invite/:token" element={<InviteAccept />} />
       </Routes>
-    </HashRouter>
+    </Router>
   </React.StrictMode>
 );
 

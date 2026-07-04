@@ -527,4 +527,151 @@ export const db = {
       salesByDay: Object.entries(salesByDay).map(([date, qty]) => ({ date, qty })).sort((a, b) => a.date.localeCompare(b.date)),
     };
   },
+
+  // ---- following (User -> organizer User, see schema.prisma's Follow comment) ----
+  async followOrganizer(followerId, followingId) {
+    if (followerId === followingId) throw new Error("You can't follow yourself");
+    return prisma.follow.upsert({
+      where: { followerId_followingId: { followerId, followingId } },
+      create: { followerId, followingId },
+      update: {},
+    });
+  },
+  async unfollowOrganizer(followerId, followingId) {
+    await prisma.follow.deleteMany({ where: { followerId, followingId } });
+  },
+  async isFollowing(followerId, followingId) {
+    return !!(await prisma.follow.findUnique({ where: { followerId_followingId: { followerId, followingId } } }));
+  },
+  async followerCount(userId) {
+    return prisma.follow.count({ where: { followingId: userId } });
+  },
+  async followingIds(userId) {
+    const rows = await prisma.follow.findMany({ where: { followerId: userId }, select: { followingId: true } });
+    return rows.map((r) => r.followingId);
+  },
+  // events from organizers the user follows, soonest first — the actual
+  // payoff of the follow graph, not just a follower-count vanity metric
+  async followingFeed(userId) {
+    const ids = await db.followingIds(userId);
+    if (!ids.length) return [];
+    const events = await prisma.event.findMany({
+      where: { ownerId: { in: ids }, deletedAt: null, cancelled: false, startsAt: { gte: new Date() } },
+      include: { tiers: true },
+      orderBy: { startsAt: "asc" },
+    });
+    return events.map(shape);
+  },
+
+  // ---- collections (Pinterest-style saved lists, see schema.prisma) ----
+  async createCollection(ownerId, name) {
+    return prisma.collection.create({ data: { ownerId, name: name.trim().slice(0, 60) } });
+  },
+  async listMyCollections(ownerId) {
+    return prisma.collection.findMany({
+      where: { ownerId },
+      include: { _count: { select: { items: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+  },
+  async getCollection(id) {
+    const c = await prisma.collection.findUnique({
+      where: { id },
+      include: { items: { include: { event: { include: { tiers: true } } }, orderBy: { addedAt: "desc" } }, owner: { select: { id: true, name: true } } },
+    });
+    if (!c) return null;
+    return { id: c.id, name: c.name, isPublic: c.isPublic, ownerId: c.ownerId, ownerName: c.owner.name, events: c.items.map((i) => shape(i.event)) };
+  },
+  async renameCollection(id, name) {
+    return prisma.collection.update({ where: { id }, data: { name: name.trim().slice(0, 60) } });
+  },
+  async deleteCollection(id) {
+    await prisma.collection.delete({ where: { id } });
+  },
+  async addToCollection(collectionId, eventId) {
+    return prisma.collectionItem.upsert({
+      where: { collectionId_eventId: { collectionId, eventId } },
+      create: { collectionId, eventId },
+      update: {},
+    });
+  },
+  async removeFromCollection(collectionId, eventId) {
+    await prisma.collectionItem.deleteMany({ where: { collectionId, eventId } });
+  },
+
+  // ---- search (Postgres full-text + trigram, see migration's weyn_event_tsvector) ----
+  async searchEvents(query, { cat, limit = 40 } = {}) {
+    const q = query.trim();
+    if (!q) return db.all();
+    // plainto_tsquery handles multi-word queries safely (no injection risk —
+    // it's a parameter, not concatenated SQL); ts_rank_cd for relevance,
+    // OR'd with a trigram similarity fallback so single-typo queries
+    // ("jaz" for "jazz") still surface results a strict FTS match would miss
+    const rows = await prisma.$queryRaw`
+      SELECT e.*, ts_rank_cd(weyn_event_tsvector(e.title, e.organizer, e.venue, e.blurb, e.tags), plainto_tsquery('english', ${q})) AS rank
+      FROM "Event" e
+      WHERE e."deletedAt" IS NULL
+        AND (
+          weyn_event_tsvector(e.title, e.organizer, e.venue, e.blurb, e.tags) @@ plainto_tsquery('english', ${q})
+          OR similarity(e.organizer, ${q}) > 0.3
+          OR similarity(e.venue, ${q}) > 0.3
+        )
+        ${cat && cat !== "all" ? prisma.$queryRaw`AND e.cat = ${cat}` : prisma.$queryRaw``}
+      ORDER BY rank DESC, e."startsAt" ASC
+      LIMIT ${limit}
+    `;
+    const ids = rows.map((r) => r.id);
+    if (!ids.length) return [];
+    const tiers = await prisma.tier.findMany({ where: { eventId: { in: ids } } });
+    const tiersByEvent = {};
+    for (const t of tiers) (tiersByEvent[t.eventId] ||= []).push(t);
+    // preserve the rank-sorted order from the raw query — Prisma's findMany
+    // WHERE IN doesn't guarantee it
+    return rows.map((r) => shape({ ...r, tiers: tiersByEvent[r.id] || [] }));
+  },
+
+  // ---- event quality score (discovery ranking signal, see audit notes) ----
+  // Deliberately computed, not stored — cheap over a few thousand rows and
+  // always reflects current sold/save counts without a background job to
+  // keep a column in sync.
+  eventQualityScore(e) {
+    let score = 0;
+    if (e.image) score += 30;
+    if (e.blurb && e.blurb.length > 60) score += 15;
+    if (e.tags && e.tags.length > 0) score += 10;
+    const capacityKnown = e.capacity < 9000;
+    if (capacityKnown && e.capacity > 0) score += Math.min(30, (e.sold / e.capacity) * 30);
+    if (e.organizerVerified) score += 15;
+    return Math.round(score);
+  },
+
+  // ---- reports (moderation queue, see schema.prisma's Report comment) ----
+  async createReport({ reporterId, entityType, entityId, reason, note }) {
+    return prisma.report.create({ data: { reporterId, entityType, entityId, reason, note: note?.slice(0, 500) || null } });
+  },
+  async listOpenReports() {
+    return prisma.report.findMany({ where: { status: "OPEN" }, orderBy: { createdAt: "desc" }, include: { reporter: { select: { name: true, email: true } } } });
+  },
+  async resolveReport(id, reviewerId, status) {
+    return prisma.report.update({ where: { id }, data: { status, reviewedBy: reviewerId, reviewedAt: new Date() } });
+  },
+
+  // ---- admin platform metrics ----
+  async platformMetrics() {
+    const [totalUsers, totalEvents, totalBookings, openReports, revenueRows] = await Promise.all([
+      prisma.user.count({ where: { deletedAt: null } }),
+      prisma.event.count({ where: { deletedAt: null } }),
+      prisma.booking.count({ where: { status: "paid" } }),
+      prisma.report.count({ where: { status: "OPEN" } }),
+      prisma.$queryRaw`SELECT COALESCE(SUM(p.amount), 0)::float AS total FROM "Payment" p WHERE p.status = 'paid'`,
+    ]);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 864e5);
+    const newUsersThisWeek = await prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } });
+    const newEventsThisWeek = await prisma.event.count({ where: { createdAt: { gte: sevenDaysAgo } } });
+    return {
+      totalUsers, totalEvents, totalBookings, openReports,
+      totalRevenue: revenueRows[0]?.total || 0,
+      newUsersThisWeek, newEventsThisWeek,
+    };
+  },
 };
