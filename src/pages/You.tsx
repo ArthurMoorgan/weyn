@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import { api, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn, type TeamRole } from "../api";
 import { useAsync } from "../hooks";
-import { getOrganizer, useAccount, useTickets } from "../store";
+import { getOrganizer, useAccount, useTickets, useSaved } from "../store";
 import Stub from "../components/Stub";
 import ThemeToggle from "../components/ThemeToggle";
 import InstallPrompt from "../components/InstallPrompt";
@@ -11,9 +11,16 @@ import GoogleLoginButton from "../components/GoogleLoginButton";
 
 const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 
+// Profile architecture: dedicated views instead of one long stacked page.
+// Organizer/Settings only appear once relevant (signed in) so a first-time
+// visitor isn't shown empty tabs for features they haven't touched yet.
+type ProfileTab = "overview" | "tickets" | "saved" | "lists" | "organizer" | "settings";
+
 export default function You() {
   const name = getOrganizer();
   const tickets = useTickets();
+  const saved = useSaved();
+  const [tab, setTab] = useState<ProfileTab>("overview");
   // hooks must all run before the loading/error early-returns below —
   // calling one conditionally crashes the whole tree on the render where
   // the condition flips (React counts hooks per render)
@@ -43,14 +50,14 @@ export default function You() {
   };
 
   if (summary.loading || allEvents.loading) {
-    return (<><Header /><div className="spin" /></>);
+    return (<><Header tab={tab} setTab={setTab} isHost={false} account={!!account} /><div className="spin" /></>);
   }
 
   // NEVER silently fall through on a failed fetch — show it, don't hide it as an empty state
   if (summary.error || allEvents.error) {
     return (
       <>
-        <Header />
+        <Header tab={tab} setTab={setTab} isHost={false} account={!!account} />
         <div className="empty">
           <div className="ic"><i className="icon-cloud-off" /></div>
           <p>Couldn't reach the server. {summary.error || allEvents.error}</p>
@@ -66,51 +73,133 @@ export default function You() {
   }
 
   const myTickets = (allEvents.data || []).filter((e) => tickets.includes(e.id));
+  const savedEvents = (allEvents.data || []).filter((e) => saved.includes(e.id));
+  const isHost = (summary.data?.events.length || 0) > 0;
+  const summaryData = summary.data || { events: [], stats: { eventCount: 0, ticketsSold: 0, grossRevenue: 0, netRevenue: 0, feePaid: 0 } };
 
   return (
     <>
-      <Header />
+      <Header tab={tab} setTab={setTab} isHost={isHost} account={!!account} />
 
+      {!account && (
+        <div className="signin-card" style={{ margin: "16px 16px 0" }}>
+          <GoogleLoginButton />
+        </div>
+      )}
+
+      {tab === "overview" && (
+        <OverviewTab
+          account={!!account}
+          tickets={myTickets}
+          saved={savedEvents}
+          isHost={isHost}
+          summary={summaryData}
+          onNavigate={setTab}
+        />
+      )}
+      {tab === "tickets" && <TicketsSection tickets={myTickets} />}
+      {tab === "saved" && <SavedTab events={savedEvents} />}
+      {tab === "lists" && account && <CollectionsSection />}
+      {tab === "organizer" && (
+        <OrganizerSection name={name} summary={summaryData} reload={summary.reload} />
+      )}
+      {tab === "settings" && <SettingsTab account={!!account} />}
+    </>
+  );
+}
+
+/* ---------- Overview — quick summary + shortcuts into the other tabs ---------- */
+function OverviewTab({ account, tickets, saved, isHost, summary, onNavigate }: {
+  account: boolean; tickets: Weyn[]; saved: Weyn[]; isHost: boolean; summary: any; onNavigate: (t: ProfileTab) => void;
+}) {
+  return (
+    <>
       <div className="page-head">
         <h1>You</h1>
-        <p className="sub">{myTickets.length > 0 ? `${myTickets.length} upcoming ${myTickets.length === 1 ? "ticket" : "tickets"}` : "Your tickets and events"}</p>
+        <p className="sub">{tickets.length > 0 ? `${tickets.length} upcoming ${tickets.length === 1 ? "ticket" : "tickets"}` : "Your tickets and events"}</p>
       </div>
 
-      {/* Sign-in is only a prominent, full card BEFORE you're signed in — once
-          verified, it steps back into a small footer row (see below) so
-          tickets stay the focus of this screen, not account chrome. */}
-      {!account && (
-        <div className="signin-card">
-          <GoogleLoginButton />
-        </div>
-      )}
-
-      <div className="profile-grid">
-        <div className="profile-main">
-          <TicketsSection tickets={myTickets} />
-          {account && <CollectionsSection />}
-          <div style={{ padding: "0 16px" }}><InstallPrompt /></div>
-        </div>
-        <div className="profile-side">
-          <OrganizerSection
-            name={name}
-            summary={summary.data || { events: [], stats: { eventCount: 0, ticketsSold: 0, grossRevenue: 0, netRevenue: 0, feePaid: 0 } }}
-            reload={summary.reload}
-          />
-        </div>
+      <div className="ov-grid">
+        <button className="ov-card" onClick={() => onNavigate("tickets")}>
+          <i className="icon-ticket" /><div className="ov-v">{tickets.length}</div><div className="ov-k">Tickets</div>
+        </button>
+        <button className="ov-card" onClick={() => onNavigate("saved")}>
+          <i className="icon-heart" /><div className="ov-v">{saved.length}</div><div className="ov-k">Saved</div>
+        </button>
+        {isHost && (
+          <button className="ov-card" onClick={() => onNavigate("organizer")}>
+            <i className="icon-chart-bar" /><div className="ov-v">{summary.stats.eventCount}</div><div className="ov-k">Live events</div>
+          </button>
+        )}
+        {account && (
+          <button className="ov-card" onClick={() => onNavigate("lists")}>
+            <i className="icon-list" /><div className="ov-v">—</div><div className="ov-k">Lists</div>
+          </button>
+        )}
       </div>
 
-      {account && (
-        <div className="account-compact-wrap">
-          <GoogleLoginButton />
-          {account.role === "ADMIN" && (
-            <Link to="/admin" className="copy-btn" style={{ marginTop: 8 }}>
-              <i className="icon-shield-check" /> Admin dashboard
-            </Link>
-          )}
-        </div>
+      {tickets.length > 0 && (
+        <section>
+          <div className="date-head"><h2>Up next</h2><span>{tickets.length}</span></div>
+          <div className="feed" style={{ paddingBottom: 4 }}>{tickets.slice(0, 3).map((e) => <Stub key={e.id} e={e} ticket />)}</div>
+        </section>
       )}
+
+      {!isHost && (
+        <section>
+          <div className="host-cta" style={{ margin: "18px 16px 0" }}>
+            <div><b>Running an event?</b><span>Publish it free and track sales here.</span></div>
+            <Link to="/host" className="btn glass" style={{ width: "auto", padding: "11px 16px" }}><i className="icon-plus" /> Host</Link>
+          </div>
+        </section>
+      )}
+
+      <div style={{ padding: "16px 16px 0" }}><InstallPrompt /></div>
     </>
+  );
+}
+
+/* ---------- Saved tab (same data the standalone /saved route shows) ---------- */
+function SavedTab({ events }: { events: Weyn[] }) {
+  return (
+    <section>
+      <div className="date-head"><h2>Saved</h2><span>{events.length}</span></div>
+      {events.length > 0 ? (
+        <div className="feed" style={{ paddingTop: 4 }}>{events.map((e) => <Stub key={e.id} e={e} />)}</div>
+      ) : (
+        <div className="empty" style={{ padding: "24px 36px 32px" }}>
+          <div className="ic"><i className="icon-heart" /></div>
+          <p>Nothing saved yet. Tap the heart on any event to keep it here.</p>
+          <Link to="/" className="btn" style={{ maxWidth: 220, margin: "0 auto" }}><i className="icon-compass" /> Explore events</Link>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------- Settings — account, theme, admin ---------- */
+function SettingsTab({ account }: { account: boolean }) {
+  const acc = useAccount();
+  return (
+    <section>
+      <div className="date-head"><h2>Settings</h2></div>
+      <div style={{ padding: "0 16px" }}>
+        <div className="settings-row">
+          <span>Appearance</span>
+          <ThemeToggle />
+        </div>
+        {account && (
+          <div className="account-row" style={{ marginTop: 12 }}>
+            <GoogleLoginButton />
+          </div>
+        )}
+        {acc?.role === "ADMIN" && (
+          <Link to="/admin" className="copy-btn" style={{ marginTop: 12 }}>
+            <i className="icon-shield-check" /> Admin dashboard
+          </Link>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -170,12 +259,30 @@ function CollectionsSection() {
   );
 }
 
-function Header() {
+const TAB_DEFS: { key: ProfileTab; label: string; icon: string; needsAuth?: boolean; needsHost?: boolean }[] = [
+  { key: "overview", label: "Overview", icon: "layout-grid" },
+  { key: "tickets", label: "Tickets", icon: "ticket" },
+  { key: "saved", label: "Saved", icon: "heart" },
+  { key: "lists", label: "Lists", icon: "list", needsAuth: true },
+  { key: "organizer", label: "Organizer", icon: "chart-bar", needsHost: true },
+  { key: "settings", label: "Settings", icon: "settings" },
+];
+
+function Header({ tab, setTab, isHost, account }: { tab: ProfileTab; setTab: (t: ProfileTab) => void; isHost: boolean; account: boolean }) {
+  const visible = TAB_DEFS.filter((t) => (!t.needsAuth || account) && (!t.needsHost || isHost));
   return (
-    <header className="topbar">
-      <div className="brand"><span className="en">You</span></div>
-      <div className="tb-right"><ThemeToggle /></div>
-    </header>
+    <>
+      <header className="topbar">
+        <div className="brand"><span className="en">You</span></div>
+      </header>
+      <nav className="profile-tabs">
+        {visible.map((t) => (
+          <button key={t.key} className={"profile-tab" + (tab === t.key ? " on" : "")} onClick={() => setTab(t.key)}>
+            <i className={"icon-" + t.icon} />{t.label}
+          </button>
+        ))}
+      </nav>
+    </>
   );
 }
 

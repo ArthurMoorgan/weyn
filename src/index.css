@@ -5,20 +5,23 @@
 
 :root {
   color-scheme: dark;
-  --bg:        #0B0D12;
-  --surface:   #121622;
-  --surface-2: #171B29;
-  --text:      #FFFFFF;
-  --text-2:    #A6AEC2;
-  --text-3:    #6E7690;
-  --accent:    #7C5CFF;
-  --accent-2:  #8F73FF;
-  --accent-soft: rgba(124,92,255,0.14);
-  --success:   #32D583;
-  --success-soft: rgba(50,213,131,0.14);
-  --warning:   #F79009;
-  --danger:    #F04438;
-  --ink:       #FFFFFF;
+  /* Refined dark palette — warmer, richer navy-black instead of flat
+     blue-black, slightly more saturated accent for better presence
+     against it. */
+  --bg:        #0D0F16;
+  --surface:   #15171F;
+  --surface-2: #1C1F2B;
+  --text:      #F5F5F7;
+  --text-2:    #A9AFC2;
+  --text-3:    #70768C;
+  --accent:    #8266FF;
+  --accent-2:  #9A82FF;
+  --accent-soft: rgba(130,102,255,0.16);
+  --success:   #34D399;
+  --success-soft: rgba(52,211,153,0.15);
+  --warning:   #F5A524;
+  --danger:    #F0554A;
+  --ink:       #F5F5F7;
   --radius:    16px;
   --radius-sm: 12px;
   --radius-pill: 999px;
@@ -58,27 +61,32 @@
 /* Light mode kept as a real, distinct theme (not deleted — the toggle stays)
    but built on the same flat/minimal philosophy: white surface, near-black
    text, sparse low-contrast borders instead of glass. */
+/* Cream light mode — the old theme was near-pure-white (#F7F8FA bg,
+   #FFFFFF cards), which at full brightness is genuinely harsh on the eyes.
+   This is a warm, low-glare palette instead: soft cream background, warm
+   off-white cards, warm near-black text (not pure #000) — closer to
+   paper/Notion than a stark white app. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg:        #F7F8FA;
-  --surface:   #FFFFFF;
-  --surface-2: #F0F1F5;
-  --text:      #14151A;
-  --text-2:    #5B6072;
-  --text-3:    #8B90A0;
-  --accent:    #6D4CFF;
-  --accent-2:  #5B3CE8;
-  --accent-soft: rgba(109,76,255,0.10);
-  --success:   #12875A;
-  --success-soft: rgba(18,135,90,0.10);
-  --warning:   #B45F06;
-  --danger:    #D0392B;
-  --ink:       #14151A;
-  --hair:      rgba(20,21,26,0.07);
-  --line:      rgba(20,21,26,0.10);
+  --bg:        #F6F1E7;
+  --surface:   #FFFDF8;
+  --surface-2: #EDE6D6;
+  --text:      #2A241C;
+  --text-2:    #6B6152;
+  --text-3:    #9C9280;
+  --accent:    #6B46E5;
+  --accent-2:  #5836CC;
+  --accent-soft: rgba(107,70,229,0.10);
+  --success:   #0E8A5F;
+  --success-soft: rgba(14,138,95,0.10);
+  --warning:   #B5650B;
+  --danger:    #C43B2E;
+  --ink:       #2A241C;
+  --hair:      rgba(42,36,28,0.08);
+  --line:      rgba(42,36,28,0.12);
   --chip-soft: var(--surface-2);
-  --shadow-sm: 0 1px 2px rgba(20,21,26,0.06);
-  --shadow-md: 0 4px 16px rgba(20,21,26,0.08);
+  --shadow-sm: 0 1px 2px rgba(42,36,28,0.07);
+  --shadow-md: 0 4px 16px rgba(42,36,28,0.09);
   --glass:        var(--surface);
   --glass-strong: var(--surface-2);
   --glass-soft:   var(--surface);
@@ -550,6 +558,40 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin: 4px 16px 0; padding: 20px 16px; border-radius: var(--radius);
   background: var(--surface); text-align: center;
   display: flex; justify-content: center;
+}
+
+/* ---------- Profile tab bar (Overview/Tickets/Saved/Lists/Organizer/Settings) ---------- */
+.profile-tabs {
+  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
+  padding: 8px 12px 10px; border-bottom: 1px solid var(--hair);
+}
+.profile-tabs::-webkit-scrollbar { display: none; }
+.profile-tab {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+  font: var(--t-meta); font-weight: 600; color: var(--text-3);
+  padding: 8px 12px; border-radius: var(--radius-pill);
+  white-space: nowrap; transition: background-color .15s, color .15s;
+}
+.profile-tab [class^="icon-"] { font-size: 15px; }
+.profile-tab.on { color: var(--text); background: var(--surface-2); }
+
+/* ---------- Overview quick-stat shortcuts ---------- */
+.ov-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; padding: 14px 16px 4px; }
+.ov-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 14px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--hair);
+  text-align: left; transition: border-color .15s, background-color .15s;
+}
+.ov-card [class^="icon-"] { font-size: 18px; color: var(--accent); }
+.ov-card .ov-v { font: var(--t-section); font-size: 22px; }
+.ov-card .ov-k { font: var(--t-caption); color: var(--text-3); }
+
+/* ---------- Settings rows ---------- */
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 4px; font: var(--t-card); font-size: 14px; color: var(--text);
+  border-bottom: 1px solid var(--hair);
 }
 
 /* ---------- Google account row ---------- */
