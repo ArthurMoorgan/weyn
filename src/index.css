@@ -383,7 +383,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ex-rail::-webkit-scrollbar { display: none; }
 .ex-rail > a { scroll-snap-align: start; }
 .ex-list { display: flex; flex-direction: column; gap: 8px; padding: 0 12px; }
-.ex-footnote { text-align: center; font: var(--t-meta); color: var(--text-3); padding: 24px 24px 8px; }
+/* genuine reading text (explains the product to signed-out users), not a
+   caption — promoted from --text-3 to --text-2 to clear 4.5:1 contrast in
+   both themes (--text-3 measures ~3-4:1, below WCAG AA for normal text) */
+.ex-footnote { text-align: center; font: var(--t-meta); color: var(--text-2); padding: 24px 24px 8px; }
 .ex-footnote strong { color: var(--text-2); font-weight: 600; }
 
 /* skeletons — row-shaped, match the real .ec-row footprint */
@@ -774,8 +777,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .field input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .field textarea { resize: vertical; }
-.field .hint { font-size: 12px; color: var(--text-3); margin-top: 6px; }
-.hint { font-size: 12px; color: var(--text-3); }
+/* form guidance text — users read this to fill fields correctly, not a
+   passive caption, so it gets --text-2 for real 4.5:1 contrast */
+.field .hint { font-size: 12px; color: var(--text-2); margin-top: 6px; }
+.hint { font-size: 12px; color: var(--text-2); }
 
 /* image dropzone */
 .dropzone {
