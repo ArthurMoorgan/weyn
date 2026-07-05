@@ -370,8 +370,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 @keyframes skel-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
 
 /* legacy .card kept below for any surface not yet migrated */
-.card-legacy-unused {}
-.card {
 .card {
   display: block; border-radius: var(--radius); overflow: hidden;
   background: var(--surface);
