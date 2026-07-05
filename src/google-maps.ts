@@ -15,11 +15,18 @@ export function loadGoogleMaps(): Promise<typeof google> | null {
       resolve((window as any).google);
       return;
     }
-    // With `loading=async`, the bootstrap script's `onload` fires before the
-    // `places` sub-library has actually finished loading — resolving there
-    // races google.maps.places into existence. Use Google's own ready
-    // callback instead, which only fires once the requested libraries (place
-    // among them) are genuinely available.
+    // Google's script itself can load fine (200 OK) while the API key is
+    // still unusable for actually rendering tiles — e.g. no billing account
+    // on the Cloud project, a domain-restricted key hit from the wrong
+    // origin, etc. Those failures show up later, as a runtime auth error via
+    // this global callback, not as a script-load error — without handling
+    // it we'd resolve "success" and then Google paints its own "This page
+    // can't load Google Maps correctly" dialog over a broken grey map for
+    // every real visitor. Treat it the same as a failed load so callers
+    // fall back to the free OSM map instead.
+    (window as any).gm_authFailure = () => {
+      reject(new Error("Google Maps auth/billing error — see https://developers.google.com/maps/documentation/javascript/error-messages"));
+    };
     const cbName = "__weynGoogleMapsReady";
     (window as any)[cbName] = () => {
       delete (window as any)[cbName];
