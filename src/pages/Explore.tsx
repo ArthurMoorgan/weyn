@@ -191,7 +191,7 @@ export default function Explore() {
       {!searching && (
         <section className="ex-hero">
           <h1>What's on in Muscat</h1>
-          <Link to="/host" className="ex-hero-host">Host an event <i className="icon-arrow-right" /></Link>
+          <Link to="/host/events" className="ex-hero-host">Host an event <i className="icon-arrow-right" /></Link>
         </section>
       )}
 

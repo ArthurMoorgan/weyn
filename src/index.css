@@ -1509,3 +1509,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 .hv-success-notes { display: flex; flex-direction: column; gap: 0; margin: 0 0 26px; text-align: left; border-radius: var(--radius-sm); background: var(--surface); }
 .hv-success-notes .fact { padding: 14px 16px; }
+
+/* ---- Host hub (Host tab landing: split events vs reservations) ---- */
+.host-hub { padding: var(--space-5) var(--space-4) 100px; max-width: 720px; margin: 0 auto; }
+.host-hub-head h1 { font: var(--t-hero); margin: 0 0 4px; }
+.host-hub-head p { color: var(--text-2); margin: 0 0 var(--space-5); }
+.host-hub-grid { display: flex; flex-direction: column; gap: var(--space-4); }
+.host-hub-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius);
+  padding: var(--space-5); text-align: left; cursor: pointer; font: inherit; color: var(--text);
+}
+.host-hub-card i { font-size: 22px; color: var(--primary); margin-bottom: 4px; }
+.host-hub-card h3 { font: var(--t-section); margin: 0; }
+.host-hub-card p { color: var(--text-2); margin: 0; font: var(--t-body); }
+.host-hub-cta { color: var(--primary); font: var(--t-card); margin-top: 6px; }
+.host-hub-cta--link { background: none; border: none; cursor: pointer; padding: 0; text-align: left; }
+.host-hub-card--reservations { cursor: default; }
+.host-hub-notice {
+  display: flex; flex-direction: column; gap: 2px; background: var(--accent-soft);
+  border: 1px solid var(--primary); border-radius: var(--radius-sm); padding: 12px 14px; margin: 8px 0;
+}
+.host-hub-notice strong { font: var(--t-card); }
+.host-hub-notice span { color: var(--text-2); font: var(--t-meta); }
+.host-hub-contacts { display: flex; gap: var(--space-3); flex-wrap: wrap; }

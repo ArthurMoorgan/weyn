@@ -1,10 +1,10 @@
 import { NavLink, Outlet } from "react-router-dom";
 
 const TABS = [
-  { to: "/", icon: "sparkles", label: "Explore" },
+  { to: "/", icon: "sparkles", label: "Discover" },
+  { to: "/reservations", icon: "utensils", label: "Reservations" },
   { to: "/host", icon: "circle-plus", label: "Host" },
-  { to: "/saved", icon: "heart", label: "Saved" },
-  { to: "/you", icon: "user", label: "You" },
+  { to: "/you", icon: "user", label: "Profile" },
 ];
 
 export default function App() {

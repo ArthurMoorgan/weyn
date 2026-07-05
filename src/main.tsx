@@ -19,6 +19,11 @@ import InviteAccept from "./pages/InviteAccept";
 import CollectionPage from "./pages/Collection";
 import Admin from "./pages/Admin";
 import OrganizerProfile from "./pages/OrganizerProfile";
+import HostHub from "./pages/HostHub";
+import HostVenue from "./pages/HostVenue";
+import Reservations from "./pages/Reservations";
+import VenueDetail from "./pages/VenueDetail";
+import Onboarding from "./pages/Onboarding";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { initPush } from "./push";
 import { markSplashShown } from "./splash";
@@ -85,17 +90,22 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Routes>
             <Route element={<App />}>
               <Route path="/" element={<Explore />} />
+              <Route path="/reservations" element={<Reservations />} />
               <Route path="/saved" element={<Saved />} />
-              <Route path="/host" element={<Organizer />} />
+              <Route path="/host" element={<HostHub />} />
+              <Route path="/host/events" element={<Organizer />} />
+              <Route path="/host/venue" element={<HostVenue />} />
               <Route path="/you" element={<You />} />
               <Route path="/admin" element={<Admin />} />
             </Route>
             <Route path="/e/:id" element={<EventDetail />} />
+            <Route path="/reservations/:id" element={<VenueDetail />} />
             <Route path="/organizer/:id" element={<OrganizerProfile />} />
             <Route path="/checkout/success" element={<CheckoutSuccess />} />
             <Route path="/checkout/cancel" element={<CheckoutCancel />} />
             <Route path="/invite/:token" element={<InviteAccept />} />
             <Route path="/collections/:id" element={<CollectionPage />} />
+            <Route path="/onboarding" element={<Onboarding />} />
           </Routes>
         </Router>
       </ClerkProvider>

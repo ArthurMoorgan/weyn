@@ -153,7 +153,7 @@ function OverviewTab({ account, tickets, saved, isHost, summary, onNavigate }: {
         <section>
           <div className="host-cta" style={{ margin: "18px 16px 0" }}>
             <div><b>Running an event?</b><span>Publish it free and track sales here.</span></div>
-            <Link to="/host" className="btn glass" style={{ width: "auto", padding: "11px 16px" }}><i className="icon-plus" /> Host</Link>
+            <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "11px 16px" }}><i className="icon-plus" /> Host</Link>
           </div>
         </section>
       )}
@@ -359,7 +359,7 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
             <b>Running an event?</b>
             <span>Publish it free and track sales here.</span>
           </div>
-          <Link to="/host" className="btn glass" style={{ width: "auto", padding: "11px 16px" }}><i className="icon-plus" /> Host</Link>
+          <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "11px 16px" }}><i className="icon-plus" /> Host</Link>
         </div>
       </section>
     );
@@ -427,7 +427,7 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
         );
       })}
 
-      <Link to="/host" className="btn glass" style={{ marginTop: 8 }}><i className="icon-plus" /> Host another event</Link>
+      <Link to="/host/events" className="btn glass" style={{ marginTop: 8 }}><i className="icon-plus" /> Host another event</Link>
 
       {editing && <EditSheet event={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
       {attendeesFor && <AttendeesSheet event={attendeesFor} onClose={() => setAttendeesFor(null)} />}
