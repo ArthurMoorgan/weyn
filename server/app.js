@@ -19,7 +19,7 @@ import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./ins
 import { generateMarketingCopy } from "./marketing.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
 import { suggestImageFocalPoint } from "./ai.js";
-import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
+import { createCheckoutSession, fetchTransactionStatus, verifyWebhook, paytabsConfigured } from "./payments.js";
 import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, authConfigured } from "./auth.js";
 import { createEventSchema, updateEventSchema, validateBody } from "./validators.js";
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
@@ -294,14 +294,10 @@ export function createApp(storage) {
 
       const id = slug(refined.title || b.title) + "-" + crypto.randomUUID().slice(0, 4);
       const tags = refined.tags;
-      // Weyn Ticketing is disabled while card payments aren't live — reject it
-      // here (not just greyed out in the UI) so the API can't be used to
-      // create a Weyn-ticketed event. Default also moved off "weyn" to "cash".
-      // Re-enable by restoring "weyn" to the allowlist once PayTabs is set up.
-      const ALLOWED_TICKETING = ["external", "cash", "registration"];
-      if (b.ticketingType === "weyn") {
-        return res.status(400).json({ error: { code: "TICKETING_DISABLED", message: "Weyn Ticketing isn't available yet — use an external link, registration form, or cash at the door." } });
-      }
+      // Weyn Ticketing re-enabled — real payment credentials (Stripe) are
+      // configured now (see server/payments.js). Was previously rejected
+      // here unconditionally while card payments weren't live.
+      const ALLOWED_TICKETING = ["weyn", "external", "cash", "registration"];
       const ticketingType = ALLOWED_TICKETING.includes(b.ticketingType) ? b.ticketingType : "cash";
       const existingImage = typeof b.existingImage === "string" && b.existingImage.startsWith("/uploads/") ? b.existingImage : null;
 
@@ -469,18 +465,23 @@ export function createApp(storage) {
 
     const origin = publicOrigin(req);
     try {
-      const { tranRef, checkoutUrl } = await createCheckoutSession({
+      const { provider, providerRef, checkoutUrl } = await createCheckoutSession({
         booking,
         event: e,
         tier,
         successUrl: `${origin}/checkout/success?booking=${booking.id}&accessToken=${booking.accessToken}`,
         callbackUrl: `${origin}/api/payments/webhook`,
+        cancelUrl: `${origin}/e/${e.id}`,
         customerIp: req.ip,
       });
       await prisma.payment.create({
-        data: { bookingId: booking.id, paytabsTranRef: tranRef, amount: price * qty },
+        data: {
+          bookingId: booking.id,
+          amount: price * qty,
+          ...(provider === "stripe" ? { stripeSessionId: providerRef } : { paytabsTranRef: providerRef }),
+        },
       });
-      trackEvent(req.user?.id || deviceId, "checkout_started", { eventId: e.id, qty, tierId, amount: price * qty });
+      trackEvent(req.user?.id || deviceId, "checkout_started", { eventId: e.id, qty, tierId, amount: price * qty, provider });
       res.json({ checkoutUrl, bookingId: booking.id, accessToken: booking.accessToken });
     } catch (err) {
       captureError(err, { route: "POST /api/events/:id/checkout", eventId: e.id });
@@ -489,25 +490,30 @@ export function createApp(storage) {
   });
 
   app.post("/api/payments/webhook", async (req, res) => {
-    const signature = req.header("Signature") || req.header("signature");
-    if (!verifyIpnSignature(req.rawBody, signature)) {
-      return res.status(401).json({ error: "Invalid IPN signature" });
-    }
-    const tranRef = req.body?.tran_ref;
-    if (!tranRef) return res.status(400).json({ error: "No tran_ref in webhook payload" });
-    const payment = await prisma.payment.findUnique({ where: { paytabsTranRef: tranRef }, include: { booking: true } });
+    const headers = { "stripe-signature": req.header("stripe-signature"), signature: req.header("Signature") || req.header("signature") };
+    const { provider, valid, providerRef: sigRef } = verifyWebhook(req.rawBody, headers);
+    if (!valid) return res.status(401).json({ error: "Invalid webhook signature" });
+
+    // Stripe's signed event already tells us the session id; PayTabs puts
+    // tran_ref in the (now-verified) JSON body instead.
+    const providerRef = provider === "stripe" ? sigRef : req.body?.tran_ref;
+    if (!providerRef) return res.status(400).json({ error: "No transaction reference in webhook payload" });
+    const payment = await prisma.payment.findUnique({
+      where: provider === "stripe" ? { stripeSessionId: providerRef } : { paytabsTranRef: providerRef },
+      include: { booking: true },
+    });
     if (!payment) return res.status(404).json({ error: "Unknown transaction" });
     try {
-      await confirmPaymentFromPayTabs(payment, req.body);
+      await confirmPayment(payment, provider, providerRef, req.body);
     } catch (err) {
       captureError(err, { route: "POST /api/payments/webhook", paymentId: payment.id });
     }
     res.json({ ok: true });
   });
 
-  async function confirmPaymentFromPayTabs(payment, rawWebhook) {
+  async function confirmPayment(payment, provider, providerRef, rawWebhook) {
     if (payment.status === "paid") return;
-    const { success, raw } = await fetchTransactionStatus(payment.paytabsTranRef);
+    const { success, raw } = await fetchTransactionStatus(provider, providerRef);
     await prisma.payment.update({ where: { id: payment.id }, data: { rawWebhook: rawWebhook || raw, status: success ? "paid" : "failed" } });
     if (!success) return;
 
@@ -607,10 +613,7 @@ export function createApp(storage) {
       else if (key === "capacity") patch.capacity = Math.max(e.sold, Number(req.body.capacity) || e.capacity);
       else if (key === "minAge") patch.minAge = Math.max(0, Number(req.body.minAge) || 0);
       else if (key === "tags") patch.tags = Array.isArray(req.body.tags) ? req.body.tags : String(req.body.tags).split(",").map((t) => t.trim()).filter(Boolean);
-      // "weyn" excluded — can't switch an event to Weyn Ticketing while it's
-      // disabled (mirrors the create-route block; keeps the API consistent
-      // with the greyed-out UI). Existing weyn events keep their type on edit.
-      else if (key === "ticketingType") patch.ticketingType = ["external", "cash", "registration"].includes(req.body.ticketingType) ? req.body.ticketingType : e.ticketingType;
+      else if (key === "ticketingType") patch.ticketingType = ["weyn", "external", "cash", "registration"].includes(req.body.ticketingType) ? req.body.ticketingType : e.ticketingType;
       else if (key === "externalTicketUrl") patch.externalTicketUrl = normalizeUrl(req.body.externalTicketUrl);
       else if (key === "title") patch.title = cleanEventTitle(req.body.title) || e.title;
       else patch[key] = req.body[key];

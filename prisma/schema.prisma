@@ -346,14 +346,19 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id             String        @id @default(cuid())
-  bookingId      String        @unique
-  paytabsTranRef String?       @unique
-  amount         Float
-  status         PaymentStatus @default(pending)
-  rawWebhook     Json?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id                   String        @id @default(cuid())
+  bookingId            String        @unique
+  paytabsTranRef       String?       @unique
+  // Stripe Checkout Session id — kept separate from paytabsTranRef (rather
+  // than reusing that column) so existing PayTabs rows/logic are untouched;
+  // exactly one of the two is set per Payment depending on which provider
+  // processed it. See server/payments.js for the provider-selection logic.
+  stripeSessionId      String?       @unique
+  amount               Float
+  status               PaymentStatus @default(pending)
+  rawWebhook           Json?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 }

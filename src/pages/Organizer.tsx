@@ -15,10 +15,7 @@ function defaultWhen() {
 }
 
 const TICKETING_OPTIONS: { key: TicketingType; label: string; icon: string; hint: string; disabled?: boolean }[] = [
-  // Weyn Ticketing is disabled for now — card payments aren't live yet, so we
-  // don't let anyone list an event as Weyn-ticketed (also enforced server-side
-  // in POST /api/events). Re-enable by removing `disabled` once PayTabs is set up.
-  { key: "weyn", label: "Weyn Ticketing", icon: "ticket", hint: "Coming soon — we'll track capacity, sales, and payments for you", disabled: true },
+  { key: "weyn", label: "Weyn Ticketing", icon: "ticket", hint: "We track capacity, sales, and payments for you" },
   { key: "external", label: "External Ticket Link", icon: "external-link", hint: "Send people to your own ticketing site" },
   { key: "cash", label: "Cash at the Door", icon: "banknote", hint: "No pre-booking — just show up and pay" },
   { key: "registration", label: "Registration Form", icon: "clipboard-list", hint: "Send people to a signup/registration link" },

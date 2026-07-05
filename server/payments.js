@@ -1,92 +1,60 @@
-// PayTabs integration (regional gateway supporting individual/freelancer
-// merchant accounts with just a passport/national ID — no commercial
-// registration required for that tier). Docs: https://docs.paytabs.com
-//
-// Safe no-op mode: if PAYTABS_SERVER_KEY isn't set, paytabsConfigured() is
-// false and callers should keep paid events off the checkout path (the old
-// instant-book path stays free-only).
-//
-// Unlike Thawani, PayTabs documents a real HMAC-SHA256 signature on every
-// IPN/callback (header "Signature", hashed with the profile's server key
-// over the raw request body). verifyIpnSignature() checks that directly, so
-// a forged webhook is rejected outright rather than merely triggering an
-// extra check — though confirmPaymentFromPayTabs() in index.js still
-// re-queries the transaction status as defense in depth before mutating
-// stock, matching the same belt-and-suspenders approach used elsewhere here.
-import crypto from "crypto";
+// Provider router — Weyn Ticketing now supports two payment gateways:
+// Stripe (server/payments-stripe.js) and PayTabs (server/payments-paytabs.js,
+// the original regional-gateway integration, kept intact and untouched).
+// Stripe wins when both happen to be configured; in practice only one will
+// ever have real credentials at a time. server/app.js only ever talks to
+// this file, never to the two provider modules directly, so the checkout
+// route doesn't need to know which gateway is actually live.
+import * as stripeProvider from "./payments-stripe.js";
+import * as paytabsProvider from "./payments-paytabs.js";
 
-// PayTabs has region-specific domains (secure.paytabs.sa, .ae, .com, etc) —
-// confirm the exact one for your profile in the PayTabs dashboard before
-// going live; defaults to their global endpoint.
-const API_BASE = process.env.PAYTABS_API_BASE || "https://secure.paytabs.com";
-const PROFILE_ID = process.env.PAYTABS_PROFILE_ID;
-const SERVER_KEY = process.env.PAYTABS_SERVER_KEY;
-
-export function paytabsConfigured() {
-  return !!(PROFILE_ID && SERVER_KEY);
+export function paymentsConfigured() {
+  return stripeProvider.stripeConfigured() || paytabsProvider.paytabsConfigured();
 }
 
-function headers() {
-  return { "Content-Type": "application/json", authorization: SERVER_KEY };
+// Back-compat name — server/app.js's existing call sites use this.
+export const paytabsConfigured = paymentsConfigured;
+
+function activeProvider() {
+  return stripeProvider.stripeConfigured() ? "stripe" : "paytabs";
 }
 
 // booking: Prisma Booking row (status "pending"). event/tier: for name + price.
-export async function createCheckoutSession({ booking, event, tier, successUrl, callbackUrl, customerIp }) {
-  const price = tier ? tier.price : event.price;
-  const name = tier ? `${event.title} — ${tier.name}` : event.title;
-  const body = {
-    profile_id: PROFILE_ID,
-    tran_type: "sale",
-    tran_class: "ecom",
-    cart_id: booking.id,
-    cart_currency: "OMR",
-    cart_amount: +(price * (booking.qty || 1)).toFixed(3),
-    cart_description: `${name} × ${booking.qty || 1}`,
-    return_url: successUrl,
-    callback_url: callbackUrl,
-    customer_details: {
-      name: booking.name || "Weyn Customer",
-      email: booking.email || "guest@weyn.app",
-      phone: "00000000",
-      street1: event.venue,
-      city: event.area,
-      state: event.area,
-      country: "OM",
-      ip: customerIp || "127.0.0.1",
-    },
-  };
-  const res = await fetch(`${API_BASE}/payment/request`, { method: "POST", headers: headers(), body: JSON.stringify(body) });
-  const json = await res.json();
-  if (!res.ok || json?.code < 0) throw new Error(json?.message || json?.result || "PayTabs checkout creation failed");
-  const checkoutUrl = json?.redirect_url || json?.payment_url;
-  const tranRef = json?.tran_ref;
-  if (!checkoutUrl || !tranRef) throw new Error("PayTabs response was missing redirect_url/tran_ref");
-  return { tranRef, checkoutUrl };
-}
-
-// Re-fetches the transaction status directly from PayTabs — defense in
-// depth alongside the IPN signature check, so callers don't rely solely on
-// a webhook body even though it's now cryptographically verified.
-export async function fetchTransactionStatus(tranRef) {
-  const res = await fetch(`${API_BASE}/payment/query`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ profile_id: PROFILE_ID, tran_ref: tranRef }),
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.message || "Failed to query PayTabs transaction");
-  // payment_result.response_status is typically "A" (authorized/success), "D" (declined), "P" (pending), "H" (hold).
-  return { success: json?.payment_result?.response_status === "A", raw: json };
-}
-
-// rawBody must be the exact bytes PayTabs sent (see the express.json
-// `verify` hook in server/index.js) — HMAC is order- and whitespace-sensitive.
-export function verifyIpnSignature(rawBody, signatureHeader) {
-  if (!signatureHeader || !SERVER_KEY) return false;
-  const expected = crypto.createHmac("sha256", SERVER_KEY).update(rawBody).digest("hex");
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));
-  } catch {
-    return false; // length mismatch etc — definitely not a match
+// Returns { checkoutUrl, providerRef } — providerRef is a Stripe session id
+// or a PayTabs tran_ref depending on which gateway ran; callers store it in
+// whichever of Payment.stripeSessionId/paytabsTranRef matches (see
+// server/app.js's POST /api/events/:id/checkout).
+export async function createCheckoutSession({ booking, event, tier, successUrl, callbackUrl, cancelUrl, customerIp }) {
+  if (activeProvider() === "stripe") {
+    const { sessionId, checkoutUrl } = await stripeProvider.createCheckoutSession({
+      booking, event, tier, successUrl, cancelUrl: cancelUrl || successUrl, customerEmail: booking.email,
+    });
+    return { provider: "stripe", providerRef: sessionId, checkoutUrl };
   }
+  const { tranRef, checkoutUrl } = await paytabsProvider.createCheckoutSession({ booking, event, tier, successUrl, callbackUrl, customerIp });
+  return { provider: "paytabs", providerRef: tranRef, checkoutUrl };
+}
+
+// Re-queries the gateway directly — defense in depth alongside webhook
+// signature verification, so callers never rely solely on a webhook body.
+export async function fetchTransactionStatus(provider, providerRef) {
+  if (provider === "stripe") return stripeProvider.fetchSessionStatus(providerRef);
+  return paytabsProvider.fetchTransactionStatus(providerRef);
+}
+
+// Stripe and PayTabs sign webhooks completely differently (Stripe:
+// `stripe-signature` header + constructEvent, which also parses the body;
+// PayTabs: a raw HMAC over the body in a `Signature` header) — this tries
+// Stripe first since a Stripe event object round-trips real parsed data,
+// then falls back to the PayTabs boolean check. Returns
+// { provider, providerRef, valid } so the webhook route knows which
+// provider's Payment row to look up.
+export function verifyWebhook(rawBody, headers) {
+  const stripeEvent = stripeProvider.verifyWebhookSignature(rawBody, headers["stripe-signature"]);
+  if (stripeEvent) {
+    const session = stripeEvent.data?.object;
+    return { provider: "stripe", valid: true, providerRef: session?.id, event: stripeEvent };
+  }
+  const paytabsValid = paytabsProvider.verifyIpnSignature(rawBody, headers["signature"] || headers["Signature"]);
+  return { provider: "paytabs", valid: paytabsValid, providerRef: null };
 }
