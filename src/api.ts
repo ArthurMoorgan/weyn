@@ -188,6 +188,83 @@ export interface TeamInviteResult {
   inviteLink: string;
 }
 
+// ---------- venue reservations ----------
+export type VenueCategory = "restaurant" | "cafe" | "lounge" | "rooftop" | "beach_club" | "experience";
+export type PriceRange = "$" | "$$" | "$$$";
+
+export const VENUE_CATS: { key: VenueCategory | "all"; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "restaurant", label: "Restaurant" },
+  { key: "cafe", label: "Café" },
+  { key: "lounge", label: "Lounge" },
+  { key: "rooftop", label: "Rooftop" },
+  { key: "beach_club", label: "Beach Club" },
+  { key: "experience", label: "Experience" },
+];
+
+export interface Venue {
+  id: string;
+  name: string;
+  category: VenueCategory;
+  description: string;
+  venue: string;       // address string
+  area: string;
+  lat: number;
+  lng: number;
+  coverImage: string | null;
+  photos: string[];
+  priceRange: PriceRange;
+  tags: string[];
+  verified: boolean;
+  subscriptionTier?: string | null;
+}
+
+export interface VenueAvailabilitySlot {
+  id?: string;
+  dayOfWeek: number; // 0-6
+  startTime: string; // "HH:mm"
+  endTime: string;   // "HH:mm"
+  capacity: number;
+}
+
+export interface VenueDetailResponse extends Venue {
+  slots: VenueAvailabilitySlot[];
+}
+
+export interface VenueListResponse {
+  venues: Venue[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface Reservation {
+  id: string;
+  venueId: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone?: string | null;
+  partySize: number;
+  date: string;
+  time: string;
+  slotId?: string | null;
+  notes?: string | null;
+  status?: string;
+  createdAt?: string;
+}
+
+export interface ReservationInput {
+  guestName: string;
+  guestEmail: string;
+  guestPhone?: string;
+  partySize: number;
+  date: string;
+  time: string;
+  slotId?: string;
+  notes?: string;
+}
+
 export const CATS: { key: Cat | "all"; label: string }[] = [
   { key: "all", label: "All" },
   { key: "music", label: "Live music" },
@@ -429,6 +506,36 @@ export const api = {
   },
   async adminMetrics(): Promise<PlatformMetrics> {
     return fetch(`${API_BASE}/api/admin/metrics`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- venue reservations ----
+  listVenues(params: { category?: string; q?: string; page?: number; limit?: number } = {}): Promise<VenueListResponse> {
+    const sp = new URLSearchParams();
+    if (params.category && params.category !== "all") sp.set("category", params.category);
+    if (params.q) sp.set("q", params.q);
+    if (params.page) sp.set("page", String(params.page));
+    if (params.limit) sp.set("limit", String(params.limit));
+    const qs = sp.toString();
+    return fetch(`${API_BASE}/api/venues${qs ? "?" + qs : ""}`).then((r) => json<VenueListResponse>(r));
+  },
+  getVenue(id: string): Promise<VenueDetailResponse> {
+    return fetch(`${API_BASE}/api/venues/${id}`).then((r) => json<VenueDetailResponse>(r));
+  },
+  createReservation(venueId: string, input: ReservationInput): Promise<Reservation> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/reservations`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+    }).then((r) => json<Reservation>(r));
+  },
+  async createVenue(input: {
+    name: string; category: VenueCategory; description?: string; venue: string; area: string;
+    lat: number; lng: number; coverImage?: string; photos?: string[]; priceRange?: PriceRange;
+    tags?: string[]; subscriptionTier?: string;
+  }): Promise<Venue> {
+    return fetch(`${API_BASE}/api/venues`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify(input),
+    }).then((r) => json<Venue>(r));
   },
 };
 

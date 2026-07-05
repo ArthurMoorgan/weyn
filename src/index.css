@@ -1392,3 +1392,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .ob-shell { padding: var(--space-8) 0; }
   .ob-grid { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ============================================================
+   Venue reservations — Reservations.tsx / VenueDetail.tsx /
+   components/VenueCard.tsx. Reuses the event-card system (.ec-rail,
+   .ec-title, .ec-meta, .catpill, .ec-badge from Stub.tsx) and the detail
+   page shell (.detail, .sheet, .facts, .tier-picker, .field) from
+   EventDetail.tsx — only new rules are the venue-specific catpill color
+   and the verified badge's position over the cover image.
+   ============================================================ */
+.venue-catpill { color: var(--accent); background: var(--accent-soft); }
+.venue-card .ec-rail-cover { position: relative; }
+.venue-verified { position: absolute; top: 10px; right: 10px; }
