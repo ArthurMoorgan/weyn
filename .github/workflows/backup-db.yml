@@ -18,7 +18,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install postgresql-client
-        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+        # Ubuntu's default apt repo ships pg_dump 16, but Neon runs Postgres 18 —
+        # pg_dump refuses to dump a server newer than itself, so pull the
+        # PGDG apt repo to get a client version that matches (or exceeds) it.
+        run: |
+          sudo apt-get install --yes curl ca-certificates gnupg
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-18
 
       - name: Dump database
         env:
