@@ -21,6 +21,12 @@ import Admin from "./pages/Admin";
 import OrganizerProfile from "./pages/OrganizerProfile";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { initPush } from "./push";
+import { markSplashShown } from "./splash";
+
+// as close to page-load as this module can get, so the splash's minimum
+// on-screen duration is measured from real first-paint, not from whenever
+// Explore's data finishes loading.
+markSplashShown();
 
 // BrowserRouter (real paths) on web — required for server-side OG/meta tags
 // on shared event links, which HashRouter makes structurally impossible

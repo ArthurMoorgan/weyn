@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, CATS, type Cat, type Weyn, isTonight, isThisWeekend } from "../api";
 import { useAsync } from "../hooks";
@@ -6,6 +6,7 @@ import { useAccount } from "../store";
 import Stub from "../components/Stub";
 import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
+import { dismissSplash } from "../splash";
 
 // Explore is built around DISCOVERY, not a single vertical feed. Sections
 // get different visual treatments: a Featured hero rail, horizontal
@@ -89,6 +90,10 @@ export default function Explore() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { data, loading, error, reload } = useAsync(() => api.listEvents(), []);
   const searching = q.trim().length > 0;
+
+  // Explore is the app's root route, so the initial-content-loading period
+  // here is exactly what the first-launch splash should cover.
+  useEffect(() => { if (!loading) dismissSplash(); }, [loading]);
 
   const suggestions = useMemo(() => buildSuggestions((data || []).filter((e) => !e.cancelled), q), [data, q]);
 
