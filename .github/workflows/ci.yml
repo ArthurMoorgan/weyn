@@ -20,7 +20,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Several deps (@capacitor/cli, wrangler, miniflare, @prisma/streams-local)
+          # now require Node >=22 — on Node 20 `npm ci` fails because npm resolves a
+          # different set of optional platform packages than what's in the lock file.
+          node-version: "22"
           cache: "npm"
 
       - run: npm ci
