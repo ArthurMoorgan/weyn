@@ -61,7 +61,19 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           all need Clerk hooks too (clerk init's default scaffold only wrapped
           the nested tab routes, which would crash any page outside them the
           moment it called useUser()/useAuth()). */}
-      <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
+      <ClerkProvider
+        publishableKey={PUBLISHABLE_KEY}
+        afterSignOutUrl="/"
+        appearance={{
+          // Clerk's default modal aligns the card to the top of the backdrop
+          // (so a long form scrolls into view instead of getting clipped) —
+          // on a short mobile viewport that reads as "the sheet opens pinned
+          // to the top of the screen." Centering it vertically still lets
+          // the backdrop scroll if a form is ever taller than the viewport.
+          elements: { modalBackdrop: { alignItems: "center" } },
+        }}
+      >
+
         <ClerkAuthBridge />
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
