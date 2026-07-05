@@ -14,7 +14,11 @@ export default function App() {
       <nav className="tabs">
         <div className="sidebar-brand"><i className="icon-sparkles" /> Weyn</div>
         {TABS.map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.to === "/"} className={({ isActive }) => "tab" + (isActive ? " on" : "")}>
+          <NavLink
+            key={t.to} to={t.to} end={t.to === "/"}
+            className={({ isActive }) => "tab" + (isActive ? " on" : "")}
+            aria-current={({ isActive }: { isActive: boolean }) => (isActive ? "page" : undefined)) as any}
+          >
             <i className={"icon-" + t.icon} />
             <span>{t.label}</span>
           </NavLink>

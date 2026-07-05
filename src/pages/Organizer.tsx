@@ -45,6 +45,11 @@ export default function Organizer() {
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [importedFromInstagram, setImportedFromInstagram] = useState(false);
 
+  // progressive disclosure — same collapse pattern as the Instagram import
+  // above. One form, one submit; this is purely visual grouping.
+  const [ticketsOpen, setTicketsOpen] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
   const [f, setF] = useState({
     title: "", organizer: getOrganizer() === "You" ? "" : getOrganizer(),
     cat: "music" as Cat, when: defaultWhen(),
@@ -106,6 +111,7 @@ export default function Organizer() {
     if (!img && !importedImagePath) { setErr("Add a cover photo — it's what people see first."); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     if (!f.title.trim() || !f.venue.trim()) { setErr("Please add at least a title and a venue."); return; }
     if ((f.ticketingType === "external" || f.ticketingType === "registration") && !f.externalTicketUrl.trim()) {
+      setTicketsOpen(true);
       setErr("Add the link where people get tickets/register."); return;
     }
     const tierPayload = f.ticketingType === "weyn" && useTiers
@@ -277,16 +283,17 @@ export default function Organizer() {
           />
         </div>
 
-        <div style={{ display: "flex", gap: 12 }}>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Area</label>
-            <input value={f.area} onChange={set("area")} />
-          </div>
-          <div className="field" style={{ flex: 1 }}>
-            <label>Min age</label>
-            <input value={f.minAge} onChange={set("minAge")} inputMode="numeric" />
-          </div>
+        <div className="field">
+          <label>Area</label>
+          <input value={f.area} onChange={set("area")} />
         </div>
+
+        {/* ---- Tickets & entry (collapsible) ---- */}
+        <button type="button" className="ig-import-toggle" onClick={() => setTicketsOpen((v) => !v)} aria-expanded={ticketsOpen}>
+          <i className="icon-ticket" /> Tickets &amp; entry
+          <i className={(ticketsOpen ? "icon-chevron-up" : "icon-chevron-down")} style={{ marginLeft: "auto" }} />
+        </button>
+        {ticketsOpen && <>
 
         {!(f.ticketingType === "weyn" && useTiers) && (
           <div style={{ display: "flex", gap: 12 }}>
@@ -363,6 +370,18 @@ export default function Organizer() {
         )}
 
         <div className="field">
+          <label>Min age <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· 0 = all ages</span></label>
+          <input value={f.minAge} onChange={set("minAge")} inputMode="numeric" />
+        </div>
+        </>}
+
+        {/* ---- Details (collapsible, default collapsed) ---- */}
+        <button type="button" className="ig-import-toggle" onClick={() => setDetailsOpen((v) => !v)} aria-expanded={detailsOpen}>
+          <i className="icon-list" /> Details
+          <i className={(detailsOpen ? "icon-chevron-up" : "icon-chevron-down")} style={{ marginLeft: "auto" }} />
+        </button>
+        {detailsOpen && <>
+        <div className="field">
           <label>Tags <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· comma separated</span></label>
           <input value={f.tags} onChange={set("tags")} placeholder="outdoor, family-friendly, acoustic" />
         </div>
@@ -382,6 +401,7 @@ export default function Organizer() {
           <label>Description</label>
           <textarea value={f.blurb} onChange={set("blurb")} rows={3} placeholder="Tell people why this is the one to be at." />
         </div>
+        </>}
 
         {f.ticketingType === "weyn" && (
           <div className="note">
