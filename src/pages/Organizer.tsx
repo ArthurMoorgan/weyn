@@ -20,7 +20,7 @@ const TICKETING_OPTIONS: { key: TicketingType; label: string; icon: string; hint
   // in POST /api/events). Re-enable by removing `disabled` once PayTabs is set up.
   { key: "weyn", label: "Weyn Ticketing", icon: "ticket", hint: "Coming soon — we'll track capacity, sales, and payments for you", disabled: true },
   { key: "external", label: "External Ticket Link", icon: "external-link", hint: "Send people to your own ticketing site" },
-  { key: "cash", label: "Cash at the Door", icon: "cash", hint: "No pre-booking — just show up and pay" },
+  { key: "cash", label: "Cash at the Door", icon: "banknote", hint: "No pre-booking — just show up and pay" },
   { key: "registration", label: "Registration Form", icon: "clipboard-list", hint: "Send people to a signup/registration link" },
 ];
 
@@ -181,7 +181,7 @@ export default function Organizer() {
         <div className="brand"><span className="en">Host an event</span></div>
         <div className="tb-right">
           <ThemeToggle />
-          <span className="pill"><i className="ti ti-broadcast" /> Organizer</span>
+          <span className="pill"><i className="icon-radio-tower" /> Organizer</span>
         </div>
       </header>
 
@@ -193,8 +193,8 @@ export default function Organizer() {
       <div className="form">
         {/* Feature 1: Import from Instagram */}
         <button type="button" className="ig-import-toggle" onClick={() => setIgOpen((v) => !v)}>
-          <i className="ti ti-brand-instagram" /> Import from Instagram
-          <i className={"ti " + (igOpen ? "ti-chevron-up" : "ti-chevron-down")} style={{ marginLeft: "auto" }} />
+          <i className="icon-camera" /> Import from Instagram
+          <i className={(igOpen ? "icon-chevron-up" : "icon-chevron-down")} style={{ marginLeft: "auto" }} />
         </button>
         {igOpen && (
           <form className="ig-import-body" onSubmit={runInstagramImport}>
@@ -220,11 +220,11 @@ export default function Organizer() {
           {coverUrl ? (
             <div className="preview-wrap">
               <img className="preview-img" src={coverUrl} alt="cover preview" />
-              <button className="rm" onClick={() => { setImg(null); setImportedImagePath(null); if (fileRef.current) fileRef.current.value = ""; }} aria-label="Remove photo"><i className="ti ti-x" /></button>
+              <button className="rm" onClick={() => { setImg(null); setImportedImagePath(null); if (fileRef.current) fileRef.current.value = ""; }} aria-label="Remove photo"><i className="icon-x" /></button>
             </div>
           ) : (
             <div className="dropzone" onClick={() => fileRef.current?.click()}>
-              <i className="ti ti-photo-up" />
+              <i className="icon-image-up" />
               <p><b>Add a cover photo</b></p>
               <small>This becomes your event's cover · JPG, PNG or WebP · up to 6 MB</small>
             </div>
@@ -313,7 +313,7 @@ export default function Organizer() {
                 className={"ticketing-opt" + (f.ticketingType === opt.key ? " on" : "") + (opt.disabled ? " disabled" : "")}
                 onClick={() => { if (!opt.disabled) setF({ ...f, ticketingType: opt.key }); }}
               >
-                <i className={"ti ti-" + opt.icon} />
+                <i className={"icon-" + opt.icon} />
                 <b>{opt.label}{opt.disabled && <span className="soon-tag">Soon</span>}</b>
                 <span>{opt.hint}</span>
               </button>
@@ -321,7 +321,7 @@ export default function Organizer() {
           </div>
         </div>
         <div className="note" style={{ marginTop: -6 }}>
-          <i className="ti ti-info-circle" style={{ marginRight: 6 }} />
+          <i className="icon-info" style={{ marginRight: 6 }} />
           <b>Weyn Ticketing is coming soon.</b> Card payments through Weyn aren't live yet, so for now use an external ticket link, a registration form, or cash at the door to manage entry.
         </div>
         {f.ticketingType === "weyn" && (
@@ -339,11 +339,11 @@ export default function Organizer() {
                     <input placeholder="0" inputMode="decimal" value={t.price} onChange={setTier(i, "price")} />
                     <input placeholder="50" inputMode="numeric" value={t.capacity} onChange={setTier(i, "capacity")} />
                     <button type="button" className="tier-del" onClick={() => removeTier(i)} disabled={tiers.length === 1} aria-label="Remove">
-                      <i className="ti ti-x" />
+                      <i className="icon-x" />
                     </button>
                   </div>
                 ))}
-                <button type="button" className="tier-add" onClick={addTier}><i className="ti ti-plus" /> Add ticket type</button>
+                <button type="button" className="tier-add" onClick={addTier}><i className="icon-plus" /> Add ticket type</button>
               </div>
             )}
           </div>
@@ -391,14 +391,14 @@ export default function Organizer() {
         {err && <p className="errline">{err}</p>}
 
         <button className="btn" onClick={publish} disabled={busy}>
-          <i className="ti ti-rocket" /> {busy ? "Publishing…" : "Publish to Weyn"}
+          <i className="icon-rocket" /> {busy ? "Publishing…" : "Publish to Weyn"}
         </button>
         <p style={{ textAlign: "center", fontSize: 12, color: "var(--text-3)", margin: "12px 0 0" }}>
           Saved to the Weyn backend. Appears in Explore instantly.
         </p>
       </div>
 
-      {toast && <div className="toast"><i className="ti ti-check" /> Published — opening your dashboard</div>}
+      {toast && <div className="toast"><i className="icon-check" /> Published — opening your dashboard</div>}
     </>
   );
 }
@@ -415,7 +415,7 @@ function OnboardingGrid() {
     <div className="onboard-grid">
       {ONBOARD_ITEMS.map((item) => (
         <div key={item.title} className="onboard-item">
-          <div className="onboard-ic"><i className={"ti ti-" + item.icon} /></div>
+          <div className="onboard-ic"><i className={"icon-" + item.icon} /></div>
           <b>{item.title}</b>
           <span>{item.body}</span>
         </div>

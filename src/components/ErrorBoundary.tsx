@@ -21,7 +21,7 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, { 
     return (
       <div className="detail">
         <div className="empty" style={{ paddingTop: 120 }}>
-          <div className="ic"><i className="ti ti-alert-triangle" /></div>
+          <div className="ic"><i className="icon-triangle-alert" /></div>
           <p><b style={{ color: "var(--text)" }}>Something went wrong.</b><br />Reloading usually fixes it.</p>
           <button className="btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => window.location.reload()}>
             Reload

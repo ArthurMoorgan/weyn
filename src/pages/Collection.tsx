@@ -15,7 +15,7 @@ export default function CollectionPage() {
   if (error || !c) return (
     <div className="detail">
       <div className="empty" style={{ paddingTop: 120 }}>
-        <div className="ic"><i className="ti ti-lock" /></div>
+        <div className="ic"><i className="icon-lock" /></div>
         <p>{error || "This list is private or doesn't exist."}</p>
         <button className="btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => nav("/")}>Back to Explore</button>
       </div>
@@ -33,9 +33,9 @@ export default function CollectionPage() {
         <div className="feed">{c.events.map((e) => <Stub key={e.id} e={e} />)}</div>
       ) : (
         <div className="empty">
-          <div className="ic"><i className="ti ti-list" /></div>
+          <div className="ic"><i className="icon-list" /></div>
           <p>This list is empty.</p>
-          <Link to="/" className="btn" style={{ maxWidth: 220, margin: "0 auto" }}><i className="ti ti-compass" /> Explore events</Link>
+          <Link to="/" className="btn" style={{ maxWidth: 220, margin: "0 auto" }}><i className="icon-compass" /> Explore events</Link>
         </div>
       )}
     </div>

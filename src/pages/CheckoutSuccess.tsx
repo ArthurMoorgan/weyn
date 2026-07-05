@@ -41,13 +41,13 @@ export default function CheckoutSuccess() {
           <p>Missing booking reference.</p>
         ) : status?.status === "paid" ? (
           <>
-            <div className="ic"><i className="ti ti-circle-check" /></div>
+            <div className="ic"><i className="icon-circle-check" /></div>
             <h2>Payment confirmed</h2>
             <p>{status.eventTitle} — your ticket is ready.</p>
           </>
         ) : status?.status === "expired" || status?.status === "cancelled" ? (
           <>
-            <div className="ic"><i className="ti ti-ticket-off" /></div>
+            <div className="ic"><i className="icon-ticket-x" /></div>
             <h2>Payment not completed</h2>
           </>
         ) : (

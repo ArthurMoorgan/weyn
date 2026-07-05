@@ -69,7 +69,7 @@ export default function GoogleLoginButton() {
   if (account) {
     return (
       <div className="account-row">
-        {account.picture ? <img src={account.picture} alt="" className="account-pic" /> : <i className="ti ti-user-circle" />}
+        {account.picture ? <img src={account.picture} alt="" className="account-pic" /> : <i className="icon-circle-user" />}
         <div className="account-info">
           <b>{account.name}</b>
           <span>{account.email}</span>

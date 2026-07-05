@@ -31,7 +31,7 @@ export default function InviteAccept() {
           <p>Missing invite link.</p>
         ) : !account ? (
           <>
-            <div className="ic"><i className="ti ti-users-group" /></div>
+            <div className="ic"><i className="icon-users-round" /></div>
             <h2>You've been invited to join an event team</h2>
             <p>Sign in to accept.</p>
             <div style={{ marginTop: 16 }}><GoogleLoginButton /></div>
@@ -43,14 +43,14 @@ export default function InviteAccept() {
           </>
         ) : state === "done" && result ? (
           <>
-            <div className="ic"><i className="ti ti-circle-check" /></div>
+            <div className="ic"><i className="icon-circle-check" /></div>
             <h2>You're in</h2>
             <p>You now have {result.role === "MANAGER" ? "manager" : "staff"} access to "{result.eventTitle}".</p>
             <button className="btn" style={{ maxWidth: 220, margin: "20px auto 0" }} onClick={() => nav("/you")}>Go to dashboard</button>
           </>
         ) : (
           <>
-            <div className="ic"><i className="ti ti-ticket-off" /></div>
+            <div className="ic"><i className="icon-ticket-x" /></div>
             <h2>Couldn't accept invite</h2>
             <p>{error}</p>
             <button className="btn glass" style={{ maxWidth: 220, margin: "20px auto 0" }} onClick={() => nav("/")}>Back home</button>

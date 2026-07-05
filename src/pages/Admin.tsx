@@ -20,7 +20,7 @@ export default function Admin() {
   if (account && account.role !== "ADMIN") {
     return (
       <div className="empty" style={{ paddingTop: 120 }}>
-        <div className="ic"><i className="ti ti-lock" /></div>
+        <div className="ic"><i className="icon-lock" /></div>
         <p>Admins only.</p>
         <button className="btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => nav("/you")}>Back</button>
       </div>
@@ -56,7 +56,7 @@ export default function Admin() {
       )}
 
       <p className="hint" style={{ margin: "20px 16px 6px" }}>
-        <i className="ti ti-flag" /> Open reports {metrics.data ? `(${metrics.data.openReports})` : ""}
+        <i className="icon-flag" /> Open reports {metrics.data ? `(${metrics.data.openReports})` : ""}
       </p>
 
       {reports.loading && <div className="spin" />}
@@ -66,7 +66,7 @@ export default function Admin() {
           <ul className="steps" style={{ padding: "0 16px" }}>
             {reports.data!.map((r) => (
               <li key={r.id}>
-                <i className="ti ti-flag" />
+                <i className="icon-flag" />
                 <span>
                   <b>{r.entityType}</b> · {REASON_LABEL[r.reason]}
                   {r.note ? <><br /><small style={{ color: "var(--text-3)" }}>{r.note}</small></> : null}

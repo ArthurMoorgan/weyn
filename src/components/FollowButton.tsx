@@ -43,7 +43,7 @@ export default function FollowButton({ organizerId }: { organizerId: string }) {
       onClick={toggle}
       disabled={busy || following === null}
     >
-      <i className={"ti " + (following ? "ti-user-check" : "ti-user-plus")} />
+      <i className={(following ? "icon-user-check" : "icon-user-plus")} />
       {following ? "Following" : "Follow"}
       {count !== null && count > 0 ? ` · ${count}` : ""}
     </button>

@@ -16,7 +16,7 @@ export default function Saved() {
         <div className="brand"><span className="en">Saved</span></div>
         <div className="tb-right">
           <ThemeToggle />
-          <span className="pill"><i className="ti ti-heart" /> {saved.length}</span>
+          <span className="pill"><i className="icon-heart" /> {saved.length}</span>
         </div>
       </header>
 
@@ -31,10 +31,10 @@ export default function Saved() {
         <div className="feed" style={{ paddingTop: 8 }}>{list.map((e) => <Stub key={e.id} e={e} />)}</div>
       ) : (
         <div className="empty">
-          <div className="ic"><i className="ti ti-heart" /></div>
+          <div className="ic"><i className="icon-heart" /></div>
           <p><b style={{ color: "var(--text)" }}>Nothing saved yet.</b><br />Tap the heart on any event to keep it here for later.</p>
           <Link to="/" className="btn" style={{ maxWidth: 240, margin: "0 auto" }}>
-            <i className="ti ti-compass" /> Explore events
+            <i className="icon-compass" /> Explore events
           </Link>
         </div>
       ))}

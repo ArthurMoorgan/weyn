@@ -28,13 +28,13 @@ export default function Stub({ e, ticket = false }: { e: Weyn; ticket?: boolean 
             into the body below, per the "never place price in corners" rule */}
         <div className="cover-badges">
           {ticket ? (
-            <span className="gbadge confirmed"><i className="ti ti-circle-check" />{e.cancelled ? "Cancelled" : "Confirmed"}</span>
+            <span className="gbadge confirmed"><i className="icon-circle-check" />{e.cancelled ? "Cancelled" : "Confirmed"}</span>
           ) : out ? (
             <span className="gbadge out">Sold out</span>
           ) : live ? (
             <span className="gbadge live"><span className="pulse" />Live now</span>
           ) : null}
-          {!ticket && e.featured && <span className="gbadge featured"><i className="ti ti-sparkles" />Featured</span>}
+          {!ticket && e.featured && <span className="gbadge featured"><i className="icon-sparkles" />Featured</span>}
         </div>
         {!e.image && <span className="glyph">{e.glyph}</span>}
       </div>
@@ -42,7 +42,7 @@ export default function Stub({ e, ticket = false }: { e: Weyn; ticket?: boolean 
       <div className="body">
         <div className="organizer-row">
           <span className="organizer-name">{e.organizer}</span>
-          {e.organizerVerified && <i className="ti ti-rosette-discount-check verified-badge" title="Verified organizer" />}
+          {e.organizerVerified && <i className="icon-badge-check verified-badge" title="Verified organizer" />}
         </div>
         <h3>{e.title}</h3>
         <div className="card-facts">
@@ -63,7 +63,7 @@ export default function Stub({ e, ticket = false }: { e: Weyn; ticket?: boolean 
             <span className={"price-tag" + (e.price === 0 ? " free" : "")}>{e.price === 0 ? "Free" : `${e.price} OMR`}</span>
             <span className={"cta" + (out && !ticket ? " muted" : "")}>
               {ticket ? "View ticket" : out ? "Full" : e.price === 0 ? "RSVP" : "Get tickets"}
-              <i className="ti ti-arrow-right" />
+              <i className="icon-arrow-right" />
             </span>
           </span>
         </div>

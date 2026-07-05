@@ -20,7 +20,7 @@ export default function OrganizerProfile() {
   if (error || !p) return (
     <div className="detail">
       <div className="empty" style={{ paddingTop: 120 }}>
-        <div className="ic"><i className="ti ti-user-off" /></div>
+        <div className="ic"><i className="icon-user-x" /></div>
         <p>{error || "Organizer not found."}</p>
         <button className="btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => nav("/")}>Back to Explore</button>
       </div>
@@ -31,7 +31,7 @@ export default function OrganizerProfile() {
     <div className="detail">
       <div className="page-head" style={{ paddingTop: 24, display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{ width: 60, height: 60, borderRadius: "50%", background: "var(--surface-2)", display: "grid", placeItems: "center", flex: "0 0 auto", overflow: "hidden" }}>
-          {p.avatarUrl ? <img src={p.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <i className="ti ti-user-circle" style={{ fontSize: 32, color: "var(--text-3)" }} />}
+          {p.avatarUrl ? <img src={p.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <i className="icon-circle-user" style={{ fontSize: 32, color: "var(--text-3)" }} />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 22 }}>{p.name}</h1>
@@ -49,7 +49,7 @@ export default function OrganizerProfile() {
         <div className="feed" style={{ paddingTop: 8 }}>{p.events.map((e) => <Stub key={e.id} e={e} />)}</div>
       ) : (
         <div className="empty">
-          <div className="ic"><i className="ti ti-calendar-off" /></div>
+          <div className="ic"><i className="icon-calendar-off" /></div>
           <p>No live events right now.</p>
         </div>
       )}

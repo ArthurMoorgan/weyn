@@ -36,14 +36,14 @@ export default function Explore() {
         <Logo wordmark size={26} />
         <div className="tb-right">
           <ThemeToggle />
-          <span className="pill"><i className="ti ti-map-pin" /> Muscat</span>
+          <span className="pill"><i className="icon-map-pin" /> Muscat</span>
         </div>
       </header>
 
       <div className="search" style={{ marginTop: 10 }}>
-        <i className="ti ti-search" />
+        <i className="icon-search" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search events, venues, tags…" />
-        {q && <button className="clearx" onClick={() => setQ("")} aria-label="Clear"><i className="ti ti-x" /></button>}
+        {q && <button className="clearx" onClick={() => setQ("")} aria-label="Clear"><i className="icon-x" /></button>}
       </div>
 
       {/* Time filters and categories share ONE scrollable row instead of
@@ -73,7 +73,7 @@ export default function Explore() {
 
       {error && (
         <div className="empty">
-          <div className="ic"><i className="ti ti-cloud-off" /></div>
+          <div className="ic"><i className="icon-cloud-off" /></div>
           <p>Couldn't load events. {error}</p>
           <button className="btn glass" style={{ maxWidth: 200, margin: "0 auto" }} onClick={reload}>Try again</button>
         </div>
@@ -81,7 +81,7 @@ export default function Explore() {
 
       {!loading && !error && total === 0 && (
         <div className="empty">
-          <div className="ic"><i className={"ti " + (searching ? "ti-search-off" : "ti-calendar-off")} /></div>
+          <div className="ic"><i className={(searching ? "icon-search-x" : "icon-calendar-off")} /></div>
           <p>{searching ? `No matches for "${q}".` : "Nothing matches that filter. Try \"All upcoming\" or another category."}</p>
         </div>
       )}

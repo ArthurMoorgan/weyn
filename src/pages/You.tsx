@@ -52,7 +52,7 @@ export default function You() {
       <>
         <Header />
         <div className="empty">
-          <div className="ic"><i className="ti ti-cloud-off" /></div>
+          <div className="ic"><i className="icon-cloud-off" /></div>
           <p>Couldn't reach the server. {summary.error || allEvents.error}</p>
           <p style={{ fontSize: 12.5, color: "var(--text-3)", marginTop: -8 }}>
             If you're testing a deployed build, make sure it was built with <code>VITE_API_BASE</code> pointing at your live backend URL.
@@ -105,7 +105,7 @@ export default function You() {
           <GoogleLoginButton />
           {account.role === "ADMIN" && (
             <Link to="/admin" className="copy-btn" style={{ marginTop: 8 }}>
-              <i className="ti ti-shield-lock" /> Admin dashboard
+              <i className="icon-shield-check" /> Admin dashboard
             </Link>
           )}
         </div>
@@ -155,7 +155,7 @@ function CollectionsSection() {
         <ul className="steps" style={{ padding: "0 16px" }}>
           {data!.map((c) => (
             <li key={c.id}>
-              <i className="ti ti-list" />
+              <i className="icon-list" />
               <Link to={`/collections/${c.id}`} style={{ color: "var(--text)" }}>
                 {c.name} <small style={{ color: "var(--text-3)" }}>· {c._count?.items || 0} events{c.isPublic ? "" : " · private"}</small>
               </Link>
@@ -188,7 +188,7 @@ function TicketsSection({ tickets }: { tickets: Weyn[] }) {
         <div className="feed" style={{ paddingBottom: 4 }}>{tickets.map((e) => <Stub key={e.id} e={e} ticket />)}</div>
       ) : (
         <div className="empty" style={{ padding: "24px 36px 32px" }}>
-          <div className="ic"><i className="ti ti-ticket" /></div>
+          <div className="ic"><i className="icon-ticket" /></div>
           <p>No tickets yet. RSVP or grab a ticket and it'll show up here.</p>
           <Link to="/" className="btn" style={{ maxWidth: 220, margin: "0 auto" }}>Find something to do</Link>
         </div>
@@ -233,7 +233,7 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
             <b>Running an event?</b>
             <span>Publish it free and track sales here.</span>
           </div>
-          <Link to="/host" className="btn glass" style={{ width: "auto", padding: "11px 16px" }}><i className="ti ti-plus" /> Host</Link>
+          <Link to="/host" className="btn glass" style={{ width: "auto", padding: "11px 16px" }}><i className="icon-plus" /> Host</Link>
         </div>
       </section>
     );
@@ -287,21 +287,21 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
             </Link>
             {!e.cancelled && (
               <div className="dash-actions">
-                <button onClick={() => setEditing(e)}><i className="ti ti-pencil" /> Edit</button>
-                <button onClick={() => setAnalyticsFor(e)}><i className="ti ti-chart-bar" /> Analytics</button>
-                <button onClick={() => setAttendeesFor(e)}><i className="ti ti-users" /> Attendees</button>
-                <button onClick={() => setCheckinFor(e)}><i className="ti ti-qrcode" /> Check-in</button>
-                <button onClick={() => setTeamFor(e)}><i className="ti ti-users-group" /> Team</button>
-                <button onClick={() => setMarketingFor(e)}><i className="ti ti-speakerphone" /> Marketing</button>
-                <button onClick={() => duplicate(e)} disabled={busyId === e.id}><i className="ti ti-copy" /> Duplicate</button>
-                <button onClick={() => cancel(e)} disabled={busyId === e.id} className="danger"><i className="ti ti-ban" /> Cancel</button>
+                <button onClick={() => setEditing(e)}><i className="icon-pencil" /> Edit</button>
+                <button onClick={() => setAnalyticsFor(e)}><i className="icon-chart-bar" /> Analytics</button>
+                <button onClick={() => setAttendeesFor(e)}><i className="icon-users" /> Attendees</button>
+                <button onClick={() => setCheckinFor(e)}><i className="icon-qr-code" /> Check-in</button>
+                <button onClick={() => setTeamFor(e)}><i className="icon-users-round" /> Team</button>
+                <button onClick={() => setMarketingFor(e)}><i className="icon-megaphone" /> Marketing</button>
+                <button onClick={() => duplicate(e)} disabled={busyId === e.id}><i className="icon-copy" /> Duplicate</button>
+                <button onClick={() => cancel(e)} disabled={busyId === e.id} className="danger"><i className="icon-ban" /> Cancel</button>
               </div>
             )}
           </div>
         );
       })}
 
-      <Link to="/host" className="btn glass" style={{ marginTop: 8 }}><i className="ti ti-plus" /> Host another event</Link>
+      <Link to="/host" className="btn glass" style={{ marginTop: 8 }}><i className="icon-plus" /> Host another event</Link>
 
       {editing && <EditSheet event={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
       {attendeesFor && <AttendeesSheet event={attendeesFor} onClose={() => setAttendeesFor(null)} />}
@@ -377,12 +377,12 @@ function AttendeesSheet({ event, onClose }: { event: Weyn; onClose: () => void }
               <ul className="steps" style={{ maxHeight: 280, overflowY: "auto" }}>
                 {data!.map((a, i) => (
                   <li key={i}>
-                    <i className="ti ti-user" />
+                    <i className="icon-user" />
                     <span>{a.name || a.email || "Anonymous"}{a.email && a.name && <><br /><small style={{ color: "var(--text-3)" }}>{a.email}</small></>}</span>
                   </li>
                 ))}
               </ul>
-              <button className="btn glass" onClick={exportCsv} style={{ marginTop: 10 }}><i className="ti ti-download" /> Export CSV</button>
+              <button className="btn glass" onClick={exportCsv} style={{ marginTop: 10 }}><i className="icon-download" /> Export CSV</button>
             </>
           ) : (
             <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No named attendees yet — people who book while signed in with Google will show up here.</p>
@@ -412,10 +412,10 @@ function MarketingSheet({ event, onClose }: { event: Weyn; onClose: () => void }
   }
 
   const channels = data ? [
-    { key: "instagram", label: "Instagram caption", icon: "brand-instagram", text: data.instagram },
-    { key: "whatsapp", label: "WhatsApp message", icon: "brand-whatsapp", text: data.whatsapp },
-    { key: "telegram", label: "Telegram post", icon: "brand-telegram", text: data.telegram },
-    { key: "twitter", label: "X / Twitter post", icon: "brand-x", text: data.twitter },
+    { key: "instagram", label: "Instagram caption", icon: "camera", text: data.instagram },
+    { key: "whatsapp", label: "WhatsApp message", icon: "message-circle", text: data.whatsapp },
+    { key: "telegram", label: "Telegram post", icon: "send", text: data.telegram },
+    { key: "twitter", label: "X / Twitter post", icon: "at-sign", text: data.twitter },
   ] : [];
 
   return (
@@ -430,16 +430,16 @@ function MarketingSheet({ event, onClose }: { event: Weyn; onClose: () => void }
         {!loading && !error && channels.map((c) => (
           <div key={c.key} className="marketing-card">
             <div className="marketing-card-head">
-              <i className={"ti ti-" + c.icon} /> <b>{c.label}</b>
+              <i className={"icon-" + c.icon} /> <b>{c.label}</b>
               <button className="copy-btn" onClick={() => copy(c.key, c.text)}>
-                <i className={"ti " + (copiedKey === c.key ? "ti-check" : "ti-copy")} /> {copiedKey === c.key ? "Copied" : "Copy"}
+                <i className={(copiedKey === c.key ? "icon-check" : "icon-copy")} /> {copiedKey === c.key ? "Copied" : "Copy"}
               </button>
             </div>
             <pre className="marketing-text">{c.text}</pre>
           </div>
         ))}
         <button className="btn glass" onClick={regenerate} disabled={regenerating} style={{ marginTop: 4 }}>
-          <i className="ti ti-refresh" /> {regenerating ? "Regenerating…" : "Regenerate"}
+          <i className="icon-refresh-cw" /> {regenerating ? "Regenerating…" : "Regenerate"}
         </button>
         <button className="btn glass" style={{ marginTop: 8 }} onClick={onClose}>Close</button>
       </div>
@@ -568,8 +568,8 @@ function TeamSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
         {lastLink && (
           <div className="marketing-card" style={{ marginTop: 10 }}>
             <div className="marketing-card-head">
-              <i className="ti ti-link" /> <b>Invite link — send it yourself</b>
-              <button className="copy-btn" onClick={copyLink}><i className={"ti " + (copied ? "ti-check" : "ti-copy")} /> {copied ? "Copied" : "Copy"}</button>
+              <i className="icon-link" /> <b>Invite link — send it yourself</b>
+              <button className="copy-btn" onClick={copyLink}><i className={(copied ? "icon-check" : "icon-copy")} /> {copied ? "Copied" : "Copy"}</button>
             </div>
             <pre className="marketing-text" style={{ wordBreak: "break-all" }}>{lastLink}</pre>
           </div>
@@ -583,7 +583,7 @@ function TeamSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
             <ul className="steps">
               {data!.map((m) => (
                 <li key={m.id}>
-                  <i className={m.role === "MANAGER" ? "ti ti-shield" : "ti ti-scan"} />
+                  <i className={m.role === "MANAGER" ? "icon-shield" : "icon-scan"} />
                   <span>
                     {m.user?.name || m.email} <small style={{ color: "var(--text-3)" }}>· {ROLE_LABEL[m.role]}{m.status === "PENDING" ? " · invite pending" : ""}</small>
                   </span>
@@ -659,7 +659,7 @@ function CheckInSheet({ event, onClose }: { event: Weyn; onClose: () => void }) 
         <p className="hint" style={{ margin: "0 0 14px" }}>{checkedInCount} checked in this session</p>
 
         {!scanning ? (
-          <button className="btn" onClick={startScanner}><i className="ti ti-camera" /> Scan QR code</button>
+          <button className="btn" onClick={startScanner}><i className="icon-camera" /> Scan QR code</button>
         ) : (
           <>
             <div id="weyn-qr-region" style={{ borderRadius: 12, overflow: "hidden", marginBottom: 10 }} />

@@ -216,7 +216,7 @@ export default function MapPicker({
   return (
     <div className="mappick">
       <form className="map-search" onSubmit={onSubmitSearch}>
-        <i className="ti ti-search" />
+        <i className="icon-search" />
         <input
           ref={inputRef}
           value={q}
@@ -230,7 +230,7 @@ export default function MapPicker({
         <div className="map-results">
           {googlePredictions.map((p) => (
             <button key={p.place_id} type="button" onClick={() => pickGooglePrediction(p)}>
-              <i className="ti ti-map-pin" /> {p.description}
+              <i className="icon-map-pin" /> {p.description}
             </button>
           ))}
         </div>
@@ -239,7 +239,7 @@ export default function MapPicker({
         <div className="map-results">
           {results.map((r, i) => (
             <button key={i} type="button" onClick={() => jumpTo(r.lat, r.lng, r.label.split(",")[0])}>
-              <i className="ti ti-map-pin" /> {r.label}
+              <i className="icon-map-pin" /> {r.label}
             </button>
           ))}
         </div>
@@ -247,9 +247,9 @@ export default function MapPicker({
 
       <div ref={elRef} className="map-canvas" />
       {pinLabel ? (
-        <p className="hint" style={{ color: "var(--text, inherit)" }}><i className="ti ti-map-pin-filled" /> Pinned: {pinLabel}</p>
+        <p className="hint" style={{ color: "var(--text, inherit)" }}><i className="icon-map-pin" /> Pinned: {pinLabel}</p>
       ) : (
-        <p className="hint"><i className="ti ti-hand-finger" /> Tap the map or drag the pin to set the exact spot.</p>
+        <p className="hint"><i className="icon-pointer" /> Tap the map or drag the pin to set the exact spot.</p>
       )}
       {err && <p className="errline" style={{ margin: "4px 0 0" }}>{err}</p>}
       {!GOOGLE_MAPS_KEY && (

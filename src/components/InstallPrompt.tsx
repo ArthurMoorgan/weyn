@@ -55,7 +55,7 @@ export default function InstallPrompt() {
           <span>Add it to your {platform} — full screen, offline-ready, one tap away.</span>
         </div>
         <button className="btn" style={{ width: "auto", padding: "11px 18px" }} onClick={install}>
-          <i className="ti ti-download" /> Install
+          <i className="icon-download" /> Install
         </button>
       </div>
 
@@ -66,15 +66,15 @@ export default function InstallPrompt() {
             <h3>Install Weyn</h3>
             {sheet === "ios" ? (
               <ol className="steps">
-                <li><i className="ti ti-share-2" /> Tap the <b>Share</b> button in Safari's toolbar.</li>
-                <li><i className="ti ti-square-rounded-plus" /> Choose <b>Add to Home Screen</b>.</li>
-                <li><i className="ti ti-check" /> Tap <b>Add</b> — Weyn lands on your home screen.</li>
+                <li><i className="icon-share-2" /> Tap the <b>Share</b> button in Safari's toolbar.</li>
+                <li><i className="icon-square-plus" /> Choose <b>Add to Home Screen</b>.</li>
+                <li><i className="icon-check" /> Tap <b>Add</b> — Weyn lands on your home screen.</li>
               </ol>
             ) : (
               <ol className="steps">
-                <li><i className="ti ti-browser" /> In Chrome or Edge, open the <b>address bar menu</b>.</li>
-                <li><i className="ti ti-download" /> Click the <b>Install</b> icon (or ⋮ → Install Weyn).</li>
-                <li><i className="ti ti-check" /> It opens in its own window and lives in your dock.</li>
+                <li><i className="icon-app-window" /> In Chrome or Edge, open the <b>address bar menu</b>.</li>
+                <li><i className="icon-download" /> Click the <b>Install</b> icon (or ⋮ → Install Weyn).</li>
+                <li><i className="icon-check" /> It opens in its own window and lives in your dock.</li>
               </ol>
             )}
             <button className="btn glass" onClick={() => setSheet(null)}>Got it</button>

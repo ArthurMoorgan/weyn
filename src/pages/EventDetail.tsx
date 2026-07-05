@@ -25,7 +25,7 @@ export default function EventDetail() {
   if (error || !e) return (
     <div className="detail">
       <div className="empty" style={{ paddingTop: 120 }}>
-        <div className="ic"><i className="ti ti-cloud-off" /></div>
+        <div className="ic"><i className="icon-cloud-off" /></div>
         <p>{error || "Event not found."}</p>
         <button className="btn glass" style={{ maxWidth: 200, margin: "0 auto 10px" }} onClick={reload}>Try again</button>
         <button className="btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => nav("/")}>Back to Explore</button>
@@ -89,17 +89,17 @@ export default function EventDetail() {
     <div className="detail">
       <div className="detail-grid">
       <div className="cover" style={coverStyle}>
-        <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="ti ti-arrow-left" /></button>
+        <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button>
         <div style={{ position: "relative", zIndex: 2, display: "flex", gap: 8 }}>
           <button className="icon-btn" onClick={() => shareEvent(ev)} aria-label="Share">
-            <i className={"ti " + (shared ? "ti-check" : "ti-share-2")} />
+            <i className={(shared ? "icon-check" : "icon-share-2")} />
           </button>
           <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => toggleSave(ev.id)} aria-label="Save">
-            <i className={"ti " + (saved ? "ti-heart-filled" : "ti-heart")} />
+            <i className={(saved ? "icon-heart" : "icon-heart")} />
           </button>
           {account && (
             <button className="icon-btn" onClick={() => setListSheet(true)} aria-label="Add to a list">
-              <i className="ti ti-folder-plus" />
+              <i className="icon-folder-plus" />
             </button>
           )}
         </div>
@@ -124,24 +124,24 @@ export default function EventDetail() {
         )}
 
         <div className="facts">
-          <div className="fact"><i className="ti ti-calendar-event" /><div><b>{dayLabel(ev)} · {timeLabel(ev)}</b><span>Add to your calendar after you book</span></div></div>
-          <div className="fact"><i className="ti ti-map-pin" /><div><b>{ev.venue}</b><span>{ev.area} · {ev.distanceKm} km away</span></div></div>
+          <div className="fact"><i className="icon-calendar-days" /><div><b>{dayLabel(ev)} · {timeLabel(ev)}</b><span>Add to your calendar after you book</span></div></div>
+          <div className="fact"><i className="icon-map-pin" /><div><b>{ev.venue}</b><span>{ev.area} · {ev.distanceKm} km away</span></div></div>
           {ev.ticketingType === "weyn" && !hasTiers && (
-            <div className="fact"><i className="ti ti-ticket" /><div><b>{ev.price === 0 ? "Free entry" : `${ev.price} OMR per ticket`}</b><span>{out ? "Sold out" : ev.capacity >= 9000 ? "Open entry" : `${left} of ${ev.capacity} tickets left`}</span></div></div>
+            <div className="fact"><i className="icon-ticket" /><div><b>{ev.price === 0 ? "Free entry" : `${ev.price} OMR per ticket`}</b><span>{out ? "Sold out" : ev.capacity >= 9000 ? "Open entry" : `${left} of ${ev.capacity} tickets left`}</span></div></div>
           )}
           {ev.ticketingType === "weyn" && hasTiers && (
-            <div className="fact"><i className="ti ti-ticket" /><div><b>From {Math.min(...tiers.map((t) => t.price))} OMR</b><span>{tiers.length} ticket types available</span></div></div>
+            <div className="fact"><i className="icon-ticket" /><div><b>From {Math.min(...tiers.map((t) => t.price))} OMR</b><span>{tiers.length} ticket types available</span></div></div>
           )}
           {ev.ticketingType === "external" && (
-            <div className="fact"><i className="ti ti-ticket" /><div><b>Tickets via external site</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR`}</span></div></div>
+            <div className="fact"><i className="icon-ticket" /><div><b>Tickets via external site</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR`}</span></div></div>
           )}
           {ev.ticketingType === "registration" && (
-            <div className="fact"><i className="ti ti-clipboard-list" /><div><b>Registration required</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR`}</span></div></div>
+            <div className="fact"><i className="icon-clipboard-list" /><div><b>Registration required</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR`}</span></div></div>
           )}
           {ev.ticketingType === "cash" && (
-            <div className="fact"><i className="ti ti-cash" /><div><b>Pay at the door</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR, cash`}</span></div></div>
+            <div className="fact"><i className="icon-banknote" /><div><b>Pay at the door</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR, cash`}</span></div></div>
           )}
-          {ev.minAge > 0 && <div className="fact"><i className="ti ti-shield" /><div><b>Ages {ev.minAge}+</b><span>{ev.refundPolicy}</span></div></div>}
+          {ev.minAge > 0 && <div className="fact"><i className="icon-shield" /><div><b>Ages {ev.minAge}+</b><span>{ev.refundPolicy}</span></div></div>}
         </div>
 
         <p className="blurb">{ev.blurb}</p>
@@ -149,7 +149,7 @@ export default function EventDetail() {
         <div style={{ marginTop: 18 }}>
           <MiniMap lat={ev.lat} lng={ev.lng} />
           <a className="gmaps-link" href={`https://www.google.com/maps/search/?api=1&query=${ev.lat},${ev.lng}`} target="_blank" rel="noreferrer">
-            <i className="ti ti-map-2" /> Open in Google Maps
+            <i className="icon-map" /> Open in Google Maps
           </a>
         </div>
 
@@ -188,30 +188,30 @@ export default function EventDetail() {
 
       <div className="buybar">
         {ev.cancelled ? (
-          <button className="btn" disabled><i className="ti ti-ban" /> Event cancelled</button>
+          <button className="btn" disabled><i className="icon-ban" /> Event cancelled</button>
         ) : ev.ticketingType === "external" ? (
           <a className="btn" href={ev.externalTicketUrl || "#"} target="_blank" rel="noreferrer">
-            <i className="ti ti-external-link" /> Visit ticket website
+            <i className="icon-external-link" /> Visit ticket website
           </a>
         ) : ev.ticketingType === "registration" ? (
           <a className="btn" href={ev.externalTicketUrl || "#"} target="_blank" rel="noreferrer">
-            <i className="ti ti-clipboard-list" /> Register now
+            <i className="icon-clipboard-list" /> Register now
           </a>
         ) : ev.ticketingType === "cash" ? (
           <div className="btn dark" style={{ cursor: "default" }}>
-            <i className="ti ti-cash" /> {ev.organizerContact ? `Contact: ${ev.organizerContact}` : "Pay at the door"}
+            <i className="icon-banknote" /> {ev.organizerContact ? `Contact: ${ev.organizerContact}` : "Pay at the door"}
           </div>
         ) : booked ? (
           <>
             <button className="btn done" disabled style={{ flex: 1 }}>
-              <i className="ti ti-circle-check" /> {ev.price === 0 ? "You're going" : "Ticket reserved"}
+              <i className="icon-circle-check" /> {ev.price === 0 ? "You're going" : "Ticket reserved"}
             </button>
             <button className="btn glass sq" onClick={() => downloadEventIcs(ev)} aria-label="Add to calendar">
-              <i className="ti ti-calendar-plus" />
+              <i className="icon-calendar-plus" />
             </button>
           </>
         ) : out ? (
-          <button className="btn" disabled><i className="ti ti-ticket-off" /> Sold out</button>
+          <button className="btn" disabled><i className="icon-ticket-x" /> Sold out</button>
         ) : (
           <>
             <div className="lead">
@@ -261,10 +261,10 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
               <ul className="steps" style={{ marginBottom: 14 }}>
                 {lists.map((c) => (
                   <li key={c.id}>
-                    <i className="ti ti-list" />
+                    <i className="icon-list" />
                     <span>{c.name}</span>
                     <button className="copy-btn" style={{ marginLeft: "auto" }} onClick={() => addTo(c.id)} disabled={added.has(c.id)}>
-                      {added.has(c.id) ? <><i className="ti ti-check" /> Added</> : "Add"}
+                      {added.has(c.id) ? <><i className="icon-check" /> Added</> : "Add"}
                     </button>
                   </li>
                 ))}
