@@ -151,18 +151,8 @@ export default function Explore() {
 
       {!searching && (
         <section className="ex-hero">
-          <span className="t-eyebrow">Muscat &amp; Oman</span>
-          <h1>Everything happening in Muscat, in one place</h1>
-          <p className="ex-hero-sub">
-            Concerts, food pop-ups, art nights, and community meetups across Oman —
-            find tonight's plan or the weekend's, and book in a couple of taps.
-          </p>
-          <div className="ex-hero-actions">
-            <button className="btn lg" onClick={() => searchInputRef.current?.focus()}>
-              <i className="icon-search" /> Find your next night out
-            </button>
-            <Link to="/host" className="ex-hero-host">Host an event <i className="icon-arrow-right" /></Link>
-          </div>
+          <h1>What's on in Muscat</h1>
+          <Link to="/host" className="ex-hero-host">Host an event <i className="icon-arrow-right" /></Link>
         </section>
       )}
 

@@ -353,12 +353,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    ============================================================ */
 /* ---------- Explore hero — the page's one clear pitch + primary CTA.
    Uses only existing color tokens; sits between the topbar and search. */
-.ex-hero { padding: 20px 16px 8px; display: flex; flex-direction: column; gap: 8px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
-.ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; max-width: 22ch; }
-.ex-hero-sub { font: var(--t-body); color: var(--text-2); margin: 0; max-width: 46ch; }
-.ex-hero-actions { display: flex; align-items: center; flex-wrap: wrap; row-gap: 4px; column-gap: 14px; margin-top: 8px; }
-.ex-hero-actions .btn.lg { width: auto; flex: 0 0 auto; }
-.ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 10px 4px; white-space: nowrap; }
+/* Trimmed hero: a short title + a small link, not a paragraph — a wall of
+   marketing copy above the fold reads as friction, not welcome. */
+.ex-hero { padding: 18px 16px 4px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
+.ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; }
+.ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 6px 0; white-space: nowrap; flex: 0 0 auto; }
 .ex-hero-host [class^="icon-"] { font-size: 14px; }
 
 .ex-section { margin-top: 22px; }
@@ -418,7 +417,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
   margin: 0 auto; max-width: var(--maxw);
   display: flex; align-items: stretch;
-  padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  /* On a home-screen-installed PWA, env(safe-area-inset-bottom) is the real
+     home-indicator height (~34px) — adding a flat 4px on TOP of that (as
+     before) made the bar visibly taller/more stretched than it needs to be
+     once installed. max() keeps a small minimum on non-notch devices
+     without stacking extra height where the inset is already generous. */
+  padding: 2px 4px max(4px, env(safe-area-inset-bottom));
   background: color-mix(in srgb, var(--bg) 82%, transparent);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
@@ -597,12 +601,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .account-compact-wrap .btn.glass { padding: 6px 11px; font-size: 12px; }
 
 /* ---------- install (PWA) ---------- */
-.install-card {
-  margin: 12px 16px 0; padding: 14px 16px; border-radius: var(--radius);
-  background: var(--glass-strong); border: 1px solid var(--glass-line);
-  box-shadow: var(--glass-shadow);
-  display: flex; align-items: center; gap: 12px;
-}
+/* .install-card is now a <GlassSurface> instance (src/components/GlassSurface.tsx)
+   — the true frosted-glass panel (SVG-displacement on Chromium, a plain
+   backdrop-blur fallback elsewhere) replaces this card's old hand-rolled
+   --glass-strong/--glass-line/--glass-shadow surface. Only layout/spacing
+   for its row of children stays here. */
+.install-card { margin: 12px 16px 0; }
+.install-card .glass-surface__content { padding: 14px 16px; align-items: center; justify-content: flex-start; gap: 12px; }
 .ic-mark { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center;
   background: var(--surface-hover); color: var(--primary); }
 .ic-mark.big { width: 68px; height: 68px; border-radius: 18px; margin: 0 auto 14px; }

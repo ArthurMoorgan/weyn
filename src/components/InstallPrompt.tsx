@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Mark } from "./Logo";
+import GlassSurface from "./GlassSurface";
 
 type BIPEvent = Event & { prompt: () => void; userChoice: Promise<{ outcome: string }> };
 
@@ -48,7 +49,7 @@ export default function InstallPrompt() {
 
   return (
     <>
-      <div className="install-card">
+      <GlassSurface width="100%" height="auto" borderRadius={16} backgroundOpacity={0.14} saturation={1.4} className="install-card">
         <div className="ic-mark"><Mark size={26} /></div>
         <div className="ic-body">
           <b>Install Weyn</b>
@@ -57,7 +58,7 @@ export default function InstallPrompt() {
         <button className="btn" style={{ width: "auto", padding: "11px 18px" }} onClick={install}>
           <i className="icon-download" /> Install
         </button>
-      </div>
+      </GlassSurface>
 
       {sheet && (
         <div className="sheet-backdrop" onClick={() => setSheet(null)}>
