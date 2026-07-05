@@ -362,6 +362,16 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* ============================================================
    EXPLORE — discovery sections
    ============================================================ */
+/* ---------- Explore hero — the page's one clear pitch + primary CTA.
+   Uses only existing color tokens; sits between the topbar and search. */
+.ex-hero { padding: 20px 16px 8px; display: flex; flex-direction: column; gap: 8px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
+.ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; max-width: 22ch; }
+.ex-hero-sub { font: var(--t-body); color: var(--text-2); margin: 0; max-width: 46ch; }
+.ex-hero-actions { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+.ex-hero-actions .btn.lg { width: auto; flex: 0 0 auto; }
+.ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 10px 4px; }
+.ex-hero-host [class^="icon-"] { font-size: 14px; }
+
 .ex-section { margin-top: 22px; }
 .ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 10px; }
 .ex-head h2 { font: var(--t-section); letter-spacing: -0.4px; }
@@ -1103,6 +1113,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
     padding: 4px 24px 24px;
   }
   .ex-head { padding-left: 24px; padding-right: 24px; }
+  .ex-hero { padding: 32px 24px 8px; }
   .ex-rail { padding-left: 24px; padding-right: 24px; }
   /* let the featured rail breathe with larger cards on desktop */
   .ec-feature { width: 360px; }

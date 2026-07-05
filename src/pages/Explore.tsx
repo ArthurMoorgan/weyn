@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, CATS, type Cat, type Weyn, isTonight, isThisWeekend } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
@@ -85,6 +86,7 @@ export default function Explore() {
   const [showSuggest, setShowSuggest] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const searchWrapRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { data, loading, error, reload } = useAsync(() => api.listEvents(), []);
   const searching = q.trim().length > 0;
 
@@ -142,10 +144,28 @@ export default function Explore() {
         </div>
       </header>
 
+      {!searching && (
+        <section className="ex-hero">
+          <span className="t-eyebrow">Muscat &amp; Oman</span>
+          <h1>Everything happening in Muscat, in one place</h1>
+          <p className="ex-hero-sub">
+            Concerts, food pop-ups, art nights, and community meetups across Oman —
+            find tonight's plan or the weekend's, and book in a couple of taps.
+          </p>
+          <div className="ex-hero-actions">
+            <button className="btn lg" onClick={() => searchInputRef.current?.focus()}>
+              <i className="icon-search" /> Find your next night out
+            </button>
+            <Link to="/host" className="ex-hero-host">Host an event <i className="icon-arrow-right" /></Link>
+          </div>
+        </section>
+      )}
+
       <div className="search-wrap" ref={searchWrapRef}>
         <div className="search">
           <i className="icon-search" />
           <input
+            ref={searchInputRef}
             value={q}
             onChange={(e) => { setQ(e.target.value); setShowSuggest(true); setActiveIdx(-1); }}
             onFocus={() => setShowSuggest(true)}
