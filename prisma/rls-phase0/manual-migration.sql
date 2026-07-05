@@ -78,15 +78,15 @@ CREATE POLICY user_update_self_or_admin ON "User"
 -- Event — mirrors: an owner can see/edit their own events (requireEventOwner/
 -- requireEventAccess in server/auth.js); ADMIN can see/edit any event;
 -- everyone (including signed-out) can see events that are already publicly
--- discoverable, matching db.js's `discoveryStatus IN ('APPROVED',
--- 'DISCOVERY_LIMITED')` visibility rule used by search/listing endpoints.
+-- discoverable, matching db.js's `discoveryStatus = 'APPROVED'` visibility
+-- rule used by search/listing endpoints.
 -- ============================================================================
 ALTER TABLE "Event" ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY event_select_public_or_owner_or_admin ON "Event"
   FOR SELECT
   USING (
-    "discoveryStatus" IN ('APPROVED', 'DISCOVERY_LIMITED')
+    "discoveryStatus" = 'APPROVED'
     OR "ownerId" = app_current_user_id()
     OR app_current_user_role() = 'ADMIN'
     OR EXISTS (

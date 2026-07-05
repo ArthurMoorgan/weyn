@@ -89,9 +89,9 @@ npm run build         # tsc -b && vite build
 npm test               # node --test server/*.test.js
 ```
 `.env` already has real credentials: `DATABASE_URL` (Neon Postgres),
-`SESSION_SECRET`, `GOOGLE_CLIENT_ID`/`VITE_GOOGLE_CLIENT_ID`,
-`VITE_GOOGLE_MAPS_KEY`, `GROQ_API_KEY` (powers AI moderation + Instagram
-import), `RESEND_API_KEY`, `SENTRY_DSN`. **`PAYTABS_PROFILE_ID`/
+`CLERK_SECRET_KEY`/`VITE_CLERK_PUBLISHABLE_KEY`, `PUBLIC_APP_URL`,
+`CRON_SECRET`, `VITE_GOOGLE_MAPS_KEY`, `GROQ_API_KEY` (powers AI moderation
+and Instagram import), `RESEND_API_KEY`, `SENTRY_DSN`. **`PAYTABS_PROFILE_ID`/
 `PAYTABS_SERVER_KEY` are NOT set** — this is intentional right now (§4).
 
 ## 4. Weyn Ticketing is deliberately disabled

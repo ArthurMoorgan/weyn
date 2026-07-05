@@ -265,21 +265,21 @@ export const api = {
   },
   // paid tickets: returns a hosted Thawani checkout URL to redirect to — the
   // ticket isn't actually booked until Thawani confirms payment (see BookingStatus)
-  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string): Promise<{ checkoutUrl: string; bookingId: string }> {
+  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string): Promise<{ checkoutUrl: string; bookingId: string; accessToken?: string }> {
     return fetch(`${API_BASE}/api/events/${id}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, origin: window.location.origin }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId }),
     }).then((r) => json(r));
   },
   getBooking(bookingId: string): Promise<BookingStatus> {
     return fetch(`${API_BASE}/api/bookings/${bookingId}`).then((r) => json<BookingStatus>(r));
   },
-  registerPush(deviceId: string, token: string, platform: string): Promise<{ ok: boolean }> {
+  registerPush(deviceId: string, deviceSecret: string, token: string, platform: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/push/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deviceId, token, platform }),
+      body: JSON.stringify({ deviceId, deviceSecret, token, platform }),
     }).then((r) => json(r));
   },
   async getOrganizerProfile(id: string): Promise<OrganizerProfile> {
@@ -341,7 +341,7 @@ export const api = {
     return fetch(`${API_BASE}/api/events/${eventId}/team/invite`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-      body: JSON.stringify({ email, role, origin: window.location.origin }),
+      body: JSON.stringify({ email, role }),
     }).then((r) => json(r));
   },
   async listTeam(eventId: string): Promise<TeamMember[]> {
@@ -355,8 +355,9 @@ export const api = {
   },
 
   // ---- check-in ----
-  getBookingTickets(bookingId: string): Promise<{ code: string; checkedInAt: string | null }[]> {
-    return fetch(`${API_BASE}/api/bookings/${bookingId}/tickets`).then((r) => json(r));
+  getBookingTickets(bookingId: string, accessToken?: string): Promise<{ code: string; checkedInAt: string | null }[]> {
+    const qs = accessToken ? `?accessToken=${encodeURIComponent(accessToken)}` : "";
+    return fetch(`${API_BASE}/api/bookings/${bookingId}/tickets${qs}`).then((r) => json(r));
   },
   async checkInTicket(code: string): Promise<{ ok: boolean; checkedInAt: string }> {
     return fetch(`${API_BASE}/api/tickets/${encodeURIComponent(code)}/checkin`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));

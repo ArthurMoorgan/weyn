@@ -12,6 +12,7 @@ export default function CheckoutSuccess() {
   const [params] = useSearchParams();
   const nav = useNavigate();
   const bookingId = params.get("booking");
+  const accessToken = params.get("accessToken") || undefined;
   const [status, setStatus] = useState<BookingStatus | null>(null);
   const [attempts, setAttempts] = useState(0);
 
@@ -56,7 +57,7 @@ export default function CheckoutSuccess() {
             <p>Confirming your payment{attempts > 0 ? "…" : ""}</p>
           </>
         )}
-        <button className="btn" style={{ maxWidth: 220, margin: "20px auto 0" }} onClick={() => nav(status?.eventId ? `/e/${status.eventId}` : "/")}>
+        <button className="btn" style={{ maxWidth: 220, margin: "20px auto 0" }} onClick={() => nav(status?.eventId ? `/e/${status.eventId}${accessToken ? `?booking=${bookingId}&accessToken=${encodeURIComponent(accessToken)}` : ""}` : "/")}>
           {status?.status === "paid" ? "View ticket" : "Back to event"}
         </button>
       </div>

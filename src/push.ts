@@ -3,7 +3,7 @@
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { api } from "./api";
-import { getDeviceId } from "./store";
+import { getDeviceId, getDeviceSecret } from "./store";
 
 export async function initPush() {
   if (!Capacitor.isNativePlatform()) return; // web/PWA: no native APNs, skip entirely
@@ -17,7 +17,7 @@ export async function initPush() {
     if (status !== "granted") return; // user declined — respect it, no retry loop
 
     PushNotifications.addListener("registration", (token) => {
-      api.registerPush(getDeviceId(), token.value, Capacitor.getPlatform()).catch(() => {
+      api.registerPush(getDeviceId(), getDeviceSecret(), token.value, Capacitor.getPlatform()).catch(() => {
         // registration failing shouldn't break the app — the reminder scanner
         // just won't have a token for this device until the next successful call
       });

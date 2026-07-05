@@ -39,6 +39,15 @@ function normalizeUrl(raw) {
 const slug = (s) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40) || "event";
 
+function publicOrigin(req) {
+  const configured = process.env.PUBLIC_APP_URL || process.env.APP_URL || process.env.VITE_APP_URL;
+  if (configured) return configured.replace(/\/+$/, "");
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("PUBLIC_APP_URL must be set in production");
+  }
+  return `${req.protocol}://${req.get("host")}`;
+}
+
 
 // reminder scanner — every 5 min, notify devices whose booked event starts in
 // ~2h. On Workers this is called from server/worker.js's scheduled() export
@@ -120,6 +129,9 @@ export function createApp(storage) {
 
   if (process.env.NODE_ENV === "production" && !authConfigured()) {
     throw new Error("CLERK_SECRET_KEY must be set in production — refusing to start without real auth.");
+  }
+  if (process.env.NODE_ENV === "production" && !(process.env.PUBLIC_APP_URL || process.env.APP_URL || process.env.VITE_APP_URL)) {
+    throw new Error("PUBLIC_APP_URL must be set in production — refusing to build payment or invite callback URLs from request input.");
   }
 
   // Hand-rolled JSON body parser instead of express.json() (body-parser).
@@ -430,7 +442,7 @@ export function createApp(storage) {
       if (token) sendPush(token, { title: "You're going! 🎟", body: `${e.title}${bookedTier ? ` (${bookedTier})` : ""} — we'll remind you before it starts.` }).catch(() => {});
     }
     trackEvent(req.user?.id || deviceId, "booking_completed", { eventId: e.id, qty, tierId, free: true });
-    res.json({ ...(await db.get(e.id)), bookingId: booking.id });
+    res.json({ ...(await db.get(e.id)), bookingId: booking.id, accessToken: booking.accessToken });
   });
 
   app.post("/api/events/:id/checkout", bookingLimiter, async (req, res) => {
@@ -455,13 +467,13 @@ export function createApp(storage) {
     const account = req.body?.email ? { email: req.body.email, name: req.body.name } : null;
     const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty });
 
-    const origin = req.body?.origin || `${req.protocol}://${req.get("host")}`;
+    const origin = publicOrigin(req);
     try {
       const { tranRef, checkoutUrl } = await createCheckoutSession({
         booking,
         event: e,
         tier,
-        successUrl: `${origin}/checkout/success?booking=${booking.id}`,
+        successUrl: `${origin}/checkout/success?booking=${booking.id}&accessToken=${booking.accessToken}`,
         callbackUrl: `${origin}/api/payments/webhook`,
         customerIp: req.ip,
       });
@@ -469,7 +481,7 @@ export function createApp(storage) {
         data: { bookingId: booking.id, paytabsTranRef: tranRef, amount: price * qty },
       });
       trackEvent(req.user?.id || deviceId, "checkout_started", { eventId: e.id, qty, tierId, amount: price * qty });
-      res.json({ checkoutUrl, bookingId: booking.id });
+      res.json({ checkoutUrl, bookingId: booking.id, accessToken: booking.accessToken });
     } catch (err) {
       captureError(err, { route: "POST /api/events/:id/checkout", eventId: e.id });
       res.status(502).json({ error: err.message });
@@ -547,6 +559,11 @@ export function createApp(storage) {
   // codes rendered as QR client-side — the booking owner needs these to show
   // at the door, so no auth beyond knowing the (unguessable cuid) booking id
   app.get("/api/bookings/:id/tickets", async (req, res) => {
+    const booking = await db.getBooking(req.params.id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (booking.accessToken && req.query.accessToken !== booking.accessToken) {
+      return res.status(403).json({ error: "Ticket access token is required" });
+    }
     const tickets = await db.ticketsForBooking(req.params.id);
     res.json(tickets.map((t) => ({ code: t.code, checkedInAt: t.checkedInAt })));
   });
@@ -665,7 +682,7 @@ export function createApp(storage) {
     }
     const invite = await db.createTeamInvite({ eventId: req.event.id, invitedEmail: email, role, invitedBy: req.user.id });
     await db.audit("event.team.invite", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { email, role } });
-    const origin = req.body?.origin || `${req.protocol}://${req.get("host")}`;
+    const origin = publicOrigin(req);
     const inviteLink = `${origin}/invite/${invite.inviteToken}`;
     if (emailConfigured()) {
       sendEmail({ to: email, ...teamInviteEmail({ eventTitle: req.event.title, role, inviteLink }) })
@@ -691,14 +708,15 @@ export function createApp(storage) {
     res.json({ ok: true });
   });
 
-  // Accepting requires being signed in — the invite is scoped to whatever
-  // email it was sent to, but Weyn has no verified-email-ownership step
-  // today (same trust level as everything else gated on Google Sign-In
-  // identity), so this just requires *a* session, not a matching email.
+  // Accepting requires the signed-in Clerk user's email to match the invited
+  // address; the invite token alone is not enough to grant event access.
   app.post("/api/team/invites/:token/accept", requireAuth, async (req, res) => {
     const invite = await db.getInviteByToken(req.params.token);
     if (!invite || invite.status !== "PENDING") {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "This invite link is invalid or already used" } });
+    }
+    if (req.user.email.toLowerCase() !== invite.invitedEmail.toLowerCase()) {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "Sign in with the invited email address to accept this invite" } });
     }
     const accepted = await db.acceptInvite(req.params.token, req.user.id);
     await db.audit("event.team.accept", { actorId: req.user.id, entityType: "event", entityId: invite.eventId, metadata: { role: invite.role } });
@@ -875,10 +893,17 @@ export function createApp(storage) {
   app.get("/api/push/status", (_req, res) => res.json({ configured: pushConfigured() }));
 
   app.post("/api/push/register", async (req, res) => {
-    const { deviceId, token, platform } = req.body || {};
-    if (!deviceId || !token) return res.status(400).json({ error: "deviceId and token are required" });
-    await db.upsertPushToken(deviceId, token, platform || "ios");
-    res.json({ ok: true });
+    const { deviceId, token, platform, deviceSecret } = req.body || {};
+    if (!deviceId || !token || !deviceSecret) return res.status(400).json({ error: "deviceId, token, and deviceSecret are required" });
+    if (!/^[0-9a-f-]{20,}$/i.test(deviceId) || String(deviceSecret).length < 32 || String(token).length < 20) {
+      return res.status(400).json({ error: "Invalid push registration payload" });
+    }
+    try {
+      await db.upsertPushToken(deviceId, token, ["ios", "android"].includes(platform) ? platform : "ios", deviceSecret);
+      res.json({ ok: true });
+    } catch {
+      res.status(403).json({ error: "Invalid device secret" });
+    }
   });
 
   // ADMIN-only: this fires a real push to any registered device, so leaving

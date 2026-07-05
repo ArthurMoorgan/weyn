@@ -50,6 +50,18 @@ export function getDeviceId(): string {
   return id;
 }
 
+const DEVICE_SECRET_KEY = "weyn.deviceSecret";
+export function getDeviceSecret(): string {
+  let secret = localStorage.getItem(DEVICE_SECRET_KEY);
+  if (!secret) {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    secret = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem(DEVICE_SECRET_KEY, secret);
+  }
+  return secret;
+}
+
 // ---- organizer identity (demo) ----
 export function getOrganizer(): string { return localStorage.getItem(ORG_KEY) || "You"; }
 export function setOrganizer(name: string) { if (name.trim()) localStorage.setItem(ORG_KEY, name.trim()); }

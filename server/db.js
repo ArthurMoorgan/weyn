@@ -1,5 +1,6 @@
 import { PrismaClient, Prisma } from "../src/generated/prisma/index.js";
 import { PrismaPg } from "@prisma/adapter-pg";
+import crypto from "crypto";
 import { getCurrentUserId } from "./request-context.js";
 
 // Prisma 7 requires an explicit driver adapter instead of a datasource url
@@ -300,11 +301,16 @@ export const db = {
   },
 
   // ---- push tokens (one active token per device) ----
-  async upsertPushToken(deviceId, token, platform) {
+  async upsertPushToken(deviceId, token, platform, deviceSecret) {
+    const secretHash = deviceSecret ? crypto.createHash("sha256").update(deviceSecret).digest("hex") : null;
+    const existing = await prisma.pushToken.findUnique({ where: { deviceId } });
+    if (existing?.secretHash && existing.secretHash !== secretHash) {
+      throw new Error("Invalid device secret");
+    }
     await prisma.pushToken.upsert({
       where: { deviceId },
-      create: { deviceId, token, platform },
-      update: { token, platform, registeredAt: new Date() },
+      create: { deviceId, token, platform, secretHash },
+      update: { token, platform, secretHash: existing?.secretHash || secretHash, registeredAt: new Date() },
     });
   },
   async tokenForDevice(deviceId) {
@@ -412,6 +418,7 @@ export const db = {
       data: {
         eventId, tierId: tierId || null, deviceId: deviceId || null, qty: qty || 1,
         status: "pending",
+        accessToken: crypto.randomBytes(24).toString("base64url"),
         email: account?.email || null, name: account?.name || null,
       },
     });
@@ -445,8 +452,8 @@ export const db = {
   async getUserById(id) {
     return prisma.user.findUnique({ where: { id, deletedAt: null } });
   },
-  // forces every outstanding session JWT for this user to fail attachUser's
-  // tokenVersion check — used when banning a user or changing their role
+  // Tracks security-sensitive role changes. Clerk owns real session lifetime;
+  // use Clerk-side session revocation for immediate forced sign-out.
   async revokeSessions(userId) {
     return prisma.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
   },
@@ -690,7 +697,7 @@ export const db = {
       SELECT e.*, ts_rank_cd(weyn_event_tsvector(e.title, e.organizer, e.venue, e.blurb, e.tags), plainto_tsquery('english', ${q})) AS rank
       FROM "Event" e
       WHERE e."deletedAt" IS NULL
-        AND e."discoveryStatus" IN ('APPROVED', 'DISCOVERY_LIMITED')
+        AND e."discoveryStatus" = 'APPROVED'
         AND (
           weyn_event_tsvector(e.title, e.organizer, e.venue, e.blurb, e.tags) @@ plainto_tsquery('english', ${q})
           OR similarity(e.organizer, ${q}) > 0.3

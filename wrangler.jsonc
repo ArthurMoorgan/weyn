@@ -14,7 +14,7 @@
   },
 
   // NODE_ENV/CORS_ORIGIN are plain (non-secret) config — DATABASE_URL,
-  // SESSION_SECRET, GOOGLE_CLIENT_ID, GROQ_API_KEY are set separately via
+  // CLERK_SECRET_KEY, GROQ_API_KEY are set separately via
   // `wrangler secret put` so they're encrypted, not visible in this file.
   "vars": {
     "NODE_ENV": "production",

@@ -36,9 +36,9 @@ markSplashShown();
 // in-app reload on a nested route would 404 under BrowserRouter there.
 const Router = Capacitor.isNativePlatform() ? HashRouter : BrowserRouter;
 
-// Unlike Maps/Google-login's old graceful-degradation pattern, there's no
+// Unlike Maps' graceful-degradation pattern, there's no
 // fallback path without Clerk anymore — auth just won't work without this,
-// same as if SESSION_SECRET/DATABASE_URL were missing on the server.
+// same as if CLERK_SECRET_KEY/DATABASE_URL were missing on the server.
 const PUBLISHABLE_KEY = (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined) || "";
 
 // api.ts is a plain module (not a component), so it can't call the useAuth()

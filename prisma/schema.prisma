@@ -29,9 +29,8 @@ model User {
   // brand-new session token has the least power a bug in `role` checks could
   // grant. ADMIN is manually assigned, never self-assigned.
   role         Role      @default(ATTENDEE)
-  // Bumped to force-invalidate every outstanding session JWT for this user
-  // (ban, role change, "sign out everywhere") — see auth.js's attachUser,
-  // which rejects a token whose embedded tv doesn't match the current value.
+  // App-side marker for security-sensitive user changes. Clerk owns real
+  // session lifetime; immediate forced sign-out must be done through Clerk.
   tokenVersion Int       @default(0)
   createdAt    DateTime  @default(now())
   deletedAt    DateTime?
@@ -326,6 +325,7 @@ model Booking {
   email    String?
   name     String?
   qty      Int           @default(1)
+  accessToken String?    @unique
   bookedAt DateTime      @default(now())
   reminded Boolean       @default(false)
 
@@ -405,6 +405,7 @@ model AuditLog {
 model PushToken {
   id           String   @id @default(cuid())
   deviceId     String   @unique
+  secretHash   String?
   token        String
   platform     String   @default("ios")
   registeredAt DateTime @default(now())

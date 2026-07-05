@@ -54,10 +54,6 @@ export const updateEventSchema = z.object({
   organizerContact: z.string().trim().max(200).optional(),
 });
 
-export const googleAuthSchema = z.object({
-  idToken: z.string().min(10, "idToken is required"),
-});
-
 // Express middleware factory: validates `req.body` against `schema`, replaces
 // it with the parsed (coerced/defaulted) result, or 400s with field-level errors.
 export function validateBody(schema) {
