@@ -20,8 +20,8 @@ import { generateMarketingCopy } from "./marketing.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
 import { suggestImageFocalPoint } from "./ai.js";
 import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
-import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, issueSessionToken, authConfigured } from "./auth.js";
-import { createEventSchema, updateEventSchema, googleAuthSchema, validateBody } from "./validators.js";
+import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, authConfigured } from "./auth.js";
+import { createEventSchema, updateEventSchema, validateBody } from "./validators.js";
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { sendEmail, emailConfigured, teamInviteEmail } from "./email.js";
@@ -75,26 +75,31 @@ export function createApp(storage) {
 
   // security headers (HSTS, X-Content-Type-Options, disabled X-Powered-By,
   // frame-ancestors via CSP, etc). Every directive below maps to a specific
-  // external resource this app actually loads (see index.html and
-  // src/google-maps.ts / GoogleLoginButton.tsx) — no wildcards, so a new
-  // third-party script/host added later will need an explicit addition here
-  // rather than silently working.
+  // external resource this app actually loads (see index.html, src/main.tsx's
+  // ClerkProvider, and src/google-maps.ts) — no wildcards beyond Clerk's own
+  // documented hosts, so a new third-party script/host added later will need
+  // an explicit addition here rather than silently working.
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         // event covers are proxied through our own /uploads/:key route
         // (storage.readImage), never linked to R2/Blob directly — 'self'
-        // covers them. data: for the inline SVG favicon, googleusercontent
-        // for Google account profile pictures.
-        imgSrc: ["'self'", "data:", "https://*.googleusercontent.com"],
-        scriptSrc: ["'self'", "https://accounts.google.com/gsi/client", "https://maps.googleapis.com"],
+        // covers them. data: for the inline SVG favicon, img.clerk.com for
+        // Clerk-hosted avatars (Google-account pictures now come through
+        // Clerk's own CDN, not directly from googleusercontent).
+        imgSrc: ["'self'", "data:", "https://img.clerk.com"],
+        // Clerk ships its own JS bundle via npm (@clerk/react) — no external
+        // <script> host needed for auth itself, only Maps stays external.
+        scriptSrc: ["'self'", "https://maps.googleapis.com"],
         // Vite/React inject some inline <style> at runtime; Google Fonts'
         // stylesheet is itself hosted on fonts.googleapis.com
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
-        connectSrc: ["'self'", "https://accounts.google.com", "https://maps.googleapis.com", "https://nominatim.openstreetmap.org"],
-        frameSrc: ["https://accounts.google.com"], // Google Sign-In's One Tap / button iframe
+        // Clerk's Frontend API — dev instances live on *.clerk.accounts.dev,
+        // production instances get a dedicated clerk.<yourdomain> subdomain
+        // once configured (see HANDOFF.md's Clerk section) — both covered.
+        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.weynevents.com", "https://maps.googleapis.com", "https://nominatim.openstreetmap.org"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
       },
@@ -114,7 +119,7 @@ export function createApp(storage) {
   app.use(cors(allowedOrigins.length ? { origin: allowedOrigins } : {}));
 
   if (process.env.NODE_ENV === "production" && !authConfigured()) {
-    throw new Error("SESSION_SECRET must be set in production — refusing to start without real auth.");
+    throw new Error("CLERK_SECRET_KEY must be set in production — refusing to start without real auth.");
   }
 
   // Hand-rolled JSON body parser instead of express.json() (body-parser).
@@ -857,27 +862,12 @@ export function createApp(storage) {
     res.json(updated);
   });
 
-  app.post("/api/auth/google", authLimiter, validateBody(googleAuthSchema), async (req, res) => {
-    const { idToken } = req.body;
-    try {
-      const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-      if (!r.ok) return res.status(401).json({ error: "Invalid Google token" });
-      const info = await r.json();
-      if (process.env.GOOGLE_CLIENT_ID && info.aud !== process.env.GOOGLE_CLIENT_ID) {
-        return res.status(401).json({ error: "Token was not issued for this app" });
-      }
-      const account = { email: info.email, name: info.name || info.email, picture: info.picture || null };
-      let sessionToken = null;
-      let role;
-      if (authConfigured()) {
-        const user = await db.upsertUserFromGoogle({ googleSub: info.sub, email: info.email, name: account.name, avatarUrl: account.picture });
-        sessionToken = issueSessionToken(user);
-        role = user.role;
-      }
-      res.json({ ...account, sessionToken, role });
-    } catch {
-      res.status(502).json({ error: "Couldn't verify token with Google" });
-    }
+  // Identity itself now comes entirely from Clerk (frontend widgets +
+  // attachUser's token verification above) — this just hands the frontend
+  // the User row's app-side fields (role, id) that aren't part of the Clerk
+  // session token, e.g. for gating the admin dashboard link.
+  app.get("/api/me", requireAuth, (req, res) => {
+    res.json({ id: req.user.id, email: req.user.email, name: req.user.name, avatarUrl: req.user.avatarUrl, role: req.user.role });
   });
 
   app.get("/api/push/status", (_req, res) => res.json({ configured: pushConfigured() }));

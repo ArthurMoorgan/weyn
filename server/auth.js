@@ -1,40 +1,49 @@
-// Real session layer, on top of Google Sign-In's identity verification.
-// Before this, "organizer" was just a free-text string the client sent —
-// nothing stopped anyone from editing/cancelling any event by ID. Now:
-// POST /api/auth/google verifies the Google ID token (unchanged) AND issues
-// a Weyn session JWT tied to a real User row; every mutating route below
-// requires that JWT and checks it against the event's actual ownerId.
-import jwt from "jsonwebtoken";
+// Real session layer, backed by Clerk (replaces the old Google Sign-In +
+// hand-rolled JWT system). Clerk verifies who the visitor is; every
+// mutating route below still requires req.user and checks it against the
+// event's actual ownerId — that part is unchanged.
+import { createClerkClient } from "@clerk/backend";
 import { db } from "./db.js";
 
-const SESSION_SECRET = process.env.SESSION_SECRET;
-const TOKEN_TTL = "30d";
+const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
+const CLERK_PUBLISHABLE_KEY = process.env.VITE_CLERK_PUBLISHABLE_KEY || process.env.CLERK_PUBLISHABLE_KEY;
+const clerkClient = CLERK_SECRET_KEY ? createClerkClient({ secretKey: CLERK_SECRET_KEY }) : null;
 
 export function authConfigured() {
-  return !!SESSION_SECRET;
+  return !!CLERK_SECRET_KEY;
 }
 
-export function issueSessionToken(user) {
-  return jwt.sign({ sub: user.id, role: user.role, tv: user.tokenVersion }, SESSION_SECRET, { expiresIn: TOKEN_TTL, algorithm: "HS256" });
-}
-
-// Attaches req.user (the full User row) if a valid session is present;
-// never rejects the request itself — use requireAuth to actually enforce it.
+// Attaches req.user (the full User row, looked up/created by Clerk user id)
+// if a valid Clerk session is present; never rejects the request itself —
+// use requireAuth to actually enforce it. Clerk's own session cookie/token
+// is read straight off the request (no manual Bearer header plumbing needed
+// on the frontend since app + API are same-origin).
 export async function attachUser(req, _res, next) {
-  const header = req.header("authorization") || req.header("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token || !SESSION_SECRET) return next();
+  if (!clerkClient) return next();
   try {
-    // Pin the algorithm — never let a token's own header dictate how it's
-    // verified (defends against alg-confusion / alg:none classes of attack).
-    const payload = jwt.verify(token, SESSION_SECRET, { algorithms: ["HS256"] });
-    const user = await db.getUserById(payload.sub);
-    // tokenVersion mismatch = this JWT was issued before a forced sign-out
-    // (ban, role change) bumped it — a 30-day-lived token has no other way
-    // to be revoked early, since we don't keep a server-side session store.
-    if (user && user.tokenVersion === payload.tv) req.user = user;
+    const request = new Request(`${req.protocol}://${req.get("host")}${req.originalUrl}`, {
+      method: req.method,
+      headers: new Headers(
+        Object.entries(req.headers)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => [k, Array.isArray(v) ? v.join(",") : String(v)])
+      ),
+    });
+    const requestState = await clerkClient.authenticateRequest(request, { publishableKey: CLERK_PUBLISHABLE_KEY });
+    const auth = requestState.toAuth();
+    if (auth?.userId) {
+      const clerkUser = await clerkClient.users.getUser(auth.userId);
+      const primaryEmail = clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId) || clerkUser.emailAddresses[0];
+      const user = await db.upsertUserFromClerk({
+        clerkUserId: clerkUser.id,
+        email: primaryEmail?.emailAddress || `${clerkUser.id}@no-email.clerk`,
+        name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || primaryEmail?.emailAddress || "You",
+        avatarUrl: clerkUser.imageUrl || null,
+      });
+      req.user = user;
+    }
   } catch {
-    // expired/tampered token — treat as signed out rather than erroring the request
+    // not signed in / invalid session — treat as signed out rather than erroring the request
   }
   next();
 }

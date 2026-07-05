@@ -21,7 +21,8 @@ model User {
   email        String    @unique
   name         String
   avatarUrl    String?
-  googleSub    String?   @unique
+  googleSub    String?   @unique // legacy Google Sign-In identity, kept for historical rows — no longer written to
+  clerkUserId  String?   @unique // real identity now, see server/auth.js
   // Default is ATTENDEE, not ORGANIZER — hosting is granted by *acting* as an
   // organizer (Event.ownerId is set the moment you create your first event),
   // not by the role column. Keeping the default minimal-privilege means a

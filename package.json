@@ -26,6 +26,8 @@
     "@capacitor/core": "^8.4.1",
     "@capacitor/ios": "^8.4.1",
     "@capacitor/push-notifications": "^8.1.1",
+    "@clerk/backend": "^3.10.0",
+    "@clerk/react": "^6.11.3",
     "@parse/node-apn": "^8.1.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",

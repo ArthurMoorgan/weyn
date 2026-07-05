@@ -376,12 +376,20 @@ export const db = {
   },
 
   // ---- users (real identity, backing auth — see server/auth.js) ----
-  async upsertUserFromGoogle({ googleSub, email, name, avatarUrl }) {
-    return prisma.user.upsert({
-      where: { email },
-      create: { email, name, avatarUrl, googleSub },
-      update: { name, avatarUrl, googleSub },
-    });
+  // Links by clerkUserId first (repeat sign-in), then falls back to matching
+  // an existing row by email (a legacy Google-Sign-In-era account, or a row
+  // created by an invite/booking before this user ever signed in) so prior
+  // ownership/history isn't orphaned when someone first logs in via Clerk.
+  async upsertUserFromClerk({ clerkUserId, email, name, avatarUrl }) {
+    const existing = await prisma.user.findUnique({ where: { clerkUserId } });
+    if (existing) {
+      return prisma.user.update({ where: { id: existing.id }, data: { name, avatarUrl, email } });
+    }
+    const byEmail = email ? await prisma.user.findUnique({ where: { email } }) : null;
+    if (byEmail) {
+      return prisma.user.update({ where: { id: byEmail.id }, data: { clerkUserId, name, avatarUrl } });
+    }
+    return prisma.user.create({ data: { email, name, avatarUrl, clerkUserId } });
   },
   async getUserById(id) {
     return prisma.user.findUnique({ where: { id, deletedAt: null } });
