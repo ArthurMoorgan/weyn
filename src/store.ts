@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from "react";
-import type { GoogleAccount } from "./api";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { useUser } from "@clerk/react";
 
 // Per-device UI state: saved events, booked tickets, and the organizer identity.
 // Events themselves live in the backend.
@@ -54,33 +54,48 @@ export function getDeviceId(): string {
 export function getOrganizer(): string { return localStorage.getItem(ORG_KEY) || "You"; }
 export function setOrganizer(name: string) { if (name.trim()) localStorage.setItem(ORG_KEY, name.trim()); }
 
-// ---- Google account (real identity, once signed in) ----
-const ACCOUNT_KEY = "weyn.account";
-// The session token is what the backend actually checks on every write route
-// (see server/auth.js) — the Google account object alone is just display info.
-const SESSION_KEY = "weyn.session";
-let account: GoogleAccount | null = read<GoogleAccount | null>(ACCOUNT_KEY, null);
-let sessionToken: string | null = localStorage.getItem(SESSION_KEY);
-export function setAccount(a: GoogleAccount, token?: string | null) {
-  account = a;
-  localStorage.setItem(ACCOUNT_KEY, JSON.stringify(a));
-  if (token) {
-    sessionToken = token;
-    localStorage.setItem(SESSION_KEY, token);
-  }
-  setOrganizer(a.name); // signing in becomes your organizer identity too — no more typing a name that could be anyone's
-  emit();
+// ---- account (real identity, via Clerk — replaces the old Google Sign-In
+// + hand-rolled session JWT). Clerk owns its own client-side session state;
+// this just adapts it to the {name,email,picture,role} shape the rest of
+// the app already expects, so call sites didn't need a rewrite.
+export interface Account {
+  name: string;
+  email: string;
+  picture: string | null;
+  role?: "ATTENDEE" | "ORGANIZER" | "ADMIN"; // fetched separately from /api/me — it's app-side state, not part of Clerk's identity
 }
-export function clearAccount() {
-  account = null;
-  sessionToken = null;
-  localStorage.removeItem(ACCOUNT_KEY);
-  localStorage.removeItem(SESSION_KEY);
-  emit();
+
+// api.ts needs a real session token for authenticated requests but can't
+// call the useAuth() hook itself (it's a plain module, not a component) —
+// ClerkAuthBridge (see App.tsx) registers the real getToken() here once
+// ClerkProvider has mounted.
+type TokenGetter = () => Promise<string | null>;
+let tokenGetter: TokenGetter | null = null;
+export function setTokenGetter(fn: TokenGetter | null) { tokenGetter = fn; }
+export function getAuthToken(): Promise<string | null> { return tokenGetter ? tokenGetter() : Promise.resolve(null); }
+
+export function useAccount(): Account | null {
+  const { user, isLoaded } = useUser();
+  const [role, setRole] = useState<Account["role"]>(undefined);
+  useEffect(() => {
+    if (!user) { setRole(undefined); return; }
+    let cancelled = false;
+    getAuthToken()
+      .then((token) => fetch("/api/me", { headers: token ? { Authorization: `Bearer ${token}` } : {} }))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => { if (!cancelled) setRole(me?.role); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.id]);
+  if (!isLoaded || !user) return null;
+  const email = user.primaryEmailAddress?.emailAddress || "";
+  return {
+    name: user.fullName || email || "You",
+    email,
+    picture: user.imageUrl || null,
+    role,
+  };
 }
-export function useAccount(): GoogleAccount | null { return useSyncExternalStore(subscribe, () => account); }
-export function getAccount(): GoogleAccount | null { return account; }
-export function getSessionToken(): string | null { return sessionToken; }
 
 // ---- theme ----
 const THEME_KEY = "weyn.theme";

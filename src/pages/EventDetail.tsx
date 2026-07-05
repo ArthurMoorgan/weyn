@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn } from "../api";
 import { useAsync, useClosing } from "../hooks";
-import { isSaved, toggleSave, useSaved, addTicket, getDeviceId, getAccount, useAccount } from "../store";
+import { isSaved, toggleSave, useSaved, addTicket, getDeviceId, useAccount } from "../store";
 import MiniMap from "../components/MiniMap";
 import FollowButton from "../components/FollowButton";
 import type { Collection } from "../api";
@@ -71,7 +71,7 @@ export default function EventDetail() {
         // paid ticket: redirect to Thawani's hosted checkout — the booking is
         // only confirmed once payment succeeds (see /checkout/success), so
         // there's nothing to show optimistically here.
-        const { checkoutUrl } = await api.checkoutEvent(ev.id, 1, getDeviceId(), getAccount(), selectedTier?.id);
+        const { checkoutUrl } = await api.checkoutEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id);
         window.location.href = checkoutUrl;
         return;
       }
@@ -81,7 +81,7 @@ export default function EventDetail() {
       // pre-book state (and undo the local ticket-list write) on failure.
       setBooked(ev);
       try {
-        const confirmed = await api.bookEvent(ev.id, 1, getDeviceId(), getAccount(), selectedTier?.id);
+        const confirmed = await api.bookEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id);
         setBooked(confirmed);
         addTicket(ev.id);
       } catch (err: any) {

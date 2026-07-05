@@ -1,4 +1,5 @@
-import React from "react";
+import {ClerkProvider, useAuth} from "@clerk/react";
+import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { HashRouter, BrowserRouter, Routes, Route } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
@@ -6,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import "./lucide.css";
 import "./index.css";
 import App from "./App";
+import { setTokenGetter } from "./store";
 import Explore from "./pages/Explore";
 import EventDetail from "./pages/EventDetail";
 import Saved from "./pages/Saved";
@@ -28,26 +30,57 @@ import { initPush } from "./push";
 // in-app reload on a nested route would 404 under BrowserRouter there.
 const Router = Capacitor.isNativePlatform() ? HashRouter : BrowserRouter;
 
+// Unlike Maps/Google-login's old graceful-degradation pattern, there's no
+// fallback path without Clerk anymore — auth just won't work without this,
+// same as if SESSION_SECRET/DATABASE_URL were missing on the server.
+const PUBLISHABLE_KEY = (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined) || "";
+
+// api.ts is a plain module (not a component), so it can't call the useAuth()
+// hook itself to get a fresh session token on every authenticated request.
+// This bridges Clerk's getToken() into store.ts's module-level tokenGetter
+// once ClerkProvider has mounted — see store.ts's getAuthToken/setTokenGetter.
+// Lives here (above <Routes>, inside <ClerkProvider>) rather than in App.tsx
+// so every route gets a working token, not just the tabbed ones nested
+// under App — EventDetail's booking flow and InviteAccept's accept-invite
+// call also need an authenticated fetch and sit outside App's <Outlet>.
+function ClerkAuthBridge() {
+  const { getToken, isLoaded } = useAuth();
+  useEffect(() => {
+    if (!isLoaded) return;
+    setTokenGetter(() => getToken());
+    return () => setTokenGetter(null);
+  }, [isLoaded, getToken]);
+  return null;
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Routes>
-          <Route element={<App />}>
-            <Route path="/" element={<Explore />} />
-            <Route path="/saved" element={<Saved />} />
-            <Route path="/host" element={<Organizer />} />
-            <Route path="/you" element={<You />} />
-            <Route path="/admin" element={<Admin />} />
-          </Route>
-          <Route path="/e/:id" element={<EventDetail />} />
-          <Route path="/organizer/:id" element={<OrganizerProfile />} />
-          <Route path="/checkout/success" element={<CheckoutSuccess />} />
-          <Route path="/checkout/cancel" element={<CheckoutCancel />} />
-          <Route path="/invite/:token" element={<InviteAccept />} />
-          <Route path="/collections/:id" element={<CollectionPage />} />
-        </Routes>
-      </Router>
+      {/* Wraps every route, not just the tabbed ones — EventDetail's booking
+          flow, OrganizerProfile's follow button, and the invite-accept page
+          all need Clerk hooks too (clerk init's default scaffold only wrapped
+          the nested tab routes, which would crash any page outside them the
+          moment it called useUser()/useAuth()). */}
+      <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
+        <ClerkAuthBridge />
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Routes>
+            <Route element={<App />}>
+              <Route path="/" element={<Explore />} />
+              <Route path="/saved" element={<Saved />} />
+              <Route path="/host" element={<Organizer />} />
+              <Route path="/you" element={<You />} />
+              <Route path="/admin" element={<Admin />} />
+            </Route>
+            <Route path="/e/:id" element={<EventDetail />} />
+            <Route path="/organizer/:id" element={<OrganizerProfile />} />
+            <Route path="/checkout/success" element={<CheckoutSuccess />} />
+            <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+            <Route path="/invite/:token" element={<InviteAccept />} />
+            <Route path="/collections/:id" element={<CollectionPage />} />
+          </Routes>
+        </Router>
+      </ClerkProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

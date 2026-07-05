@@ -1,5 +1,5 @@
 // Frontend API client — talks to the real Express backend via the Vite proxy.
-import { getSessionToken } from "./store";
+import { getAuthToken, type Account } from "./store";
 
 export type Cat = "sports" | "music" | "food" | "culture" | "cars" | "workshop" | "community";
 export type TicketingType = "weyn" | "external" | "cash" | "registration";
@@ -64,13 +64,10 @@ export interface Attendee {
   bookedAt: string;
 }
 
-export interface GoogleAccount {
-  email: string;
-  name: string;
-  picture: string | null;
-  sessionToken?: string | null; // present once real auth (SESSION_SECRET) is configured server-side
-  role?: "ATTENDEE" | "ORGANIZER" | "ADMIN"; // present alongside sessionToken — used to show the admin dashboard link
-}
+// Real identity now comes from Clerk — see store.ts's Account/useAccount,
+// which this type alias points at so existing call sites (bookEvent,
+// checkoutEvent) didn't need their signatures touched.
+export type { Account } from "./store";
 
 export interface Collection {
   id: string;
@@ -208,9 +205,12 @@ export const CATS: { key: Cat | "all"; label: string }[] = [
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "";
 
 // Attached to every write/PII-reading request — server/auth.js's requireAuth
-// and requireEventOwner check this, not just "did Google verify you once."
-function authHeaders(): Record<string, string> {
-  const token = getSessionToken();
+// and requireEventOwner check this, not just "did Clerk verify you once."
+// Async because Clerk's getToken() refreshes short-lived session JWTs behind
+// the scenes — there's no synchronous "current token" to read anymore (see
+// store.ts's getAuthToken/setTokenGetter bridge).
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -253,10 +253,10 @@ export const api = {
   getEvent(id: string): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events/${id}`).then((r) => json<Weyn>(r)).then(absMedia);
   },
-  createEvent(form: FormData): Promise<Weyn> {
-    return fetch(`${API_BASE}/api/events`, { method: "POST", headers: authHeaders(), body: form }).then((r) => json<Weyn>(r)).then(absMedia);
+  async createEvent(form: FormData): Promise<Weyn> {
+    return fetch(`${API_BASE}/api/events`, { method: "POST", headers: await authHeaders(), body: form }).then((r) => json<Weyn>(r)).then(absMedia);
   },
-  bookEvent(id: string, qty = 1, deviceId?: string, account?: GoogleAccount | null, tierId?: string): Promise<Weyn> {
+  bookEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events/${id}/book`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -265,7 +265,7 @@ export const api = {
   },
   // paid tickets: returns a hosted Thawani checkout URL to redirect to — the
   // ticket isn't actually booked until Thawani confirms payment (see BookingStatus)
-  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: GoogleAccount | null, tierId?: string): Promise<{ checkoutUrl: string; bookingId: string }> {
+  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string): Promise<{ checkoutUrl: string; bookingId: string }> {
     return fetch(`${API_BASE}/api/events/${id}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -282,86 +282,84 @@ export const api = {
       body: JSON.stringify({ deviceId, token, platform }),
     }).then((r) => json(r));
   },
-  getOrganizerProfile(id: string): Promise<OrganizerProfile> {
-    return fetch(`${API_BASE}/api/organizers/${id}`, { headers: authHeaders() })
+  async getOrganizerProfile(id: string): Promise<OrganizerProfile> {
+    return fetch(`${API_BASE}/api/organizers/${id}`, { headers: await authHeaders() })
       .then((r) => json<OrganizerProfile>(r))
       .then((p) => ({ ...p, events: p.events.map(absMedia) }));
   },
-  updateEvent(id: string, patch: Partial<Weyn>): Promise<Weyn> {
+  async updateEvent(id: string, patch: Partial<Weyn>): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify(patch),
     }).then((r) => json<Weyn>(r)).then(absMedia);
   },
-  cancelEvent(id: string): Promise<Weyn> {
-    return fetch(`${API_BASE}/api/events/${id}/cancel`, { method: "POST", headers: authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
+  async cancelEvent(id: string): Promise<Weyn> {
+    return fetch(`${API_BASE}/api/events/${id}/cancel`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
   },
-  duplicateEvent(id: string): Promise<Weyn> {
-    return fetch(`${API_BASE}/api/events/${id}/duplicate`, { method: "POST", headers: authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
+  async duplicateEvent(id: string): Promise<Weyn> {
+    return fetch(`${API_BASE}/api/events/${id}/duplicate`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
   },
-  getAttendees(id: string): Promise<Attendee[]> {
-    return fetch(`${API_BASE}/api/events/${id}/attendees`, { headers: authHeaders() }).then((r) => json<Attendee[]>(r));
+  async getAttendees(id: string): Promise<Attendee[]> {
+    return fetch(`${API_BASE}/api/events/${id}/attendees`, { headers: await authHeaders() }).then((r) => json<Attendee[]>(r));
   },
-  googleAuth(idToken: string): Promise<GoogleAccount> {
-    return fetch(`${API_BASE}/api/auth/google`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
-    }).then((r) => json<GoogleAccount>(r));
+  // Identity itself now comes from Clerk — this just returns the app-side
+  // fields (role, id) that live in our own DB, e.g. for the admin link.
+  async me(): Promise<{ id: string; email: string; name: string; avatarUrl: string | null; role: "ATTENDEE" | "ORGANIZER" | "ADMIN" }> {
+    return fetch(`${API_BASE}/api/me`, { headers: await authHeaders() }).then((r) => json(r));
   },
-  importInstagram(input: { url?: string; caption?: string }): Promise<InstagramImportResult> {
+  async importInstagram(input: { url?: string; caption?: string }): Promise<InstagramImportResult> {
     return fetch(`${API_BASE}/api/import/instagram`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify(input),
     }).then((r) => json<InstagramImportResult>(r));
   },
-  getMarketing(id: string): Promise<MarketingCopy> {
-    return fetch(`${API_BASE}/api/events/${id}/marketing`, { headers: authHeaders() }).then((r) => json<MarketingCopy>(r));
+  async getMarketing(id: string): Promise<MarketingCopy> {
+    return fetch(`${API_BASE}/api/events/${id}/marketing`, { headers: await authHeaders() }).then((r) => json<MarketingCopy>(r));
   },
-  regenerateMarketing(id: string): Promise<MarketingCopy> {
-    return fetch(`${API_BASE}/api/events/${id}/marketing/regenerate`, { method: "POST", headers: authHeaders() }).then((r) => json<MarketingCopy>(r));
+  async regenerateMarketing(id: string): Promise<MarketingCopy> {
+    return fetch(`${API_BASE}/api/events/${id}/marketing/regenerate`, { method: "POST", headers: await authHeaders() }).then((r) => json<MarketingCopy>(r));
   },
 
   // ---- organizer dashboard ----
-  dashboardSummary(): Promise<DashboardSummary> {
-    return fetch(`${API_BASE}/api/dashboard/summary`, { headers: authHeaders() }).then((r) => json(r));
+  async dashboardSummary(): Promise<DashboardSummary> {
+    return fetch(`${API_BASE}/api/dashboard/summary`, { headers: await authHeaders() }).then((r) => json(r));
   },
-  dashboardActivity(): Promise<ActivityItem[]> {
-    return fetch(`${API_BASE}/api/dashboard/activity`, { headers: authHeaders() }).then((r) => json(r));
+  async dashboardActivity(): Promise<ActivityItem[]> {
+    return fetch(`${API_BASE}/api/dashboard/activity`, { headers: await authHeaders() }).then((r) => json(r));
   },
-  dashboardEvents(): Promise<Weyn[]> {
-    return fetch(`${API_BASE}/api/dashboard/events`, { headers: authHeaders() }).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));
+  async dashboardEvents(): Promise<Weyn[]> {
+    return fetch(`${API_BASE}/api/dashboard/events`, { headers: await authHeaders() }).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));
   },
-  eventAnalytics(id: string): Promise<EventAnalytics> {
-    return fetch(`${API_BASE}/api/events/${id}/analytics`, { headers: authHeaders() }).then((r) => json(r));
+  async eventAnalytics(id: string): Promise<EventAnalytics> {
+    return fetch(`${API_BASE}/api/events/${id}/analytics`, { headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- team management ----
-  inviteTeamMember(eventId: string, email: string, role: TeamRole): Promise<TeamInviteResult> {
+  async inviteTeamMember(eventId: string, email: string, role: TeamRole): Promise<TeamInviteResult> {
     return fetch(`${API_BASE}/api/events/${eventId}/team/invite`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify({ email, role, origin: window.location.origin }),
     }).then((r) => json(r));
   },
-  listTeam(eventId: string): Promise<TeamMember[]> {
-    return fetch(`${API_BASE}/api/events/${eventId}/team`, { headers: authHeaders() }).then((r) => json(r));
+  async listTeam(eventId: string): Promise<TeamMember[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/team`, { headers: await authHeaders() }).then((r) => json(r));
   },
-  revokeTeamMember(eventId: string, memberId: string): Promise<{ ok: boolean }> {
-    return fetch(`${API_BASE}/api/events/${eventId}/team/${memberId}`, { method: "DELETE", headers: authHeaders() }).then((r) => json(r));
+  async revokeTeamMember(eventId: string, memberId: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/team/${memberId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
-  acceptInvite(token: string): Promise<{ ok: boolean; eventId: string; eventTitle: string; role: TeamRole }> {
-    return fetch(`${API_BASE}/api/team/invites/${token}/accept`, { method: "POST", headers: authHeaders() }).then((r) => json(r));
+  async acceptInvite(token: string): Promise<{ ok: boolean; eventId: string; eventTitle: string; role: TeamRole }> {
+    return fetch(`${API_BASE}/api/team/invites/${token}/accept`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- check-in ----
   getBookingTickets(bookingId: string): Promise<{ code: string; checkedInAt: string | null }[]> {
     return fetch(`${API_BASE}/api/bookings/${bookingId}/tickets`).then((r) => json(r));
   },
-  checkInTicket(code: string): Promise<{ ok: boolean; checkedInAt: string }> {
-    return fetch(`${API_BASE}/api/tickets/${encodeURIComponent(code)}/checkin`, { method: "POST", headers: authHeaders() }).then((r) => json(r));
+  async checkInTicket(code: string): Promise<{ ok: boolean; checkedInAt: string }> {
+    return fetch(`${API_BASE}/api/tickets/${encodeURIComponent(code)}/checkin`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- search ----
@@ -372,64 +370,64 @@ export const api = {
   },
 
   // ---- following organizers ----
-  followOrganizer(id: string): Promise<{ ok: boolean; followerCount: number }> {
-    return fetch(`${API_BASE}/api/organizers/${id}/follow`, { method: "POST", headers: authHeaders() }).then((r) => json(r));
+  async followOrganizer(id: string): Promise<{ ok: boolean; followerCount: number }> {
+    return fetch(`${API_BASE}/api/organizers/${id}/follow`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
   },
-  unfollowOrganizer(id: string): Promise<{ ok: boolean; followerCount: number }> {
-    return fetch(`${API_BASE}/api/organizers/${id}/follow`, { method: "DELETE", headers: authHeaders() }).then((r) => json(r));
+  async unfollowOrganizer(id: string): Promise<{ ok: boolean; followerCount: number }> {
+    return fetch(`${API_BASE}/api/organizers/${id}/follow`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
-  getFollowStatus(id: string): Promise<{ following: boolean; followerCount: number }> {
-    return fetch(`${API_BASE}/api/organizers/${id}/follow`, { headers: authHeaders() }).then((r) => json(r));
+  async getFollowStatus(id: string): Promise<{ following: boolean; followerCount: number }> {
+    return fetch(`${API_BASE}/api/organizers/${id}/follow`, { headers: await authHeaders() }).then((r) => json(r));
   },
-  followingFeed(): Promise<Weyn[]> {
-    return fetch(`${API_BASE}/api/me/following-feed`, { headers: authHeaders() }).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));
+  async followingFeed(): Promise<Weyn[]> {
+    return fetch(`${API_BASE}/api/me/following-feed`, { headers: await authHeaders() }).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));
   },
 
   // ---- collections ----
-  createCollection(name: string): Promise<Collection> {
+  async createCollection(name: string): Promise<Collection> {
     return fetch(`${API_BASE}/api/collections`, {
-      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ name }),
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ name }),
     }).then((r) => json(r));
   },
-  listMyCollections(): Promise<Collection[]> {
-    return fetch(`${API_BASE}/api/collections`, { headers: authHeaders() }).then((r) => json(r));
+  async listMyCollections(): Promise<Collection[]> {
+    return fetch(`${API_BASE}/api/collections`, { headers: await authHeaders() }).then((r) => json(r));
   },
-  getCollection(id: string): Promise<CollectionDetail> {
-    return fetch(`${API_BASE}/api/collections/${id}`, { headers: authHeaders() }).then((r) => json<CollectionDetail>(r)).then((c) => ({ ...c, events: c.events.map(absMedia) }));
+  async getCollection(id: string): Promise<CollectionDetail> {
+    return fetch(`${API_BASE}/api/collections/${id}`, { headers: await authHeaders() }).then((r) => json<CollectionDetail>(r)).then((c) => ({ ...c, events: c.events.map(absMedia) }));
   },
-  renameCollection(id: string, name: string): Promise<CollectionDetail> {
+  async renameCollection(id: string, name: string): Promise<CollectionDetail> {
     return fetch(`${API_BASE}/api/collections/${id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ name }),
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ name }),
     }).then((r) => json(r));
   },
-  deleteCollection(id: string): Promise<{ ok: boolean }> {
-    return fetch(`${API_BASE}/api/collections/${id}`, { method: "DELETE", headers: authHeaders() }).then((r) => json(r));
+  async deleteCollection(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/collections/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
-  addToCollection(id: string, eventId: string): Promise<CollectionDetail> {
+  async addToCollection(id: string, eventId: string): Promise<CollectionDetail> {
     return fetch(`${API_BASE}/api/collections/${id}/items`, {
-      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ eventId }),
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ eventId }),
     }).then((r) => json(r));
   },
-  removeFromCollection(id: string, eventId: string): Promise<CollectionDetail> {
-    return fetch(`${API_BASE}/api/collections/${id}/items/${eventId}`, { method: "DELETE", headers: authHeaders() }).then((r) => json(r));
+  async removeFromCollection(id: string, eventId: string): Promise<CollectionDetail> {
+    return fetch(`${API_BASE}/api/collections/${id}/items/${eventId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- reports + admin ----
-  reportEntity(entityType: "event" | "organizer" | "user", entityId: string, reason: ReportReason, note?: string): Promise<{ id: string }> {
+  async reportEntity(entityType: "event" | "organizer" | "user", entityId: string, reason: ReportReason, note?: string): Promise<{ id: string }> {
     return fetch(`${API_BASE}/api/reports`, {
-      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ entityType, entityId, reason, note }),
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ entityType, entityId, reason, note }),
     }).then((r) => json(r));
   },
-  adminListReports(): Promise<OpenReport[]> {
-    return fetch(`${API_BASE}/api/admin/reports`, { headers: authHeaders() }).then((r) => json(r));
+  async adminListReports(): Promise<OpenReport[]> {
+    return fetch(`${API_BASE}/api/admin/reports`, { headers: await authHeaders() }).then((r) => json(r));
   },
-  adminResolveReport(id: string, status: "REVIEWED" | "DISMISSED" | "ACTIONED"): Promise<OpenReport> {
+  async adminResolveReport(id: string, status: "REVIEWED" | "DISMISSED" | "ACTIONED"): Promise<OpenReport> {
     return fetch(`${API_BASE}/api/admin/reports/${id}/resolve`, {
-      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ status }),
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ status }),
     }).then((r) => json(r));
   },
-  adminMetrics(): Promise<PlatformMetrics> {
-    return fetch(`${API_BASE}/api/admin/metrics`, { headers: authHeaders() }).then((r) => json(r));
+  async adminMetrics(): Promise<PlatformMetrics> {
+    return fetch(`${API_BASE}/api/admin/metrics`, { headers: await authHeaders() }).then((r) => json(r));
   },
 };
 

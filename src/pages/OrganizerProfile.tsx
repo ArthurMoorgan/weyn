@@ -38,9 +38,8 @@ export default function OrganizerProfile() {
           <p className="sub">{p.followerCount} {p.followerCount === 1 ? "follower" : "followers"} · {p.events.length} live {p.events.length === 1 ? "event" : "events"}</p>
         </div>
         {/* FollowButton hides itself while signed out; self-follow attempts
-            are rejected server-side (db.followOrganizer) — there's no
-            client-side way to know "is this my own profile" without the
-            User.id on GoogleAccount, not worth adding just to suppress a
+            are rejected server-side (db.followOrganizer) — not worth adding
+            a client-side "is this my own profile" check just to suppress a
             button that simply no-ops if clicked on your own page. */}
         {account && <FollowButton organizerId={p.id} />}
       </div>
