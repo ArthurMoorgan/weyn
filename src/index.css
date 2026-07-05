@@ -521,6 +521,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .profile-tabs {
   display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
   padding: 8px 12px 10px; border-bottom: 1px solid var(--hair);
+  /* fade the trailing edge so a horizontally-scrollable strip doesn't look
+     like a complete, final list when more tabs sit off-screen */
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
 .profile-tabs::-webkit-scrollbar { display: none; }
 .profile-tab {

@@ -259,12 +259,16 @@ function CollectionsSection() {
   );
 }
 
+// Base order for non-hosts. When the user IS a host, Organizer is spliced in
+// right after Overview (see below) instead of sitting buried at the end —
+// it's the primary tool for hosts and shouldn't require scrolling the strip
+// to discover.
 const TAB_DEFS: { key: ProfileTab; label: string; icon: string; needsAuth?: boolean; needsHost?: boolean }[] = [
   { key: "overview", label: "Overview", icon: "layout-grid" },
+  { key: "organizer", label: "Organizer", icon: "chart-bar", needsHost: true },
   { key: "tickets", label: "Tickets", icon: "ticket" },
   { key: "saved", label: "Saved", icon: "heart" },
   { key: "lists", label: "Lists", icon: "list", needsAuth: true },
-  { key: "organizer", label: "Organizer", icon: "chart-bar", needsHost: true },
   { key: "settings", label: "Settings", icon: "settings" },
 ];
 
@@ -277,7 +281,12 @@ function Header({ tab, setTab, isHost, account }: { tab: ProfileTab; setTab: (t:
       </header>
       <nav className="profile-tabs">
         {visible.map((t) => (
-          <button key={t.key} className={"profile-tab" + (tab === t.key ? " on" : "")} onClick={() => setTab(t.key)}>
+          <button
+            key={t.key}
+            className={"profile-tab" + (tab === t.key ? " on" : "")}
+            onClick={() => setTab(t.key)}
+            aria-current={tab === t.key ? "true" : undefined}
+          >
             <i className={"icon-" + t.icon} />{t.label}
           </button>
         ))}

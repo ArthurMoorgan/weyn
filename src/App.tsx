@@ -13,12 +13,9 @@ export default function App() {
       <Outlet />
       <nav className="tabs">
         <div className="sidebar-brand"><i className="icon-sparkles" /> Weyn</div>
+        {/* NavLink sets aria-current="page" on the active link automatically */}
         {TABS.map((t) => (
-          <NavLink
-            key={t.to} to={t.to} end={t.to === "/"}
-            className={({ isActive }) => "tab" + (isActive ? " on" : "")}
-            aria-current={({ isActive }: { isActive: boolean }) => (isActive ? "page" : undefined)) as any}
-          >
+          <NavLink key={t.to} to={t.to} end={t.to === "/"} className={({ isActive }) => "tab" + (isActive ? " on" : "")}>
             <i className={"icon-" + t.icon} />
             <span>{t.label}</span>
           </NavLink>
