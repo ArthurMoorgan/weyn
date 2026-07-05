@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, CATS, type Cat, type Weyn, isTonight, isToday, isTomorrow, isThisWeekend } from "../api";
+import { api, CATS, type Cat, type Weyn, isTonight, isToday, isTomorrow, isThisWeekend, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import Stub from "../components/Stub";
@@ -19,18 +19,48 @@ const bySoonest = (a: Weyn, b: Weyn) => startTs(a) - startTs(b);
 const byPopular = (a: Weyn, b: Weyn) => (b.sold || 0) - (a.sold || 0);
 
 // horizontal-scroll rail of cards, with a header. Renders nothing if empty.
-function Rail({ title, subtitle, events, variant = "rail" }: { title: string; subtitle?: string; events: Weyn[]; variant?: "rail" | "feature" }) {
+// `dense` (desktop-only, see .ex-rail.dense in index.css) wraps the rail
+// into a grid instead of a horizontal scroller — the "denser grid" half of
+// the desktop magazine layout, so the extra width does something besides
+// stretching the same scrollbar wider.
+function Rail({ title, subtitle, events, variant = "rail", dense = false, className = "" }: { title: string; subtitle?: string; events: Weyn[]; variant?: "rail" | "feature"; dense?: boolean; className?: string }) {
   if (!events.length) return null;
   return (
-    <section className="ex-section">
+    <section className={"ex-section" + (className ? " " + className : "")}>
       <div className="ex-head">
         <h2>{title}</h2>
         {subtitle && <span className="ex-sub">{subtitle}</span>}
       </div>
-      <div className={"ex-rail" + (variant === "feature" ? " feature" : "")}>
+      <div className={"ex-rail" + (variant === "feature" ? " feature" : "") + (dense ? " dense" : "")}>
         {events.map((e) => <Stub key={e.id} e={e} variant={variant} />)}
       </div>
     </section>
+  );
+}
+
+// Desktop-only (see .ex-magazine-hero in index.css, hidden below 900px) —
+// one full-width editorial banner for the single best "featured" event,
+// standing in for the mobile Featured rail's first card but with real
+// magazine-cover weight: full-bleed image, large title, one clear CTA.
+// The mobile Featured rail stays exactly as-is; this doesn't replace data,
+// only how the top event is presented on wide screens.
+function MagazineHero({ e }: { e: Weyn }) {
+  const coverStyle: React.CSSProperties = e.image
+    ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
+    : { background: e.color };
+  return (
+    <Link to={`/e/${e.id}`} className="ex-magazine-hero" style={coverStyle}>
+      <div className="ex-magazine-body">
+        <span className="ex-magazine-organizer">{e.organizer}</span>
+        <h2 className="ex-magazine-title">{e.title}</h2>
+        <div className="ex-magazine-meta">
+          <span>{dayLabel(e)} · {timeLabel(e)}</span>
+          <span className="ec-dot">·</span>
+          <span>{e.venue || e.area}</span>
+        </div>
+        <span className="btn lg ex-magazine-cta">View event <i className="icon-arrow-right" /></span>
+      </div>
+    </Link>
   );
 }
 
@@ -263,11 +293,12 @@ export default function Explore() {
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
           <>
-            <Rail title="Featured" subtitle="Hand-picked" events={S.featPool} variant="feature" />
-            <Rail title="Happening tonight" events={S.tonight} />
-            <Rail title="This weekend" events={S.weekend} />
-            <Rail title="Popular near you" events={S.popular} />
-            {S.catRails.map(({ c, list }) => <Rail key={c.key} title={c.label} events={list} />)}
+            {S.featPool[0] && <MagazineHero e={S.featPool[0]} />}
+            <Rail title="Featured" subtitle="Hand-picked" events={S.featPool} variant="feature" className="ex-featured-rail" />
+            <Rail title="Happening tonight" events={S.tonight} dense />
+            <Rail title="This weekend" events={S.weekend} dense />
+            <Rail title="Popular near you" events={S.popular} dense />
+            {S.catRails.map(({ c, list }) => <Rail key={c.key} title={c.label} events={list} dense />)}
             <section className="ex-section">
               <div className="ex-head"><h2>All upcoming</h2><span className="ex-sub">{S.all.length} events</span></div>
               <div className="ex-list">{S.all.map((e) => <Stub key={e.id} e={e} />)}</div>

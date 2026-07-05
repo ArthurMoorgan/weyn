@@ -373,6 +373,25 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 6px 0; white-space: nowrap; flex: 0 0 auto; }
 .ex-hero-host [class^="icon-"] { font-size: 14px; }
 
+/* Desktop-only magazine hero (see index.css's 900px block for the part that
+   actually shows it) — hidden on mobile, where the Featured rail's first
+   card already does this job at a size that fits the phone column. */
+.ex-magazine-hero {
+  display: none;
+  position: relative; border-radius: 16px; overflow: hidden;
+  background-size: cover; background-position: center;
+}
+.ex-magazine-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,8,12,0.90) 0%, rgba(6,8,12,0.35) 45%, transparent 75%); }
+.ex-magazine-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 32px 36px; }
+.ex-magazine-organizer { font: var(--t-caption); letter-spacing: 0.5px; text-transform: uppercase; color: rgba(255,255,255,0.75); }
+.ex-magazine-title { font: var(--t-hero); font-size: 40px; color: #fff; letter-spacing: -1px; margin: 6px 0 10px; max-width: 22ch; }
+.ex-magazine-meta { display: flex; align-items: center; gap: 8px; font: var(--t-body); color: rgba(255,255,255,0.85); margin-bottom: 18px; }
+.ex-magazine-meta .ec-dot { color: rgba(255,255,255,0.5); }
+/* three classes (not just .ex-magazine-cta) so this beats .btn.lg's own
+   width/padding at equal source order regardless of where either rule
+   ends up in the file */
+.ex-magazine-cta.btn.lg { display: inline-flex; width: auto; }
+
 .ex-section { margin-top: 22px; }
 .ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 10px; }
 .ex-head h2 { font: var(--t-section); letter-spacing: -0.4px; }
@@ -1156,20 +1175,34 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .tab [class^="icon-"] { font-size: 19px; }
   .tab.on { background: var(--accent-soft); }
 
-  /* dense row lists become a 2-column grid on desktop — uses the width
+  /* dense row lists become a 3-column grid on desktop — uses the width
      instead of one long centered column, without shrinking each row */
   .feed, .ex-list {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
     align-items: start;
     padding: 4px 24px 24px;
   }
-  /* normalize row heights in the 2-column grid across badge/no-badge
+  /* normalize row heights in the 3-column grid across badge/no-badge
      variance, without switching the grid to align-items: stretch */
   .feed .ec-main, .ex-list .ec-main { min-height: 58px; }
   .ex-head { padding-left: 24px; padding-right: 24px; }
   .ex-hero { padding: 32px 24px 8px; }
+
+  /* Magazine layout (desktop only): a full-width editorial hero for the top
+     featured event, replacing the mobile Featured rail's job of doing the
+     same thing at phone-column size — and the other rails compress from a
+     horizontal scroller into a wrapping grid, so the reclaimed width goes
+     toward showing more events at once, not just a wider scrollbar. */
+  .ex-magazine-hero { display: block; height: 380px; margin: 20px 24px 0; }
+  .ex-featured-rail { display: none; }
+  .ex-rail.dense {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    overflow: visible;
+  }
+  .ex-rail.dense .ec-rail { width: auto; }
   .ex-rail { padding-left: 24px; padding-right: 24px; }
   /* let the featured rail breathe with larger cards on desktop */
   .ec-feature { width: 360px; }
