@@ -369,7 +369,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ex-hero-sub { font: var(--t-body); color: var(--text-2); margin: 0; max-width: 46ch; }
 .ex-hero-actions { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
 .ex-hero-actions .btn.lg { width: auto; flex: 0 0 auto; }
-.ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 10px 4px; }
+.ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 10px 4px; white-space: nowrap; }
 .ex-hero-host [class^="icon-"] { font-size: 14px; }
 
 .ex-section { margin-top: 22px; }
