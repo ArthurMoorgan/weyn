@@ -217,6 +217,11 @@ export interface Venue {
   tags: string[];
   verified: boolean;
   subscriptionTier?: string | null;
+  // Present in the raw Prisma row (server orders /api/venues by this
+  // already) but not declared until now — added so the client can use it
+  // as a real "recently added" / trending-tiebreak signal instead of
+  // fabricating one.
+  createdAt?: string;
 }
 
 export interface VenueAvailabilitySlot {

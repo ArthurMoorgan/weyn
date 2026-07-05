@@ -18,6 +18,22 @@ const startTs = (e: Weyn) => new Date(e.startsAt).getTime();
 const bySoonest = (a: Weyn, b: Weyn) => startTs(a) - startTs(b);
 const byPopular = (a: Weyn, b: Weyn) => (b.sold || 0) - (a.sold || 0);
 
+// "Trending" combines how full an event is getting (sold/capacity — a real
+// fill-rate signal, not a fabricated one) with how soon it starts, so a
+// half-full event happening tonight ranks above a half-full event next
+// month. Events without a meaningful capacity (e.g. registration-only, huge
+// capacity placeholders) fall back to raw sold count via fillRate=0..1 clamp.
+function fillRate(e: Weyn): number {
+  if (!e.capacity || e.capacity <= 0 || e.capacity >= 9000) return 0;
+  return Math.min(1, (e.sold || 0) / e.capacity);
+}
+function trendingScore(e: Weyn): number {
+  const hoursUntil = Math.max(1, (startTs(e) - Date.now()) / 36e5);
+  // soon-and-filling beats far-off-and-filling; recency of interest matters more than raw volume
+  return fillRate(e) * 100 + (e.sold || 0) / Math.sqrt(hoursUntil);
+}
+const byTrending = (a: Weyn, b: Weyn) => trendingScore(b) - trendingScore(a);
+
 // horizontal-scroll rail of cards, with a header. Renders nothing if empty.
 // `dense` (desktop-only, see .ex-rail.dense in index.css) wraps the rail
 // into a grid instead of a horizontal scroller — the "denser grid" half of
@@ -153,10 +169,14 @@ export default function Explore() {
 
     if (searching) {
       const t = q.trim().toLowerCase();
-      const results = all.filter((e) =>
-        (e.title + " " + e.organizer + " " + e.area + " " + e.venue + " " + (e.tags || []).join(" "))
-          .toLowerCase().includes(t)
-      );
+      // Searches title/organizer/area/venue/tags (existing) plus the
+      // human-readable category label (new) so typing "music" or "car meets"
+      // matches events even though `e.cat` itself is a short internal key.
+      const results = all.filter((e) => {
+        const catLabel = CATS.find((c) => c.key === e.cat)?.label || e.cat;
+        return (e.title + " " + e.organizer + " " + e.area + " " + e.venue + " " + catLabel + " " + (e.tags || []).join(" "))
+          .toLowerCase().includes(t);
+      });
       return { mode: "search" as const, results };
     }
 
@@ -173,13 +193,19 @@ export default function Explore() {
     const tonight = catFiltered.filter(isTonight);
     const weekend = catFiltered.filter(isThisWeekend);
     const popular = [...catFiltered].sort(byPopular).slice(0, 10);
+    // "Trending this week" — fill-rate + recency-weighted, restricted to the
+    // next 7 days so it reads as "hot right now" rather than just "popular".
+    const trending = [...catFiltered]
+      .filter((e) => startTs(e) - Date.now() < 7 * 864e5)
+      .sort(byTrending)
+      .slice(0, 10);
     // category rails only make sense when browsing "all"
     const catRails = cat === "all"
       ? CATS.filter((c) => c.key !== "all")
           .map((c) => ({ c, list: all.filter((e) => e.cat === c.key).slice(0, 10) }))
           .filter((x) => x.list.length >= 2)
       : [];
-    return { mode: "browse" as const, all: catFiltered, featPool, tonight, weekend, popular, catRails };
+    return { mode: "browse" as const, all: catFiltered, featPool, tonight, weekend, popular, trending, catRails };
   }, [data, cat, when, q, searching]);
 
   return (
@@ -299,6 +325,7 @@ export default function Explore() {
           <>
             {S.featPool[0] && <MagazineHero e={S.featPool[0]} />}
             <Rail title="Featured" subtitle="Hand-picked" events={S.featPool} variant="feature" className="ex-featured-rail" />
+            <Rail title="Trending this week" subtitle="Filling up fast" events={S.trending} dense />
             <Rail title="Happening tonight" events={S.tonight} dense />
             <Rail title="This weekend" events={S.weekend} dense />
             <Rail title="Popular near you" events={S.popular} dense />
