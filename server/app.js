@@ -278,6 +278,158 @@ export function createApp(storage) {
     res.json(e);
   });
 
+  // ---- Reservations (Venue / VenueAvailabilitySlot / Reservation) ----
+  // Separate product from Event ticketing above — a Venue is a standing
+  // place with recurring weekly availability, not a one-off scheduled
+  // happening. See schema.prisma's comment above the Venue model.
+  app.get("/api/venues", async (req, res) => {
+    try {
+      const { category, search, page, limit } = req.query;
+      const take = Math.min(50, Math.max(1, Number(limit) || 20));
+      const currentPage = Math.max(1, Number(page) || 1);
+      const skip = (currentPage - 1) * take;
+
+      const where = {};
+      if (category && category !== "all") where.category = String(category);
+      if (search) {
+        const term = String(search);
+        where.OR = [
+          { name: { contains: term, mode: "insensitive" } },
+          { tags: { has: term } },
+        ];
+      }
+
+      const [venues, total] = await Promise.all([
+        prisma.venue.findMany({ where, orderBy: { createdAt: "desc" }, skip, take }),
+        prisma.venue.count({ where }),
+      ]);
+
+      res.json({ venues, page: currentPage, limit: take, total });
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/venues/:id", async (req, res) => {
+    try {
+      const venue = await prisma.venue.findUnique({
+        where: { id: req.params.id },
+        include: { slots: true },
+      });
+      if (!venue) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+      res.json(venue);
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/venues/:id/reservations", async (req, res) => {
+    try {
+      const venue = await prisma.venue.findUnique({ where: { id: req.params.id } });
+      if (!venue) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+
+      const { guestName, guestEmail, guestPhone, partySize, date, time, slotId, notes } = req.body || {};
+      if (!guestName || !guestEmail || !partySize || !date || !time) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "guestName, guestEmail, partySize, date, and time are required" } });
+      }
+      const size = Number(partySize);
+      if (!Number.isInteger(size) || size <= 0) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "partySize must be a positive integer" } });
+      }
+      const parsedDate = new Date(date);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "date is invalid" } });
+      }
+
+      let slot = null;
+      if (slotId) {
+        slot = await prisma.venueAvailabilitySlot.findUnique({ where: { id: slotId } });
+        if (!slot || slot.venueId !== venue.id) {
+          return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid slotId for this venue" } });
+        }
+        const dayStart = new Date(parsedDate); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+        const existing = await prisma.reservation.findMany({
+          where: {
+            slotId: slot.id,
+            date: { gte: dayStart, lt: dayEnd },
+            status: { in: ["pending", "confirmed"] },
+          },
+        });
+        const bookedCount = existing.reduce((sum, r) => sum + r.partySize, 0);
+        if (bookedCount + size > slot.capacity) {
+          return res.status(409).json({ error: { code: "SLOT_FULL", message: "This time slot doesn't have enough capacity left" } });
+        }
+      }
+
+      const reservation = await prisma.reservation.create({
+        data: {
+          venueId: venue.id,
+          slotId: slot ? slot.id : null,
+          guestName: String(guestName).trim(),
+          guestEmail: String(guestEmail).trim(),
+          guestPhone: guestPhone ? String(guestPhone).trim() : null,
+          partySize: size,
+          date: parsedDate,
+          time: String(time),
+          notes: notes ? String(notes).trim() : null,
+        },
+      });
+      res.status(201).json(reservation);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/reservations", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/reservations/mine", requireAuth, async (req, res) => {
+    try {
+      const reservations = await prisma.reservation.findMany({
+        where: { guestEmail: req.user.email },
+        include: { venue: true, slot: true },
+        orderBy: { date: "desc" },
+      });
+      res.json(reservations);
+    } catch (err) {
+      captureError(err, { route: "GET /api/reservations/mine" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/venues", requireAuth, async (req, res) => {
+    try {
+      const b = req.body || {};
+      if (!b.name || !b.category || !b.description || !b.venue || !b.area) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "name, category, description, venue, and area are required" } });
+      }
+      const venue = await prisma.venue.create({
+        data: {
+          name: String(b.name).trim(),
+          category: String(b.category),
+          description: String(b.description).trim(),
+          venue: String(b.venue).trim(),
+          area: String(b.area).trim(),
+          lat: b.lat ? Number(b.lat) : 23.6100,
+          lng: b.lng ? Number(b.lng) : 58.5400,
+          distanceKm: Number(b.distanceKm) || +(Math.random() * 8 + 1).toFixed(1),
+          coverImage: b.coverImage || null,
+          photos: Array.isArray(b.photos) ? b.photos : [],
+          priceRange: b.priceRange || null,
+          tags: Array.isArray(b.tags) ? b.tags : (b.tags ? String(b.tags).split(",").map((t) => t.trim()).filter(Boolean) : []),
+          ownerId: req.user.id,
+          subscriptionTier: b.subscriptionTier || null,
+          subscriptionStatus: b.subscriptionStatus || null,
+        },
+      });
+      res.status(201).json(venue);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/events", createEventLimiter, requireAuth, upload.single("image"), validateBody(createEventSchema), async (req, res) => {
     try {
       const b = req.body;
