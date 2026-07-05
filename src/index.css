@@ -5,32 +5,32 @@
 
 :root {
   color-scheme: dark;
-  --bg:             #0E1116;
-  --bg-elevated:    #151A21;
-  --surface:        #1B212B;
-  --surface-hover:  #232A36;
-  --border:         #2A313D;
-  --border-strong:  #394250;
-  --primary:        #6F5BFF;
-  --primary-hover:  #816FFF;
-  --primary-pressed:#5C47F4;
-  --success:        #24B36B;
-  --warning:        #F59E0B;
-  --error:          #EF4444;
-  --info:           #3B82F6;
-  --text:           #F8FAFC;
-  --text-2:         #B7C0D0;
-  --text-3:         #8892A4;
-  --text-disabled:  #667085;
-  --icon:           #E2E8F0;
-  --icon-2:         #94A3B8;
-  --divider:        #232A34;
-  --card-bg:        #171D26;
-  --card-border:    #2A313D;
-  --card-shadow:    0 4px 14px rgba(0,0,0,0.20);
-  --accent-soft:    rgba(111,91,255,0.16);
-  --success-soft:   rgba(36,179,107,0.15);
-  --scrim: rgba(10,13,18,0.5);
+  --bg:             #121315;
+  --bg-elevated:    #23262B;
+  --surface:        #1A1C1F;
+  --surface-hover:  #23262B;
+  --border:         #32353A;
+  --border-strong:  #3D4147;
+  --primary:        #4A8DFF;
+  --primary-hover:  #6CA4FF;
+  --primary-pressed:#3A72D1;
+  --success:        #57B86A;
+  --warning:        #D6A44B;
+  --error:          #F26D6D;
+  --info:           #4A8DFF;
+  --text:           #F4F4F5;
+  --text-2:         #B5B8BD;
+  --text-3:         #8A8D93;
+  --text-disabled:  #63666C;
+  --icon:           #F4F4F5;
+  --icon-2:         #B5B8BD;
+  --divider:        #32353A;
+  --card-bg:        #1A1C1F;
+  --card-border:    #32353A;
+  --card-shadow:    0 4px 14px rgba(0,0,0,0.28);
+  --accent-soft:    rgba(74,141,255,0.16);
+  --success-soft:   rgba(87,184,106,0.15);
+  --scrim: rgba(8,9,10,0.5);
 
   /* back-compat aliases so existing ~300 call sites keep working unchanged */
   --surface-2:   var(--surface-hover);
@@ -72,14 +72,14 @@
    paper/Notion than a stark white app. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #F6F7F9; --bg-elevated: #FFFFFF; --surface: #FFFFFF; --surface-hover: #F3F5F8;
-  --border: #E4E7EC; --border-strong: #D5D9E0;
-  --primary: #635BFF; --primary-hover: #5649F8; --primary-pressed: #4B3EEB;
-  --success: #16A34A; --warning: #D97706; --error: #DC2626; --info: #3B82F6;
-  --text: #111827; --text-2: #4B5563; --text-3: #6B7280; --text-disabled: #9CA3AF;
-  --icon: #374151; --icon-2: #6B7280; --divider: #E5E7EB;
-  --card-bg: #FFFFFF; --card-border: #E4E7EC; --card-shadow: 0 4px 14px rgba(15,23,42,.06);
-  --accent-soft: rgba(99,91,255,0.10); --success-soft: rgba(22,163,74,0.10);
+  --bg: #F7F6F3; --bg-elevated: #FFFFFF; --surface: #FFFFFF; --surface-hover: #F1EFEA;
+  --border: #E6E3DD; --border-strong: #D8D3C8;
+  --primary: #1C6DD0; --primary-hover: #175BB0; --primary-pressed: #12488C;
+  --success: #2E7D32; --warning: #B7791F; --error: #C53030; --info: #1C6DD0;
+  --text: #1D1D1F; --text-2: #666666; --text-3: #8A8A8A; --text-disabled: #ACACAC;
+  --icon: #1D1D1F; --icon-2: #666666; --divider: #E6E3DD;
+  --card-bg: #FFFFFF; --card-border: #E6E3DD; --card-shadow: 0 4px 14px rgba(29,29,31,.06);
+  --accent-soft: rgba(28,109,208,0.10); --success-soft: rgba(46,125,50,0.10);
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
@@ -1279,4 +1279,116 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   }
   .admin-grid .stat-grid { padding: 0; grid-template-columns: 1fr 1fr; }
   .admin-grid .steps { padding: 0; }
+}
+
+/* ============================================================
+   Onboarding — first-run flow (src/pages/Onboarding.tsx). Reuses the
+   existing token set (surfaces, radii, spacing, type scale) — only new
+   layout primitives are defined here: step shell, progress dots, the
+   interest/preference card grid, and a fade/slide step transition.
+   ============================================================ */
+.ob-shell {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) var(--space-8);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ob-dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: var(--space-6);
+}
+.ob-dot {
+  width: 8px; height: 8px; border-radius: var(--radius-pill);
+  background: var(--border);
+  transition: background-color .25s, transform .25s;
+}
+.ob-dot.on { background: var(--primary); transform: scale(1.25); }
+.ob-dot.done { background: var(--text-3); }
+
+.ob-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  animation: ob-fade-in .32s ease both;
+}
+@keyframes ob-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ob-stage { animation: none; }
+}
+
+.ob-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1;
+}
+.ob-center {
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding-top: var(--space-8);
+}
+
+.ob-headline {
+  font: var(--t-hero);
+  letter-spacing: -0.6px;
+  max-width: 320px;
+}
+.ob-title { font: var(--t-section); letter-spacing: -0.4px; }
+.ob-sub { font: var(--t-body); color: var(--text-2); margin: 0 0 var(--space-2); }
+
+.ob-icon-badge {
+  width: 64px; height: 64px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px;
+}
+
+.ob-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  margin: var(--space-2) 0 var(--space-4);
+}
+.ob-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text);
+  font: var(--t-card);
+  text-align: left;
+  transition: border-color .15s, background-color .15s, transform .1s;
+}
+.ob-card i { font-size: 20px; color: var(--text-2); }
+.ob-card:active { transform: scale(0.98); }
+.ob-card.on {
+  border-color: var(--primary);
+  background: var(--accent-soft);
+}
+.ob-card.on i { color: var(--primary); }
+
+.ob-cta { margin-top: auto; }
+
+.ob-preview-card { display: flex; flex-direction: column; gap: 4px; }
+.ob-preview-when { padding-left: 2px; }
+
+@media (min-width: 900px) {
+  .ob-shell { padding: var(--space-8) 0; }
+  .ob-grid { grid-template-columns: repeat(3, 1fr); }
 }
