@@ -5,62 +5,61 @@
 
 :root {
   color-scheme: dark;
-  /* Refined dark palette — warmer, richer navy-black instead of flat
-     blue-black, slightly more saturated accent for better presence
-     against it. */
-  --bg:        #0D0F16;
-  --surface:   #15171F;
-  --surface-2: #1C1F2B;
-  --text:      #F5F5F7;
-  --text-2:    #A9AFC2;
-  --text-3:    #70768C;
-  --accent:    #8266FF;
-  --accent-2:  #9A82FF;
-  --accent-soft: rgba(130,102,255,0.16);
-  --success:   #34D399;
-  --success-soft: rgba(52,211,153,0.15);
-  --warning:   #F5A524;
-  --danger:    #F0554A;
-  --ink:       #F5F5F7;
-  --radius:    16px;
-  --radius-sm: 12px;
-  --radius-pill: 999px;
-  --maxw:      468px;
+  --bg:             #0E1116;
+  --bg-elevated:    #151A21;
+  --surface:        #1B212B;
+  --surface-hover:  #232A36;
+  --border:         #2A313D;
+  --border-strong:  #394250;
+  --primary:        #6F5BFF;
+  --primary-hover:  #816FFF;
+  --primary-pressed:#5C47F4;
+  --success:        #24B36B;
+  --warning:        #F59E0B;
+  --error:          #EF4444;
+  --info:           #3B82F6;
+  --text:           #F8FAFC;
+  --text-2:         #B7C0D0;
+  --text-3:         #8892A4;
+  --text-disabled:  #667085;
+  --icon:           #E2E8F0;
+  --icon-2:         #94A3B8;
+  --divider:        #232A34;
+  --card-bg:        #171D26;
+  --card-border:    #2A313D;
+  --card-shadow:    0 4px 14px rgba(0,0,0,0.20);
+  --accent-soft:    rgba(111,91,255,0.16);
+  --success-soft:   rgba(36,179,107,0.15);
+  --scrim: rgba(10,13,18,0.5);
 
-  /* thin, low-contrast hairlines — used sparingly, never as the primary
-     way to separate content (spacing/surface-color does that instead) */
-  --hair:      rgba(255,255,255,0.08);
-  --line:      rgba(255,255,255,0.10);
-  --chip-soft: var(--surface-2);
+  /* back-compat aliases so existing ~300 call sites keep working unchanged */
+  --surface-2:   var(--surface-hover);
+  --accent:      var(--primary);
+  --accent-2:    var(--primary-hover);
+  --danger:      var(--error);
+  --ink:         var(--text);
+  --hair:        var(--divider);
+  --line:        var(--border);
+  --chip-soft:   var(--surface-hover);
 
-  /* subtle shadows only — no colored glow, no multi-layer "float" shadows */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.35);
+  --radius: 16px; --radius-sm: 12px; --radius-pill: 999px; --maxw: 468px;
+  --shadow-sm: 0 2px 6px rgba(15,23,42,.05);
+  --shadow-md: 0 8px 20px rgba(15,23,42,.08);
+  --shadow-lg: 0 20px 40px rgba(15,23,42,.10);
+  --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
+  --glass-edge: transparent; --glass-line: var(--border); --glass-shadow: var(--shadow-sm);
+  --shadow-float: var(--shadow-md); --lens: none;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-8: 48px;
+  --btn-h: 48px; --btn-h-lg: 56px; --btn-h-sm: 40px;
 
-  /* back-compat aliases so components not yet touched in this pass still
-     resolve to something reasonable instead of breaking outright */
-  --glass:        var(--surface);
-  --glass-strong: var(--surface-2);
-  --glass-soft:   var(--surface);
-  --glass-edge:   transparent;
-  --glass-line:   var(--line);
-  --glass-shadow: var(--shadow-sm);
-  --shadow-float: var(--shadow-md);
-  --lens: none;
+  --cat-music: #A855F7; --cat-sports: #16A34A; --cat-food: #F97316;
+  --cat-culture: #EC4899; --cat-cars: #6366F1; --cat-workshop: #2563EB;
+  --cat-community: #14B8A6;
 
-  /* spacing scale — real ramp (previously 3/4 and 5/6 were duplicates) */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-8: 48px;
-
-  /* button heights — 44px+ tap targets, three sizes */
-  --btn-h:    48px;
-  --btn-h-lg: 56px;
-  --btn-h-sm: 40px;
+  /* fallback scrim used by Stub.tsx cover gradients — theme-aware so the
+     hardcoded #14151A55 doesn't look wrong in light mode */
+  --fallback-scrim: rgba(0,0,0,0.33);
 }
 
 /* Light mode kept as a real, distinct theme (not deleted — the toggle stays)
@@ -73,32 +72,21 @@
    paper/Notion than a stark white app. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg:        #F6F1E7;
-  --surface:   #FFFDF8;
-  --surface-2: #EDE6D6;
-  --text:      #2A241C;
-  --text-2:    #6B6152;
-  --text-3:    #9C9280;
-  --accent:    #6B46E5;
-  --accent-2:  #5836CC;
-  --accent-soft: rgba(107,70,229,0.10);
-  --success:   #0E8A5F;
-  --success-soft: rgba(14,138,95,0.10);
-  --warning:   #B5650B;
-  --danger:    #C43B2E;
-  --ink:       #2A241C;
-  --hair:      rgba(42,36,28,0.08);
-  --line:      rgba(42,36,28,0.12);
-  --chip-soft: var(--surface-2);
-  --shadow-sm: 0 1px 2px rgba(42,36,28,0.07);
-  --shadow-md: 0 4px 16px rgba(42,36,28,0.09);
-  --glass:        var(--surface);
-  --glass-strong: var(--surface-2);
-  --glass-soft:   var(--surface);
-  --glass-edge:   transparent;
-  --glass-line:   var(--line);
-  --glass-shadow: var(--shadow-sm);
-  --shadow-float: var(--shadow-md);
+  --bg: #F6F7F9; --bg-elevated: #FFFFFF; --surface: #FFFFFF; --surface-hover: #F3F5F8;
+  --border: #E4E7EC; --border-strong: #D5D9E0;
+  --primary: #635BFF; --primary-hover: #5649F8; --primary-pressed: #4B3EEB;
+  --success: #16A34A; --warning: #D97706; --error: #DC2626; --info: #3B82F6;
+  --text: #111827; --text-2: #4B5563; --text-3: #6B7280; --text-disabled: #9CA3AF;
+  --icon: #374151; --icon-2: #6B7280; --divider: #E5E7EB;
+  --card-bg: #FFFFFF; --card-border: #E4E7EC; --card-shadow: 0 4px 14px rgba(15,23,42,.06);
+  --accent-soft: rgba(99,91,255,0.10); --success-soft: rgba(22,163,74,0.10);
+  --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
+  --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
+  --chip-soft: var(--surface-hover);
+  --shadow-sm: 0 2px 6px rgba(15,23,42,.05); --shadow-md: 0 8px 20px rgba(15,23,42,.08); --shadow-lg: 0 20px 40px rgba(15,23,42,.10);
+  --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
+  --glass-edge: transparent; --glass-line: var(--border); --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
+  --fallback-scrim: rgba(0,0,0,0.15);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -289,8 +277,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ec-row {
   display: flex; align-items: stretch; gap: 12px;
   padding: 8px; border-radius: 14px;
-  background: var(--surface);
-  border: 1px solid var(--hair);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
   transition: border-color .16s ease, transform .16s ease, background .16s ease;
 }
 .ec-row:active { transform: scale(0.99); }
@@ -336,7 +325,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ec-rail { flex: 0 0 auto; width: 200px; display: flex; flex-direction: column; gap: 8px; }
 .ec-rail-cover {
   aspect-ratio: 16/10; border-radius: 14px; overflow: hidden;
-  background-size: cover; background-position: center; background-color: var(--surface-2);
+  background-size: cover; background-position: center; background-color: var(--card-bg);
   position: relative; display: grid; place-items: center;
 }
 .ec-rail-cover .ec-badge { position: absolute; top: 8px; left: 8px; backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
@@ -346,7 +335,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ec-feature { flex: 0 0 auto; width: 300px; }
 .ec-feature-cover {
   aspect-ratio: 3/2; border-radius: 16px; overflow: hidden; position: relative;
-  background-size: cover; background-position: center; background-color: var(--surface-2);
+  background-size: cover; background-position: center; background-color: var(--card-bg);
   display: grid; place-items: center;
 }
 .ec-feature-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,8,12,0.92) 0%, rgba(6,8,12,0.25) 45%, transparent 70%); }
@@ -430,7 +419,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border: 1px solid var(--glass-line); background: #dfe7e9; z-index: 0;
 }
 .map-canvas.mini { height: 150px; }
-.leaflet-container { font-family: inherit; background: #dfe7e9; }
+.leaflet-container { font-family: inherit; background: var(--surface-hover); }
 .map-search { display: flex; align-items: center; gap: 8px; position: relative; margin-bottom: 10px; }
 .map-search [class^="icon-"] { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); font-size: 17px; color: var(--text-3); }
 .map-search input {
@@ -500,8 +489,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .onboard-ic {
   width: 34px; height: 34px; border-radius: 10px; margin-bottom: 10px;
-  display: grid; place-items: center; font-size: 17px; color: var(--accent);
-  background: var(--accent-soft);
+  display: grid; place-items: center; font-size: 17px; color: var(--icon);
+  background: var(--surface-hover);
 }
 .onboard-item b { font-size: 13.5px; font-weight: 600; display: block; margin-bottom: 3px; }
 .onboard-item span { font-size: 12px; color: var(--text-2); line-height: 1.4; }
@@ -591,7 +580,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: flex; align-items: center; gap: 12px;
 }
 .ic-mark { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center;
-  background: linear-gradient(160deg, #6366F1, #4338CA); color: #fff; box-shadow: 0 4px 12px rgba(79,70,229,0.35); }
+  background: var(--surface-hover); color: var(--primary); }
 .ic-mark.big { width: 68px; height: 68px; border-radius: 18px; margin: 0 auto 14px; }
 .ic-body { flex: 1; min-width: 0; }
 .ic-body b { font-size: 14.5px; display: block; }
@@ -693,7 +682,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .host-row .host { margin-top: 0; }
 .tagrow { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
 .tagrow .tg { font-size: 12px; font-weight: 500; color: var(--text-2); background: var(--surface-2); padding: 4px 10px; border-radius: var(--radius-pill); }
-.catpill { display: inline-block; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 4px 11px; border-radius: var(--radius-pill); }
+.catpill { display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: var(--radius-pill); }
+.catpill.cat-music { color: var(--cat-music); background: color-mix(in srgb, var(--cat-music) 14%, transparent); }
+.catpill.cat-sports { color: var(--cat-sports); background: color-mix(in srgb, var(--cat-sports) 14%, transparent); }
+.catpill.cat-food { color: var(--cat-food); background: color-mix(in srgb, var(--cat-food) 14%, transparent); }
+.catpill.cat-culture { color: var(--cat-culture); background: color-mix(in srgb, var(--cat-culture) 14%, transparent); }
+.catpill.cat-cars { color: var(--cat-cars); background: color-mix(in srgb, var(--cat-cars) 14%, transparent); }
+.catpill.cat-workshop { color: var(--cat-workshop); background: color-mix(in srgb, var(--cat-workshop) 14%, transparent); }
+.catpill.cat-community { color: var(--cat-community); background: color-mix(in srgb, var(--cat-community) 14%, transparent); }
 /* metadata grouped into one compact, scannable block — no per-row divider
    lines, just consistent vertical rhythm inside a single surface */
 .facts { margin: 18px 0 6px; padding: 4px 16px; border-radius: var(--radius-sm); background: var(--surface); }
@@ -929,7 +925,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.3px; padding: 2px 7px; border-radius: 999px; margin-left: 7px; vertical-align: middle;
 }
-.discovery-tag.warn { color: #a06a00; background: rgba(255,171,0,0.14); }
+.discovery-tag.warn { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); }
 .discovery-tag.danger { color: var(--danger); background: rgba(199,64,44,0.12); }
 .dash-row .thumb { width: 46px; height: 46px; border-radius: 12px; background-size: cover; background-position: center; flex: 0 0 auto; display: grid; place-items: center; font-size: 22px; }
 .dash-row .info { flex: 1; min-width: 0; }

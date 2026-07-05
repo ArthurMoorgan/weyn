@@ -120,7 +120,7 @@ export default function EventDetail() {
       {listSheet && <AddToListSheet eventId={ev.id} onClose={() => setListSheet(false)} />}
 
       <div className="sheet glass">
-        <span className="catpill">{cat?.label}</span>
+        <span className={`catpill cat-${ev.cat}`}>{cat?.label}</span>
         <h1 style={{ marginTop: 12 }}>{ev.title}</h1>
         <div className="host-row">
           {ev.ownerId ? (

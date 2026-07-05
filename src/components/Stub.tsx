@@ -10,8 +10,11 @@ import { type Weyn, ticketsLeft, isSoldOut, isTonight, dayLabel, timeLabel } fro
 //   feature — large hero card for the Featured rail.
 type Variant = "list" | "rail" | "feature";
 
+// The trailing stop uses the theme-aware --fallback-scrim CSS var (defined in
+// src/index.css for both dark/light :root blocks) instead of a hardcoded hex,
+// so this reads correctly in light mode too.
 function fallbackGradient(color: string): string {
-  return `linear-gradient(150deg, ${color}, ${color}B0 60%, #14151A55)`;
+  return `linear-gradient(150deg, ${color}, ${color}B0 60%, var(--fallback-scrim))`;
 }
 
 // short "going" count — only shown when it's a real signal (>0), never a
