@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import { api, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn, type TeamRole } from "../api";
-import { useAsync } from "../hooks";
+import { useAsync, useClosing } from "../hooks";
 import { getOrganizer, useAccount, useTickets, useSaved } from "../store";
 import Stub from "../components/Stub";
 import ThemeToggle from "../components/ThemeToggle";
@@ -427,6 +427,7 @@ function EditSheet({ event, onClose, onSaved }: { event: Weyn; onClose: () => vo
   const [blurb, setBlurb] = useState(event.blurb);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const { closing, close } = useClosing(onClose);
 
   async function save() {
     setBusy(true); setErr("");
@@ -439,15 +440,15 @@ function EditSheet({ event, onClose, onSaved }: { event: Weyn; onClose: () => vo
   }
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="install-sheet glass" style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
+    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
+      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 14 }}>Edit "{event.title}"</h3>
         <div className="field"><label>Price (OMR)</label><input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" /></div>
         <div className="field"><label>Capacity</label><input value={capacity} onChange={(e) => setCapacity(e.target.value)} inputMode="numeric" /></div>
         <div className="field"><label>Description</label><textarea rows={3} value={blurb} onChange={(e) => setBlurb(e.target.value)} /></div>
         {err && <p className="errline">{err}</p>}
         <button className="btn" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
-        <button className="btn glass" style={{ marginTop: 8 }} onClick={onClose}>Cancel</button>
+        <button className="btn glass" style={{ marginTop: 8 }} onClick={close}>Cancel</button>
       </div>
     </div>
   );
@@ -456,6 +457,7 @@ function EditSheet({ event, onClose, onSaved }: { event: Weyn; onClose: () => vo
 /* ---------- Attendees sheet ---------- */
 function AttendeesSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
   const { data, loading, error } = useAsync(() => api.getAttendees(event.id), [event.id]);
+  const { closing, close } = useClosing(onClose);
 
   function exportCsv() {
     const rows = data || [];
@@ -473,8 +475,8 @@ function AttendeesSheet({ event, onClose }: { event: Weyn; onClose: () => void }
   }
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="install-sheet glass" style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
+    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
+      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 14 }}>Attendees — {event.title}</h3>
         {loading && <div className="spin" style={{ margin: "20px auto" }} />}
         {error && <p className="errline">{error}</p>}
@@ -495,7 +497,7 @@ function AttendeesSheet({ event, onClose }: { event: Weyn; onClose: () => void }
             <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No named attendees yet — people who book while signed in with Google will show up here.</p>
           )
         )}
-        <button className="btn glass" onClick={onClose} style={{ marginTop: 8 }}>Close</button>
+        <button className="btn glass" onClick={close} style={{ marginTop: 8 }}>Close</button>
       </div>
     </div>
   );
@@ -506,6 +508,7 @@ function MarketingSheet({ event, onClose }: { event: Weyn; onClose: () => void }
   const { data, loading, error, reload } = useAsync(() => api.getMarketing(event.id), [event.id]);
   const [regenerating, setRegenerating] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const { closing, close } = useClosing(onClose);
 
   async function regenerate() {
     setRegenerating(true);
@@ -526,8 +529,8 @@ function MarketingSheet({ event, onClose }: { event: Weyn; onClose: () => void }
   ] : [];
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="install-sheet glass" style={{ textAlign: "left", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
+      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 4 }}>Marketing — {event.title}</h3>
         <p className="hint" style={{ margin: "0 0 14px" }}>
           {data?.aiGenerated ? "Generated with AI." : "Generated from your event details."} Copy and post anywhere.
@@ -548,7 +551,7 @@ function MarketingSheet({ event, onClose }: { event: Weyn; onClose: () => void }
         <button className="btn glass" onClick={regenerate} disabled={regenerating} style={{ marginTop: 4 }}>
           <i className="icon-refresh-cw" /> {regenerating ? "Regenerating…" : "Regenerate"}
         </button>
-        <button className="btn glass" style={{ marginTop: 8 }} onClick={onClose}>Close</button>
+        <button className="btn glass" style={{ marginTop: 8 }} onClick={close}>Close</button>
       </div>
     </div>
   );
@@ -559,10 +562,11 @@ function AnalyticsSheet({ event, onClose }: { event: Weyn; onClose: () => void }
   const { data, loading, error } = useAsync(() => api.eventAnalytics(event.id), [event.id]);
   const maxTier = data ? Math.max(1, ...data.tierBreakdown.map((t) => t.sold)) : 1;
   const maxDay = data ? Math.max(1, ...data.salesByDay.map((d) => d.qty)) : 1;
+  const { closing, close } = useClosing(onClose);
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="install-sheet glass" style={{ textAlign: "left", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
+      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 14 }}>Analytics — {event.title}</h3>
         {loading && <div className="spin" style={{ margin: "20px auto" }} />}
         {error && <p className="errline">{error}</p>}
@@ -609,7 +613,7 @@ function AnalyticsSheet({ event, onClose }: { event: Weyn; onClose: () => void }
             )}
           </>
         )}
-        <button className="btn glass" style={{ marginTop: 14 }} onClick={onClose}>Close</button>
+        <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Close</button>
       </div>
     </div>
   );
@@ -626,6 +630,7 @@ function TeamSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
   const [inviteErr, setInviteErr] = useState("");
   const [lastLink, setLastLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const { closing, close } = useClosing(onClose);
 
   async function invite() {
     if (!email.trim()) return;
@@ -652,8 +657,8 @@ function TeamSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
   }
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="install-sheet glass" style={{ textAlign: "left", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
+      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 4 }}>Team — {event.title}</h3>
         <p className="hint" style={{ margin: "0 0 14px" }}>
           Managers get full event access. Staff can only check people in at the door.
@@ -702,7 +707,7 @@ function TeamSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
             <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No team members yet.</p>
           )
         )}
-        <button className="btn glass" style={{ marginTop: 14 }} onClick={onClose}>Close</button>
+        <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Close</button>
       </div>
     </div>
   );
@@ -758,10 +763,11 @@ function CheckInSheet({ event, onClose }: { event: Weyn; onClose: () => void }) 
     scannerRef.current?.stop().catch(() => {});
     setScanning(false);
   }
+  const { closing, close } = useClosing(() => { stopScanner(); onClose(); });
 
   return (
-    <div className="sheet-backdrop" onClick={() => { stopScanner(); onClose(); }}>
-      <div className="install-sheet glass" style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
+    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
+      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 4 }}>Check-in — {event.title}</h3>
         <p className="hint" style={{ margin: "0 0 14px" }}>{checkedInCount} checked in this session</p>
 
@@ -788,7 +794,7 @@ function CheckInSheet({ event, onClose }: { event: Weyn; onClose: () => void }) 
           </p>
         )}
 
-        <button className="btn glass" style={{ marginTop: 14 }} onClick={() => { stopScanner(); onClose(); }}>Close</button>
+        <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Close</button>
       </div>
     </div>
   );
