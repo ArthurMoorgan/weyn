@@ -12,7 +12,7 @@ export default function EventDetail() {
   const { id } = useParams();
   const nav = useNavigate();
   useSaved();
-  const { data: e, loading, error, reload } = useAsync(() => api.getEvent(id!), [id]);
+  const { data: e, loading, error, reload } = useAsync(() => api.getEvent(id!), [id], { cacheKey: `event:${id}` });
   const [booked, setBooked] = useState<Weyn | null>(null);
   const [booking, setBooking] = useState(false);
   const [bookErr, setBookErr] = useState("");

@@ -234,6 +234,7 @@ export function createApp(storage) {
       );
       db.track("search", { userId: req.user?.id, metadata: { query: q, resultCount: events.length } }).catch(() => {});
     }
+    res.set('Cache-Control', 'public, max-age=30');
     res.json(events);
   });
 
@@ -261,6 +262,7 @@ export function createApp(storage) {
       return res.status(404).json({ error: "Event not found" });
     }
     db.track("event_view", { userId: req.user?.id, entityId: e.id }).catch(() => {});
+    res.set('Cache-Control', 'public, max-age=30');
     res.json(e);
   });
 

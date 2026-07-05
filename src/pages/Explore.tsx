@@ -88,7 +88,7 @@ export default function Explore() {
   const [activeIdx, setActiveIdx] = useState(-1);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const { data, loading, error, reload } = useAsync(() => api.listEvents(), []);
+  const { data, loading, error, reload } = useAsync(() => api.listEvents(), [], { cacheKey: "events:all" });
   const searching = q.trim().length > 0;
 
   // Explore is the app's root route, so the initial-content-loading period
