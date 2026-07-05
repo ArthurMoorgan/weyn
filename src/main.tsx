@@ -105,7 +105,17 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/checkout/cancel" element={<CheckoutCancel />} />
             <Route path="/invite/:token" element={<InviteAccept />} />
             <Route path="/collections/:id" element={<CollectionPage />} />
-            <Route path="/onboarding" element={<Onboarding />} />
+            <Route
+              path="/onboarding"
+              element={
+                <Onboarding
+                  onDone={() => {
+                    localStorage.setItem("weyn.onboarding.completed", "1");
+                    window.location.replace("/");
+                  }}
+                />
+              }
+            />
           </Routes>
         </Router>
       </ClerkProvider>

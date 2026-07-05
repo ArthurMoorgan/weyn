@@ -252,8 +252,8 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
             <Logo size={36} />
             <h2 className="ob-title">Create your account</h2>
             <p className="ob-sub">Save events, get reminders, and pick up where you left off.</p>
-            <SignUpButton mode="modal">
-              <button className="btn lg">Sign up</button>
+            <SignUpButton mode="modal" forceRedirectUrl="/">
+              <button className="btn lg" onClick={() => onDone?.()}>Sign up</button>
             </SignUpButton>
             <button className="btn glass ob-cta" onClick={() => onDone?.()}>Maybe later</button>
           </div>

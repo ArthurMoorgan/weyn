@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, CATS, type Cat, type Weyn, isTonight, isToday, isTomorrow, isThisWeekend, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
@@ -112,6 +112,10 @@ const SUGGEST_ICON: Record<Suggestion["kind"], string> = {
 
 export default function Explore() {
   const account = useAccount();
+  const nav = useNavigate();
+  useEffect(() => {
+    if (!localStorage.getItem("weyn.onboarding.completed")) nav("/onboarding", { replace: true });
+  }, [nav]);
   const [cat, setCat] = useState<Cat | "all">("all");
   const [when, setWhen] = useState<"all" | "today" | "tomorrow" | "weekend">("all");
   const [q, setQ] = useState("");
