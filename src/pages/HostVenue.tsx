@@ -1,73 +1,84 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE, VENUE_CATS, type PriceRange, type VenueCategory } from "../api";
-import { getAuthToken, useAccount } from "../store";
+import { api, type PriceRange, type VenueCategory } from "../api";
+import { useAccount } from "../store";
 import MapPicker from "../components/MapPicker";
 import ThemeToggle from "../components/ThemeToggle";
+import AccountWidget from "../components/AccountWidget";
 
-// ---------------------------------------------------------------
-// Host your venue — a separate multi-step onboarding flow for
-// restaurants/cafes/lounges/rooftops/beach clubs/experiences that want
-// reservation hosting. Distinct from Organizer.tsx's event-hosting flow.
-// ---------------------------------------------------------------
+// ============================================================
+// Host your venue — a distinct flow from Organizer.tsx (event hosting).
+// Internal step state, no router changes. Mount at whatever path you like,
+// e.g. <Route path="/host-venue" element={<HostVenue />} /> in main.tsx.
+// ============================================================
 
-const TOTAL_STEPS = 7;
-
-type BusinessCard = { key: VenueCategory; label: string; icon: string };
-const BUSINESS_CARDS: BusinessCard[] = [
+const BUSINESS_TYPES: { key: VenueCategory; label: string; icon: string }[] = [
   { key: "restaurant", label: "Restaurant", icon: "utensils" },
-  { key: "cafe", label: "Cafe", icon: "coffee" },
+  { key: "cafe", label: "Café", icon: "coffee" },
   { key: "lounge", label: "Lounge", icon: "martini" },
-  { key: "rooftop", label: "Rooftop", icon: "building-2" },
+  { key: "rooftop", label: "Rooftop", icon: "building" },
   { key: "beach_club", label: "Beach Club", icon: "umbrella" },
   { key: "experience", label: "Experience", icon: "sparkles" },
 ];
 
 const GUEST_TAGS = [
-  "Date night", "Family friendly", "Business lunch", "Live music",
-  "Group celebrations", "Quiet work", "Weekend brunch", "Special occasions",
+  "Date night", "Family friendly", "Business lunch",
+  "Live music", "Group celebrations", "Quiet work",
 ];
 
-const PRICE_RANGES: PriceRange[] = ["$", "$$", "$$$"];
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+type DaySlot = { enabled: boolean; start: string; end: string; capacity: string };
 
-type TimeRange = { start: string; end: string; capacity: string };
-type DayAvailability = { enabled: boolean; ranges: TimeRange[] };
-
-type SubscriptionTier = "starter" | "growth";
-
-const TIER_INFO: Record<SubscriptionTier, { label: string; price: string; features: string[] }> = {
-  starter: {
-    label: "Starter",
-    price: "OMR 19/month",
-    features: ["Reservation management", "Venue listing", "Availability management", "Customer reservation dashboard", "Basic analytics"],
-  },
-  growth: {
-    label: "Growth",
-    price: "OMR 39/month",
-    features: ["Everything in Starter", "Featured placement", "Advanced analytics", "Custom branding", "Priority support"],
-  },
+type Plan = {
+  key: "starter" | "growth";
+  name: string;
+  price: string;
+  features: string[];
 };
 
-interface PhotoItem {
-  id: string;
-  file: File;
-  previewUrl: string;
-  status: "uploading" | "done" | "error";
-  uploadedUrl?: string;
-}
+const PLANS: Plan[] = [
+  {
+    key: "starter",
+    name: "Starter",
+    price: "OMR 19/month",
+    features: [
+      "Reservation management",
+      "Venue listing",
+      "Availability management",
+      "Customer dashboard",
+      "Basic analytics",
+    ],
+  },
+  {
+    key: "growth",
+    name: "Growth",
+    price: "OMR 39/month",
+    features: [
+      "Everything in Starter",
+      "Featured placement",
+      "Advanced analytics",
+      "Custom branding",
+      "Priority support",
+    ],
+  },
+];
 
-function newDayAvailability(): DayAvailability {
-  return { enabled: false, ranges: [{ start: "18:00", end: "22:00", capacity: "20" }] };
-}
+const STEP_LABELS = [
+  "Business type", "Guests", "Photos", "Details", "Availability", "Plan", "Review",
+];
+
+const TOTAL_STEPS = STEP_LABELS.length;
 
 export default function HostVenue() {
   const nav = useNavigate();
   const account = useAccount();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // 0-indexed, 0..TOTAL_STEPS-1
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState<{ id: string; name: string } | null>(null);
 
   // Step 1
   const [category, setCategory] = useState<VenueCategory | null>(null);
@@ -75,162 +86,121 @@ export default function HostVenue() {
   // Step 2
   const [tags, setTags] = useState<string[]>([]);
 
-  // Step 3
-  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  // Step 3 — photos. First photo becomes coverImage, rest become photos[].
+  // Reuses Organizer.tsx's image-upload conventions (accept image/*, 6MB cap,
+  // object URLs for live preview). There is no standalone image-upload
+  // endpoint yet — only POST /api/events bundles one via multer — so photos
+  // are read as data URLs client-side and sent as strings to POST /api/venues,
+  // which accepts coverImage/photos as plain strings.
+  const [photos, setPhotos] = useState<{ file: File; url: string }[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [photoErr, setPhotoErr] = useState("");
 
-  // Step 4
+  // Step 4 — business details
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [loc, setLoc] = useState<{ lat: number; lng: number }>({ lat: 23.61, lng: 58.54 });
   const [address, setAddress] = useState("");
   const [area, setArea] = useState("Muscat");
-  const [priceRange, setPriceRange] = useState<PriceRange | null>(null);
+  const [loc, setLoc] = useState<{ lat: number; lng: number }>({ lat: 23.61, lng: 58.54 });
+  const [priceRange, setPriceRange] = useState<PriceRange>("$$");
 
-  // Step 5 — client-side only, no bulk-create API yet (TODO backend gap)
-  const [availability, setAvailability] = useState<Record<string, DayAvailability>>(() =>
-    Object.fromEntries(DAYS.map((d) => [d, newDayAvailability()]))
-  );
+  // Step 5 — availability (client-side only, no bulk-create API yet)
+  const [availability, setAvailability] = useState<Record<number, DaySlot>>(() => {
+    const init: Record<number, DaySlot> = {};
+    DAYS.forEach((_, i) => { init[i] = { enabled: false, start: "10:00", end: "22:00", capacity: "20" }; });
+    return init;
+  });
 
-  // Step 6
-  const [tier, setTier] = useState<SubscriptionTier | null>(null);
+  // Step 6 — subscription
+  const [tier, setTier] = useState<"starter" | "growth" | null>(null);
 
-  // Step 7 (submit)
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [success, setSuccess] = useState(false);
-
-  function toggleTag(tag: string) {
-    setTags((t) => (t.includes(tag) ? t.filter((x) => x !== tag) : [...t, tag]));
+  function readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 
-  function addFiles(files: FileList | File[]) {
-    const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    const items: PhotoItem[] = arr.map((file) => ({
-      id: Math.random().toString(36).slice(2),
-      file,
-      previewUrl: URL.createObjectURL(file),
-      status: "uploading",
-    }));
-    setPhotos((p) => [...p, ...items]);
-    items.forEach((item) => uploadPhoto(item));
+  function addPhotos(files: FileList | File[]) {
+    const list = Array.from(files);
+    const accepted: { file: File; url: string }[] = [];
+    let errMsg = "";
+    for (const file of list) {
+      if (!file.type.startsWith("image/")) { errMsg = "Only image files are allowed."; continue; }
+      if (file.size > 6 * 1024 * 1024) { errMsg = "Each image must be under 6 MB."; continue; }
+      accepted.push({ file, url: URL.createObjectURL(file) });
+    }
+    setPhotoErr(errMsg);
+    if (accepted.length) setPhotos((p) => [...p, ...accepted]);
   }
 
-  // NOTE: there is no standalone image-upload endpoint in this backend — the
-  // only upload mechanism (multer) is bundled into POST /api/events for event
-  // cover photos. Rather than invent a fake upload call here, we treat the
-  // local object URL as the "uploaded" result so the flow works end-to-end
-  // client-side. TODO(backend): add a real POST /api/uploads (or similar)
-  // that HostVenue.tsx can call, then swap this stub for a real fetch.
-  async function uploadPhoto(item: PhotoItem) {
-    await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
-    setPhotos((prev) =>
-      prev.map((p) => (p.id === item.id ? { ...p, status: "done", uploadedUrl: p.previewUrl } : p))
-    );
+  function removePhoto(i: number) {
+    setPhotos((p) => p.filter((_, j) => j !== i));
   }
 
-  function removePhoto(id: string) {
-    setPhotos((p) => p.filter((x) => x.id !== id));
+  function toggleTag(t: string) {
+    setTags((s) => (s.includes(t) ? s.filter((x) => x !== t) : [...s, t]));
   }
 
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragOver(false);
-    if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files);
+  function updateDay(i: number, patch: Partial<DaySlot>) {
+    setAvailability((s) => ({ ...s, [i]: { ...s[i], ...patch } }));
   }
 
-  function setDayEnabled(day: string, enabled: boolean) {
-    setAvailability((a) => ({ ...a, [day]: { ...a[day], enabled } }));
-  }
-  function addRange(day: string) {
-    setAvailability((a) => ({
-      ...a,
-      [day]: { ...a[day], ranges: [...a[day].ranges, { start: "18:00", end: "22:00", capacity: "20" }] },
-    }));
-  }
-  function removeRange(day: string, idx: number) {
-    setAvailability((a) => ({
-      ...a,
-      [day]: { ...a[day], ranges: a[day].ranges.filter((_, i) => i !== idx) },
-    }));
-  }
-  function setRange(day: string, idx: number, patch: Partial<TimeRange>) {
-    setAvailability((a) => ({
-      ...a,
-      [day]: { ...a[day], ranges: a[day].ranges.map((r, i) => (i === idx ? { ...r, ...patch } : r)) },
-    }));
-  }
-
-  function canGoNext(): boolean {
+  // ---- validation per step, gates the Next button ----
+  const canNext = useMemo(() => {
     switch (step) {
-      case 1: return category !== null;
-      case 2: return tags.length > 0;
-      case 3: return photos.some((p) => p.status === "done");
-      case 4: return !!(name.trim() && address.trim() && priceRange);
-      case 5: return true; // optional
-      case 6: return tier !== null;
+      case 0: return !!category;
+      case 1: return true; // tags optional
+      case 2: return photos.length > 0;
+      case 3: return name.trim().length > 0 && address.trim().length > 0 && area.trim().length > 0;
+      case 4: return true; // availability optional / client-side only
+      case 5: return !!tier;
       default: return true;
     }
-  }
+  }, [step, category, photos, name, address, area, tier]);
 
   function goNext() {
-    if (!canGoNext()) return;
-    setStep((s) => Math.min(TOTAL_STEPS, s + 1));
+    if (!canNext) return;
+    setErr("");
+    setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
   }
   function goBack() {
-    setStep((s) => Math.max(1, s - 1));
-  }
-
-  function coverAndPhotos(): { coverImage?: string; photos: string[] } {
-    const done = photos.filter((p) => p.status === "done" && p.uploadedUrl);
-    const [first, ...rest] = done;
-    return { coverImage: first?.uploadedUrl, photos: rest.map((p) => p.uploadedUrl!) };
+    setErr("");
+    setStep((s) => Math.max(s - 1, 0));
   }
 
   async function submit() {
-    if (!category || !priceRange || !tier) return;
-    setSubmitting(true);
-    setSubmitError("");
+    if (!category || !tier) return;
+    setBusy(true); setErr("");
     try {
-      const { coverImage, photos: restPhotos } = coverAndPhotos();
-      const token = await getAuthToken();
-      const res = await fetch(`${API_BASE}/api/venues`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          category,
-          description: description.trim() || undefined,
-          venue: address.trim(),
-          area: area.trim(),
-          lat: loc.lat,
-          lng: loc.lng,
-          coverImage,
-          photos: restPhotos,
-          priceRange,
-          tags,
-          subscriptionTier: tier,
-        }),
+      const dataUrls = await Promise.all(photos.map((p) => readFileAsDataUrl(p.file)));
+      const coverImage = dataUrls[0];
+      const rest = dataUrls.slice(1);
+      const created = await api.createVenue({
+        name: name.trim(),
+        category,
+        description: description.trim() || undefined,
+        venue: address.trim(),
+        area: area.trim(),
+        lat: loc.lat,
+        lng: loc.lng,
+        coverImage,
+        photos: rest,
+        priceRange,
+        tags,
+        subscriptionTier: tier,
       });
-      const isJson = (res.headers.get("content-type") || "").includes("application/json");
-      const body = isJson ? await res.json().catch(() => ({})) : {};
-      if (!res.ok) {
-        const err = (body as any).error;
-        const message = typeof err === "string" ? err : err?.message;
-        throw new Error(message || `Request failed (${res.status})`);
-      }
-      setSuccess(true);
+      setDone({ id: created.id, name: created.name });
     } catch (e: any) {
-      setSubmitError(e.message || "Couldn't submit your venue. Please try again.");
+      setErr(e.message || "Couldn't submit your venue. Please try again.");
     } finally {
-      setSubmitting(false);
+      setBusy(false);
     }
   }
 
-  // ---- sign-in gate, same convention as Organizer.tsx ----
+  // ---- signed-out gate ----
   if (!account) {
     return (
       <>
@@ -239,51 +209,51 @@ export default function HostVenue() {
           <div className="tb-right"><ThemeToggle /></div>
         </header>
         <div className="page-head">
-          <h1>Bring reservations to your venue</h1>
-          <p className="sub">List your restaurant, cafe, lounge, rooftop, beach club, or experience — and start taking bookings through Weyn.</p>
+          <h1>Bring your venue to Weyn</h1>
+          <p className="sub">List your restaurant, café, lounge, or experience — reservations, availability, and guests, all in one place.</p>
         </div>
-        <div style={{ padding: "20px 20px 0" }}>
+        <div style={{ padding: "4px 20px 0" }}>
           <div className="onboard-cta">
             <b>Sign in to get started</b>
-            <span>We verify your identity so only you can manage the venue you list.</span>
+            <span>We verify your identity so only you can manage this venue's listing and reservations.</span>
+            <div className="onboard-signin"><AccountWidget /></div>
           </div>
         </div>
       </>
     );
   }
 
-  if (success) {
+  // ---- success screen ----
+  if (done) {
     return (
       <>
         <header className="topbar">
           <div className="brand"><span className="en">Host your venue</span></div>
           <div className="tb-right"><ThemeToggle /></div>
         </header>
-        <div className="hv-success">
-          <div className="hv-success-check"><i className="icon-check" /></div>
-          <h1>Congratulations — you're on your way!</h1>
-          <p className="sub">
-            <b>{name}</b> has been submitted to Weyn. Our team will review your listing and reach out
-            about billing setup shortly — no payment needed from you today.
-          </p>
-          <div className="hv-success-notes">
-            <div className="fact">
-              <i className="icon-clock" />
-              <div>
-                <b>What happens next</b>
-                <span>Your venue typically appears on Weyn within 1–2 business days after a quick review.</span>
-              </div>
-            </div>
-            <div className="fact">
-              <i className="icon-credit-card" />
-              <div>
-                <b>Billing</b>
-                <span>The Weyn team will follow up directly to set up your {tier === "growth" ? "Growth" : "Starter"} plan.</span>
-              </div>
-            </div>
+        <div style={{ padding: "48px 24px", textAlign: "center" }}>
+          <div
+            className="hostvenue-success-mark"
+            style={{
+              width: 64, height: 64, borderRadius: "50%", margin: "0 auto 20px",
+              display: "grid", placeItems: "center", background: "var(--success-soft)",
+              color: "var(--success)", fontSize: 28,
+            }}
+          >
+            <i className="icon-check" />
           </div>
+          <h1 style={{ marginBottom: 10 }}>You're on the list, {done.name}</h1>
+          <p className="sub" style={{ margin: "0 auto 24px", maxWidth: 340 }}>
+            Your venue has been submitted. Billing setup is handled by the Weyn team after signup — we'll be in touch shortly to finish setting up your {tier === "growth" ? "Growth" : "Starter"} plan.
+          </p>
           <button className="btn lg" onClick={() => nav("/you")}>Go to your dashboard</button>
         </div>
+        <style>{`
+          @media (prefers-reduced-motion: no-preference) {
+            .hostvenue-success-mark { animation: hostvenue-pop .4s cubic-bezier(.2,.9,.3,1.6); }
+          }
+          @keyframes hostvenue-pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        `}</style>
       </>
     );
   }
@@ -292,88 +262,92 @@ export default function HostVenue() {
     <>
       <header className="topbar">
         <div className="brand"><span className="en">Host your venue</span></div>
-        <div className="tb-right"><ThemeToggle /></div>
+        <div className="tb-right">
+          <ThemeToggle />
+          <span className="pill"><i className="icon-store" /> Venue</span>
+        </div>
       </header>
 
-      <div className="hv-progress">
-        <div className="hv-progress-label">Step {step} of {TOTAL_STEPS}</div>
-        <div className="hv-progress-track">
-          <div className="hv-progress-fill" style={{ width: `${(step / TOTAL_STEPS) * 100}%` }} />
+      {/* progress indicator */}
+      <div style={{ padding: "10px 16px 0" }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+          {STEP_LABELS.map((_, i) => (
+            <div
+              key={i}
+              style={{
+                flex: 1, height: 4, borderRadius: 999,
+                background: i <= step ? "var(--accent)" : "var(--surface-2)",
+                transition: "background-color .2s",
+              }}
+            />
+          ))}
         </div>
+        <p className="hint" style={{ margin: "0 0 4px" }}>
+          Step {step + 1} of {TOTAL_STEPS} · {STEP_LABELS[step]}
+        </p>
       </div>
 
-      <div className="hv-step" key={step}>
-        {step === 1 && (
-          <StepBusiness
-            category={category}
-            onSelect={setCategory}
-            onOrganizer={() => nav("/host")}
-          />
-        )}
-        {step === 2 && <StepTags tags={tags} onToggle={toggleTag} />}
-        {step === 3 && (
-          <StepPhotos
-            photos={photos}
-            dragOver={dragOver}
-            fileRef={fileRef}
-            onDrop={onDrop}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onPick={(files) => files && addFiles(files)}
-            onRemove={removePhoto}
-          />
-        )}
-        {step === 4 && (
-          <StepDetails
-            name={name} setName={setName}
-            description={description} setDescription={setDescription}
-            loc={loc} setLoc={setLoc}
-            address={address} setAddress={setAddress}
-            area={area} setArea={setArea}
-            priceRange={priceRange} setPriceRange={setPriceRange}
-          />
-        )}
-        {step === 5 && (
-          <StepAvailability
-            availability={availability}
-            setDayEnabled={setDayEnabled}
-            addRange={addRange}
-            removeRange={removeRange}
-            setRange={setRange}
-          />
-        )}
-        {step === 6 && <StepSubscription tier={tier} setTier={setTier} />}
-        {step === 7 && (
-          <StepReview
-            category={category}
-            tags={tags}
-            photos={photos}
-            name={name}
-            description={description}
-            address={address}
-            area={area}
-            priceRange={priceRange}
-            tier={tier}
-            submitError={submitError}
-          />
-        )}
-      </div>
+      <div className="form">
+        <div className="form-fields">
+          {step === 0 && <StepBusinessType category={category} setCategory={setCategory} nav={nav} />}
+          {step === 1 && <StepGuests tags={tags} toggleTag={toggleTag} />}
+          {step === 2 && (
+            <StepPhotos
+              photos={photos}
+              addPhotos={addPhotos}
+              removePhoto={removePhoto}
+              dragOver={dragOver}
+              setDragOver={setDragOver}
+              fileInputRef={fileInputRef}
+              photoErr={photoErr}
+            />
+          )}
+          {step === 3 && (
+            <StepDetails
+              name={name} setName={setName}
+              description={description} setDescription={setDescription}
+              address={address} setAddress={setAddress}
+              area={area} setArea={setArea}
+              loc={loc} setLoc={setLoc}
+              priceRange={priceRange} setPriceRange={setPriceRange}
+            />
+          )}
+          {step === 4 && <StepAvailability availability={availability} updateDay={updateDay} />}
+          {step === 5 && <StepPlan tier={tier} setTier={setTier} />}
+          {step === 6 && (
+            <StepReview
+              category={category}
+              tags={tags}
+              photos={photos}
+              name={name}
+              description={description}
+              address={address}
+              area={area}
+              priceRange={priceRange}
+              availability={availability}
+              tier={tier}
+            />
+          )}
 
-      <div className="hv-nav">
-        {step > 1 && (
-          <button className="btn glass" onClick={goBack} disabled={submitting}>
-            <i className="icon-chevron-left" /> Back
-          </button>
-        )}
-        {step < TOTAL_STEPS ? (
-          <button className="btn lg" onClick={goNext} disabled={!canGoNext()}>
-            Next <i className="icon-chevron-right" />
-          </button>
-        ) : (
-          <button className="btn lg" onClick={submit} disabled={submitting}>
-            {submitting ? "Submitting…" : "Submit venue"}
-          </button>
-        )}
+          {err && <p className="errline">{err}</p>}
+
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            {step > 0 && (
+              <button type="button" className="btn glass" style={{ flex: "0 0 auto", width: "auto" }} onClick={goBack} disabled={busy}>
+                <i className="icon-arrow-left" /> Back
+              </button>
+            )}
+            {step < TOTAL_STEPS - 1 ? (
+              <button type="button" className="btn lg" onClick={goNext} disabled={!canNext}>
+                Next <i className="icon-arrow-right" />
+              </button>
+            ) : (
+              <button type="button" className="btn lg" onClick={submit} disabled={busy}>
+                <i className="icon-rocket" /> {busy ? "Submitting…" : "Submit venue"}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </>
   );
@@ -382,31 +356,42 @@ export default function HostVenue() {
 // ============================================================
 // Step 1 — business type
 // ============================================================
-function StepBusiness({
-  category, onSelect, onOrganizer,
-}: { category: VenueCategory | null; onSelect: (c: VenueCategory) => void; onOrganizer: () => void }) {
+function StepBusinessType({
+  category, setCategory, nav,
+}: {
+  category: VenueCategory | null;
+  setCategory: (c: VenueCategory) => void;
+  nav: ReturnType<typeof useNavigate>;
+}) {
   return (
     <>
-      <div className="page-head compact">
+      <div className="page-head compact" style={{ padding: "0 0 10px" }}>
         <h1>What best describes your business?</h1>
-        <p className="sub">This helps guests find you in the right category.</p>
+        <p className="sub">Pick the category that fits closest — you can refine details later.</p>
       </div>
-      <div className="hv-card-grid">
-        {BUSINESS_CARDS.map((c) => (
+      <div className="onboard-grid">
+        {BUSINESS_TYPES.map((t) => (
           <button
-            key={c.key}
             type="button"
-            className={"hv-select-card" + (category === c.key ? " on" : "")}
-            onClick={() => onSelect(c.key)}
+            key={t.key}
+            className="ticketing-opt"
+            style={{ alignItems: "flex-start" }}
+            aria-pressed={category === t.key}
+            onClick={() => setCategory(t.key)}
           >
-            <i className={"icon-" + c.icon} />
-            <span>{c.label}</span>
+            <i className={"icon-" + t.icon} />
+            <b style={category === t.key ? { color: "var(--accent)" } : undefined}>{t.label}</b>
           </button>
         ))}
-        <button type="button" className="hv-select-card hv-organizer-card" onClick={onOrganizer}>
+        <button
+          type="button"
+          className="ticketing-opt"
+          style={{ alignItems: "flex-start", gridColumn: "1 / -1" }}
+          onClick={() => nav("/host")}
+        >
           <i className="icon-calendar-plus" />
-          <span>Event Organizer</span>
-          <small>Hosting a one-off event instead? Go here.</small>
+          <b>Event Organizer</b>
+          <span>Hosting a one-off event instead of a venue? Go to event hosting.</span>
         </button>
       </div>
     </>
@@ -416,20 +401,20 @@ function StepBusiness({
 // ============================================================
 // Step 2 — guest tags
 // ============================================================
-function StepTags({ tags, onToggle }: { tags: string[]; onToggle: (t: string) => void }) {
+function StepGuests({ tags, toggleTag }: { tags: string[]; toggleTag: (t: string) => void }) {
   return (
     <>
-      <div className="page-head compact">
+      <div className="page-head compact" style={{ padding: "0 0 10px" }}>
         <h1>What do guests usually come for?</h1>
-        <p className="sub">Pick as many as apply — this shapes how your venue is discovered.</p>
+        <p className="sub">Select all that apply — this helps the right guests find you.</p>
       </div>
-      <div className="hv-chip-grid">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {GUEST_TAGS.map((t) => (
           <button
-            key={t}
             type="button"
+            key={t}
             className={"chip" + (tags.includes(t) ? " on" : "")}
-            onClick={() => onToggle(t)}
+            onClick={() => toggleTag(t)}
           >
             {t}
           </button>
@@ -440,53 +425,56 @@ function StepTags({ tags, onToggle }: { tags: string[]; onToggle: (t: string) =>
 }
 
 // ============================================================
-// Step 3 — photos
+// Step 3 — drag-and-drop photo upload
 // ============================================================
 function StepPhotos({
-  photos, dragOver, fileRef, onDrop, onDragOver, onDragLeave, onPick, onRemove,
+  photos, addPhotos, removePhoto, dragOver, setDragOver, fileInputRef, photoErr,
 }: {
-  photos: PhotoItem[];
+  photos: { file: File; url: string }[];
+  addPhotos: (files: FileList | File[]) => void;
+  removePhoto: (i: number) => void;
   dragOver: boolean;
-  fileRef: React.RefObject<HTMLInputElement>;
-  onDrop: (e: React.DragEvent) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDragLeave: () => void;
-  onPick: (files: FileList | null) => void;
-  onRemove: (id: string) => void;
+  setDragOver: (v: boolean) => void;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  photoErr: string;
 }) {
   return (
     <>
-      <div className="page-head compact">
-        <h1>Show off your venue</h1>
-        <p className="sub">Add a few photos — the first one becomes your cover image.</p>
+      <div className="page-head compact" style={{ padding: "0 0 10px" }}>
+        <h1>Add photos</h1>
+        <p className="sub">Your first photo becomes the cover image guests see first.</p>
       </div>
       <div
-        className={"dropzone" + (dragOver ? " on" : "")}
-        onClick={() => fileRef.current?.click()}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
+        className="dropzone"
+        style={dragOver ? { borderColor: "var(--accent)", background: "var(--accent-soft)" } : undefined}
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          if (e.dataTransfer.files?.length) addPhotos(e.dataTransfer.files);
+        }}
       >
         <i className="icon-image-up" />
         <p><b>Drag photos here, or click to browse</b></p>
-        <small>JPG, PNG or WebP</small>
+        <small>JPG, PNG or WebP · up to 6 MB each</small>
       </div>
       <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(e) => { onPick(e.target.files); e.target.value = ""; }}
+        ref={fileInputRef} type="file" accept="image/*" multiple hidden
+        onChange={(e) => { if (e.target.files) addPhotos(e.target.files); e.target.value = ""; }}
       />
+      {photoErr && <p className="errline">{photoErr}</p>}
+
       {photos.length > 0 && (
-        <div className="hv-photo-grid">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 14 }}>
           {photos.map((p, i) => (
-            <div className="hv-photo-thumb" key={p.id}>
-              <img src={p.previewUrl} alt="" />
-              {p.status === "uploading" && <div className="hv-photo-spinner"><div className="spin" /></div>}
-              {i === 0 && p.status === "done" && <span className="ec-badge featured hv-cover-badge">Cover</span>}
-              <button type="button" className="rm" onClick={() => onRemove(p.id)} aria-label="Remove photo">
+            <div className="preview-wrap" key={p.url}>
+              <img className="preview-img" style={{ height: 90 }} src={p.url} alt={`photo ${i + 1}`} />
+              {i === 0 && (
+                <span className="ec-badge" style={{ position: "absolute", top: 6, left: 6 }}>Cover</span>
+              )}
+              <button className="rm" onClick={() => removePhoto(i)} aria-label="Remove photo">
                 <i className="icon-x" />
               </button>
             </div>
@@ -501,66 +489,63 @@ function StepPhotos({
 // Step 4 — business details
 // ============================================================
 function StepDetails({
-  name, setName, description, setDescription, loc, setLoc, address, setAddress, area, setArea, priceRange, setPriceRange,
+  name, setName, description, setDescription, address, setAddress, area, setArea,
+  loc, setLoc, priceRange, setPriceRange,
 }: {
   name: string; setName: (v: string) => void;
   description: string; setDescription: (v: string) => void;
-  loc: { lat: number; lng: number }; setLoc: (v: { lat: number; lng: number }) => void;
   address: string; setAddress: (v: string) => void;
   area: string; setArea: (v: string) => void;
-  priceRange: PriceRange | null; setPriceRange: (v: PriceRange) => void;
+  loc: { lat: number; lng: number }; setLoc: (v: { lat: number; lng: number }) => void;
+  priceRange: PriceRange; setPriceRange: (v: PriceRange) => void;
 }) {
   return (
     <>
-      <div className="page-head compact">
-        <h1>Tell us about your business</h1>
-        <p className="sub">The essentials guests will see on your listing.</p>
+      <div className="page-head compact" style={{ padding: "0 0 10px" }}>
+        <h1>Business details</h1>
+        <p className="sub">Tell guests what makes this place worth visiting.</p>
       </div>
-      <div className="form" style={{ padding: "8px 0 0" }}>
-        <div className="form-fields">
-          <div className="field">
-            <label>Business name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Shatti Rooftop" />
-          </div>
-          <div className="field">
-            <label>Description</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Tell guests what makes this place worth visiting." />
-          </div>
-          <div className="field">
-            <label>Pin the location</label>
-            <MapPicker
-              value={loc}
-              onChange={({ lat, lng, label }) => {
-                setLoc({ lat, lng });
-                if (!label) return;
-                if (!address.trim()) setAddress(label);
-                if (!area.trim()) setArea(label);
-              }}
-            />
-          </div>
-          <div className="field">
-            <label>Address</label>
-            <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, building, area" />
-          </div>
-          <div className="field">
-            <label>Area</label>
-            <input value={area} onChange={(e) => setArea(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>Price range</label>
-            <div className="hv-price-row">
-              {PRICE_RANGES.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  className={"hv-select-card hv-price-card" + (priceRange === p ? " on" : "")}
-                  onClick={() => setPriceRange(p)}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
+      <div className="field">
+        <label>Venue name</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="The Cellar Rooftop" />
+      </div>
+      <div className="field">
+        <label>Description <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label>
+        <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="A relaxed rooftop lounge with skyline views…" />
+      </div>
+      <div className="field">
+        <label>Pin the location</label>
+        <MapPicker
+          value={loc}
+          onChange={({ lat, lng, label }) => {
+            setLoc({ lat, lng });
+            if (!label) return;
+            if (!address.trim()) setAddress(label);
+            if (!area.trim()) setArea(label);
+          }}
+        />
+      </div>
+      <div className="field">
+        <label>Address</label>
+        <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Shatti Al Qurum, Muscat" />
+      </div>
+      <div className="field">
+        <label>Area</label>
+        <input value={area} onChange={(e) => setArea(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Price range</label>
+        <div style={{ display: "flex", gap: 8 }}>
+          {(["$", "$$", "$$$"] as PriceRange[]).map((p) => (
+            <button
+              type="button"
+              key={p}
+              className={"chip" + (priceRange === p ? " on" : "")}
+              onClick={() => setPriceRange(p)}
+            >
+              {p}
+            </button>
+          ))}
         </div>
       </div>
     </>
@@ -568,105 +553,95 @@ function StepDetails({
 }
 
 // ============================================================
-// Step 5 — availability
+// Step 5 — weekly recurring availability builder (client-side only)
 // ============================================================
 function StepAvailability({
-  availability, setDayEnabled, addRange, removeRange, setRange,
+  availability, updateDay,
 }: {
-  availability: Record<string, DayAvailability>;
-  setDayEnabled: (day: string, enabled: boolean) => void;
-  addRange: (day: string) => void;
-  removeRange: (day: string, idx: number) => void;
-  setRange: (day: string, idx: number, patch: Partial<TimeRange>) => void;
+  availability: Record<number, DaySlot>;
+  updateDay: (i: number, patch: Partial<DaySlot>) => void;
 }) {
   return (
     <>
-      <div className="page-head compact">
+      <div className="page-head compact" style={{ padding: "0 0 10px" }}>
         <h1>Set your weekly availability</h1>
-        <p className="sub">Optional for now — you can fine-tune exact slots later from your dashboard.</p>
+        <p className="sub">Toggle the days you're open and set hours and capacity. You can fine-tune this later from your dashboard.</p>
       </div>
-      <div className="hv-avail-list">
-        {DAYS.map((day) => {
-          const d = availability[day];
+      <div className="note">
+        <i className="icon-info" style={{ marginRight: 6 }} />
+        This is saved with your submission for the Weyn team to set up — recurring slots aren't wired to live reservations yet.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {DAYS.map((day, i) => {
+          const d = availability[i];
           return (
-            <div className={"hv-avail-day" + (d.enabled ? " on" : "")} key={day}>
-              <label className="hv-avail-day-head">
-                <input
-                  type="checkbox"
-                  checked={d.enabled}
-                  onChange={(e) => setDayEnabled(day, e.target.checked)}
-                />
-                <span>{day}</span>
+            <div
+              key={day}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                borderRadius: "var(--radius-sm)", background: "var(--surface)", border: "1px solid var(--hair)",
+              }}
+            >
+              <label style={{ display: "flex", alignItems: "center", gap: 8, width: 108, flex: "0 0 auto" }}>
+                <input type="checkbox" checked={d.enabled} onChange={(e) => updateDay(i, { enabled: e.target.checked })} />
+                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{day}</span>
               </label>
-              {d.enabled && (
-                <div className="hv-avail-ranges">
-                  {d.ranges.map((r, idx) => (
-                    <div className="hv-avail-range" key={idx}>
-                      <input type="time" value={r.start} onChange={(e) => setRange(day, idx, { start: e.target.value })} />
-                      <span>to</span>
-                      <input type="time" value={r.end} onChange={(e) => setRange(day, idx, { end: e.target.value })} />
-                      <input
-                        type="number" min={1} inputMode="numeric"
-                        className="hv-avail-capacity"
-                        value={r.capacity}
-                        onChange={(e) => setRange(day, idx, { capacity: e.target.value })}
-                        placeholder="Capacity"
-                      />
-                      <button type="button" className="tier-del" onClick={() => removeRange(day, idx)} disabled={d.ranges.length === 1} aria-label="Remove slot">
-                        <i className="icon-x" />
-                      </button>
-                    </div>
-                  ))}
-                  <button type="button" className="tier-add" onClick={() => addRange(day)}>
-                    <i className="icon-plus" /> Add time range
-                  </button>
+              {d.enabled ? (
+                <div style={{ display: "flex", gap: 6, flex: 1, alignItems: "center" }}>
+                  <input
+                    type="time" value={d.start} onChange={(e) => updateDay(i, { start: e.target.value })}
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  <span style={{ color: "var(--text-3)" }}>–</span>
+                  <input
+                    type="time" value={d.end} onChange={(e) => updateDay(i, { end: e.target.value })}
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  <input
+                    inputMode="numeric" value={d.capacity} onChange={(e) => updateDay(i, { capacity: e.target.value })}
+                    placeholder="Cap." style={{ width: 56, flex: "0 0 auto" }}
+                  />
                 </div>
+              ) : (
+                <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>Closed</span>
               )}
             </div>
           );
         })}
-      </div>
-      <div className="note" style={{ marginTop: 14 }}>
-        <i className="icon-info" style={{ marginRight: 6 }} />
-        These slots are saved locally for now — bulk availability setup on the backend is coming soon.
-        You can configure exact time slots with the Weyn team after signup.
       </div>
     </>
   );
 }
 
 // ============================================================
-// Step 6 — subscription
+// Step 6 — subscription selection
 // ============================================================
-function StepSubscription({ tier, setTier }: { tier: SubscriptionTier | null; setTier: (t: SubscriptionTier) => void }) {
+function StepPlan({ tier, setTier }: { tier: "starter" | "growth" | null; setTier: (t: "starter" | "growth") => void }) {
   return (
     <>
-      <div className="page-head compact">
+      <div className="page-head compact" style={{ padding: "0 0 10px" }}>
         <h1>Choose your plan</h1>
-        <p className="sub">Pick the plan that fits how you want to grow.</p>
+        <p className="sub">Pick the plan that fits your venue — you can change it any time.</p>
       </div>
-      <div className="hv-tier-grid">
-        {(Object.keys(TIER_INFO) as SubscriptionTier[]).map((key) => {
-          const info = TIER_INFO[key];
-          return (
-            <button
-              key={key}
-              type="button"
-              className={"hv-tier-card" + (tier === key ? " on" : "")}
-              onClick={() => setTier(key)}
-            >
-              <div className="hv-tier-head">
-                <b>{info.label}</b>
-                <span>{info.price}</span>
-              </div>
-              <ul>
-                {info.features.map((f) => (
-                  <li key={f}><i className="icon-check" /> {f}</li>
-                ))}
-              </ul>
-            </button>
-          );
-        })}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {PLANS.map((p) => (
+          <button
+            type="button"
+            key={p.key}
+            onClick={() => setTier(p.key)}
+            className="ticketing-opt"
+            style={{ alignItems: "flex-start", padding: "16px 16px", textAlign: "left" }}
+            aria-pressed={tier === p.key}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "baseline" }}>
+              <b style={{ fontSize: 16 }}>{p.name}</b>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)" }}>{p.price}</span>
+            </div>
+            <ul style={{ margin: "8px 0 0", padding: "0 0 0 18px", color: "var(--text-2)", fontSize: 13 }}>
+              {p.features.map((f) => <li key={f}>{f}</li>)}
+            </ul>
+          </button>
+        ))}
       </div>
       <div className="note" style={{ marginTop: 14 }}>
         <i className="icon-info" style={{ marginRight: 6 }} />
@@ -680,42 +655,53 @@ function StepSubscription({ tier, setTier }: { tier: SubscriptionTier | null; se
 // Step 7 — review & submit
 // ============================================================
 function StepReview({
-  category, tags, photos, name, description, address, area, priceRange, tier, submitError,
+  category, tags, photos, name, description, address, area, priceRange, availability, tier,
 }: {
   category: VenueCategory | null;
   tags: string[];
-  photos: PhotoItem[];
+  photos: { file: File; url: string }[];
   name: string;
   description: string;
   address: string;
   area: string;
-  priceRange: PriceRange | null;
-  tier: SubscriptionTier | null;
-  submitError: string;
+  priceRange: PriceRange;
+  availability: Record<number, DaySlot>;
+  tier: "starter" | "growth" | null;
 }) {
-  const catLabel = VENUE_CATS.find((c) => c.key === category)?.label || "—";
-  const doneCount = photos.filter((p) => p.status === "done").length;
+  const catLabel = BUSINESS_TYPES.find((b) => b.key === category)?.label || "—";
+  const plan = PLANS.find((p) => p.key === tier);
+  const openDays = DAYS.filter((_, i) => availability[i].enabled);
+
   return (
     <>
-      <div className="page-head compact">
+      <div className="page-head compact" style={{ padding: "0 0 10px" }}>
         <h1>Review &amp; submit</h1>
-        <p className="sub">Double-check everything before it goes to the Weyn team.</p>
+        <p className="sub">Make sure everything looks right before you submit.</p>
       </div>
+
+      {photos[0] && <img className="preview-img" style={{ height: 160, marginBottom: 14 }} src={photos[0].url} alt="cover preview" />}
+
       <div className="facts">
-        <div className="fact"><i className="icon-store" /><div><b>{name || "—"}</b><span>{catLabel}</span></div></div>
+        <div className="fact"><i className="icon-store" /><div><b>{name || "Untitled venue"}</b><span>{catLabel}</span></div></div>
         <div className="fact"><i className="icon-map-pin" /><div><b>{address || "—"}</b><span>{area}</span></div></div>
-        <div className="fact"><i className="icon-tag" /><div><b>{priceRange || "—"}</b><span>Price range</span></div></div>
-        <div className="fact"><i className="icon-image" /><div><b>{doneCount} photo{doneCount === 1 ? "" : "s"}</b><span>Uploaded</span></div></div>
-        <div className="fact"><i className="icon-clock" /><div><b>Availability configured</b><span>Set in step 5 — saved locally for now</span></div></div>
-        <div className="fact"><i className="icon-credit-card" /><div><b>{tier ? TIER_INFO[tier].label : "—"}</b><span>{tier ? TIER_INFO[tier].price : "Plan"}</span></div></div>
+        <div className="fact"><i className="icon-tag" /><div><b>{priceRange}</b><span>Price range</span></div></div>
+        <div className="fact"><i className="icon-image" /><div><b>{photos.length} photo{photos.length === 1 ? "" : "s"}</b><span>First photo is the cover</span></div></div>
+        <div className="fact"><i className="icon-calendar" /><div><b>{openDays.length ? openDays.join(", ") : "No days set"}</b><span>Open days</span></div></div>
+        <div className="fact"><i className="icon-credit-card" /><div><b>{plan?.name || "—"}</b><span>{plan?.price}</span></div></div>
       </div>
+
       {description && <p className="blurb">{description}</p>}
+
       {tags.length > 0 && (
         <div className="tagrow">
           {tags.map((t) => <span className="tg" key={t}>{t}</span>)}
         </div>
       )}
-      {submitError && <p className="errline">{submitError}</p>}
+
+      <div className="note" style={{ marginTop: 18 }}>
+        <i className="icon-info" style={{ marginRight: 6 }} />
+        Billing setup is handled by the Weyn team after signup — we'll be in touch.
+      </div>
     </>
   );
 }
