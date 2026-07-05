@@ -653,6 +653,180 @@ export function createApp(storage) {
     res.json(await db.attendeesForEvent(req.event.id));
   });
 
+  // ---- reservations (tables/spots at restaurants, cafes, lounges,
+  // rooftops, beach clubs, experience venues) — separate from Event/Booking
+  // ticketing above. See schema.prisma's Venue/VenueAvailabilitySlot/
+  // Reservation comment. ----
+  app.get("/api/venues", async (req, res) => {
+    try {
+      const { category, q } = req.query;
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+      const skip = (page - 1) * limit;
+
+      const where = {};
+      if (category && category !== "all") where.category = String(category);
+      if (q) {
+        const t = String(q);
+        where.OR = [
+          { name: { contains: t, mode: "insensitive" } },
+          { tags: { has: t } },
+        ];
+      }
+
+      const [venues, total] = await Promise.all([
+        prisma.venue.findMany({ where, skip, take: limit, orderBy: { createdAt: "desc" } }),
+        prisma.venue.count({ where }),
+      ]);
+
+      res.set('Cache-Control', 'public, max-age=30');
+      res.json({ venues, page, limit, total, totalPages: Math.ceil(total / limit) });
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/venues/:id", async (req, res) => {
+    try {
+      const venue = await prisma.venue.findUnique({
+        where: { id: req.params.id },
+        include: { slots: true },
+      });
+      if (!venue) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+      res.set('Cache-Control', 'public, max-age=30');
+      res.json(venue);
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/venues/:id/reservations", bookingLimiter, async (req, res) => {
+    try {
+      const venue = await prisma.venue.findUnique({ where: { id: req.params.id } });
+      if (!venue) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+
+      const { guestName, guestEmail, guestPhone, partySize, date, time, slotId, notes } = req.body || {};
+      if (!guestName || !String(guestName).trim() || !guestEmail || !String(guestEmail).trim()) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "guestName and guestEmail are required" } });
+      }
+      const size = Number(partySize);
+      if (!Number.isFinite(size) || size < 1) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "partySize must be a positive number" } });
+      }
+      if (!date || isNaN(new Date(date).getTime())) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid date is required" } });
+      }
+      if (!time || !String(time).trim()) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "time is required" } });
+      }
+
+      let slot = null;
+      if (slotId) {
+        slot = await prisma.venueAvailabilitySlot.findUnique({ where: { id: slotId } });
+        if (!slot || slot.venueId !== venue.id) {
+          return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid slot for this venue" } });
+        }
+
+        // Check party-size sum of confirmed+pending reservations against the
+        // slot's capacity for that date, before accepting a new reservation —
+        // rejects with 409 rather than silently overbooking the slot.
+        const requestedDate = new Date(date);
+        const dayStart = new Date(Date.UTC(requestedDate.getUTCFullYear(), requestedDate.getUTCMonth(), requestedDate.getUTCDate()));
+        const dayEnd = new Date(dayStart.getTime() + 24 * 3600e3);
+        const existing = await prisma.reservation.findMany({
+          where: {
+            slotId: slot.id,
+            status: { in: ["pending", "confirmed"] },
+            date: { gte: dayStart, lt: dayEnd },
+          },
+        });
+        const bookedCount = existing.reduce((sum, r) => sum + r.partySize, 0);
+        if (bookedCount + size > slot.capacity) {
+          return res.status(409).json({ error: { code: "CAPACITY_EXCEEDED", message: "This slot doesn't have enough capacity left for that party size" } });
+        }
+      }
+
+      const reservation = await prisma.reservation.create({
+        data: {
+          venueId: venue.id,
+          slotId: slot ? slot.id : null,
+          guestName: String(guestName).trim(),
+          guestEmail: String(guestEmail).trim(),
+          guestPhone: guestPhone ? String(guestPhone).trim() : null,
+          partySize: size,
+          date: new Date(date),
+          time: String(time).trim(),
+          notes: notes ? String(notes).trim() : null,
+        },
+      });
+      trackEvent(req.user?.id || guestEmail, "reservation_created", { venueId: venue.id, partySize: size });
+      res.status(201).json(reservation);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/reservations", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // reservations the signed-in user made — matched by their account email,
+  // mirroring how GET /api/dashboard/events filters by req.user.id but
+  // keyed on guestEmail since Reservation has no userId column
+  app.get("/api/reservations/mine", requireAuth, async (req, res) => {
+    try {
+      const reservations = await prisma.reservation.findMany({
+        where: { guestEmail: req.user.email },
+        include: { venue: true, slot: true },
+        orderBy: { date: "desc" },
+      });
+      res.json(reservations);
+    } catch (err) {
+      captureError(err, { route: "GET /api/reservations/mine" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // host-only venue creation — mirrors POST /api/events: any signed-in user
+  // may create one (ownerId is set to req.user.id), no separate role gate.
+  app.post("/api/venues", createEventLimiter, requireAuth, async (req, res) => {
+    try {
+      const b = req.body || {};
+      const ALLOWED_CATEGORIES = ["restaurant", "cafe", "lounge", "rooftop", "beach_club", "experience"];
+      if (!b.name || !String(b.name).trim()) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "name is required" } });
+      }
+      if (!ALLOWED_CATEGORIES.includes(b.category)) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `category must be one of: ${ALLOWED_CATEGORIES.join(", ")}` } });
+      }
+      if (!b.venue || !String(b.venue).trim() || !b.area || !String(b.area).trim()) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "venue and area are required" } });
+      }
+
+      const venue = await prisma.venue.create({
+        data: {
+          name: String(b.name).trim(),
+          category: b.category,
+          description: (b.description || "").trim(),
+          venue: String(b.venue).trim(),
+          area: String(b.area).trim(),
+          lat: b.lat ? Number(b.lat) : 23.6100,
+          lng: b.lng ? Number(b.lng) : 58.5400,
+          distanceKm: Number(b.distanceKm) || +(Math.random() * 8 + 1).toFixed(1),
+          coverImage: b.coverImage || null,
+          photos: Array.isArray(b.photos) ? b.photos : [],
+          priceRange: ["$", "$$", "$$$"].includes(b.priceRange) ? b.priceRange : null,
+          tags: Array.isArray(b.tags) ? b.tags : (b.tags ? String(b.tags).split(",").map((t) => t.trim()).filter(Boolean) : []),
+          ownerId: req.user.id,
+        },
+      });
+      trackEvent(req.user.id, "venue_create", { venueId: venue.id, category: venue.category });
+      res.status(201).json(venue);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ---- organizer dashboard ----
   app.get("/api/dashboard/summary", requireAuth, async (req, res) => {
     res.json(await db.dashboardSummary(req.user.id));

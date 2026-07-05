@@ -45,6 +45,7 @@ model User {
   collections     Collection[]
   reportsFiled    Report[]          @relation("Reporter")
   reportsReviewed Report[]          @relation("ReportReviewer")
+  venues          Venue[]
 
   @@index([email])
 }
@@ -419,4 +420,75 @@ model MarketingAsset {
   twitter     String
   generatedAt DateTime @default(now())
   aiGenerated Boolean  @default(false)
+}
+
+// ---- Reservations (tables/spots at restaurants, cafes, lounges, rooftops,
+// beach clubs, experience venues) — deliberately separate from Event/Booking
+// ticketing above; a Venue is a standing place with recurring availability,
+// not a one-off scheduled happening.
+model Venue {
+  id               String    @id @default(cuid())
+  name             String
+  category         String // "restaurant" | "cafe" | "lounge" | "rooftop" | "beach_club" | "experience"
+  description      String
+  venue            String
+  area             String
+  lat              Float
+  lng              Float
+  distanceKm       Float
+  coverImage       String?
+  photos           String[]
+  priceRange       String? // "$" | "$$" | "$$$"
+  tags             String[]
+  ownerId          String?
+  verified         Boolean   @default(false)
+  subscriptionTier String?
+  subscriptionStatus String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  owner         User?                    @relation(fields: [ownerId], references: [id])
+  slots         VenueAvailabilitySlot[]
+  reservations  Reservation[]
+
+  @@index([ownerId])
+  @@index([category])
+}
+
+model VenueAvailabilitySlot {
+  id        String   @id @default(cuid())
+  venueId   String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  capacity  Int
+  createdAt DateTime @default(now())
+
+  venue        Venue         @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  reservations Reservation[]
+
+  @@index([venueId])
+}
+
+model Reservation {
+  id         String   @id @default(cuid())
+  venueId    String
+  slotId     String?
+  guestName  String
+  guestEmail String
+  guestPhone String?
+  partySize  Int
+  date       DateTime
+  time       String
+  status     String   @default("pending") // "pending" | "confirmed" | "cancelled"
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  venue Venue                  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  slot  VenueAvailabilitySlot? @relation(fields: [slotId], references: [id])
+
+  @@index([venueId])
+  @@index([slotId])
+  @@index([status])
 }
