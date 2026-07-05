@@ -48,14 +48,19 @@
   --shadow-float: var(--shadow-md);
   --lens: none;
 
-  /* spacing scale — 8pt grid per the design brief (was 4px base) */
+  /* spacing scale — real ramp (previously 3/4 and 5/6 were duplicates) */
   --space-1: 4px;
   --space-2: 8px;
-  --space-3: 16px;
+  --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
-  --space-6: 24px;
-  --space-8: 32px;
+  --space-6: 32px;
+  --space-8: 48px;
+
+  /* button heights — 44px+ tap targets, three sizes */
+  --btn-h:    48px;
+  --btn-h-lg: 56px;
+  --btn-h-sm: 40px;
 }
 
 /* Light mode kept as a real, distinct theme (not deleted — the toggle stays)
@@ -380,67 +385,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ec-skel .s-thumb, .ec-skel .s-a, .ec-skel .s-b { animation: skel-pulse 1.3s ease-in-out infinite; }
 @keyframes skel-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
 
-/* legacy .card kept below for any surface not yet migrated */
-.card {
-  display: block; border-radius: var(--radius); overflow: hidden;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  transition: transform .14s ease;
-}
-.card:active { transform: scale(0.988); }
-.card .cover {
-  aspect-ratio: 16 / 9; position: relative; background-size: cover; background-position: center;
-  display: flex; align-items: flex-start; justify-content: space-between; padding: var(--space-3);
-}
-.card .cover::after {
-  content: ""; position: absolute; inset: 0;
-  /* subtle dark overlay only — just enough to keep badges legible */
-  background: linear-gradient(180deg, rgba(0,0,0,0.16), rgba(0,0,0,0) 40%);
-}
-.card .cover .glyph {
-  position: absolute; right: 14px; bottom: 12px; font-size: 40px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.28)); z-index: 1;
-}
-.cover-badges { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.gbadge {
-  position: relative; z-index: 1;
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: var(--radius-pill);
-  background: rgba(255,255,255,0.92); color: #14151A;
-  box-shadow: var(--shadow-sm);
-}
-.gbadge.live { color: #D0392B; }
-.gbadge.live .pulse { width: 6px; height: 6px; border-radius: 50%; background: #D0392B; animation: pulse 1.3s infinite; }
-.gbadge.out { color: #fff; background: rgba(20,21,26,0.75); }
-.gbadge.featured { background: var(--accent); color: #fff; }
-.gbadge.featured [class^="icon-"] { font-size: 12px; }
-.gbadge.confirmed { color: var(--success); }
-.gbadge.confirmed [class^="icon-"] { font-size: 13px; }
-.ticket-card .body { border-left: 2px solid var(--accent); }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-/* price pill — free = green success badge, paid = plain neutral chip. Lives
-   in the metadata row under the title, never floating on the image corner. */
-.price-tag {
-  font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: var(--radius-pill);
-  background: var(--surface-2); color: var(--text);
-}
-.price-tag.free { background: var(--success-soft); color: var(--success); }
-.card .body { padding: var(--space-4); }
-.card .body .organizer-row { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
-.card .body .organizer-name { font-size: 12.5px; color: var(--text-2); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card .body .verified-badge { font-size: 14px; color: var(--accent); flex: 0 0 auto; }
-.card .body h3 { font-size: 20px; font-weight: 600; line-height: 1.25; }
-/* date/venue/distance stack directly under the title — no separate badges */
-.card .body .card-facts { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
-.card .body .cf { font-size: 13.5px; color: var(--text-2); }
-.card .body .cf [class^="icon-"] { display: none; } /* text-first per the brief's example — icons were adding noise, not clarity */
-.card .body .row { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-3); }
-.card .body .row-right { display: flex; align-items: center; gap: 10px; }
-.card .body .dist { font-size: 13px; color: var(--text-3); }
-.card .body .dist [class^="icon-"] { display: none; }
-.card .body .dist.scarce { color: var(--danger); }
-.card .body .cta { font-size: 14px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
-.card .body .cta.muted { color: var(--text-3); }
 
 /* ---------- tab bar ---------- native iOS bottom bar: full-width, flat,
    fixed to the edge. Not a floating pill, no glow. */
@@ -762,12 +706,16 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- buttons ---------- */
 .btn {
-  font-family: inherit; font-size: 15px; font-weight: 600;
+  font-family: inherit; font-size: 15px; font-weight: 700;
   border-radius: var(--radius-sm); padding: 14px 20px;
+  min-height: var(--btn-h);
   background: var(--accent); color: #fff;
+  box-shadow: 0 2px 8px var(--accent-soft);
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
   transition: transform .1s, opacity .12s;
 }
+.btn.lg { min-height: var(--btn-h-lg); font-size: 16px; padding: 16px 24px; }
+.btn.sm { min-height: var(--btn-h-sm); padding: 8px 14px; font-size: 13px; width: auto; }
 .btn:hover { opacity: 0.92; }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; }
@@ -1018,7 +966,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* smooth theme crossfade on the big surfaces */
 body,
-.topbar, .tabs, .card, .dash-card, .stat, .dash-row, .install-card,
+.topbar, .tabs, .ec-row, .dash-card, .stat, .dash-row, .install-card,
 .host-cta, .account-row, .detail .sheet, .buybar,
 .field input, .field select, .field textarea, .search input, .map-search input,
 .chip, .segment, .ticketing-opt, .fee-box, .note, .marketing-card {
@@ -1032,15 +980,15 @@ body,
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: none; }
 }
-.feed .card, .dash-card, .stat, .onboard-item {
+.feed .ec-row, .dash-card, .stat, .onboard-item {
   animation: rise-in .5s cubic-bezier(.16,1,.3,1) both;
 }
-.feed .card:nth-child(2), .stat:nth-child(2) { animation-delay: .05s; }
-.feed .card:nth-child(3), .stat:nth-child(3) { animation-delay: .1s; }
-.feed .card:nth-child(4), .stat:nth-child(4) { animation-delay: .15s; }
-.feed .card:nth-child(5) { animation-delay: .2s; }
-.feed .card:nth-child(6) { animation-delay: .25s; }
-.feed .card:nth-child(n+7) { animation-delay: .3s; }
+.feed .ec-row:nth-child(2), .stat:nth-child(2) { animation-delay: .05s; }
+.feed .ec-row:nth-child(3), .stat:nth-child(3) { animation-delay: .1s; }
+.feed .ec-row:nth-child(4), .stat:nth-child(4) { animation-delay: .15s; }
+.feed .ec-row:nth-child(5) { animation-delay: .2s; }
+.feed .ec-row:nth-child(6) { animation-delay: .25s; }
+.feed .ec-row:nth-child(n+7) { animation-delay: .3s; }
 
 /* page headers ease in */
 .page-head { animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
@@ -1074,8 +1022,7 @@ body,
 
 /* desktop hover lift for cards — keep the lens rim while lifting */
 @media (hover: hover) {
-  .card { transition: transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s, background-color .35s; }
-  .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+  .ec-row { transition: transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s, background-color .35s, border-color .25s; }
   .dash-actions button { transition: color .15s, background-color .15s; }
   .dash-actions button:hover { color: var(--accent); background: var(--accent-soft); }
   .dash-actions button.danger:hover { color: var(--danger); background: rgba(199,64,44,.1); }
