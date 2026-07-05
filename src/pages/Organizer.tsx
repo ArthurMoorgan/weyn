@@ -391,7 +391,7 @@ export default function Organizer() {
 
         {err && <p className="errline">{err}</p>}
 
-        <button className="btn" onClick={publish} disabled={busy}>
+        <button className="btn lg" onClick={publish} disabled={busy}>
           <i className="icon-rocket" /> {busy ? "Publishing…" : "Publish to Weyn"}
         </button>
         <p style={{ textAlign: "center", fontSize: 12, color: "var(--text-3)", margin: "12px 0 0" }}>

@@ -79,8 +79,8 @@ export default function Admin() {
                       </small>
                     </span>
                     <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
-                      <button className="copy-btn" onClick={() => resolve(r.id, "ACTIONED")}>Action</button>
-                      <button className="copy-btn" onClick={() => resolve(r.id, "DISMISSED")}>Dismiss</button>
+                      <button className="btn glass sm" onClick={() => resolve(r.id, "ACTIONED")}>Action</button>
+                      <button className="btn glass sm" onClick={() => resolve(r.id, "DISMISSED")}>Dismiss</button>
                     </div>
                   </li>
                 ))}

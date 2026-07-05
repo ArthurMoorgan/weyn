@@ -230,7 +230,7 @@ export default function EventDetail() {
               <div className="p">{hasTiers && !selectedTier ? `From ${Math.min(...tiers.map((t) => t.price))} OMR` : payPrice === 0 ? "Free" : `${(payPrice + payFee).toFixed(2)} OMR`}</div>
               <div className="s">{hasTiers && !selectedTier ? "Pick a ticket type" : payPrice === 0 ? "RSVP to reserve" : "incl. 8% fee"}</div>
             </div>
-            <button className="btn" style={{ width: "auto", padding: "14px 26px" }} onClick={book} disabled={booking || (hasTiers && !selectedTier)}>
+            <button className="btn lg" style={{ width: "auto" }} onClick={book} disabled={booking || (hasTiers && !selectedTier)}>
               {booking ? "Booking…" : payPrice === 0 ? "RSVP" : "Get ticket"}
             </button>
           </>
@@ -285,7 +285,7 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
             )}
             <div style={{ display: "flex", gap: 8 }}>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Or create a new list…" onKeyDown={(e) => e.key === "Enter" && createAndAdd()} />
-              <button className="copy-btn" onClick={createAndAdd} disabled={!name.trim()}>Create</button>
+              <button className="btn glass sm" onClick={createAndAdd} disabled={!name.trim()}>Create</button>
             </div>
           </>
         )}

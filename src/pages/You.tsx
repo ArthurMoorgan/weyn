@@ -238,7 +238,7 @@ function CollectionsSection() {
           onKeyDown={(e) => e.key === "Enter" && create()}
           style={{ flex: 1 }}
         />
-        <button className="copy-btn" onClick={create} disabled={creating || !name.trim()}>Create</button>
+        <button className="btn glass sm" onClick={create} disabled={creating || !name.trim()}>Create</button>
       </div>
       {loading ? <div className="spin" /> : (data || []).length > 0 ? (
         <ul className="steps" style={{ padding: "0 16px" }}>
