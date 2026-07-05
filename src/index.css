@@ -259,7 +259,119 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    flat body below with strong typographic hierarchy instead of floating
    badges. Matches the brief's example: IMAGE / Title / Date+Time / Venue /
    Distance / Price / CTA. */
-.feed { padding: 4px 16px 4px; display: flex; flex-direction: column; gap: var(--space-5); }
+/* .feed now holds dense .ec-row items (Saved / Collection / OrganizerProfile /
+   You-tickets) — tighter gap than the old big-card stack. */
+.feed { padding: 4px 12px 8px; display: flex; flex-direction: column; gap: 8px; }
+
+/* ============================================================
+   EVENT CARD SYSTEM — three densities (see components/Stub.tsx).
+   Reduced image dominance, information over decoration, Airbnb-search
+   density. All sizes/weights pull from the type scale.
+   ============================================================ */
+
+/* ---- dense list row (default everywhere) ---- */
+.ec-row {
+  display: flex; align-items: stretch; gap: 12px;
+  padding: 8px; border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  transition: border-color .16s ease, transform .16s ease, background .16s ease;
+}
+.ec-row:active { transform: scale(0.99); }
+.ec-thumb {
+  flex: 0 0 auto; width: 92px; height: 92px; border-radius: 10px;
+  background-size: cover; background-position: center; background-color: var(--surface-2);
+  display: grid; place-items: center; overflow: hidden;
+}
+.ec-glyph { font-size: 30px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+.ec-glyph.big { font-size: 56px; }
+.ec-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 2px 0; }
+.ec-top { display: flex; align-items: center; gap: 8px; }
+.ec-when { font: var(--t-caption); letter-spacing: 0.3px; text-transform: uppercase; color: var(--accent); }
+.ec-title {
+  font: var(--t-card); letter-spacing: -0.2px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ec-meta { display: flex; align-items: center; gap: 6px; font: var(--t-meta); color: var(--text-2); overflow: hidden; }
+.ec-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ec-dot { color: var(--text-3); flex: 0 0 auto; }
+.ec-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px; padding-right: 4px; }
+.ec-price { font: var(--t-card); font-size: 14px; color: var(--text); white-space: nowrap; }
+.ec-price.free { color: var(--success); }
+.ec-dist { font: var(--t-caption); color: var(--text-3); white-space: nowrap; }
+.ec-dist.scarce { color: var(--warning); }
+
+/* status badge — shared across variants */
+.ec-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font: var(--t-caption); letter-spacing: 0.2px;
+  padding: 2px 7px; border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--text-2);
+}
+.ec-badge [class^="icon-"] { font-size: 12px; }
+.ec-badge.featured { color: var(--accent); background: var(--accent-soft); }
+.ec-badge.live { color: var(--danger); background: rgba(240,68,56,0.14); }
+.ec-badge.out { color: var(--text-3); }
+.ec-badge.confirmed { color: var(--success); background: var(--success-soft); }
+.ec-badge .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); animation: pulse-dot 1.6s ease-in-out infinite; }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* ---- compact vertical rail card ---- */
+.ec-rail { flex: 0 0 auto; width: 200px; display: flex; flex-direction: column; gap: 8px; }
+.ec-rail-cover {
+  aspect-ratio: 16/10; border-radius: 14px; overflow: hidden;
+  background-size: cover; background-position: center; background-color: var(--surface-2);
+  position: relative; display: grid; place-items: center;
+}
+.ec-rail-cover .ec-badge { position: absolute; top: 8px; left: 8px; backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
+.ec-rail .ec-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+
+/* ---- large featured hero card ---- */
+.ec-feature { flex: 0 0 auto; width: 300px; }
+.ec-feature-cover {
+  aspect-ratio: 3/2; border-radius: 16px; overflow: hidden; position: relative;
+  background-size: cover; background-position: center; background-color: var(--surface-2);
+  display: grid; place-items: center;
+}
+.ec-feature-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,8,12,0.92) 0%, rgba(6,8,12,0.25) 45%, transparent 70%); }
+.ec-feature-cover > .ec-badge { position: absolute; top: 10px; left: 10px; z-index: 1; backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
+.ec-feature-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 14px; }
+.ec-feature-organizer { font: var(--t-caption); letter-spacing: 0.4px; text-transform: uppercase; color: rgba(255,255,255,0.75); }
+.ec-feature-title { font: var(--t-section); color: #fff; letter-spacing: -0.3px; margin: 2px 0 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ec-feature-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font: var(--t-meta); color: rgba(255,255,255,0.85); }
+.ec-feature-meta .ec-dot { color: rgba(255,255,255,0.5); }
+.ec-price-pill { margin-left: auto; background: rgba(255,255,255,0.16); color: #fff; padding: 3px 9px; border-radius: var(--radius-pill); }
+.ec-price-pill.free { background: var(--success); }
+
+/* ============================================================
+   EXPLORE — discovery sections
+   ============================================================ */
+.ex-section { margin-top: 22px; }
+.ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 10px; }
+.ex-head h2 { font: var(--t-section); letter-spacing: -0.4px; }
+.ex-sub { font: var(--t-meta); color: var(--text-3); flex: 0 0 auto; }
+.ex-rail {
+  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: 2px 16px 4px; scrollbar-width: none;
+}
+.ex-rail::-webkit-scrollbar { display: none; }
+.ex-rail > a { scroll-snap-align: start; }
+.ex-list { display: flex; flex-direction: column; gap: 8px; padding: 0 12px; }
+.ex-footnote { text-align: center; font: var(--t-meta); color: var(--text-3); padding: 24px 24px 8px; }
+.ex-footnote strong { color: var(--text-2); font-weight: 600; }
+
+/* skeletons — row-shaped, match the real .ec-row footprint */
+.ec-skel { display: flex; gap: 12px; padding: 8px; border-radius: 14px; background: var(--surface); border: 1px solid var(--hair); }
+.ec-skel .s-thumb { width: 92px; height: 92px; border-radius: 10px; background: var(--surface-2); }
+.ec-skel .s-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.ec-skel .s-a { height: 13px; width: 70%; border-radius: 6px; background: var(--surface-2); }
+.ec-skel .s-b { height: 11px; width: 45%; border-radius: 6px; background: var(--surface-2); }
+.ec-skel .s-thumb, .ec-skel .s-a, .ec-skel .s-b { animation: skel-pulse 1.3s ease-in-out infinite; }
+@keyframes skel-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+
+/* legacy .card kept below for any surface not yet migrated */
+.card-legacy-unused {}
+.card {
 .card {
   display: block; border-radius: var(--radius); overflow: hidden;
   background: var(--surface);
@@ -879,6 +991,15 @@ body,
   .dash-actions button { transition: color .15s, background-color .15s; }
   .dash-actions button:hover { color: var(--accent); background: var(--accent-soft); }
   .dash-actions button.danger:hover { color: var(--danger); background: rgba(199,64,44,.1); }
+
+  /* event-card hover polish (Linear-style: restrained, fast, purposeful) */
+  .ec-row:hover { border-color: var(--line); background: var(--surface-2); }
+  .ec-row .ec-thumb, .ec-rail-cover, .ec-feature-cover { --z: 1; }
+  .ec-thumb, .ec-rail-cover [style], .ec-feature-cover { transition: transform .3s cubic-bezier(.16,1,.3,1); }
+  .ec-rail:hover .ec-rail-cover, .ec-feature:hover .ec-feature-cover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .ec-rail-cover, .ec-feature-cover { transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s; }
+  .chip { transition: background-color .15s, color .15s, border-color .15s; }
+  .chip:hover { border-color: var(--line); color: var(--text); }
 }
 
 /* accessible focus rings */
@@ -932,13 +1053,20 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .tab [class^="icon-"] { font-size: 19px; }
   .tab.on { background: var(--accent-soft); }
 
-  /* feed becomes a real grid instead of a single scrolling column */
-  .feed {
+  /* dense row lists become a 2-column grid on desktop — uses the width
+     instead of one long centered column, without shrinking each row */
+  .feed, .ex-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
     align-items: start;
     padding: 4px 24px 24px;
   }
+  .ex-head { padding-left: 24px; padding-right: 24px; }
+  .ex-rail { padding-left: 24px; padding-right: 24px; }
+  /* let the featured rail breathe with larger cards on desktop */
+  .ec-feature { width: 360px; }
+  .ec-rail { width: 232px; }
 
   /* fixed bars anchored to the full viewport need the same left offset
      the sidebar introduces, so they stay centered under the content

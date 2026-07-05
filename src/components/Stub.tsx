@@ -1,71 +1,113 @@
 import { Link } from "react-router-dom";
 import { type Weyn, ticketsLeft, isSoldOut, isTonight, dayLabel, timeLabel } from "../api";
 
-// A handful of fixed gradient pairs (keyed off the event's own accent color so
-// it stays deterministic per-event, not random-per-render) — used whenever
-// there's no uploaded photo, instead of one flat color fill.
+// Card variants — one component, three densities, so different Explore
+// sections get genuinely different visual treatments (per the design brief:
+// "not every event should use the same card"):
+//   list    — dense horizontal row (thumbnail + text). Default. Airbnb-search
+//             density: lots of events, minimal vertical space.
+//   rail    — compact vertical card for horizontal-scroll rails.
+//   feature — large hero card for the Featured rail.
+type Variant = "list" | "rail" | "feature";
+
 function fallbackGradient(color: string): string {
-  return `linear-gradient(160deg, ${color}, ${color}CC 55%, #14151A66)`;
+  return `linear-gradient(150deg, ${color}, ${color}B0 60%, #14151A55)`;
 }
 
-// `ticket`: this card represents something the viewer already booked/RSVP'd
-// to (You screen), not something they're browsing — swaps the top badge for
-// a confirmation chip and the CTA for "View ticket" instead of re-selling it.
-export default function Stub({ e, ticket = false }: { e: Weyn; ticket?: boolean }) {
+// short "going" count — only shown when it's a real signal (>0), never a
+// fabricated number
+function attendance(e: Weyn): string | null {
+  if (!e.sold || e.sold <= 0) return null;
+  if (e.sold >= 1000) return `${(e.sold / 1000).toFixed(1).replace(/\.0$/, "")}k going`;
+  return `${e.sold} going`;
+}
+
+const catLabel = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
+
+export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn; ticket?: boolean; variant?: Variant }) {
   const left = ticketsLeft(e);
   const out = isSoldOut(e);
   const scarce = !out && left <= 12 && e.price > 0;
   const live = isTonight(e) && new Date(e.startsAt).getTime() <= Date.now() + 90 * 60e3;
+  const going = attendance(e);
+  const priceText = e.price === 0 ? "Free" : `${e.price} OMR`;
 
   const coverStyle: React.CSSProperties = e.image
     ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
     : { background: fallbackGradient(e.color) };
 
-  return (
-    <Link to={`/e/${e.id}`} className={"card" + (ticket ? " ticket-card" : "")}>
-      <div className="cover" style={coverStyle}>
-        {/* only status signals live on the image — date/price/venue moved
-            into the body below, per the "never place price in corners" rule */}
-        <div className="cover-badges">
-          {ticket ? (
-            <span className="gbadge confirmed"><i className="icon-circle-check" />{e.cancelled ? "Cancelled" : "Confirmed"}</span>
-          ) : out ? (
-            <span className="gbadge out">Sold out</span>
-          ) : live ? (
-            <span className="gbadge live"><span className="pulse" />Live now</span>
-          ) : null}
-          {!ticket && e.featured && <span className="gbadge featured"><i className="icon-sparkles" />Featured</span>}
-        </div>
-        {!e.image && <span className="glyph">{e.glyph}</span>}
-      </div>
+  const statusBadge = ticket ? (
+    <span className="ec-badge confirmed"><i className="icon-circle-check" />{e.cancelled ? "Cancelled" : "Confirmed"}</span>
+  ) : out ? (
+    <span className="ec-badge out">Sold out</span>
+  ) : live ? (
+    <span className="ec-badge live"><span className="pulse" />Live</span>
+  ) : e.featured ? (
+    <span className="ec-badge featured"><i className="icon-sparkles" />Featured</span>
+  ) : null;
 
-      <div className="body">
-        <div className="organizer-row">
-          <span className="organizer-name">{e.organizer}</span>
-          {e.organizerVerified && <i className="icon-badge-check verified-badge" title="Verified organizer" />}
+  // ---- dense horizontal list row (default) ----
+  if (variant === "list") {
+    return (
+      <Link to={`/e/${e.id}`} className={"ec-row" + (ticket ? " ticket" : "")}>
+        <div className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph">{e.glyph}</span>}</div>
+        <div className="ec-main">
+          <div className="ec-top">
+            <span className="ec-when">{dayLabel(e)} · {timeLabel(e)}</span>
+            {statusBadge}
+          </div>
+          <h3 className="ec-title">{e.title}</h3>
+          <div className="ec-meta">
+            <span>{e.venue || e.area}</span>
+            <span className="ec-dot">·</span>
+            <span>{catLabel(e.cat)}</span>
+            {going && <><span className="ec-dot">·</span><span>{going}</span></>}
+          </div>
         </div>
-        <h3>{e.title}</h3>
-        <div className="card-facts">
-          <span className="cf">{dayLabel(e)} · {timeLabel(e)}</span>
-          <span className="cf">{e.venue}</span>
-        </div>
-        <div className="row">
-          {ticket ? (
-            <span className="dist">{e.area}</span>
-          ) : out ? (
-            <span className="dist">Sold out</span>
-          ) : scarce ? (
-            <span className="dist scarce">{left} left</span>
-          ) : (
-            <span className="dist">{e.distanceKm} km away</span>
+        <div className="ec-side">
+          <span className={"ec-price" + (e.price === 0 ? " free" : "")}>{priceText}</span>
+          {!ticket && !out && (
+            <span className={"ec-dist" + (scarce ? " scarce" : "")}>{scarce ? `${left} left` : `${e.distanceKm} km`}</span>
           )}
-          <span className="row-right">
-            <span className={"price-tag" + (e.price === 0 ? " free" : "")}>{e.price === 0 ? "Free" : `${e.price} OMR`}</span>
-            <span className={"cta" + (out && !ticket ? " muted" : "")}>
-              {ticket ? "View ticket" : out ? "Full" : e.price === 0 ? "RSVP" : "Get tickets"}
-              <i className="icon-arrow-right" />
-            </span>
-          </span>
+          {ticket && <span className="ec-dist">{e.area}</span>}
+        </div>
+      </Link>
+    );
+  }
+
+  // ---- compact vertical card for horizontal rails ----
+  if (variant === "rail") {
+    return (
+      <Link to={`/e/${e.id}`} className="ec-rail">
+        <div className="ec-rail-cover" style={coverStyle}>
+          {statusBadge}
+          {!e.image && <span className="ec-glyph">{e.glyph}</span>}
+        </div>
+        <h3 className="ec-title">{e.title}</h3>
+        <div className="ec-meta">
+          <span>{dayLabel(e)}</span>
+          <span className="ec-dot">·</span>
+          <span className={e.price === 0 ? "ec-price free" : "ec-price"}>{priceText}</span>
+        </div>
+      </Link>
+    );
+  }
+
+  // ---- large featured hero card ----
+  return (
+    <Link to={`/e/${e.id}`} className="ec-feature">
+      <div className="ec-feature-cover" style={coverStyle}>
+        {statusBadge}
+        {!e.image && <span className="ec-glyph big">{e.glyph}</span>}
+        <div className="ec-feature-body">
+          <span className="ec-feature-organizer">{e.organizer}</span>
+          <h3 className="ec-feature-title">{e.title}</h3>
+          <div className="ec-feature-meta">
+            <span>{dayLabel(e)} · {timeLabel(e)}</span>
+            <span className="ec-dot">·</span>
+            <span>{e.venue || e.area}</span>
+            <span className={"ec-price ec-price-pill" + (e.price === 0 ? " free" : "")}>{priceText}</span>
+          </div>
         </div>
       </div>
     </Link>
