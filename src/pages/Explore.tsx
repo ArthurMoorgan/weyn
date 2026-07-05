@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api, CATS, type Cat, type Weyn, isTonight, isThisWeekend } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
@@ -32,12 +32,77 @@ function Rail({ title, subtitle, events, variant = "rail" }: { title: string; su
   );
 }
 
+// Live suggestions are derived client-side from the same events list Explore
+// already fetches — titles, organizers, venues/areas, and categories that
+// match what's been typed so far. No new endpoint.
+type Suggestion = { kind: "event" | "organizer" | "place" | "category"; label: string; sub?: string; value: string };
+
+function buildSuggestions(all: Weyn[], q: string): Suggestion[] {
+  const t = q.trim().toLowerCase();
+  if (!t) return [];
+  const out: Suggestion[] = [];
+  const seen = new Set<string>();
+
+  for (const c of CATS) {
+    if (c.key === "all") continue;
+    if (c.label.toLowerCase().includes(t) && !seen.has("cat:" + c.key)) {
+      seen.add("cat:" + c.key);
+      out.push({ kind: "category", label: c.label, sub: "Category", value: c.label });
+    }
+  }
+  for (const e of all) {
+    if (out.length >= 8) break;
+    if (e.title.toLowerCase().includes(t) && !seen.has("ev:" + e.id)) {
+      seen.add("ev:" + e.id);
+      out.push({ kind: "event", label: e.title, sub: `${e.venue} · ${e.area}`, value: e.title });
+    }
+  }
+  for (const e of all) {
+    if (out.length >= 10) break;
+    if (e.organizer.toLowerCase().includes(t) && !seen.has("org:" + e.organizer)) {
+      seen.add("org:" + e.organizer);
+      out.push({ kind: "organizer", label: e.organizer, sub: "Organizer", value: e.organizer });
+    }
+  }
+  for (const e of all) {
+    if (out.length >= 12) break;
+    if (e.area.toLowerCase().includes(t) && !seen.has("area:" + e.area)) {
+      seen.add("area:" + e.area);
+      out.push({ kind: "place", label: e.area, sub: "Area", value: e.area });
+    }
+  }
+  return out.slice(0, 8);
+}
+
+const SUGGEST_ICON: Record<Suggestion["kind"], string> = {
+  event: "calendar-days", organizer: "user", place: "map-pin", category: "tag",
+};
+
 export default function Explore() {
   const account = useAccount();
   const [cat, setCat] = useState<Cat | "all">("all");
   const [q, setQ] = useState("");
+  const [showSuggest, setShowSuggest] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
   const { data, loading, error, reload } = useAsync(() => api.listEvents(), []);
   const searching = q.trim().length > 0;
+
+  const suggestions = useMemo(() => buildSuggestions((data || []).filter((e) => !e.cancelled), q), [data, q]);
+
+  function chooseSuggestion(s: Suggestion) {
+    setQ(s.value);
+    setShowSuggest(false);
+    setActiveIdx(-1);
+  }
+
+  function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!showSuggest || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx((i) => (i + 1) % suggestions.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx((i) => (i <= 0 ? suggestions.length - 1 : i - 1)); }
+    else if (e.key === "Enter" && activeIdx >= 0) { e.preventDefault(); chooseSuggestion(suggestions[activeIdx]); }
+    else if (e.key === "Escape") { setShowSuggest(false); }
+  }
 
   // one fetch → many derived sections
   const S = useMemo(() => {
@@ -77,10 +142,40 @@ export default function Explore() {
         </div>
       </header>
 
-      <div className="search">
-        <i className="icon-search" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search events, venues, tags…" />
-        {q && <button className="clearx" onClick={() => setQ("")} aria-label="Clear"><i className="icon-x" /></button>}
+      <div className="search-wrap" ref={searchWrapRef}>
+        <div className="search">
+          <i className="icon-search" />
+          <input
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setShowSuggest(true); setActiveIdx(-1); }}
+            onFocus={() => setShowSuggest(true)}
+            onBlur={() => setTimeout(() => setShowSuggest(false), 120)}
+            onKeyDown={onSearchKeyDown}
+            placeholder="Search events, venues, tags…"
+            role="combobox"
+            aria-expanded={showSuggest && suggestions.length > 0}
+            aria-autocomplete="list"
+          />
+          {q && <button className="clearx" onClick={() => { setQ(""); setShowSuggest(false); }} aria-label="Clear"><i className="icon-x" /></button>}
+        </div>
+        {showSuggest && suggestions.length > 0 && (
+          <div className="suggest" role="listbox">
+            {suggestions.map((s, i) => (
+              <div
+                key={s.kind + s.label}
+                className={"suggest-item" + (i === activeIdx ? " active" : "")}
+                role="option"
+                aria-selected={i === activeIdx}
+                onMouseDown={() => chooseSuggestion(s)}
+                onMouseEnter={() => setActiveIdx(i)}
+              >
+                <i className={"icon-" + SUGGEST_ICON[s.kind]} />
+                <b>{s.label}</b>
+                {s.sub && <span>{s.sub}</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {!searching && (
