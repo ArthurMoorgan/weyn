@@ -137,6 +137,9 @@ export default function Explore() {
   const [q, setQ] = useState("");
   const [showSuggest, setShowSuggest] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showCityInfo, setShowCityInfo] = useState(false);
+  const activeFilterCount = (when !== "all" ? 1 : 0) + (cat !== "all" ? 1 : 0);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { data, loading, error, reload } = useAsync(() => api.listEvents(), [], { cacheKey: "events:all" });
@@ -214,9 +217,25 @@ export default function Explore() {
         <Logo wordmark size={26} />
         <div className="tb-right">
           <ThemeToggle />
-          <span className="pill"><i className="icon-map-pin" /> Muscat</span>
+          <button className="pill" onClick={() => setShowCityInfo(true)}>
+            <i className="icon-map-pin" /> Muscat
+          </button>
         </div>
       </header>
+
+      {showCityInfo && (
+        <div className="city-popover-backdrop" onClick={() => setShowCityInfo(false)}>
+          <div className="city-popover" onClick={(e) => e.stopPropagation()}>
+            <div className="city-popover-head">
+              <i className="icon-map-pin" />
+              <b>Muscat</b>
+              <button className="clearx" onClick={() => setShowCityInfo(false)} aria-label="Close"><i className="icon-x" /></button>
+            </div>
+            <p>Weyn currently covers events and venues across Muscat only.</p>
+            <p className="t-caption">More cities are coming soon.</p>
+          </div>
+        </div>
+      )}
 
       {!searching && (
         <section className="ex-hero">
@@ -243,6 +262,14 @@ export default function Explore() {
             aria-activedescendant={activeIdx >= 0 ? `explore-suggest-${activeIdx}` : undefined}
           />
           {q && <button className="clearx" onClick={() => { setQ(""); setShowSuggest(false); }} aria-label="Clear"><i className="icon-x" /></button>}
+          <button
+            className={"search-filter-btn" + (activeFilterCount ? " on" : "")}
+            onClick={() => setShowFilters(true)}
+            aria-label="Filter events"
+          >
+            <i className="icon-sliders-horizontal" />
+            {activeFilterCount > 0 && <span className="search-filter-count">{activeFilterCount}</span>}
+          </button>
         </div>
         {showSuggest && suggestions.length > 0 && (
           <div className="suggest" role="listbox" id="explore-suggest-listbox">
@@ -266,7 +293,7 @@ export default function Explore() {
       </div>
 
       {!searching && (
-        <div className="chips chips-when">
+        <div className="chips chips-when chips-desktop-only">
           {(["all", "today", "tomorrow", "weekend"] as const).map((w) => (
             <button key={w} className={"chip" + (when === w ? " on" : "")} onClick={() => setWhen(w)}>
               {w === "all" ? "Any time" : w === "today" ? "Today" : w === "tomorrow" ? "Tomorrow" : "This weekend"}
@@ -276,12 +303,65 @@ export default function Explore() {
       )}
 
       {!searching && (
-        <div className="chips">
+        <div className="chips chips-desktop-only">
           {CATS.map((c) => (
             <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")}>
               {c.label}
             </button>
           ))}
+        </div>
+      )}
+
+      {!searching && activeFilterCount > 0 && (
+        <div className="chips chips-mobile-only active-filter-summary">
+          {when !== "all" && (
+            <button className="chip on" onClick={() => setWhen("all")}>
+              {when === "today" ? "Today" : when === "tomorrow" ? "Tomorrow" : "This weekend"} <i className="icon-x" />
+            </button>
+          )}
+          {cat !== "all" && (
+            <button className="chip on" onClick={() => setCat("all")}>
+              {CATS.find((c) => c.key === cat)?.label} <i className="icon-x" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {showFilters && (
+        <div className="filter-sheet-backdrop" onClick={() => setShowFilters(false)}>
+          <div className="filter-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="filter-sheet-head">
+              <h3>Filter events</h3>
+              <button className="clearx" onClick={() => setShowFilters(false)} aria-label="Close"><i className="icon-x" /></button>
+            </div>
+
+            <div className="filter-sheet-group">
+              <span className="filter-sheet-label">When</span>
+              <div className="chips">
+                {(["all", "today", "tomorrow", "weekend"] as const).map((w) => (
+                  <button key={w} className={"chip" + (when === w ? " on" : "")} onClick={() => setWhen(w)}>
+                    {w === "all" ? "Any time" : w === "today" ? "Today" : w === "tomorrow" ? "Tomorrow" : "This weekend"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="filter-sheet-group">
+              <span className="filter-sheet-label">Category</span>
+              <div className="chips">
+                {CATS.map((c) => (
+                  <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")}>
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="filter-sheet-actions">
+              <button className="btn glass" onClick={() => { setWhen("all"); setCat("all"); }}>Clear all</button>
+              <button className="btn lg" onClick={() => setShowFilters(false)}>Show results</button>
+            </div>
+          </div>
         </div>
       )}
 
