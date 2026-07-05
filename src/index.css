@@ -109,7 +109,35 @@ body {
   background: var(--bg);
 }
 
-h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.4px; line-height: 1.2; }
+/* ============================================================
+   TYPE SYSTEM — one scale, used everywhere. Five roles, fixed
+   size/weight/tracking pairings so nothing is ad-hoc. Inter now
+   loads a real 700 (was faux-bolding 600 before). Reference:
+   Linear/Stripe — tight tracking on large sizes, restrained weights.
+   ============================================================ */
+:root {
+  --fw-regular: 400;
+  --fw-medium:  500;   /* metadata, secondary UI */
+  --fw-semibold: 600;  /* card titles, buttons, labels */
+  --fw-bold:    700;   /* hero + section headings only */
+
+  --t-hero:    700 28px/1.16 "Inter", sans-serif;
+  --t-section: 700 19px/1.25 "Inter", sans-serif;
+  --t-card:    600 15px/1.3  "Inter", sans-serif;
+  --t-meta:    500 13px/1.4  "Inter", sans-serif;
+  --t-caption: 600 11px/1.3  "Inter", sans-serif;
+}
+
+h1, h2, h3, h4 { margin: 0; }
+h1 { font: var(--t-hero);    letter-spacing: -0.6px; }
+h2 { font: var(--t-section); letter-spacing: -0.4px; }
+h3 { font: var(--t-card);    letter-spacing: -0.2px; }
+
+/* utility roles — use on non-heading elements that still need scale identity */
+.t-eyebrow { font: var(--t-caption); letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-3); }
+.t-meta    { font: var(--t-meta); color: var(--text-2); }
+.t-caption { font: var(--t-caption); letter-spacing: 0.2px; color: var(--text-3); }
+
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 
