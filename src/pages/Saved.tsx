@@ -25,7 +25,13 @@ export default function Saved() {
         <p className="sub">{saved.length === 0 ? "Nothing here yet" : `${list.length} saved`}</p>
       </div>
 
-      {loading && <div className="spin" />}
+      {loading && (
+        <div className="feed" style={{ paddingTop: 8 }}>
+          <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+          <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+          <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+        </div>
+      )}
 
       {!loading && (list.length > 0 ? (
         <div className="feed" style={{ paddingTop: 8 }}>{list.map((e) => <Stub key={e.id} e={e} />)}</div>

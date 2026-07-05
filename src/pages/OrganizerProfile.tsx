@@ -16,7 +16,18 @@ export default function OrganizerProfile() {
   const account = useAccount();
   const { data: p, loading, error } = useAsync(() => api.getOrganizerProfile(id!), [id]);
 
-  if (loading) return <div className="detail"><div className="spin" /></div>;
+  if (loading) return (
+    <div className="detail">
+      <div className="detail-skel-cover" />
+      <div className="detail-skel-sheet">
+        <div className="detail-skel-title" />
+        <div className="detail-skel-line" />
+        <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+        <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+        <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+      </div>
+    </div>
+  );
   if (error || !p) return (
     <div className="detail">
       <div className="empty" style={{ paddingTop: 120 }}>

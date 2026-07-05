@@ -387,6 +387,30 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ec-skel .s-thumb, .ec-skel .s-a, .ec-skel .s-b { animation: skel-pulse 1.3s ease-in-out infinite; }
 @keyframes skel-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
 
+/* skeletons — additional page loading states, reuse skel-pulse */
+.ex-rail-skel { flex: 0 0 auto; width: 200px; display: flex; flex-direction: column; gap: 8px; }
+.ex-rail-skel .s-cover { aspect-ratio: 16/10; border-radius: 14px; background: var(--surface-hover); }
+.ex-rail-skel .s-a { height: 13px; width: 85%; border-radius: 6px; background: var(--surface-hover); margin-top: 2px; }
+.ex-rail-skel .s-b { height: 11px; width: 40%; border-radius: 6px; background: var(--surface-hover); }
+.ex-feature-skel { flex: 0 0 auto; width: 300px; aspect-ratio: 3/2; border-radius: 16px; background: var(--surface-hover); }
+.detail-skel-cover { height: 40vh; min-height: 280px; max-height: 420px; background: var(--surface-hover); }
+.detail-skel-sheet { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.detail-skel-title { height: 24px; width: 70%; border-radius: 6px; background: var(--surface-hover); }
+.detail-skel-line { height: 13px; width: 45%; border-radius: 6px; background: var(--surface-hover); }
+.detail-skel-facts { height: 120px; border-radius: var(--radius-sm); background: var(--surface-hover); margin-top: 8px; }
+.stat-skel { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 16px; }
+.stat-skel .s-tile { height: 64px; border-radius: var(--radius-sm); background: var(--surface-hover); }
+.list-row-skel { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.list-row-skel .s-ic { width: 20px; height: 20px; border-radius: 6px; background: var(--surface-hover); }
+.list-row-skel .s-txt { height: 13px; width: 60%; border-radius: 6px; background: var(--surface-hover); }
+.ex-rail-skel .s-cover, .ex-rail-skel .s-a, .ex-rail-skel .s-b,
+.ex-feature-skel,
+.detail-skel-cover, .detail-skel-title, .detail-skel-line, .detail-skel-facts,
+.stat-skel .s-tile,
+.list-row-skel .s-ic, .list-row-skel .s-txt {
+  animation: skel-pulse 1.3s ease-in-out infinite;
+}
+
 
 /* ---------- tab bar ---------- native iOS bottom bar: full-width, flat,
    fixed to the edge. Not a floating pill, no glow. */

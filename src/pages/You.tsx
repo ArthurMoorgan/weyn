@@ -50,7 +50,11 @@ export default function You() {
   };
 
   if (summary.loading || allEvents.loading) {
-    return (<><Header tab={tab} setTab={setTab} isHost={false} account={!!account} /><div className="spin" /></>);
+    return (<><Header tab={tab} setTab={setTab} isHost={false} account={!!account} /><div className="feed" style={{ paddingTop: 8 }}>
+      <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+      <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+      <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+    </div></>);
   }
 
   // NEVER silently fall through on a failed fetch — show it, don't hide it as an empty state
@@ -240,7 +244,13 @@ function CollectionsSection() {
         />
         <button className="btn glass sm" onClick={create} disabled={creating || !name.trim()}>Create</button>
       </div>
-      {loading ? <div className="spin" /> : (data || []).length > 0 ? (
+      {loading ? (
+        <>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+        </>
+      ) : (data || []).length > 0 ? (
         <ul className="steps" style={{ padding: "0 16px" }}>
           {data!.map((c) => (
             <li key={c.id}>
@@ -487,7 +497,13 @@ function AttendeesSheet({ event, onClose }: { event: Weyn; onClose: () => void }
     <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
       <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 14 }}>Attendees — {event.title}</h3>
-        {loading && <div className="spin" style={{ margin: "20px auto" }} />}
+        {loading && (
+          <div style={{ padding: "0 4px" }}>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          </div>
+        )}
         {error && <p className="errline">{error}</p>}
         {!loading && !error && (
           (data || []).length > 0 ? (
@@ -544,7 +560,13 @@ function MarketingSheet({ event, onClose }: { event: Weyn; onClose: () => void }
         <p className="hint" style={{ margin: "0 0 14px" }}>
           {data?.aiGenerated ? "Generated with AI." : "Generated from your event details."} Copy and post anywhere.
         </p>
-        {loading && <div className="spin" style={{ margin: "20px auto" }} />}
+        {loading && (
+          <div style={{ padding: "0 4px" }}>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          </div>
+        )}
         {error && <p className="errline">{error}</p>}
         {!loading && !error && channels.map((c) => (
           <div key={c.key} className="marketing-card">
@@ -577,7 +599,13 @@ function AnalyticsSheet({ event, onClose }: { event: Weyn; onClose: () => void }
     <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
       <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 14 }}>Analytics — {event.title}</h3>
-        {loading && <div className="spin" style={{ margin: "20px auto" }} />}
+        {loading && (
+          <div style={{ padding: "0 4px" }}>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          </div>
+        )}
         {error && <p className="errline">{error}</p>}
         {!loading && !error && data && (
           <>
@@ -697,7 +725,13 @@ function TeamSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
         )}
 
         <p className="hint" style={{ margin: "18px 0 8px" }}>Team members</p>
-        {loading && <div className="spin" style={{ margin: "20px auto" }} />}
+        {loading && (
+          <div style={{ padding: "0 4px" }}>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          </div>
+        )}
         {error && <p className="errline">{error}</p>}
         {!loading && !error && (
           (data || []).length > 0 ? (

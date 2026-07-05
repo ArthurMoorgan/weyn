@@ -46,7 +46,11 @@ export default function Admin() {
 
       <div className="admin-grid">
         <div>
-          {metrics.loading ? <div className="spin" /> : metrics.error ? (
+          {metrics.loading ? (
+            <div className="stat-skel">
+              <div className="s-tile" /><div className="s-tile" /><div className="s-tile" /><div className="s-tile" />
+            </div>
+          ) : metrics.error ? (
             <p className="errline" style={{ padding: "0 16px" }}>{metrics.error}</p>
           ) : metrics.data && (
             <div className="stat-grid" style={{ padding: "0 16px" }}>
@@ -63,7 +67,13 @@ export default function Admin() {
             <i className="icon-flag" /> Open reports {metrics.data ? `(${metrics.data.openReports})` : ""}
           </p>
 
-          {reports.loading && <div className="spin" />}
+          {reports.loading && (
+            <div style={{ padding: "0 16px" }}>
+              <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+              <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+              <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+            </div>
+          )}
           {reports.error && <p className="errline" style={{ padding: "0 16px" }}>{reports.error}</p>}
           {!reports.loading && !reports.error && (
             (reports.data || []).length > 0 ? (

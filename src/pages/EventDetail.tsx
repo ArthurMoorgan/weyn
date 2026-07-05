@@ -21,7 +21,16 @@ export default function EventDetail() {
   const [shared, setShared] = useState(false);
   const account = useAccount();
 
-  if (loading) return <div className="detail"><div className="spin" /></div>;
+  if (loading) return (
+    <div className="detail">
+      <div className="detail-skel-cover" />
+      <div className="detail-skel-sheet">
+        <div className="detail-skel-title" />
+        <div className="detail-skel-line" />
+        <div className="detail-skel-facts" />
+      </div>
+    </div>
+  );
   if (error || !e) return (
     <div className="detail">
       <div className="empty" style={{ paddingTop: 120 }}>
@@ -268,7 +277,12 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
     <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
       <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 12 }}>Add to a list</h3>
-        {lists === null ? <div className="spin" /> : (
+        {lists === null ? (
+          <>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          </>
+        ) : (
           <>
             {lists.length > 0 && (
               <ul className="steps" style={{ marginBottom: 14 }}>
