@@ -173,6 +173,17 @@ export function createApp(storage) {
   // fast enough to soak up all remaining stock before a human can click
   const bookingLimiter = rateLimit({ windowMs: 10 * 60e3, max: 15, standardHeaders: true, legacyHeaders: false });
   const checkinLimiter = rateLimit({ windowMs: 60e3, max: 60, standardHeaders: true, legacyHeaders: false });
+  // reports feed the moderation signal, so a single actor spamming them can
+  // skew what gets auto-flagged — tighter than the 300/15min global floor.
+  const reportLimiter = rateLimit({ windowMs: 60 * 60e3, max: 20, standardHeaders: true, legacyHeaders: false });
+  // low-harm social writes (follow, collections) — a modest cap just to stop
+  // scripted mass-actions, well above any real human's pace.
+  const socialLimiter = rateLimit({ windowMs: 15 * 60e3, max: 120, standardHeaders: true, legacyHeaders: false });
+
+  // hard cap on tickets per single booking request — stops one call from
+  // draining a whole event's inventory or issuing a huge number of ticket
+  // rows. Larger group bookings go through multiple requests or the organizer.
+  const MAX_TICKETS_PER_BOOKING = 10;
 
   // ---- image upload ---- memoryStorage works identically under plain Node
   // and Workers (nodejs_compat) — no disk involved, `storage.saveImage`
@@ -363,11 +374,19 @@ export function createApp(storage) {
     if (e.ticketingType && e.ticketingType !== "weyn") {
       return res.status(400).json({ error: "This event isn't ticketed through Weyn — see externalTicketUrl/organizerContact instead" });
     }
-    const qty = Math.max(1, Number(req.body?.qty) || 1);
+    const qty = Math.min(MAX_TICKETS_PER_BOOKING, Math.max(1, Number(req.body?.qty) || 1));
     const price = priceFor(e, req.body?.tierId);
     if (price === null) return res.status(400).json({ error: "Please choose a ticket type" });
-    if (price > 0 && paytabsConfigured()) {
-      return res.status(400).json({ error: "This is a paid ticket — use POST /api/events/:id/checkout instead" });
+    // A paid ticket must NEVER be issued through this free path. This
+    // previously only rejected when paytabsConfigured() was true — meaning
+    // with payments unconfigured (the current state), a price>0 event fell
+    // through and got booked for free with real tickets issued. Now any
+    // paid ticket is refused here unconditionally: routed to checkout if we
+    // can take payment, otherwise blocked outright until payments are live.
+    if (price > 0) {
+      return paytabsConfigured()
+        ? res.status(400).json({ error: "This is a paid ticket — use POST /api/events/:id/checkout instead" })
+        : res.status(503).json({ error: "Paid tickets aren't available yet — payments are still being set up." });
     }
 
     let bookedTier = null;
@@ -407,7 +426,7 @@ export function createApp(storage) {
     if (e.ticketingType !== "weyn") {
       return res.status(400).json({ error: "This event isn't ticketed through Weyn" });
     }
-    const qty = Math.max(1, Number(req.body?.qty) || 1);
+    const qty = Math.min(MAX_TICKETS_PER_BOOKING, Math.max(1, Number(req.body?.qty) || 1));
     const tierId = req.body?.tierId || null;
     const price = priceFor(e, tierId);
     if (price === null) return res.status(400).json({ error: "Please choose a ticket type" });
@@ -669,7 +688,7 @@ export function createApp(storage) {
   });
 
   // ---- following organizers (see schema.prisma's Follow comment) ----
-  app.post("/api/organizers/:id/follow", requireAuth, async (req, res) => {
+  app.post("/api/organizers/:id/follow", socialLimiter, requireAuth, async (req, res) => {
     const targetId = req.params.id;
     const target = await prisma.user.findUnique({ where: { id: targetId } });
     if (!target) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Organizer not found" } });
@@ -711,7 +730,7 @@ export function createApp(storage) {
     next();
   }
 
-  app.post("/api/collections", requireAuth, async (req, res) => {
+  app.post("/api/collections", socialLimiter, requireAuth, async (req, res) => {
     const name = (req.body?.name || "").trim();
     if (!name) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "name is required" } });
     res.status(201).json(await db.createCollection(req.user.id, name));
@@ -789,7 +808,7 @@ export function createApp(storage) {
   // ---- reports (moderation queue, see schema.prisma's Report comment) ----
   // Reporting itself needs no auth — an anonymous visitor can flag something —
   // but reviewing/resolving the queue is admin-only, same as event moderation.
-  app.post("/api/reports", async (req, res) => {
+  app.post("/api/reports", reportLimiter, async (req, res) => {
     const { entityType, entityId, reason, note } = req.body || {};
     if (!["event", "organizer", "user"].includes(entityType) || !entityId || !reason) {
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "entityType, entityId, and reason are required" } });
@@ -859,7 +878,10 @@ export function createApp(storage) {
     res.json({ ok: true });
   });
 
-  app.post("/api/push/test", async (req, res) => {
+  // ADMIN-only: this fires a real push to any registered device, so leaving
+  // it open let anyone spam notifications to a device they named. It's a
+  // debugging tool, not a user-facing endpoint.
+  app.post("/api/push/test", requireAuth, requireRole("ADMIN"), async (req, res) => {
     const { deviceId } = req.body || {};
     const token = deviceId && (await db.tokenForDevice(deviceId));
     if (!token) return res.status(404).json({ error: "No push token registered for that deviceId" });

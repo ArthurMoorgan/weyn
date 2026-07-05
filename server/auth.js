@@ -15,7 +15,7 @@ export function authConfigured() {
 }
 
 export function issueSessionToken(user) {
-  return jwt.sign({ sub: user.id, role: user.role, tv: user.tokenVersion }, SESSION_SECRET, { expiresIn: TOKEN_TTL });
+  return jwt.sign({ sub: user.id, role: user.role, tv: user.tokenVersion }, SESSION_SECRET, { expiresIn: TOKEN_TTL, algorithm: "HS256" });
 }
 
 // Attaches req.user (the full User row) if a valid session is present;
@@ -25,7 +25,9 @@ export async function attachUser(req, _res, next) {
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token || !SESSION_SECRET) return next();
   try {
-    const payload = jwt.verify(token, SESSION_SECRET);
+    // Pin the algorithm — never let a token's own header dictate how it's
+    // verified (defends against alg-confusion / alg:none classes of attack).
+    const payload = jwt.verify(token, SESSION_SECRET, { algorithms: ["HS256"] });
     const user = await db.getUserById(payload.sub);
     // tokenVersion mismatch = this JWT was issued before a forced sign-out
     // (ban, role change) bumped it — a 30-day-lived token has no other way
