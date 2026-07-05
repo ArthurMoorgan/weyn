@@ -175,14 +175,17 @@ export default function Explore() {
             role="combobox"
             aria-expanded={showSuggest && suggestions.length > 0}
             aria-autocomplete="list"
+            aria-controls="explore-suggest-listbox"
+            aria-activedescendant={activeIdx >= 0 ? `explore-suggest-${activeIdx}` : undefined}
           />
           {q && <button className="clearx" onClick={() => { setQ(""); setShowSuggest(false); }} aria-label="Clear"><i className="icon-x" /></button>}
         </div>
         {showSuggest && suggestions.length > 0 && (
-          <div className="suggest" role="listbox">
+          <div className="suggest" role="listbox" id="explore-suggest-listbox">
             {suggestions.map((s, i) => (
               <div
                 key={s.kind + s.label}
+                id={`explore-suggest-${i}`}
                 className={"suggest-item" + (i === activeIdx ? " active" : "")}
                 role="option"
                 aria-selected={i === activeIdx}
