@@ -773,6 +773,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- forms ---------- */
 .form { padding: 8px 20px 0; }
+.form-preview { display: none; }
 .field { margin-bottom: 16px; }
 .field label { display: block; font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 7px; }
 .field input, .field select, .field textarea {
@@ -1182,4 +1183,43 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
     align-items: start;
     gap: 24px;
   }
+
+  /* host/create-event form: fields on the left, a sticky live preview of
+     the cover photo + title on the right — instead of one long mobile
+     column stretched to full width */
+  .form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+    align-items: start;
+    gap: 28px;
+    padding: 12px 24px 40px;
+  }
+  .form-fields { display: contents; }
+  .form-preview {
+    display: flex;
+    position: sticky; top: 24px;
+    display: flex; flex-direction: column; gap: 14px;
+    border: 1px solid var(--hair); border-radius: var(--radius);
+    background: var(--surface); padding: 16px;
+  }
+  .form-preview .preview-cover {
+    width: 100%; aspect-ratio: 4/3; border-radius: var(--radius-sm);
+    background-size: cover; background-position: center;
+    display: flex; align-items: center; justify-content: center;
+    background-color: var(--surface-2); color: var(--text-3); font-size: 13px;
+  }
+  .form-preview h4 { font-size: 15px; margin: 0; }
+  .form-preview .preview-meta { font-size: 12.5px; color: var(--text-2); }
+  .onboard-grid { grid-template-columns: repeat(4, 1fr); }
+
+  /* admin: metrics + report queue side by side instead of stacked */
+  .admin-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+    align-items: start;
+    gap: 24px;
+    padding: 0 24px;
+  }
+  .admin-grid .stat-grid { padding: 0; grid-template-columns: 1fr 1fr; }
+  .admin-grid .steps { padding: 0; }
 }

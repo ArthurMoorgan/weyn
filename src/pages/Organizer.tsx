@@ -164,7 +164,7 @@ export default function Organizer() {
 
         <OnboardingGrid />
 
-        <div className="form" style={{ paddingTop: 4 }}>
+        <div style={{ padding: "4px 20px 0" }}>
           <div className="onboard-cta">
             <b>Sign in to get started</b>
             <span>We use your Google account to verify who owns each event — so only you can edit or cancel what you publish.</span>
@@ -191,6 +191,7 @@ export default function Organizer() {
       </div>
 
       <div className="form">
+        <div className="form-fields">
         {/* Feature 1: Import from Instagram */}
         <button type="button" className="ig-import-toggle" onClick={() => setIgOpen((v) => !v)}>
           <i className="icon-camera" /> Import from Instagram
@@ -396,6 +397,25 @@ export default function Organizer() {
         <p style={{ textAlign: "center", fontSize: 12, color: "var(--text-3)", margin: "12px 0 0" }}>
           Saved to the Weyn backend. Appears in Explore instantly.
         </p>
+        </div>
+
+        {/* desktop-only sticky preview — hidden on mobile via .form-preview's
+            own display, since .form is a single column there */}
+        <div className="form-preview">
+          <div
+            className="preview-cover"
+            style={coverUrl ? { backgroundImage: `url(${coverUrl})` } : undefined}
+          >
+            {!coverUrl && "Cover preview"}
+          </div>
+          <h4>{f.title || "Your event title"}</h4>
+          <div className="preview-meta">
+            {(f.organizer || "You")} · {f.venue || "Venue"}{f.area ? `, ${f.area}` : ""}
+          </div>
+          <div className="preview-meta">
+            {f.when ? new Date(f.when).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Date & time"}
+          </div>
+        </div>
       </div>
 
       {toast && <div className="toast"><i className="icon-check" /> Published — opening your dashboard</div>}
