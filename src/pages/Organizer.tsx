@@ -173,7 +173,7 @@ export default function Organizer() {
         <div style={{ padding: "4px 20px 0" }}>
           <div className="onboard-cta">
             <b>Sign in to get started</b>
-            <span>We use your Google account to verify who owns each event — so only you can edit or cancel what you publish.</span>
+            <span>We verify your identity to confirm who owns each event — so only you can edit or cancel what you publish.</span>
             <div className="onboard-signin"><AccountWidget /></div>
           </div>
         </div>
@@ -445,7 +445,7 @@ export default function Organizer() {
 
 const ONBOARD_ITEMS = [
   { icon: "calendar-plus", title: "Create events", body: "A page with your photo, details, and location — live in under a minute." },
-  { icon: "users", title: "Manage attendees", body: "See who's coming, with names and emails for anyone signed in with Google." },
+  { icon: "users", title: "Manage attendees", body: "See who's coming, with names and emails for anyone signed in." },
   { icon: "ticket", title: "Sell tickets", body: "Free, paid, cash-at-door, or your own external link — you choose per event." },
   { icon: "chart-bar", title: "Track registrations", body: "Live sold counts, revenue, and capacity from your dashboard on You." },
 ] as const;

@@ -367,7 +367,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ex-hero { padding: 20px 16px 8px; display: flex; flex-direction: column; gap: 8px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
 .ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; max-width: 22ch; }
 .ex-hero-sub { font: var(--t-body); color: var(--text-2); margin: 0; max-width: 46ch; }
-.ex-hero-actions { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+.ex-hero-actions { display: flex; align-items: center; flex-wrap: wrap; row-gap: 4px; column-gap: 14px; margin-top: 8px; }
 .ex-hero-actions .btn.lg { width: auto; flex: 0 0 auto; }
 .ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 10px 4px; white-space: nowrap; }
 .ex-hero-host [class^="icon-"] { font-size: 14px; }

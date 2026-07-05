@@ -503,7 +503,7 @@ function AttendeesSheet({ event, onClose }: { event: Weyn; onClose: () => void }
               <button className="btn glass" onClick={exportCsv} style={{ marginTop: 10 }}><i className="icon-download" /> Export CSV</button>
             </>
           ) : (
-            <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No named attendees yet — people who book while signed in with Google will show up here.</p>
+            <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No named attendees yet — people who book while signed in will show up here.</p>
           )
         )}
         <button className="btn glass" onClick={close} style={{ marginTop: 8 }}>Close</button>
