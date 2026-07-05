@@ -275,7 +275,15 @@ export function createApp(storage) {
 
       const id = slug(refined.title || b.title) + "-" + crypto.randomUUID().slice(0, 4);
       const tags = refined.tags;
-      const ticketingType = ["weyn", "external", "cash", "registration"].includes(b.ticketingType) ? b.ticketingType : "weyn";
+      // Weyn Ticketing is disabled while card payments aren't live — reject it
+      // here (not just greyed out in the UI) so the API can't be used to
+      // create a Weyn-ticketed event. Default also moved off "weyn" to "cash".
+      // Re-enable by restoring "weyn" to the allowlist once PayTabs is set up.
+      const ALLOWED_TICKETING = ["external", "cash", "registration"];
+      if (b.ticketingType === "weyn") {
+        return res.status(400).json({ error: { code: "TICKETING_DISABLED", message: "Weyn Ticketing isn't available yet — use an external link, registration form, or cash at the door." } });
+      }
+      const ticketingType = ALLOWED_TICKETING.includes(b.ticketingType) ? b.ticketingType : "cash";
       const existingImage = typeof b.existingImage === "string" && b.existingImage.startsWith("/uploads/") ? b.existingImage : null;
 
       let tiers = null;
@@ -575,7 +583,10 @@ export function createApp(storage) {
       else if (key === "capacity") patch.capacity = Math.max(e.sold, Number(req.body.capacity) || e.capacity);
       else if (key === "minAge") patch.minAge = Math.max(0, Number(req.body.minAge) || 0);
       else if (key === "tags") patch.tags = Array.isArray(req.body.tags) ? req.body.tags : String(req.body.tags).split(",").map((t) => t.trim()).filter(Boolean);
-      else if (key === "ticketingType") patch.ticketingType = ["weyn", "external", "cash", "registration"].includes(req.body.ticketingType) ? req.body.ticketingType : e.ticketingType;
+      // "weyn" excluded — can't switch an event to Weyn Ticketing while it's
+      // disabled (mirrors the create-route block; keeps the API consistent
+      // with the greyed-out UI). Existing weyn events keep their type on edit.
+      else if (key === "ticketingType") patch.ticketingType = ["external", "cash", "registration"].includes(req.body.ticketingType) ? req.body.ticketingType : e.ticketingType;
       else if (key === "externalTicketUrl") patch.externalTicketUrl = normalizeUrl(req.body.externalTicketUrl);
       else if (key === "title") patch.title = cleanEventTitle(req.body.title) || e.title;
       else patch[key] = req.body[key];
@@ -943,7 +954,10 @@ export function createApp(storage) {
     res.json(copy);
   });
 
-  app.post("/api/events/:id/marketing/regenerate", requireEventOwner(), async (req, res) => {
+  // importLimiter (shared LLM-cost bucket): regenerate makes a paid model
+  // call, so cap it even though it's owner-gated — stops an owner from
+  // hammering it to run up API cost.
+  app.post("/api/events/:id/marketing/regenerate", importLimiter, requireEventOwner(), async (req, res) => {
     const copy = await generateMarketingCopy(req.event);
     await db.setMarketing(req.event.id, copy);
     res.json(copy);

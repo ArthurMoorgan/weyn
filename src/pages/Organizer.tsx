@@ -14,8 +14,11 @@ function defaultWhen() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-const TICKETING_OPTIONS: { key: TicketingType; label: string; icon: string; hint: string }[] = [
-  { key: "weyn", label: "Weyn Ticketing", icon: "ticket", hint: "We track capacity and sales for you" },
+const TICKETING_OPTIONS: { key: TicketingType; label: string; icon: string; hint: string; disabled?: boolean }[] = [
+  // Weyn Ticketing is disabled for now — card payments aren't live yet, so we
+  // don't let anyone list an event as Weyn-ticketed (also enforced server-side
+  // in POST /api/events). Re-enable by removing `disabled` once PayTabs is set up.
+  { key: "weyn", label: "Weyn Ticketing", icon: "ticket", hint: "Coming soon — we'll track capacity, sales, and payments for you", disabled: true },
   { key: "external", label: "External Ticket Link", icon: "external-link", hint: "Send people to your own ticketing site" },
   { key: "cash", label: "Cash at the Door", icon: "cash", hint: "No pre-booking — just show up and pay" },
   { key: "registration", label: "Registration Form", icon: "clipboard-list", hint: "Send people to a signup/registration link" },
@@ -47,7 +50,7 @@ export default function Organizer() {
     cat: "music" as Cat, when: defaultWhen(),
     venue: "", area: "Muscat", price: "5", capacity: "60",
     minAge: "0", tags: "", refundPolicy: "Refund up to 48h before", blurb: "",
-    ticketingType: "weyn" as TicketingType, externalTicketUrl: "", organizerContact: "",
+    ticketingType: "cash" as TicketingType, externalTicketUrl: "", organizerContact: "",
   });
   const set = (k: keyof typeof f) => (e: any) => setF({ ...f, [k]: e.target.value });
 
@@ -304,22 +307,23 @@ export default function Organizer() {
             {TICKETING_OPTIONS.map((opt) => (
               <button
                 key={opt.key} type="button"
-                className={"ticketing-opt" + (f.ticketingType === opt.key ? " on" : "")}
-                onClick={() => setF({ ...f, ticketingType: opt.key })}
+                disabled={opt.disabled}
+                aria-disabled={opt.disabled}
+                title={opt.disabled ? "Coming soon — payments aren't set up yet" : undefined}
+                className={"ticketing-opt" + (f.ticketingType === opt.key ? " on" : "") + (opt.disabled ? " disabled" : "")}
+                onClick={() => { if (!opt.disabled) setF({ ...f, ticketingType: opt.key }); }}
               >
                 <i className={"ti ti-" + opt.icon} />
-                <b>{opt.label}</b>
+                <b>{opt.label}{opt.disabled && <span className="soon-tag">Soon</span>}</b>
                 <span>{opt.hint}</span>
               </button>
             ))}
           </div>
         </div>
-        {f.ticketingType === "weyn" && (
-          <div className="note" style={{ marginTop: -6 }}>
-            <i className="ti ti-alert-triangle" style={{ marginRight: 6 }} />
-            <b>Temporary:</b> card payments aren't set up yet — Weyn tickets can be created and RSVP'd to, but paid checkout isn't live. Use "Cash at the Door" or an external link if you need to charge for entry right now.
-          </div>
-        )}
+        <div className="note" style={{ marginTop: -6 }}>
+          <i className="ti ti-info-circle" style={{ marginRight: 6 }} />
+          <b>Weyn Ticketing is coming soon.</b> Card payments through Weyn aren't live yet, so for now use an external ticket link, a registration form, or cash at the door to manage entry.
+        </div>
         {f.ticketingType === "weyn" && (
           <div className="field">
             <label className="tier-toggle">
