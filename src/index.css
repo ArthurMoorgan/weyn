@@ -635,13 +635,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .sheet-backdrop {
   position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center;
-  background: rgba(10,13,21,0.5); 
+  background: rgba(10,13,21,0.5);
   animation: fade .2s ease;
+  transition: opacity .2s ease;
 }
+.sheet-backdrop.closing { opacity: 0; }
 .install-sheet {
   width: 100%; max-width: var(--maxw); margin: 0 10px calc(10px + env(safe-area-inset-bottom)); padding: 26px 22px 22px;
   border-radius: 26px; text-align: center; animation: rise .28s cubic-bezier(.2,.9,.3,1);
+  transition: transform .2s cubic-bezier(.4,0,1,1), opacity .2s ease;
 }
+.sheet-backdrop.closing .install-sheet { transform: translateY(24px); opacity: 0; }
 .install-sheet h3 { font-size: 20px; margin-bottom: 16px; }
 .steps { list-style: none; padding: 0; margin: 0 0 20px; text-align: left; display: flex; flex-direction: column; gap: 12px; }
 .steps li { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text); line-height: 1.4; }
@@ -649,6 +653,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .steps b { font-weight: 600; }
 @keyframes fade { from { opacity: 0; } }
 @keyframes rise { from { transform: translateY(30px); opacity: 0; } }
+
+/* desktop: sheets center as a modal instead of docking to the bottom edge */
+@media (min-width: 900px) {
+  .sheet-backdrop { align-items: center; }
+  .install-sheet { max-width: 480px; margin: 0; }
+}
 
 /* ---------- search ---------- */
 .search { padding: 6px 16px 0; position: relative; }
@@ -663,6 +673,25 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .search input::placeholder { color: var(--text-3); }
 .search input:focus { outline: none; border-color: rgba(79,70,229,0.6); }
 .search .clearx { position: absolute; right: 28px; top: calc(50% + 3px); transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; background: rgba(20,21,26,0.12); color: var(--text-2); display: grid; place-items: center; font-size: 13px; }
+
+/* ---------- search suggestions dropdown ---------- */
+.search-wrap { position: relative; }
+.suggest {
+  position: absolute; left: 16px; right: 16px; top: calc(100% + 6px); z-index: 30;
+  background: var(--surface); border: 1px solid var(--hair); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md); overflow: hidden; padding: 6px;
+  animation: suggest-in .18s cubic-bezier(.16,1,.3,1);
+  transform-origin: top center;
+}
+@keyframes suggest-in { from { opacity: 0; transform: translateY(-6px) scaleY(.98); } to { opacity: 1; transform: translateY(0) scaleY(1); } }
+.suggest-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm);
+  font-size: 13.5px; color: var(--text); cursor: pointer; transition: background-color .12s;
+}
+.suggest-item [class^="icon-"] { font-size: 16px; color: var(--text-3); flex: 0 0 auto; }
+.suggest-item b { font-weight: 600; }
+.suggest-item span { color: var(--text-3); font-size: 12px; margin-left: auto; flex: 0 0 auto; }
+.suggest-item:hover, .suggest-item.active { background: var(--surface-2); }
 
 /* ---------- detail ---------- hero dominates the top (35-45% of viewport),
    content begins immediately below it, minimal sticky CTA at the bottom.
@@ -681,7 +710,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   width: 40px; height: 40px; border-radius: var(--radius-pill);
   background: rgba(0,0,0,0.35);
   display: grid; place-items: center; font-size: 18px; color: #fff;
+  transition: transform .15s cubic-bezier(.2,.9,.3,1.6), background-color .18s;
 }
+.icon-btn:active { transform: scale(.88); background: rgba(0,0,0,0.5); }
 .icon-btn.on { color: var(--danger); }
 .detail .sheet {
   position: relative; z-index: 2;
@@ -880,7 +911,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
   font-size: 12px; font-weight: 600; color: var(--accent);
   padding: 5px 10px; border-radius: var(--radius-pill); background: var(--accent-soft);
+  transition: transform .15s cubic-bezier(.2,.9,.3,1.6), opacity .12s;
 }
+.copy-btn:active { transform: scale(.92); opacity: .85; }
+.copy-btn:disabled { opacity: .55; cursor: default; }
 .marketing-text {
   white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 13px;
   line-height: 1.5; color: var(--text); margin: 0; max-height: 160px; overflow-y: auto;
@@ -1005,6 +1039,14 @@ body,
 /* page headers ease in */
 .page-head { animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
 .detail .sheet { animation: rise-in .5s cubic-bezier(.16,1,.3,1) both; }
+
+/* press feedback across all the app's interactive buttons, not just .btn */
+.icon-btn, .copy-btn, .tab, .clearx, .rm, .tier-del, .dash-actions button {
+  transition: transform .16s cubic-bezier(.2,.9,.3,1.6), opacity .12s, background-color .2s, color .2s;
+}
+.icon-btn:active, .copy-btn:active, .tab:active, .clearx:active, .rm:active, .tier-del:active, .dash-actions button:active {
+  transform: scale(.92);
+}
 
 /* heart pop when saving */
 @keyframes heart-pop {

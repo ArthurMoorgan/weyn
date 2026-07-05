@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface AsyncState<T> {
   data: T | null;
@@ -31,4 +31,20 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]): AsyncState<T
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
   return { data, loading, error, reload };
+}
+
+// Plays an exit animation before actually unmounting a sheet/modal, instead
+// of it just vanishing. `close()` triggers the CSS "closing" class, waits
+// `ms` (matching the CSS transition duration below), then calls the real
+// onClose that removes the component from the tree.
+export function useClosing(onClose: () => void, ms = 220) {
+  const [closing, setClosing] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const close = useCallback(() => {
+    setClosing(true);
+    timer.current = setTimeout(onClose, ms);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, ms]);
+  return { closing, close };
 }
