@@ -38,7 +38,10 @@ jobs:
             exit 1
           fi
           STAMP=$(date -u +%Y-%m-%d)
-          pg_dump "$DATABASE_URL" --format=custom --no-owner --no-privileges --file="weyn-backup-${STAMP}.dump"
+          # Ubuntu's runner image pre-installs postgresql-client 16 on /usr/bin/pg_dump
+          # and doesn't repoint it at the newly-installed 18 — call the versioned
+          # binary directly so we don't silently fall back to the too-old one.
+          /usr/lib/postgresql/18/bin/pg_dump "$DATABASE_URL" --format=custom --no-owner --no-privileges --file="weyn-backup-${STAMP}.dump"
           echo "BACKUP_STAMP=${STAMP}" >> "$GITHUB_ENV"
 
       - name: Upload backup artifact
