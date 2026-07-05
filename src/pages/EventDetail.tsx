@@ -106,7 +106,7 @@ export default function EventDetail() {
           <button className="icon-btn" onClick={() => shareEvent(ev)} aria-label="Share">
             <i className={(shared ? "icon-check" : "icon-share-2")} />
           </button>
-          <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => toggleSave(ev.id)} aria-label="Save">
+          <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => toggleSave(ev.id)} aria-label={saved ? "Saved — tap to remove" : "Save"} aria-pressed={saved}>
             <i className={(saved ? "icon-heart" : "icon-heart")} />
           </button>
           {account && (

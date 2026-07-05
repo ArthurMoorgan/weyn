@@ -50,6 +50,7 @@ export default function FollowButton({ organizerId }: { organizerId: string }) {
     <button
       className={"chip" + (following ? " on" : "")}
       onClick={toggle}
+      aria-pressed={!!following}
       disabled={busy || following === null}
     >
       <i className={(following ? "icon-user-check" : "icon-user-plus")} />
