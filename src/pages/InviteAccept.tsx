@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAccount } from "../store";
-import GoogleLoginButton from "../components/GoogleLoginButton";
+import AccountWidget from "../components/AccountWidget";
 
 // Landing page for a team-invite copy-link (see server's EventTeamMember —
 // Weyn has no email provider, so the organizer shares this URL themselves).
@@ -34,7 +34,7 @@ export default function InviteAccept() {
             <div className="ic"><i className="icon-users-round" /></div>
             <h2>You've been invited to join an event team</h2>
             <p>Sign in to accept.</p>
-            <div style={{ marginTop: 16 }}><GoogleLoginButton /></div>
+            <div style={{ marginTop: 16 }}><AccountWidget /></div>
           </>
         ) : state === "accepting" ? (
           <>

@@ -4,7 +4,7 @@ import { api, CATS, type Cat, type TicketingType } from "../api";
 import { getOrganizer, setOrganizer, useAccount } from "../store";
 import MapPicker from "../components/MapPicker";
 import ThemeToggle from "../components/ThemeToggle";
-import GoogleLoginButton from "../components/GoogleLoginButton";
+import AccountWidget from "../components/AccountWidget";
 
 // default datetime-local value = ~3h from now, rounded
 function defaultWhen() {
@@ -168,7 +168,7 @@ export default function Organizer() {
           <div className="onboard-cta">
             <b>Sign in to get started</b>
             <span>We use your Google account to verify who owns each event — so only you can edit or cancel what you publish.</span>
-            <div className="onboard-signin"><GoogleLoginButton /></div>
+            <div className="onboard-signin"><AccountWidget /></div>
           </div>
         </div>
       </>

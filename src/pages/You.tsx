@@ -7,7 +7,7 @@ import { getOrganizer, useAccount, useTickets, useSaved } from "../store";
 import Stub from "../components/Stub";
 import ThemeToggle from "../components/ThemeToggle";
 import InstallPrompt from "../components/InstallPrompt";
-import GoogleLoginButton from "../components/GoogleLoginButton";
+import AccountWidget from "../components/AccountWidget";
 
 const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 
@@ -83,7 +83,7 @@ export default function You() {
 
       {!account && (
         <div className="signin-card" style={{ margin: "16px 16px 0" }}>
-          <GoogleLoginButton />
+          <AccountWidget />
         </div>
       )}
 
@@ -190,7 +190,7 @@ function SettingsTab({ account }: { account: boolean }) {
         </div>
         {account && (
           <div className="account-row" style={{ marginTop: 12 }}>
-            <GoogleLoginButton />
+            <AccountWidget />
           </div>
         )}
         {acc?.role === "ADMIN" && (
