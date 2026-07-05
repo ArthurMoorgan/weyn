@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn } from "../api";
-import { useAsync } from "../hooks";
+import { useAsync, useClosing } from "../hooks";
 import { isSaved, toggleSave, useSaved, addTicket, getDeviceId, getAccount, useAccount } from "../store";
 import MiniMap from "../components/MiniMap";
 import FollowButton from "../components/FollowButton";
@@ -69,13 +69,25 @@ export default function EventDetail() {
     try {
       if (payPrice > 0) {
         // paid ticket: redirect to Thawani's hosted checkout — the booking is
-        // only confirmed once payment succeeds (see /checkout/success)
+        // only confirmed once payment succeeds (see /checkout/success), so
+        // there's nothing to show optimistically here.
         const { checkoutUrl } = await api.checkoutEvent(ev.id, 1, getDeviceId(), getAccount(), selectedTier?.id);
         window.location.href = checkoutUrl;
         return;
       }
-      setBooked(await api.bookEvent(ev.id, 1, getDeviceId(), getAccount(), selectedTier?.id));
-      addTicket(ev.id);
+      // Free RSVP: flip the buy bar to "You're going" immediately — the
+      // server call almost always succeeds, and waiting for it to paint
+      // just makes a free RSVP feel slower than it is. Roll back to the
+      // pre-book state (and undo the local ticket-list write) on failure.
+      setBooked(ev);
+      try {
+        const confirmed = await api.bookEvent(ev.id, 1, getDeviceId(), getAccount(), selectedTier?.id);
+        setBooked(confirmed);
+        addTicket(ev.id);
+      } catch (err: any) {
+        setBooked(null);
+        setBookErr(err.message || "Couldn't book");
+      }
     }
     catch (err: any) { setBookErr(err.message || "Couldn't book"); }
     finally { setBooking(false); }
@@ -232,6 +244,7 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
   const [lists, setLists] = useState<Collection[] | null>(null);
   const [name, setName] = useState("");
   const [added, setAdded] = useState<Set<string>>(new Set());
+  const { closing, close } = useClosing(onClose);
 
   function load() {
     api.listMyCollections().then(setLists).catch(() => setLists([]));
@@ -252,8 +265,8 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
   }
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="install-sheet glass" style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
+    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
+      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 12 }}>Add to a list</h3>
         {lists === null ? <div className="spin" /> : (
           <>
@@ -276,7 +289,7 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
             </div>
           </>
         )}
-        <button className="btn glass" style={{ marginTop: 14 }} onClick={onClose}>Done</button>
+        <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Done</button>
       </div>
     </div>
   );

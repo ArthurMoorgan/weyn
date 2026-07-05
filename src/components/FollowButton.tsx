@@ -25,13 +25,22 @@ export default function FollowButton({ organizerId }: { organizerId: string }) {
   if (!account) return null;
 
   async function toggle() {
+    // Optimistic: flip the UI immediately so following feels instant, then
+    // reconcile with the server's real follower count. On failure, roll
+    // both fields back to exactly what they were before the click.
+    const prevFollowing = following;
+    const prevCount = count;
+    const nextFollowing = !following;
+    setFollowing(nextFollowing);
+    setCount((c) => (c === null ? c : Math.max(0, c + (nextFollowing ? 1 : -1))));
     setBusy(true);
     try {
-      const r = following ? await api.unfollowOrganizer(organizerId) : await api.followOrganizer(organizerId);
-      setFollowing(!following);
+      const r = nextFollowing ? await api.followOrganizer(organizerId) : await api.unfollowOrganizer(organizerId);
+      setFollowing(nextFollowing);
       setCount(r.followerCount);
     } catch {
-      // no-op — button just stays in its previous state, safe to retry
+      setFollowing(prevFollowing);
+      setCount(prevCount);
     } finally {
       setBusy(false);
     }
