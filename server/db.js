@@ -1,5 +1,6 @@
 import { PrismaClient, Prisma } from "../src/generated/prisma/index.js";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { getCurrentUserId } from "./request-context.js";
 
 // Prisma 7 requires an explicit driver adapter instead of a datasource url
 // in schema.prisma — see https://pris.ly/d/prisma7-client-config
@@ -21,6 +22,56 @@ function realPrisma() {
   return _prisma;
 }
 export const prisma = new Proxy({}, { get: (_t, prop) => realPrisma()[prop] });
+
+// ---- RLS Phase 0 scaffolding — NOT wired into the exported `prisma` above ----
+// See prisma/rls-phase0/ for the (not-applied) migration this is meant to
+// eventually support, and server/request-context.js for where the per-request
+// user id comes from.
+//
+// This is deliberately kept as a separate, unused export rather than wired
+// into the default client. `SET LOCAL app.user_id = ...` is genuinely a
+// no-op today (no RLS policies exist yet on any live table to read that
+// session variable), so wiring it in would not change any current query
+// behavior — but it DOES mean wrapping every single query in an extra
+// transaction + a `SET LOCAL` round trip, which is a real (if probably
+// small) latency/connection-overhead cost on every request, on the hottest
+// path in the app, for zero behavioral benefit until Phase 1/2 land. Given
+// this is explicitly the hot path used by every request, the safer choice is
+// to leave today's `prisma` export completely untouched and give a future
+// session (once staging validation from prisma/rls-phase0/README.md is done
+// and policies are actually enabled) a concrete, already-written starting
+// point to wire in deliberately, rather than silently changing performance
+// characteristics now for a feature that isn't active yet.
+//
+// Once ready to enable, a future session would do roughly:
+//   import { withRlsContext } from "./db.js";
+//   const scopedPrisma = withRlsContext(realPrisma());
+// and swap `prisma` call sites in db.js over to `scopedPrisma`, table by
+// table, alongside actually enabling each table's RLS policies — not as a
+// single flag-flip across everything at once.
+export function withRlsContext(client) {
+  return client.$extends({
+    name: "rls-context",
+    query: {
+      $allModels: {
+        async $allOperations({ model, operation, args, query }) {
+          const userId = getCurrentUserId();
+          // Only meaningful once RLS policies exist to read app.user_id —
+          // until then this is a harmless SET LOCAL inside a transaction
+          // that nothing consumes.
+          return client.$transaction(async (tx) => {
+            if (userId) {
+              await tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true)`;
+            } else {
+              await tx.$executeRaw`SELECT set_config('app.user_id', '', true)`;
+            }
+            return query(args);
+          });
+        },
+      },
+    },
+  });
+}
 
 // ---- date helpers: build seed relative to "now" so it's always upcoming ----
 function at(dayOffset, hour, min = 0) {

@@ -4,6 +4,7 @@
 // event's actual ownerId — that part is unchanged.
 import { createClerkClient } from "@clerk/backend";
 import { db } from "./db.js";
+import { requestContext } from "./request-context.js";
 
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
 const CLERK_PUBLISHABLE_KEY = process.env.VITE_CLERK_PUBLISHABLE_KEY || process.env.CLERK_PUBLISHABLE_KEY;
@@ -44,6 +45,16 @@ export async function attachUser(req, _res, next) {
     }
   } catch {
     // not signed in / invalid session — treat as signed out rather than erroring the request
+  }
+  // Run the rest of this request inside an AsyncLocalStorage context carrying
+  // the signed-in user's id, so any downstream Prisma call (however deep the
+  // call stack) can read it back via server/request-context.js's
+  // getCurrentUserId() — this is the plumbing a future RLS phase needs to run
+  // `SET LOCAL app.user_id = ...` per request. Signed-out requests skip the
+  // context entirely; getCurrentUserId() returning null in that case is the
+  // correct signed-out behavior, matching every other check in this file.
+  if (req.user) {
+    return requestContext.run({ userId: req.user.id }, next);
   }
   next();
 }
