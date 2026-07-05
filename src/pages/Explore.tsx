@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, CATS, type Cat, type Weyn, isTonight, isThisWeekend } from "../api";
+import { api, CATS, type Cat, type Weyn, isTonight, isToday, isTomorrow, isThisWeekend } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import Stub from "../components/Stub";
@@ -83,6 +83,7 @@ const SUGGEST_ICON: Record<Suggestion["kind"], string> = {
 export default function Explore() {
   const account = useAccount();
   const [cat, setCat] = useState<Cat | "all">("all");
+  const [when, setWhen] = useState<"all" | "today" | "tomorrow" | "weekend">("all");
   const [q, setQ] = useState("");
   const [showSuggest, setShowSuggest] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
@@ -125,6 +126,14 @@ export default function Explore() {
       return { mode: "search" as const, results };
     }
 
+    // "When" quick filter (Today/Tomorrow/This weekend) is a fast way to
+    // plan without typing — like the rail sections below, but as an
+    // explicit, tappable choice rather than something you have to scroll to.
+    if (when !== "all") {
+      const pred = when === "today" ? isToday : when === "tomorrow" ? isTomorrow : isThisWeekend;
+      return { mode: "when" as const, results: catFiltered.filter(pred) };
+    }
+
     const featured = [...catFiltered].filter((e) => e.featured).slice(0, 6);
     const featPool = featured.length ? featured : [...catFiltered].sort(byPopular).slice(0, 5);
     const tonight = catFiltered.filter(isTonight);
@@ -137,7 +146,7 @@ export default function Explore() {
           .filter((x) => x.list.length >= 2)
       : [];
     return { mode: "browse" as const, all: catFiltered, featPool, tonight, weekend, popular, catRails };
-  }, [data, cat, q, searching]);
+  }, [data, cat, when, q, searching]);
 
   return (
     <>
@@ -197,6 +206,16 @@ export default function Explore() {
       </div>
 
       {!searching && (
+        <div className="chips chips-when">
+          {(["all", "today", "tomorrow", "weekend"] as const).map((w) => (
+            <button key={w} className={"chip" + (when === w ? " on" : "")} onClick={() => setWhen(w)}>
+              {w === "all" ? "Any time" : w === "today" ? "Today" : w === "tomorrow" ? "Tomorrow" : "This weekend"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!searching && (
         <div className="chips">
           {CATS.map((c) => (
             <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")}>
@@ -226,6 +245,15 @@ export default function Explore() {
           <div className="ex-list">{S.results.map((e) => <Stub key={e.id} e={e} />)}</div>
         ) : (
           <div className="empty"><div className="ic"><i className="icon-search-x" /></div><p>No matches for "{q}".</p></div>
+        )
+      )}
+
+      {/* ---- "when" quick filter: dense list, same treatment as search ---- */}
+      {!loading && !error && S.mode === "when" && (
+        S.results.length ? (
+          <div className="ex-list">{S.results.map((e) => <Stub key={e.id} e={e} />)}</div>
+        ) : (
+          <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing found for that time.</p></div>
         )
       )}
 

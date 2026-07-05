@@ -441,6 +441,11 @@ export function isToday(e: Weyn) {
   const d = startDate(e), n = new Date();
   return d.toDateString() === n.toDateString();
 }
+export function isTomorrow(e: Weyn) {
+  const d = startDate(e), t = new Date();
+  t.setDate(t.getDate() + 1);
+  return d.toDateString() === t.toDateString();
+}
 export function isTonight(e: Weyn) {
   const d = startDate(e), n = new Date();
   return isToday(e) && d.getHours() >= 17 && d.getTime() >= n.getTime() - 3600e3;

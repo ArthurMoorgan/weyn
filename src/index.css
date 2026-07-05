@@ -319,6 +319,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ec-badge.out { color: var(--text-3); }
 .ec-badge.confirmed { color: var(--success); background: var(--success-soft); }
 .ec-badge .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); animation: pulse-dot 1.6s ease-in-out infinite; }
+
+/* quick-save heart, overlaid on rail/feature card covers (see Stub.tsx) —
+   same on-photo scrim treatment as .ec-badge so it reads on any image. */
+.ec-save {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 14px;
+  background: rgba(10,13,18,0.5); color: #fff; backdrop-filter: blur(6px);
+  transition: transform .16s cubic-bezier(.2,.9,.3,1.6), background-color .2s;
+}
+.ec-save.on { color: var(--danger); }
+.ec-save.on i { font-weight: 700; }
+.ec-save-lg { top: 10px; right: 10px; width: 34px; height: 34px; font-size: 15px; }
 @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
 /* ---- compact vertical rail card ---- */

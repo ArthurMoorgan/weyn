@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { type Weyn, ticketsLeft, isSoldOut, isTonight, dayLabel, timeLabel } from "../api";
+import { isSaved, toggleSave, useSaved } from "../store";
 
 // Card variants — one component, three densities, so different Explore
 // sections get genuinely different visual treatments (per the design brief:
@@ -26,6 +27,25 @@ function attendance(e: Weyn): string | null {
 }
 
 const catLabel = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
+
+// Quick-save heart, overlaid directly on the card — every reference app we
+// looked at (dark ticketing app, minimal discovery app, Airbnb) lets you
+// save from the card itself, not just the detail page. stopPropagation so
+// tapping it doesn't also navigate the surrounding <Link>.
+function SaveHeart({ id, className = "" }: { id: string; className?: string }) {
+  useSaved();
+  const saved = isSaved(id);
+  return (
+    <button
+      className={"ec-save" + (saved ? " on" : "") + (className ? " " + className : "")}
+      onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); toggleSave(id); }}
+      aria-label={saved ? "Saved — tap to remove" : "Save"}
+      aria-pressed={saved}
+    >
+      <i className="icon-heart" />
+    </button>
+  );
+}
 
 export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn; ticket?: boolean; variant?: Variant }) {
   const left = ticketsLeft(e);
@@ -84,6 +104,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
       <Link to={`/e/${e.id}`} className="ec-rail">
         <div className="ec-rail-cover" style={coverStyle}>
           {statusBadge}
+          <SaveHeart id={e.id} />
           {!e.image && <span className="ec-glyph">{e.glyph}</span>}
         </div>
         <h3 className="ec-title">{e.title}</h3>
@@ -101,6 +122,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
     <Link to={`/e/${e.id}`} className="ec-feature">
       <div className="ec-feature-cover" style={coverStyle}>
         {statusBadge}
+        <SaveHeart id={e.id} className="ec-save-lg" />
         {!e.image && <span className="ec-glyph big">{e.glyph}</span>}
         <div className="ec-feature-body">
           <span className="ec-feature-organizer">{e.organizer}</span>
