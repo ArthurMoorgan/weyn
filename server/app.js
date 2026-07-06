@@ -724,6 +724,23 @@ export function createApp(storage) {
     }
   });
 
+  // MUST be registered before "/api/venues/:id" — otherwise Express matches
+  // "mine" as an :id and this never runs (returns 404 from the detail
+  // lookup). Venues the signed-in user owns (their hosting dashboard list).
+  app.get("/api/venues/mine", requireAuth, async (req, res) => {
+    try {
+      const venues = await prisma.venue.findMany({
+        where: { ownerId: req.user.id },
+        include: { _count: { select: { reservations: true, slots: true } } },
+        orderBy: { createdAt: "desc" },
+      });
+      res.json(venues);
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/mine" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/venues/:id", async (req, res) => {
     try {
       const venue = await prisma.venue.findUnique({
@@ -989,20 +1006,6 @@ export function createApp(storage) {
   }
 
   // Venues the signed-in user owns (their reservation-hosting dashboard list).
-  app.get("/api/venues/mine", requireAuth, async (req, res) => {
-    try {
-      const venues = await prisma.venue.findMany({
-        where: { ownerId: req.user.id },
-        include: { _count: { select: { reservations: true, slots: true } } },
-        orderBy: { createdAt: "desc" },
-      });
-      res.json(venues);
-    } catch (err) {
-      captureError(err, { route: "GET /api/venues/mine" });
-      res.status(500).json({ error: err.message });
-    }
-  });
-
   // Incoming reservations for one of my venues, newest first.
   app.get("/api/venues/:id/reservations", requireAuth, requireVenueOwner, async (req, res) => {
     try {
