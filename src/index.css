@@ -91,6 +91,15 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; }
+/* At the 900px+ breakpoint `body` becomes a flex container (for the
+   sidebar layout — see .shell below) — without an explicit width, #root
+   (its sole child) shrinks to fit whatever page is mounted inside it
+   instead of filling the viewport. App-shell routes are fine (.shell sets
+   flex:1), but any standalone route (Onboarding, EventDetail, invite
+   accept, etc.) that isn't wrapped in .shell would otherwise get pinned to
+   the left edge instead of centering, since a shrunk container leaves
+   nothing for an inner `margin: 0 auto` to center within. */
+#root { width: 100%; }
 
 /* Lock both axes against rubber-band-into-blank-space (iOS Safari + standalone
    PWA), and kill any horizontal drift — the app is a single vertical column, so
