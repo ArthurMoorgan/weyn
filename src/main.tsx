@@ -26,7 +26,7 @@ import VenueDetail from "./pages/VenueDetail";
 import Onboarding from "./pages/Onboarding";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { initPush } from "./push";
-import { markSplashShown } from "./splash";
+import { markSplashShown, dismissSplash } from "./splash";
 
 // as close to page-load as this module can get, so the splash's minimum
 // on-screen duration is measured from real first-paint, not from whenever
@@ -64,6 +64,20 @@ function ClerkAuthBridge() {
   return null;
 }
 
+// dismissSplash() used to be called only from Explore.tsx's data-loaded
+// effect — fine when "/" was always the first page a browser ever hit, but
+// broken for two real cases: a brand-new visitor landing on a shared link
+// (/e/:id, /invite/:token) who never mounts Explore at all, and a brand-new
+// visitor who gets redirected from Explore to /onboarding before Explore's
+// own fetch resolves. Either way index.html's #splash overlay
+// (`document.documentElement.classList` stuck on "show-splash") never gets
+// torn down — the whole app is permanently hidden behind the logo screen.
+// Mounted once at the root, independent of which route loads first.
+function SplashDismisser() {
+  useEffect(() => { dismissSplash(); }, []);
+  return null;
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -86,6 +100,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       >
 
         <ClerkAuthBridge />
+        <SplashDismisser />
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route element={<App />}>
