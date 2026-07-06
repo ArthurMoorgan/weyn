@@ -260,6 +260,30 @@ export interface Reservation {
   createdAt?: string;
 }
 
+export interface VenueApplication {
+  id: string;
+  businessType: VenueCategory;
+  name: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone?: string | null;
+  description?: string | null;
+  venue?: string | null;
+  area?: string | null;
+  coverImage?: string | null;
+  photos?: string[];
+  guestTags?: string[];
+  priceRange?: string | null;
+  subscriptionTier?: string | null;
+  role?: string | null;
+  businessRegNo?: string | null;
+  proofDocUrl?: string | null;
+  status: "pending" | "approved" | "rejected";
+  reviewNote?: string | null;
+  resultingVenueId?: string | null;
+  createdAt: string;
+}
+
 export interface ReservationInput {
   guestName: string;
   guestEmail: string;
@@ -549,16 +573,68 @@ export const api = {
   // Reservation hosting is manual-review, not self-serve — this submits an
   // application (see prisma's VenueApplication model), not a live Venue.
   // No auth headers: an applicant doesn't need a Weyn account yet.
-  applyForVenue(input: {
+  // multipart — carries the mandatory ownership-proof document + optional
+  // cover/gallery photos alongside the text fields. Auth header attached
+  // when signed in so the application is linked to the applicant's account.
+  async applyForVenue(input: {
     businessType: VenueCategory; name: string; contactName: string; contactEmail: string;
-    contactPhone?: string; description?: string; area?: string; guestTags?: string[];
-    priceRange?: PriceRange; subscriptionTier?: string;
+    contactPhone?: string; description?: string; venue?: string; area?: string;
+    lat?: number; lng?: number; guestTags?: string[]; priceRange?: PriceRange;
+    subscriptionTier?: string; role: "owner" | "manager" | "authorized"; businessRegNo?: string;
+    proofDoc: File; coverImage?: File; photos?: File[];
   }): Promise<{ id: string; status: string }> {
+    const fd = new FormData();
+    const scalars: Record<string, unknown> = {
+      businessType: input.businessType, name: input.name, contactName: input.contactName,
+      contactEmail: input.contactEmail, contactPhone: input.contactPhone, description: input.description,
+      venue: input.venue, area: input.area, lat: input.lat, lng: input.lng,
+      priceRange: input.priceRange, subscriptionTier: input.subscriptionTier, role: input.role,
+      businessRegNo: input.businessRegNo,
+    };
+    for (const [k, v] of Object.entries(scalars)) if (v !== undefined && v !== null) fd.append(k, String(v));
+    fd.append("guestTags", JSON.stringify(input.guestTags || []));
+    fd.append("proofDoc", input.proofDoc);
+    if (input.coverImage) fd.append("coverImage", input.coverImage);
+    for (const p of (input.photos || [])) fd.append("photos", p);
     return fetch(`${API_BASE}/api/venue-applications`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
+      method: "POST", headers: { ...(await authHeaders()) }, body: fd,
     }).then((r) => json<{ id: string; status: string }>(r));
+  },
+
+  // ---- venue owner dashboard ----
+  async myVenues(): Promise<(Venue & { _count?: { reservations: number; slots: number } })[]> {
+    return fetch(`${API_BASE}/api/venues/mine`, { headers: { ...(await authHeaders()) } })
+      .then((r) => json<(Venue & { _count?: { reservations: number; slots: number } })[]>(r));
+  },
+  async venueReservations(venueId: string): Promise<(Reservation & { slot?: VenueAvailabilitySlot | null })[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/reservations`, { headers: { ...(await authHeaders()) } })
+      .then((r) => json<(Reservation & { slot?: VenueAvailabilitySlot | null })[]>(r));
+  },
+  async setVenueSlots(venueId: string, slots: { dayOfWeek: number; startTime: string; endTime: string; capacity: number }[]): Promise<{ slots: VenueAvailabilitySlot[] }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/slots`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ slots }),
+    }).then((r) => json<{ slots: VenueAvailabilitySlot[] }>(r));
+  },
+  async setReservationStatus(reservationId: string, status: "confirmed" | "cancelled"): Promise<Reservation> {
+    return fetch(`${API_BASE}/api/reservations/${reservationId}/status`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ status }),
+    }).then((r) => json<Reservation>(r));
+  },
+
+  // ---- admin: venue-application review ----
+  async adminVenueApplications(status = "pending"): Promise<VenueApplication[]> {
+    return fetch(`${API_BASE}/api/admin/venue-applications?status=${encodeURIComponent(status)}`, { headers: { ...(await authHeaders()) } })
+      .then((r) => json<VenueApplication[]>(r));
+  },
+  async approveVenueApplication(id: string, note?: string): Promise<{ application: VenueApplication; venue: Venue }> {
+    return fetch(`${API_BASE}/api/admin/venue-applications/${id}/approve`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ note }),
+    }).then((r) => json<{ application: VenueApplication; venue: Venue }>(r));
+  },
+  async rejectVenueApplication(id: string, note?: string): Promise<VenueApplication> {
+    return fetch(`${API_BASE}/api/admin/venue-applications/${id}/reject`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ note }),
+    }).then((r) => json<VenueApplication>(r));
   },
 };
 

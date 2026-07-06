@@ -867,7 +867,7 @@ export function createApp(storage) {
   // ---- venue reservation-hosting applications (manual review, not
   // self-serve — see prisma/schema.prisma's VenueApplication comment).
   // Public: an applicant doesn't need a Weyn account to apply. ----
-  app.post("/api/venue-applications", applicationLimiter, async (req, res) => {
+  app.post("/api/venue-applications", applicationLimiter, upload.fields([{ name: "proofDoc", maxCount: 1 }, { name: "coverImage", maxCount: 1 }, { name: "photos", maxCount: 6 }]), async (req, res) => {
     try {
       const b = req.body || {};
       const ALLOWED_TYPES = ["restaurant", "cafe", "lounge", "rooftop", "beach_club", "experience"];
@@ -880,19 +880,59 @@ export function createApp(storage) {
       if (!b.contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.contactEmail).trim())) {
         return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid contactEmail is required" } });
       }
+      // Ownership proof is mandatory — a venue can't be listed on someone
+      // else's behalf. The applicant declares their role and uploads a photo
+      // of a trade licence / commercial registration / authorization letter.
+      const ALLOWED_ROLES = ["owner", "manager", "authorized"];
+      if (!ALLOWED_ROLES.includes(b.role)) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Tell us your role at the venue (owner, manager, or authorized)" } });
+      }
+      const proofFile = req.files?.proofDoc?.[0];
+      if (!proofFile) {
+        return res.status(400).json({ error: { code: "PROOF_REQUIRED", message: "Upload a photo of your trade licence, commercial registration, or an authorization letter to verify you operate this venue." } });
+      }
+
+      // Save uploads (proof doc, cover, gallery) — all image uploads, magic-
+      // byte sniffed like every other upload path (no trusting Content-Type).
+      async function saveIfImage(file) {
+        if (!file) return null;
+        const mime = sniffImageMime(file.buffer);
+        if (!mime) return null;
+        const { url } = await storage.saveImage(file.buffer, EXT_BY_MIME[mime]);
+        return url;
+      }
+      const proofDocUrl = await saveIfImage(proofFile);
+      if (!proofDocUrl) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "The proof document must be a clear photo (PNG/JPEG/WEBP)." } });
+      }
+      const coverImage = await saveIfImage(req.files?.coverImage?.[0]);
+      const photos = [];
+      for (const f of (req.files?.photos || [])) {
+        const url = await saveIfImage(f);
+        if (url) photos.push(url);
+      }
 
       const application = await prisma.venueApplication.create({
         data: {
+          applicantId: req.user?.id || null,
           businessType: b.businessType,
           name: String(b.name).trim(),
           contactName: String(b.contactName).trim(),
           contactEmail: String(b.contactEmail).trim(),
           contactPhone: b.contactPhone ? String(b.contactPhone).trim() : null,
           description: b.description ? String(b.description).trim() : null,
+          venue: b.venue ? String(b.venue).trim() : null,
           area: b.area ? String(b.area).trim() : null,
-          guestTags: Array.isArray(b.guestTags) ? b.guestTags : [],
+          lat: b.lat != null && b.lat !== "" ? Number(b.lat) : null,
+          lng: b.lng != null && b.lng !== "" ? Number(b.lng) : null,
+          coverImage,
+          photos,
+          role: b.role,
+          businessRegNo: b.businessRegNo ? String(b.businessRegNo).trim() : null,
+          proofDocUrl,
+          guestTags: (() => { try { return Array.isArray(b.guestTags) ? b.guestTags : JSON.parse(b.guestTags || "[]"); } catch { return String(b.guestTags || "").split(",").map((t) => t.trim()).filter(Boolean); } })(),
           priceRange: ["$", "$$", "$$$"].includes(b.priceRange) ? b.priceRange : null,
-          subscriptionTier: ["starter", "growth"].includes(b.subscriptionTier) ? b.subscriptionTier : null,
+          subscriptionTier: ["starter", "growth", "standard"].includes(b.subscriptionTier) ? b.subscriptionTier : null,
         },
       });
 
@@ -911,13 +951,16 @@ export function createApp(storage) {
               <tr><td style="padding:6px 0;color:#888">Venue</td><td style="padding:6px 0"><b>${application.name}</b></td></tr>
               <tr><td style="padding:6px 0;color:#888">Type</td><td style="padding:6px 0">${application.businessType}</td></tr>
               <tr><td style="padding:6px 0;color:#888">Area</td><td style="padding:6px 0">${application.area || "—"}</td></tr>
-              <tr><td style="padding:6px 0;color:#888">Contact</td><td style="padding:6px 0">${application.contactName}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Contact</td><td style="padding:6px 0">${application.contactName} (${application.role})</td></tr>
               <tr><td style="padding:6px 0;color:#888">Email</td><td style="padding:6px 0">${application.contactEmail}</td></tr>
               <tr><td style="padding:6px 0;color:#888">Phone</td><td style="padding:6px 0">${application.contactPhone || "—"}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Address</td><td style="padding:6px 0">${application.venue || "—"}${application.area ? ", " + application.area : ""}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Reg. no.</td><td style="padding:6px 0">${application.businessRegNo || "—"}</td></tr>
               <tr><td style="padding:6px 0;color:#888">Price range</td><td style="padding:6px 0">${application.priceRange || "—"}</td></tr>
-              <tr><td style="padding:6px 0;color:#888">Tier interest</td><td style="padding:6px 0">${application.subscriptionTier || "—"}</td></tr>
               <tr><td style="padding:6px 0;color:#888;vertical-align:top">Description</td><td style="padding:6px 0">${application.description || "—"}</td></tr>
             </table>
+            <p style="margin:18px 0 6px"><a href="${(process.env.PUBLIC_APP_URL || "https://weynevents.com").replace(/\/$/, "")}${application.proofDocUrl}" style="color:#1C6DD0">View ownership proof document →</a></p>
+            <p style="margin:0"><a href="${(process.env.PUBLIC_APP_URL || "https://weynevents.com").replace(/\/$/, "")}/admin" style="color:#1C6DD0">Review &amp; approve in the admin queue →</a></p>
             <p style="color:#888;font-size:12px;margin-top:20px">Application ID: ${application.id}</p>
           </div>
         `,
@@ -927,6 +970,176 @@ export function createApp(storage) {
       res.status(201).json({ id: application.id, status: application.status });
     } catch (err) {
       captureError(err, { route: "POST /api/venue-applications" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- venue owner management (dashboard for an approved venue) ----
+  // Loads req.params.id's Venue and 403s unless the signed-in user owns it
+  // or is an ADMIN — the venue equivalent of requireEventOwner.
+  async function requireVenueOwner(req, res, next) {
+    if (!req.user) return res.status(401).json({ error: { code: "UNAUTHENTICATED", message: "Sign in required" } });
+    const venue = await prisma.venue.findUnique({ where: { id: req.params.id } });
+    if (!venue) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+    if (venue.ownerId !== req.user.id && req.user.role !== "ADMIN") {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this venue" } });
+    }
+    req.venue = venue;
+    next();
+  }
+
+  // Venues the signed-in user owns (their reservation-hosting dashboard list).
+  app.get("/api/venues/mine", requireAuth, async (req, res) => {
+    try {
+      const venues = await prisma.venue.findMany({
+        where: { ownerId: req.user.id },
+        include: { _count: { select: { reservations: true, slots: true } } },
+        orderBy: { createdAt: "desc" },
+      });
+      res.json(venues);
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/mine" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Incoming reservations for one of my venues, newest first.
+  app.get("/api/venues/:id/reservations", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const reservations = await prisma.reservation.findMany({
+        where: { venueId: req.venue.id },
+        include: { slot: true },
+        orderBy: [{ date: "asc" }, { createdAt: "desc" }],
+      });
+      res.json(reservations);
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/reservations", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Replace a venue's weekly availability in one call (owner sets their
+  // bookable slots). Deletes the old set and writes the new — simplest
+  // correct model for "here is my current weekly schedule".
+  app.put("/api/venues/:id/slots", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const incoming = Array.isArray(req.body?.slots) ? req.body.slots : [];
+      const clean = [];
+      for (const s of incoming) {
+        const dayOfWeek = Number(s.dayOfWeek);
+        const capacity = Number(s.capacity);
+        if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) continue;
+        if (!/^\d{2}:\d{2}$/.test(String(s.startTime)) || !/^\d{2}:\d{2}$/.test(String(s.endTime))) continue;
+        if (!Number.isFinite(capacity) || capacity < 1) continue;
+        clean.push({ venueId: req.venue.id, dayOfWeek, startTime: String(s.startTime), endTime: String(s.endTime), capacity: Math.floor(capacity) });
+      }
+      await prisma.$transaction([
+        prisma.venueAvailabilitySlot.deleteMany({ where: { venueId: req.venue.id } }),
+        ...(clean.length ? [prisma.venueAvailabilitySlot.createMany({ data: clean })] : []),
+      ]);
+      const slots = await prisma.venueAvailabilitySlot.findMany({ where: { venueId: req.venue.id }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] });
+      res.json({ slots });
+    } catch (err) {
+      captureError(err, { route: "PUT /api/venues/:id/slots", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Owner confirms or cancels a reservation for their venue.
+  app.post("/api/reservations/:id/status", requireAuth, async (req, res) => {
+    try {
+      const status = String(req.body?.status || "");
+      if (!["confirmed", "cancelled"].includes(status)) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "status must be 'confirmed' or 'cancelled'" } });
+      }
+      const reservation = await prisma.reservation.findUnique({ where: { id: req.params.id }, include: { venue: true } });
+      if (!reservation) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Reservation not found" } });
+      if (reservation.venue.ownerId !== req.user.id && req.user.role !== "ADMIN") {
+        return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this venue" } });
+      }
+      const updated = await prisma.reservation.update({ where: { id: reservation.id }, data: { status } });
+      res.json(updated);
+    } catch (err) {
+      captureError(err, { route: "POST /api/reservations/:id/status", reservationId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- admin: venue-application review queue ----
+  // The private surface where the Weyn team verifies ownership proof and
+  // approves/rejects. Approving mints a live, verified Venue owned by the
+  // applicant; rejecting records a reason. ADMIN-only, like every /api/admin.
+  app.get("/api/admin/venue-applications", requireAuth, requireRole("ADMIN"), async (req, res) => {
+    try {
+      const status = req.query.status ? String(req.query.status) : undefined;
+      const where = status && status !== "all" ? { status } : {};
+      const applications = await prisma.venueApplication.findMany({ where, orderBy: { createdAt: "desc" } });
+      res.json(applications);
+    } catch (err) {
+      captureError(err, { route: "GET /api/admin/venue-applications" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/admin/venue-applications/:id/approve", requireAuth, requireRole("ADMIN"), async (req, res) => {
+    try {
+      const app_ = await prisma.venueApplication.findUnique({ where: { id: req.params.id } });
+      if (!app_) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Application not found" } });
+      if (app_.status === "approved" && app_.resultingVenueId) {
+        return res.status(409).json({ error: { code: "ALREADY_APPROVED", message: "This application is already approved", venueId: app_.resultingVenueId } });
+      }
+      const venue = await prisma.venue.create({
+        data: {
+          name: app_.name,
+          category: app_.businessType,
+          description: app_.description || "",
+          venue: app_.venue || app_.area || "Muscat",
+          area: app_.area || "Muscat",
+          lat: app_.lat ?? 23.6100,
+          lng: app_.lng ?? 58.5400,
+          distanceKm: +(Math.random() * 8 + 1).toFixed(1),
+          coverImage: app_.coverImage,
+          photos: app_.photos,
+          priceRange: app_.priceRange,
+          tags: app_.guestTags,
+          ownerId: app_.applicantId,
+          verified: true,
+          subscriptionTier: app_.subscriptionTier,
+          subscriptionStatus: "active",
+        },
+      });
+      const updated = await prisma.venueApplication.update({
+        where: { id: app_.id },
+        data: { status: "approved", reviewedBy: req.user.id, reviewedAt: new Date(), resultingVenueId: venue.id, reviewNote: req.body?.note ? String(req.body.note) : null },
+      });
+      // Let the applicant know they're live.
+      if (app_.contactEmail) {
+        sendEmail({
+          to: app_.contactEmail,
+          subject: `${app_.name} is now live on Weyn`,
+          html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">You're approved 🎉</h2><p style="color:#444;line-height:1.5"><b>${app_.name}</b> is now listed on Weyn for reservations. Sign in and open your venue dashboard to set your availability and manage bookings.</p><p style="margin:22px 0"><a href="${(process.env.PUBLIC_APP_URL || "https://weynevents.com").replace(/\/$/, "")}/you" style="background:#1C6DD0;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Open my dashboard</a></p></div>`,
+        }).catch((err) => captureError(err, { route: "approve venue-application (email)", applicationId: app_.id }));
+      }
+      trackEvent(req.user.id, "venue_application_approved", { applicationId: app_.id, venueId: venue.id });
+      res.json({ application: updated, venue });
+    } catch (err) {
+      captureError(err, { route: "POST /api/admin/venue-applications/:id/approve", applicationId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/admin/venue-applications/:id/reject", requireAuth, requireRole("ADMIN"), async (req, res) => {
+    try {
+      const app_ = await prisma.venueApplication.findUnique({ where: { id: req.params.id } });
+      if (!app_) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Application not found" } });
+      const updated = await prisma.venueApplication.update({
+        where: { id: app_.id },
+        data: { status: "rejected", reviewedBy: req.user.id, reviewedAt: new Date(), reviewNote: req.body?.note ? String(req.body.note) : null },
+      });
+      trackEvent(req.user.id, "venue_application_rejected", { applicationId: app_.id });
+      res.json(updated);
+    } catch (err) {
+      captureError(err, { route: "POST /api/admin/venue-applications/:id/reject", applicationId: req.params.id });
       res.status(500).json({ error: err.message });
     }
   });

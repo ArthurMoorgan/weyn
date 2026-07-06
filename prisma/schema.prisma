@@ -510,11 +510,30 @@ model VenueApplication {
   contactEmail     String
   contactPhone     String?
   description      String?
+  // Full listing data captured up front, so approving an application can
+  // mint a complete, ready-to-list Venue with no follow-up data entry.
+  venue            String?  // street address
   area             String?
+  lat              Float?
+  lng              Float?
+  coverImage       String?
+  photos           String[]
   guestTags        String[]
   priceRange       String?
   subscriptionTier String? // "starter" | "growth" — tier they expressed interest in
+  // Ownership verification — the applicant must prove they own or operate
+  // the venue before it can be listed. proofDocUrl is an uploaded photo of a
+  // trade licence / commercial registration / authorization letter; role +
+  // businessRegNo are their attestation, checked by a human at review.
+  role             String? // "owner" | "manager" | "authorized"
+  businessRegNo    String?
+  proofDocUrl      String?
   status           String   @default("pending") // "pending" | "approved" | "rejected"
+  // Admin review trail.
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  reviewNote       String?
+  resultingVenueId String? // the Venue created when this application was approved
   createdAt        DateTime @default(now())
 
   applicant User? @relation(fields: [applicantId], references: [id])
