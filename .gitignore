@@ -27,3 +27,4 @@ ios/App/App/public/
 /src/generated/prisma
 .vercel
 .env*
+tsconfig.tsbuildinfo
