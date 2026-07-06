@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, type ReportReason } from "../api";
+import { api, API_BASE, type ReportReason, type VenueApplication } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import ThemeToggle from "../components/ThemeToggle";
@@ -100,7 +101,131 @@ export default function Admin() {
             )
           )}
         </div>
+
+        <VenueApplications />
       </div>
     </>
+  );
+}
+
+/* ---------- Venue applications review queue ---------- */
+function VenueApplications() {
+  const { data, loading, error } = useAsync(() => api.adminVenueApplications("pending"), []);
+  // Local mirror so approve/reject can remove a card without a full refetch.
+  const [apps, setApps] = useState<VenueApplication[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const [actionErr, setActionErr] = useState("");
+
+  useEffect(() => { if (data) setApps(data); }, [data]);
+
+  function flash(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
+  }
+
+  async function approve(id: string) {
+    setBusyId(id); setActionErr("");
+    try {
+      await api.approveVenueApplication(id);
+      setApps((list) => list.filter((a) => a.id !== id));
+      flash("Approved — venue is now live.");
+    } catch (e: any) {
+      setActionErr(e.message || "Couldn't approve that application.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function reject(id: string) {
+    setBusyId(id); setActionErr("");
+    try {
+      await api.rejectVenueApplication(id, rejectNote.trim() || undefined);
+      setApps((list) => list.filter((a) => a.id !== id));
+      setRejectingId(null);
+      setRejectNote("");
+      flash("Application rejected.");
+    } catch (e: any) {
+      setActionErr(e.message || "Couldn't reject that application.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div>
+      <p className="hint" style={{ margin: "20px 16px 6px" }}>
+        <i className="icon-store" /> Venue applications {apps.length ? `(${apps.length})` : ""}
+      </p>
+
+      {loading && (
+        <div style={{ padding: "0 16px" }}>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+        </div>
+      )}
+      {error && <p className="errline" style={{ padding: "0 16px" }}>{error}</p>}
+      {actionErr && <p className="errline" style={{ padding: "0 16px" }}>{actionErr}</p>}
+
+      {!loading && !error && (
+        apps.length > 0 ? (
+          <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+            {apps.map((a) => (
+              <div key={a.id} className="venue-app-card">
+                <div className="venue-app-body">
+                  {a.proofDocUrl && (
+                    <a href={API_BASE + a.proofDocUrl} target="_blank" rel="noreferrer" className="venue-app-proof">
+                      <img src={API_BASE + a.proofDocUrl} alt={`${a.name} ownership document`} />
+                    </a>
+                  )}
+                  <div className="venue-app-info">
+                    <b>{a.name}</b>
+                    <span className="venue-app-cat">{a.businessType}{a.priceRange ? ` · ${a.priceRange}` : ""}</span>
+                    <div className="venue-app-meta">
+                      <div><i className="icon-user" /> {a.contactName}{a.role ? ` · ${a.role}` : ""}</div>
+                      <div><i className="icon-mail" /> {a.contactEmail}</div>
+                      {a.area && <div><i className="icon-map-pin" /> {a.area}</div>}
+                      {a.businessRegNo && <div><i className="icon-hash" /> Reg no. {a.businessRegNo}</div>}
+                    </div>
+                  </div>
+                </div>
+
+                {rejectingId === a.id ? (
+                  <div className="venue-app-reject">
+                    <input
+                      autoFocus
+                      value={rejectNote}
+                      onChange={(e) => setRejectNote(e.target.value)}
+                      placeholder="Reason (optional)…"
+                      onKeyDown={(e) => e.key === "Enter" && reject(a.id)}
+                    />
+                    <button className="btn glass sm" onClick={() => { setRejectingId(null); setRejectNote(""); }} disabled={busyId === a.id}>Cancel</button>
+                    <button className="btn glass sm danger-btn" onClick={() => reject(a.id)} disabled={busyId === a.id}>Confirm reject</button>
+                  </div>
+                ) : (
+                  <div className="venue-app-actions">
+                    <button className="btn glass sm" onClick={() => approve(a.id)} disabled={busyId === a.id}>
+                      <i className="icon-check" /> Approve
+                    </button>
+                    <button className="btn glass sm danger-btn" onClick={() => { setRejectingId(a.id); setRejectNote(""); setActionErr(""); }} disabled={busyId === a.id}>
+                      <i className="icon-x" /> Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty" style={{ padding: "24px 36px 8px" }}>
+            <div className="ic"><i className="icon-store" /></div>
+            <p>No pending applications</p>
+          </div>
+        )
+      )}
+
+      {toast && <div className="toast"><i className="icon-check" /> {toast}</div>}
+    </div>
   );
 }

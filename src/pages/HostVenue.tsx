@@ -29,6 +29,13 @@ const GUEST_TAGS = [
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+type OwnershipRole = "owner" | "manager" | "authorized";
+const OWNERSHIP_ROLES: { key: OwnershipRole; label: string; hint: string }[] = [
+  { key: "owner", label: "Owner", hint: "I own this business." },
+  { key: "manager", label: "Manager", hint: "I manage this venue day-to-day." },
+  { key: "authorized", label: "Authorized representative", hint: "I'm authorized to act on the owner's behalf." },
+];
+
 type DaySlot = { enabled: boolean; start: string; end: string; capacity: string };
 
 type Plan = {
@@ -54,7 +61,7 @@ const PLANS: Plan[] = [
 ];
 
 const STEP_LABELS = [
-  "Business type", "Guests", "Photos", "Details", "Availability", "Plan", "Review",
+  "Business type", "Guests", "Photos", "Details", "Verify ownership", "Availability", "Plan", "Review",
 ];
 
 const TOTAL_STEPS = STEP_LABELS.length;
@@ -63,6 +70,7 @@ export default function HostVenue() {
   const nav = useNavigate();
   const account = useAccount();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const proofInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState(0); // 0-indexed, 0..TOTAL_STEPS-1
   const [busy, setBusy] = useState(false);
@@ -93,14 +101,21 @@ export default function HostVenue() {
   const [loc, setLoc] = useState<{ lat: number; lng: number }>({ lat: 23.61, lng: 58.54 });
   const [priceRange, setPriceRange] = useState<PriceRange>("$$");
 
-  // Step 5 — availability (client-side only, no bulk-create API yet)
+  // Step 5 — verify ownership (role + optional reg number + REQUIRED proof doc)
+  const [role, setRole] = useState<OwnershipRole | null>(null);
+  const [businessRegNo, setBusinessRegNo] = useState("");
+  const [proof, setProof] = useState<{ file: File; url: string } | null>(null);
+  const [proofErr, setProofErr] = useState("");
+  const [proofDragOver, setProofDragOver] = useState(false);
+
+  // Step 6 — availability (client-side only, no bulk-create API yet)
   const [availability, setAvailability] = useState<Record<number, DaySlot>>(() => {
     const init: Record<number, DaySlot> = {};
     DAYS.forEach((_, i) => { init[i] = { enabled: false, start: "10:00", end: "22:00", capacity: "20" }; });
     return init;
   });
 
-  // Step 6 — subscription
+  // Step 7 — subscription
   const [tier, setTier] = useState<"standard" | null>("standard");
 
   function addPhotos(files: FileList | File[]) {
@@ -120,6 +135,15 @@ export default function HostVenue() {
     setPhotos((p) => p.filter((_, j) => j !== i));
   }
 
+  function setProofFile(files: FileList | File[]) {
+    const file = Array.from(files)[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setProofErr("Please upload an image of your document."); return; }
+    if (file.size > 6 * 1024 * 1024) { setProofErr("The document image must be under 6 MB."); return; }
+    setProofErr("");
+    setProof({ file, url: URL.createObjectURL(file) });
+  }
+
   function toggleTag(t: string) {
     setTags((s) => (s.includes(t) ? s.filter((x) => x !== t) : [...s, t]));
   }
@@ -135,11 +159,12 @@ export default function HostVenue() {
       case 1: return true; // tags optional
       case 2: return photos.length > 0;
       case 3: return name.trim().length > 0 && address.trim().length > 0 && area.trim().length > 0;
-      case 4: return true; // availability optional / client-side only
-      case 5: return !!tier;
+      case 4: return !!role && !!proof; // ownership: role + proof doc required
+      case 5: return true; // availability optional / client-side only
+      case 6: return !!tier;
       default: return true;
     }
-  }, [step, category, photos, name, address, area, tier]);
+  }, [step, category, photos, name, address, area, role, proof, tier]);
 
   function goNext() {
     if (!canNext) return;
@@ -152,19 +177,28 @@ export default function HostVenue() {
   }
 
   async function submit() {
-    if (!category || !tier || !account) return;
+    if (!category || !tier || !account || !role || !proof) return;
     setBusy(true); setErr("");
     try {
+      const [cover, ...rest] = photos;
       const created = await api.applyForVenue({
         businessType: category,
         name: name.trim(),
         contactName: account.name,
         contactEmail: account.email,
         description: description.trim() || undefined,
+        venue: address.trim() || undefined,
         area: area.trim(),
+        lat: loc.lat,
+        lng: loc.lng,
         guestTags: tags,
         priceRange,
         subscriptionTier: tier,
+        role,
+        businessRegNo: businessRegNo.trim() || undefined,
+        proofDoc: proof.file,
+        coverImage: cover?.file,
+        photos: rest.map((p) => p.file),
       });
       setDone({ id: created.id, name: name.trim() });
     } catch (e: any) {
@@ -286,9 +320,22 @@ export default function HostVenue() {
               priceRange={priceRange} setPriceRange={setPriceRange}
             />
           )}
-          {step === 4 && <StepAvailability availability={availability} updateDay={updateDay} />}
-          {step === 5 && <StepPlan tier={tier} setTier={setTier} />}
-          {step === 6 && (
+          {step === 4 && (
+            <StepVerify
+              role={role} setRole={setRole}
+              businessRegNo={businessRegNo} setBusinessRegNo={setBusinessRegNo}
+              proof={proof}
+              setProofFile={setProofFile}
+              removeProof={() => setProof(null)}
+              dragOver={proofDragOver}
+              setDragOver={setProofDragOver}
+              proofInputRef={proofInputRef}
+              proofErr={proofErr}
+            />
+          )}
+          {step === 5 && <StepAvailability availability={availability} updateDay={updateDay} />}
+          {step === 6 && <StepPlan tier={tier} setTier={setTier} />}
+          {step === 7 && (
             <StepReview
               category={category}
               tags={tags}
@@ -298,6 +345,9 @@ export default function HostVenue() {
               address={address}
               area={area}
               priceRange={priceRange}
+              role={role}
+              businessRegNo={businessRegNo}
+              proof={proof}
               availability={availability}
               tier={tier}
             />
@@ -534,7 +584,96 @@ function StepDetails({
 }
 
 // ============================================================
-// Step 5 — weekly recurring availability builder (client-side only)
+// Step 5 — verify ownership (role + optional reg number + REQUIRED proof doc)
+// ============================================================
+function StepVerify({
+  role, setRole, businessRegNo, setBusinessRegNo, proof, setProofFile, removeProof,
+  dragOver, setDragOver, proofInputRef, proofErr,
+}: {
+  role: OwnershipRole | null; setRole: (r: OwnershipRole) => void;
+  businessRegNo: string; setBusinessRegNo: (v: string) => void;
+  proof: { file: File; url: string } | null;
+  setProofFile: (files: FileList | File[]) => void;
+  removeProof: () => void;
+  dragOver: boolean;
+  setDragOver: (v: boolean) => void;
+  proofInputRef: React.RefObject<HTMLInputElement>;
+  proofErr: string;
+}) {
+  return (
+    <>
+      <div className="page-head compact" style={{ padding: "0 0 10px" }}>
+        <h1>Verify ownership</h1>
+        <p className="sub">Upload a photo of your trade licence, commercial registration, or an authorization letter — we verify every venue by hand before it goes live.</p>
+      </div>
+
+      <div className="field">
+        <label>Your role at this venue</label>
+        <div className="onboard-grid">
+          {OWNERSHIP_ROLES.map((r) => (
+            <button
+              type="button"
+              key={r.key}
+              className="ticketing-opt"
+              style={{ alignItems: "flex-start", gridColumn: r.key === "authorized" ? "1 / -1" : undefined }}
+              aria-pressed={role === r.key}
+              onClick={() => setRole(r.key)}
+            >
+              <b style={role === r.key ? { color: "var(--accent)" } : undefined}>{r.label}</b>
+              <span>{r.hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="field">
+        <label>Business registration / trade licence no. <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label>
+        <input value={businessRegNo} onChange={(e) => setBusinessRegNo(e.target.value)} placeholder="e.g. 1234567" />
+      </div>
+
+      <div className="field">
+        <label>Ownership document</label>
+        {proof ? (
+          <div className="preview-wrap" style={{ maxWidth: 220 }}>
+            <img className="preview-img" style={{ height: 150 }} src={proof.url} alt="ownership document preview" />
+            <Tooltip text="Remove document">
+              <button className="rm" onClick={removeProof} aria-label="Remove document">
+                <i className="icon-x" />
+              </button>
+            </Tooltip>
+          </div>
+        ) : (
+          <>
+            <div
+              className="dropzone"
+              style={dragOver ? { borderColor: "var(--accent)", background: "var(--accent-soft)" } : undefined}
+              onClick={() => proofInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                if (e.dataTransfer.files?.length) setProofFile(e.dataTransfer.files);
+              }}
+            >
+              <i className="icon-file-check" />
+              <p><b>Drag your document here, or click to browse</b></p>
+              <small>Trade licence, CR, or authorization letter · JPG, PNG or WebP · up to 6 MB</small>
+            </div>
+            <input
+              ref={proofInputRef} type="file" accept="image/*" hidden
+              onChange={(e) => { if (e.target.files) setProofFile(e.target.files); e.target.value = ""; }}
+            />
+          </>
+        )}
+        {proofErr && <p className="errline">{proofErr}</p>}
+      </div>
+    </>
+  );
+}
+
+// ============================================================
+// Step 6 — weekly recurring availability builder (client-side only)
 // ============================================================
 function StepAvailability({
   availability, updateDay,
@@ -581,7 +720,7 @@ function StepAvailability({
 }
 
 // ============================================================
-// Step 6 — subscription selection
+// Step 7 — subscription selection
 // ============================================================
 function StepPlan({ tier, setTier }: { tier: "standard" | null; setTier: (t: "standard") => void }) {
   return (
@@ -619,10 +758,10 @@ function StepPlan({ tier, setTier }: { tier: "standard" | null; setTier: (t: "st
 }
 
 // ============================================================
-// Step 7 — review & submit
+// Step 8 — review & submit
 // ============================================================
 function StepReview({
-  category, tags, photos, name, description, address, area, priceRange, availability, tier,
+  category, tags, photos, name, description, address, area, priceRange, role, businessRegNo, proof, availability, tier,
 }: {
   category: VenueCategory | null;
   tags: string[];
@@ -632,10 +771,14 @@ function StepReview({
   address: string;
   area: string;
   priceRange: PriceRange;
+  role: OwnershipRole | null;
+  businessRegNo: string;
+  proof: { file: File; url: string } | null;
   availability: Record<number, DaySlot>;
   tier: "standard" | null;
 }) {
   const catLabel = BUSINESS_TYPES.find((b) => b.key === category)?.label || "—";
+  const roleLabel = OWNERSHIP_ROLES.find((r) => r.key === role)?.label || "—";
   const plan = PLANS.find((p) => p.key === tier);
   const openDays = DAYS.filter((_, i) => availability[i].enabled);
 
@@ -652,6 +795,7 @@ function StepReview({
         <div className="fact"><i className="icon-store" /><div><b>{name || "Untitled venue"}</b><span>{catLabel}</span></div></div>
         <div className="fact"><i className="icon-map-pin" /><div><b>{address || "—"}</b><span>{area}</span></div></div>
         <div className="fact"><i className="icon-tag" /><div><b>{priceRange}</b><span>Price range</span></div></div>
+        <div className="fact"><i className="icon-shield-check" /><div><b>{roleLabel}{proof ? " · document attached" : ""}</b><span>{businessRegNo.trim() ? `Reg no. ${businessRegNo.trim()}` : "Ownership verification"}</span></div></div>
         <div className="fact"><i className="icon-image" /><div><b>{photos.length} photo{photos.length === 1 ? "" : "s"}</b><span>First photo is the cover</span></div></div>
         <div className="fact"><i className="icon-calendar" /><div><b>{openDays.length ? openDays.join(", ") : "No days set"}</b><span>Open days</span></div></div>
         <div className="fact"><i className="icon-credit-card" /><div><b>{plan?.name || "—"}</b><span>{plan?.price}</span></div></div>

@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
-import { api, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn, type TeamRole } from "../api";
+import { api, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn, type TeamRole, type Venue, type Reservation, type VenueAvailabilitySlot } from "../api";
 import { useAsync, useClosing } from "../hooks";
 import { getOrganizer, useAccount, useTickets, useSaved } from "../store";
 import Stub from "../components/Stub";
@@ -14,7 +14,9 @@ const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n 
 // Profile architecture: dedicated views instead of one long stacked page.
 // Organizer/Settings only appear once relevant (signed in) so a first-time
 // visitor isn't shown empty tabs for features they haven't touched yet.
-type ProfileTab = "overview" | "tickets" | "saved" | "lists" | "organizer" | "settings";
+type ProfileTab = "overview" | "tickets" | "saved" | "lists" | "organizer" | "venues" | "settings";
+
+type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
 
 export default function You() {
   const name = getOrganizer();
@@ -32,6 +34,7 @@ export default function You() {
   const dashEvents = useAsync(() => (account ? api.dashboardEvents() : Promise.resolve([])), [account]);
   const dashSummary = useAsync(() => (account ? api.dashboardSummary() : Promise.resolve(null)), [account]);
   const allEvents = useAsync(() => api.listEvents(), []);
+  const myVenues = useAsync<OwnedVenue[]>(() => (account ? api.myVenues() : Promise.resolve([])), [account]);
 
   const summary = {
     loading: dashEvents.loading || dashSummary.loading,
@@ -50,7 +53,7 @@ export default function You() {
   };
 
   if (summary.loading || allEvents.loading) {
-    return (<><Header tab={tab} setTab={setTab} isHost={false} account={!!account} /><div className="feed" style={{ paddingTop: 8 }}>
+    return (<><Header tab={tab} setTab={setTab} isHost={false} hasVenues={false} account={!!account} /><div className="feed" style={{ paddingTop: 8 }}>
       <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
       <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
       <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
@@ -61,7 +64,7 @@ export default function You() {
   if (summary.error || allEvents.error) {
     return (
       <>
-        <Header tab={tab} setTab={setTab} isHost={false} account={!!account} />
+        <Header tab={tab} setTab={setTab} isHost={false} hasVenues={false} account={!!account} />
         <div className="empty">
           <div className="ic"><i className="icon-cloud-off" /></div>
           <p>Couldn't reach the server. {summary.error || allEvents.error}</p>
@@ -79,11 +82,13 @@ export default function You() {
   const myTickets = (allEvents.data || []).filter((e) => tickets.includes(e.id));
   const savedEvents = (allEvents.data || []).filter((e) => saved.includes(e.id));
   const isHost = (summary.data?.events.length || 0) > 0;
+  const venues = myVenues.data || [];
+  const hasVenues = venues.length > 0;
   const summaryData = summary.data || { events: [], stats: { eventCount: 0, ticketsSold: 0, grossRevenue: 0, netRevenue: 0, feePaid: 0 } };
 
   return (
     <>
-      <Header tab={tab} setTab={setTab} isHost={isHost} account={!!account} />
+      <Header tab={tab} setTab={setTab} isHost={isHost} hasVenues={hasVenues} account={!!account} />
 
       {!account && (
         <div className="signin-card" style={{ margin: "16px 16px 0" }}>
@@ -107,6 +112,7 @@ export default function You() {
       {tab === "organizer" && (
         <OrganizerSection name={name} summary={summaryData} reload={summary.reload} />
       )}
+      {tab === "venues" && <VenuesSection venues={venues} />}
       {tab === "settings" && <SettingsTab account={!!account} />}
     </>
   );
@@ -273,17 +279,18 @@ function CollectionsSection() {
 // right after Overview (see below) instead of sitting buried at the end —
 // it's the primary tool for hosts and shouldn't require scrolling the strip
 // to discover.
-const TAB_DEFS: { key: ProfileTab; label: string; icon: string; needsAuth?: boolean; needsHost?: boolean }[] = [
+const TAB_DEFS: { key: ProfileTab; label: string; icon: string; needsAuth?: boolean; needsHost?: boolean; needsVenues?: boolean }[] = [
   { key: "overview", label: "Overview", icon: "layout-grid" },
   { key: "organizer", label: "Organizer", icon: "chart-bar", needsHost: true },
+  { key: "venues", label: "Venues", icon: "store", needsVenues: true },
   { key: "tickets", label: "Tickets", icon: "ticket" },
   { key: "saved", label: "Saved", icon: "heart" },
   { key: "lists", label: "Lists", icon: "list", needsAuth: true },
   { key: "settings", label: "Settings", icon: "settings" },
 ];
 
-function Header({ tab, setTab, isHost, account }: { tab: ProfileTab; setTab: (t: ProfileTab) => void; isHost: boolean; account: boolean }) {
-  const visible = TAB_DEFS.filter((t) => (!t.needsAuth || account) && (!t.needsHost || isHost));
+function Header({ tab, setTab, isHost, hasVenues, account }: { tab: ProfileTab; setTab: (t: ProfileTab) => void; isHost: boolean; hasVenues: boolean; account: boolean }) {
+  const visible = TAB_DEFS.filter((t) => (!t.needsAuth || account) && (!t.needsHost || isHost) && (!t.needsVenues || hasVenues));
   return (
     <>
       <header className="topbar">
@@ -436,6 +443,204 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
       {teamFor && <TeamSheet event={teamFor} onClose={() => setTeamFor(null)} />}
       {checkinFor && <CheckInSheet event={checkinFor} onClose={() => setCheckinFor(null)} />}
     </section>
+  );
+}
+
+/* ---------- Venues (venue owner dashboard) ---------- */
+const VENUE_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+type VenueDayRow = { enabled: boolean; start: string; end: string; capacity: string };
+
+function VenuesSection({ venues }: { venues: OwnedVenue[] }) {
+  const [selectedId, setSelectedId] = useState<string>(venues[0]?.id || "");
+  const selected = venues.find((v) => v.id === selectedId) || venues[0];
+
+  return (
+    <section>
+      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Your venues</h2><span>{venues.length}</span></div>
+
+      {venues.length > 1 && (
+        <div className="chips" style={{ padding: "0 16px 4px", display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {venues.map((v) => (
+            <button
+              key={v.id}
+              className={"chip" + (v.id === selected?.id ? " on" : "")}
+              onClick={() => setSelectedId(v.id)}
+            >
+              {v.name} <small style={{ opacity: 0.7 }}>· {v._count?.reservations ?? 0}</small>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selected && <VenueManager key={selected.id} venue={selected} />}
+    </section>
+  );
+}
+
+function VenueManager({ venue }: { venue: OwnedVenue }) {
+  return (
+    <div style={{ padding: "6px 16px 0" }}>
+      <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="thumb" style={venue.coverImage ? { backgroundImage: `url(${venue.coverImage})`, width: 46, height: 46, borderRadius: 12, backgroundSize: "cover", backgroundPosition: "center", flex: "0 0 auto" } : { width: 46, height: 46, borderRadius: 12, background: "var(--surface-2)", display: "grid", placeItems: "center", flex: "0 0 auto" }}>
+            {!venue.coverImage && <i className="icon-store" />}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <b style={{ display: "block", fontSize: 15 }}>{venue.name}{venue.verified && <span className="ec-badge confirmed" style={{ marginLeft: 8 }}><i className="icon-badge-check" /> Verified</span>}</b>
+            <span style={{ fontSize: 12.5, color: "var(--text-2)" }}>{venue.area} · {venue._count?.reservations ?? 0} reservation{(venue._count?.reservations ?? 0) === 1 ? "" : "s"}</span>
+          </div>
+        </div>
+      </div>
+
+      <VenueReservations venueId={venue.id} />
+      <VenueAvailabilityEditor venue={venue} />
+    </div>
+  );
+}
+
+function statusClass(status?: string) {
+  const s = (status || "pending").toLowerCase();
+  if (s === "confirmed") return "confirmed";
+  if (s === "cancelled") return "out";
+  return "";
+}
+
+function VenueReservations({ venueId }: { venueId: string }) {
+  const { data, loading, error } = useAsync(() => api.venueReservations(venueId), [venueId]);
+  const [rows, setRows] = useState<(Reservation & { slot?: VenueAvailabilitySlot | null })[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => { if (data) setRows(data); }, [data]);
+
+  async function setStatus(id: string, status: "confirmed" | "cancelled") {
+    setBusyId(id);
+    try {
+      const updated = await api.setReservationStatus(id, status);
+      setRows((list) => list.map((r) => (r.id === id ? { ...r, status: updated.status ?? status } : r)));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "4px 0 8px" }}><i className="icon-calendar-check" /> Incoming reservations</p>
+      {loading && (
+        <div>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+        </div>
+      )}
+      {error && <p className="errline">{error}</p>}
+      {!loading && !error && (
+        rows.length > 0 ? (
+          <ul className="steps">
+            {rows.map((r) => {
+              const pending = (r.status || "pending").toLowerCase() === "pending";
+              return (
+                <li key={r.id}>
+                  <i className="icon-user" />
+                  <span>
+                    {r.guestName} <small style={{ color: "var(--text-3)" }}>· party of {r.partySize}</small>
+                    <br />
+                    <small style={{ color: "var(--text-3)" }}>{r.date} · {r.time}</small>
+                    {" "}
+                    <span className={"ec-badge " + statusClass(r.status)}>{(r.status || "pending")}</span>
+                  </span>
+                  {pending && (
+                    <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                      <button className="btn glass sm" onClick={() => setStatus(r.id, "confirmed")} disabled={busyId === r.id}>Confirm</button>
+                      <button className="btn glass sm" onClick={() => setStatus(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p style={{ color: "var(--text-2)", fontSize: 13.5, marginBottom: 18 }}>No reservations yet.</p>
+        )
+      )}
+    </>
+  );
+}
+
+function VenueAvailabilityEditor({ venue }: { venue: OwnedVenue }) {
+  const { data } = useAsync(() => api.getVenue(venue.id), [venue.id]);
+  const [days, setDays] = useState<VenueDayRow[]>(() =>
+    VENUE_DAYS.map(() => ({ enabled: false, start: "10:00", end: "22:00", capacity: "20" }))
+  );
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState("");
+
+  // Prefill from the venue's existing slots once loaded.
+  useEffect(() => {
+    const slots = data?.slots;
+    if (!slots || slots.length === 0) return;
+    setDays((prev) => {
+      const next = prev.map((d) => ({ ...d, enabled: false }));
+      for (const s of slots) {
+        if (s.dayOfWeek < 0 || s.dayOfWeek > 6) continue;
+        next[s.dayOfWeek] = { enabled: true, start: s.startTime, end: s.endTime, capacity: String(s.capacity) };
+      }
+      return next;
+    });
+  }, [data]);
+
+  function update(i: number, patch: Partial<VenueDayRow>) {
+    setDays((prev) => prev.map((d, j) => (j === i ? { ...d, ...patch } : d)));
+    setSaved(false);
+  }
+
+  async function save() {
+    setSaving(true); setErr(""); setSaved(false);
+    try {
+      const slots = days
+        .map((d, i) => ({ dayOfWeek: i, startTime: d.start, endTime: d.end, capacity: Number(d.capacity) || 0, enabled: d.enabled }))
+        .filter((s) => s.enabled)
+        .map(({ enabled, ...s }) => { void enabled; return s; });
+      await api.setVenueSlots(venue.id, slots);
+      setSaved(true);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't save availability.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 6 }}>
+      <p className="hint" style={{ margin: "4px 0 8px" }}><i className="icon-clock" /> Weekly availability</p>
+      <div className="hv-avail-list">
+        {VENUE_DAYS.map((day, i) => {
+          const d = days[i];
+          return (
+            <div key={day} className={"hv-avail-day" + (d.enabled ? " on" : "")}>
+              <label className="hv-avail-day-head">
+                <input type="checkbox" checked={d.enabled} onChange={(e) => update(i, { enabled: e.target.checked })} />
+                <span>{day}</span>
+                {!d.enabled && <span className="hv-avail-closed">Closed</span>}
+              </label>
+              {d.enabled && (
+                <div className="hv-avail-ranges">
+                  <div className="hv-avail-range">
+                    <input type="time" value={d.start} onChange={(e) => update(i, { start: e.target.value })} aria-label={`${day} opening time`} />
+                    <span>–</span>
+                    <input type="time" value={d.end} onChange={(e) => update(i, { end: e.target.value })} aria-label={`${day} closing time`} />
+                    <input inputMode="numeric" value={d.capacity} onChange={(e) => update(i, { capacity: e.target.value })} placeholder="Cap." className="hv-avail-capacity" aria-label={`${day} capacity`} />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {err && <p className="errline">{err}</p>}
+      <button className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving}>
+        {saving ? "Saving…" : saved ? "Saved ✓" : "Save availability"}
+      </button>
+    </div>
   );
 }
 
