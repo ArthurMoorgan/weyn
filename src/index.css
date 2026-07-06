@@ -1692,3 +1692,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @media (prefers-reduced-motion: reduce) {
   .tooltip-bubble { transition: none; }
 }
+
+/* Suspense fallback for lazily-loaded routes — a quiet full-height panel in
+   the app's own background rather than a jarring white flash while the route
+   chunk downloads. Chunks are small and usually already cached, so this is
+   rarely on screen for more than a frame. */
+.route-loading { min-height: 60vh; background: var(--bg); }

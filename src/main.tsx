@@ -1,5 +1,5 @@
 import {ClerkProvider, useAuth} from "@clerk/react";
-import React, { useEffect } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { HashRouter, BrowserRouter, Routes, Route } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
@@ -8,25 +8,34 @@ import "./lucide.css";
 import "./index.css";
 import App from "./App";
 import { setTokenGetter } from "./store";
+// Explore (the root/first-paint route) and Onboarding (the first-run
+// redirect target) stay eagerly bundled — they're the critical path a brand
+// new visitor hits, so lazy-loading them would just add a chunk fetch to the
+// very first render. Everything else is code-split: each route becomes its
+// own chunk fetched on navigation, which pulls the heavy deps out of the
+// initial bundle — leaflet (MapPicker/MiniMap, used by host + venue-detail)
+// and html5-qrcode (You.tsx's door scanner, ~200KB) now only download when
+// someone actually visits those routes.
 import Explore from "./pages/Explore";
-import EventDetail from "./pages/EventDetail";
-import Saved from "./pages/Saved";
-import Organizer from "./pages/Organizer";
-import You from "./pages/You";
-import CheckoutSuccess from "./pages/CheckoutSuccess";
-import CheckoutCancel from "./pages/CheckoutCancel";
-import InviteAccept from "./pages/InviteAccept";
-import CollectionPage from "./pages/Collection";
-import Admin from "./pages/Admin";
-import OrganizerProfile from "./pages/OrganizerProfile";
-import HostHub from "./pages/HostHub";
-import HostVenue from "./pages/HostVenue";
-import Reservations from "./pages/Reservations";
-import VenueDetail from "./pages/VenueDetail";
 import Onboarding from "./pages/Onboarding";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { initPush } from "./push";
 import { markSplashShown, dismissSplash } from "./splash";
+
+const EventDetail = lazy(() => import("./pages/EventDetail"));
+const Saved = lazy(() => import("./pages/Saved"));
+const Organizer = lazy(() => import("./pages/Organizer"));
+const You = lazy(() => import("./pages/You"));
+const CheckoutSuccess = lazy(() => import("./pages/CheckoutSuccess"));
+const CheckoutCancel = lazy(() => import("./pages/CheckoutCancel"));
+const InviteAccept = lazy(() => import("./pages/InviteAccept"));
+const CollectionPage = lazy(() => import("./pages/Collection"));
+const Admin = lazy(() => import("./pages/Admin"));
+const OrganizerProfile = lazy(() => import("./pages/OrganizerProfile"));
+const HostHub = lazy(() => import("./pages/HostHub"));
+const HostVenue = lazy(() => import("./pages/HostVenue"));
+const Reservations = lazy(() => import("./pages/Reservations"));
+const VenueDetail = lazy(() => import("./pages/VenueDetail"));
 
 // as close to page-load as this module can get, so the splash's minimum
 // on-screen duration is measured from real first-paint, not from whenever
@@ -102,6 +111,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <ClerkAuthBridge />
         <SplashDismisser />
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Suspense fallback={<div className="route-loading" aria-busy="true" />}>
           <Routes>
             <Route element={<App />}>
               <Route path="/" element={<Explore />} />
@@ -132,6 +142,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               }
             />
           </Routes>
+          </Suspense>
         </Router>
       </ClerkProvider>
     </ErrorBoundary>

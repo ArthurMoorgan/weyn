@@ -14,6 +14,32 @@ export function authConfigured() {
   return !!CLERK_SECRET_KEY;
 }
 
+// Short-TTL cache of resolved User rows, keyed by verified Clerk user id, so
+// a burst of authenticated requests from one user doesn't fan out into one
+// Clerk getUser() API call + one DB upsert each. 60s is short enough that a
+// profile edit (name/avatar) shows up promptly, long enough to collapse the
+// per-request storm. On Cloudflare this lives per-isolate (best-effort); on
+// Node it's process-wide. Bounded so it can't grow without limit.
+const userCache = new Map(); // clerkUserId -> { user, expires }
+const USER_TTL_MS = 60_000;
+
+async function resolveClerkUser(clerkUserId) {
+  const now = Date.now();
+  const hit = userCache.get(clerkUserId);
+  if (hit && hit.expires > now) return hit.user;
+  const clerkUser = await clerkClient.users.getUser(clerkUserId);
+  const primaryEmail = clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId) || clerkUser.emailAddresses[0];
+  const user = await db.upsertUserFromClerk({
+    clerkUserId: clerkUser.id,
+    email: primaryEmail?.emailAddress || `${clerkUser.id}@no-email.clerk`,
+    name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || primaryEmail?.emailAddress || "You",
+    avatarUrl: clerkUser.imageUrl || null,
+  });
+  if (userCache.size > 5000) userCache.clear(); // crude bound; correctness doesn't depend on the cache
+  userCache.set(clerkUserId, { user, expires: now + USER_TTL_MS });
+  return user;
+}
+
 // Attaches req.user (the full User row, looked up/created by Clerk user id)
 // if a valid Clerk session is present; never rejects the request itself —
 // use requireAuth to actually enforce it. Clerk's own session cookie/token
@@ -33,15 +59,15 @@ export async function attachUser(req, _res, next) {
     const requestState = await clerkClient.authenticateRequest(request, { publishableKey: CLERK_PUBLISHABLE_KEY });
     const auth = requestState.toAuth();
     if (auth?.userId) {
-      const clerkUser = await clerkClient.users.getUser(auth.userId);
-      const primaryEmail = clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId) || clerkUser.emailAddresses[0];
-      const user = await db.upsertUserFromClerk({
-        clerkUserId: clerkUser.id,
-        email: primaryEmail?.emailAddress || `${clerkUser.id}@no-email.clerk`,
-        name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || primaryEmail?.emailAddress || "You",
-        avatarUrl: clerkUser.imageUrl || null,
-      });
-      req.user = user;
+      // The session token above is already cryptographically verified on
+      // every request — this getUser() + DB upsert only refreshes profile
+      // fields (name/email/avatar), so caching the resolved User row per
+      // Clerk id for a short TTL avoids hammering Clerk's API (and the DB)
+      // on every authenticated request, which was both a latency cost and a
+      // real availability risk (flood of authed calls -> Clerk rate limit ->
+      // auth breaks app-wide). Cache never widens access: it's keyed on the
+      // freshly-verified auth.userId, and misses fall through to a live fetch.
+      req.user = await resolveClerkUser(auth.userId);
     }
   } catch {
     // not signed in / invalid session — treat as signed out rather than erroring the request

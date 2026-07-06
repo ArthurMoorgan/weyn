@@ -18,6 +18,32 @@ import { cleanEventTitle } from "./refine.js";
 
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
+// SSRF guard. Both scrape + image fetch pull remote URLs server-side; without
+// this a URL (or a redirect target) pointing at localhost / a private range /
+// the cloud metadata endpoint could turn either into a server-side request
+// forgery. Runs on Node AND Cloudflare Workers, so it can't depend on node:dns
+// resolution — it's a hostname/literal-IP block, paired with redirect:"error"
+// on the fetches so a 30x can't smuggle the request past this check.
+function isBlockedHost(urlStr) {
+  let u;
+  try { u = new URL(urlStr); } catch { return true; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return true;
+  const h = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (h === "localhost" || h === "0.0.0.0" || h.endsWith(".localhost") || h.endsWith(".internal") || h.endsWith(".local")) return true;
+  if (h === "::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80")) return true; // IPv6 loopback / ULA / link-local
+  // IPv4 literals: loopback, private ranges, link-local (incl. 169.254.169.254 metadata), CGNAT
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    if (a === 127 || a === 10 || a === 0) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+  }
+  return false;
+}
+
 function metaTag(html, prop) {
   const m = html.match(new RegExp(`<meta[^>]+property=["']${prop}["'][^>]+content=["']([^"']*)["']`, "i"))
     || html.match(new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+property=["']${prop}["']`, "i"));
@@ -25,10 +51,10 @@ function metaTag(html, prop) {
 }
 
 export async function scrapeInstagramPost(url) {
-  if (!/^https?:\/\/(www\.)?instagram\.com\//i.test(url)) {
+  if (!/^https?:\/\/(www\.)?instagram\.com\//i.test(url) || isBlockedHost(url)) {
     throw Object.assign(new Error("That doesn't look like an Instagram post URL"), { needsCaption: true });
   }
-  const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "en" }, signal: AbortSignal.timeout(8000) });
+  const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "en" }, redirect: "error", signal: AbortSignal.timeout(8000) });
   const html = await res.text();
   const ogDesc = metaTag(html, "og:description");
   const ogImage = metaTag(html, "og:image");
@@ -119,7 +145,8 @@ export async function parseEventFromCaption(caption) {
 // whether the app is running as a plain Node process or a Cloudflare Worker.
 export async function downloadImage(imageUrl, storage) {
   try {
-    const res = await fetch(imageUrl, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8000) });
+    if (!imageUrl || isBlockedHost(imageUrl)) return null;
+    const res = await fetch(imageUrl, { headers: { "User-Agent": UA }, redirect: "error", signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
     // don't trust the remote server's Content-Type header — sniff real
