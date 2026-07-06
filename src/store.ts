@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useUser } from "@clerk/react";
 
 // Per-device UI state: saved events, booked tickets, and the organizer identity.
@@ -99,14 +99,22 @@ export function useAccount(): Account | null {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [user?.id]);
-  if (!isLoaded || !user) return null;
-  const email = user.primaryEmailAddress?.emailAddress || "";
-  return {
-    name: user.fullName || email || "You",
-    email,
-    picture: user.imageUrl || null,
-    role,
-  };
+  const email = user?.primaryEmailAddress?.emailAddress || "";
+  const name = user?.fullName || email || "You";
+  const picture = user?.imageUrl || null;
+  // Memoized on primitives, not on `user`/`isLoaded` (Clerk gives back new
+  // object references on nearly every render) — without this, any caller
+  // that puts the returned account object in a useAsync/useEffect deps
+  // array (e.g. You.tsx's dashboard fetches) gets a new reference every
+  // render, re-triggers its effect, which re-renders, which produces a new
+  // reference again: an infinite fetch loop that never lets `loading`
+  // settle to false. That reads as a page permanently stuck on its skeleton
+  // loader, and disproportionately hits real users (more re-renders, worse
+  // network, more likely to trip a rate limiter) versus a dev's warm cache.
+  return useMemo(() => {
+    if (!isLoaded || !user) return null;
+    return { name, email, picture, role };
+  }, [isLoaded, user, name, email, picture, role]);
 }
 
 // ---- theme ----

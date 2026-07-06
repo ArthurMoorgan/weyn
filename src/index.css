@@ -1580,13 +1580,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .host-hub-card i { font-size: 22px; color: var(--primary); margin-bottom: 4px; }
 .host-hub-card h3 { font: var(--t-section); margin: 0; }
 .host-hub-card p { color: var(--text-2); margin: 0; font: var(--t-body); }
-.host-hub-cta { color: var(--primary); font: var(--t-card); margin-top: 6px; }
-.host-hub-cta--link { background: none; border: none; cursor: pointer; padding: 0; text-align: left; }
-.host-hub-card--reservations { cursor: default; }
+.host-hub-cta { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font: var(--t-card); margin-top: 6px; }
+.host-hub-cta i { font-size: 14px; margin: 0; color: inherit; }
 .host-hub-notice {
   display: flex; flex-direction: column; gap: 2px; background: var(--accent-soft);
   border: 1px solid var(--primary); border-radius: var(--radius-sm); padding: 12px 14px; margin: 8px 0;
 }
 .host-hub-notice strong { font: var(--t-card); }
 .host-hub-notice span { color: var(--text-2); font: var(--t-meta); }
-.host-hub-contacts { display: flex; gap: var(--space-3); flex-wrap: wrap; }

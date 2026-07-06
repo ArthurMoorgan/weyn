@@ -542,6 +542,20 @@ export const api = {
       body: JSON.stringify(input),
     }).then((r) => json<Venue>(r));
   },
+  // Reservation hosting is manual-review, not self-serve — this submits an
+  // application (see prisma's VenueApplication model), not a live Venue.
+  // No auth headers: an applicant doesn't need a Weyn account yet.
+  applyForVenue(input: {
+    businessType: VenueCategory; name: string; contactName: string; contactEmail: string;
+    contactPhone?: string; description?: string; area?: string; guestTags?: string[];
+    priceRange?: PriceRange; subscriptionTier?: string;
+  }): Promise<{ id: string; status: string }> {
+    return fetch(`${API_BASE}/api/venue-applications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }).then((r) => json<{ id: string; status: string }>(r));
+  },
 };
 
 // ---------- derived display helpers ----------

@@ -46,6 +46,7 @@ model User {
   reportsFiled    Report[]          @relation("Reporter")
   reportsReviewed Report[]          @relation("ReportReviewer")
   venues          Venue[]
+  venueApplications VenueApplication[]
 
   @@index([email])
 }
@@ -491,4 +492,29 @@ model Reservation {
   @@index([venueId])
   @@index([slotId])
   @@index([status])
+}
+
+// A venue owner's request to be onboarded onto reservation hosting —
+// distinct from Venue itself, which only gets created once the Weyn team
+// approves an application by hand. See POST /api/venue-applications.
+model VenueApplication {
+  id               String   @id @default(cuid())
+  applicantId      String?
+  businessType     String // "restaurant" | "cafe" | "lounge" | "rooftop" | "beach_club" | "experience"
+  name             String
+  contactName      String
+  contactEmail     String
+  contactPhone     String?
+  description      String?
+  area             String?
+  guestTags        String[]
+  priceRange       String?
+  subscriptionTier String? // "starter" | "growth" — tier they expressed interest in
+  status           String   @default("pending") // "pending" | "approved" | "rejected"
+  createdAt        DateTime @default(now())
+
+  applicant User? @relation(fields: [applicantId], references: [id])
+
+  @@index([status])
+  @@index([applicantId])
 }

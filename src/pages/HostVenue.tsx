@@ -31,7 +31,7 @@ const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", 
 type DaySlot = { enabled: boolean; start: string; end: string; capacity: string };
 
 type Plan = {
-  key: "starter" | "growth";
+  key: "standard";
   name: string;
   price: string;
   features: string[];
@@ -39,27 +39,15 @@ type Plan = {
 
 const PLANS: Plan[] = [
   {
-    key: "starter",
-    name: "Starter",
-    price: "OMR 19/month",
+    key: "standard",
+    name: "Weyn Reservations",
+    price: "OMR 29/month",
     features: [
       "Reservation management",
       "Venue listing",
       "Availability management",
       "Customer dashboard",
-      "Basic analytics",
-    ],
-  },
-  {
-    key: "growth",
-    name: "Growth",
-    price: "OMR 39/month",
-    features: [
-      "Everything in Starter",
-      "Featured placement",
-      "Advanced analytics",
-      "Custom branding",
-      "Priority support",
+      "Analytics",
     ],
   },
 ];
@@ -112,16 +100,7 @@ export default function HostVenue() {
   });
 
   // Step 6 — subscription
-  const [tier, setTier] = useState<"starter" | "growth" | null>(null);
-
-  function readFileAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
+  const [tier, setTier] = useState<"standard" | null>("standard");
 
   function addPhotos(files: FileList | File[]) {
     const list = Array.from(files);
@@ -172,29 +151,23 @@ export default function HostVenue() {
   }
 
   async function submit() {
-    if (!category || !tier) return;
+    if (!category || !tier || !account) return;
     setBusy(true); setErr("");
     try {
-      const dataUrls = await Promise.all(photos.map((p) => readFileAsDataUrl(p.file)));
-      const coverImage = dataUrls[0];
-      const rest = dataUrls.slice(1);
-      const created = await api.createVenue({
+      const created = await api.applyForVenue({
+        businessType: category,
         name: name.trim(),
-        category,
+        contactName: account.name,
+        contactEmail: account.email,
         description: description.trim() || undefined,
-        venue: address.trim(),
         area: area.trim(),
-        lat: loc.lat,
-        lng: loc.lng,
-        coverImage,
-        photos: rest,
+        guestTags: tags,
         priceRange,
-        tags,
         subscriptionTier: tier,
       });
-      setDone({ id: created.id, name: created.name });
+      setDone({ id: created.id, name: name.trim() });
     } catch (e: any) {
-      setErr(e.message || "Couldn't submit your venue. Please try again.");
+      setErr(e.message || "Couldn't submit your application. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -242,11 +215,11 @@ export default function HostVenue() {
           >
             <i className="icon-check" />
           </div>
-          <h1 style={{ marginBottom: 10 }}>You're on the list, {done.name}</h1>
+          <h1 style={{ marginBottom: 10 }}>Application submitted</h1>
           <p className="sub" style={{ margin: "0 auto 24px", maxWidth: 340 }}>
-            Your venue has been submitted. Billing setup is handled by the Weyn team after signup — we'll be in touch shortly to finish setting up your {tier === "growth" ? "Growth" : "Starter"} plan.
+            Thanks, {done.name}. The Weyn team reviews every venue by hand — approval usually takes a few minutes, and can take up to 2 days. We'll email you as soon as you're approved.
           </p>
-          <button className="btn lg" onClick={() => nav("/you")}>Go to your dashboard</button>
+          <button className="btn lg" onClick={() => nav("/")}>Back to Explore</button>
         </div>
         <style>{`
           @media (prefers-reduced-motion: no-preference) {
@@ -616,7 +589,7 @@ function StepAvailability({
 // ============================================================
 // Step 6 — subscription selection
 // ============================================================
-function StepPlan({ tier, setTier }: { tier: "starter" | "growth" | null; setTier: (t: "starter" | "growth") => void }) {
+function StepPlan({ tier, setTier }: { tier: "standard" | null; setTier: (t: "standard") => void }) {
   return (
     <>
       <div className="page-head compact" style={{ padding: "0 0 10px" }}>
@@ -666,7 +639,7 @@ function StepReview({
   area: string;
   priceRange: PriceRange;
   availability: Record<number, DaySlot>;
-  tier: "starter" | "growth" | null;
+  tier: "standard" | null;
 }) {
   const catLabel = BUSINESS_TYPES.find((b) => b.key === category)?.label || "—";
   const plan = PLANS.find((p) => p.key === tier);

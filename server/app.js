@@ -827,6 +827,73 @@ export function createApp(storage) {
     }
   });
 
+  // ---- venue reservation-hosting applications (manual review, not
+  // self-serve — see prisma/schema.prisma's VenueApplication comment).
+  // Public: an applicant doesn't need a Weyn account to apply. ----
+  app.post("/api/venue-applications", async (req, res) => {
+    try {
+      const b = req.body || {};
+      const ALLOWED_TYPES = ["restaurant", "cafe", "lounge", "rooftop", "beach_club", "experience"];
+      if (!ALLOWED_TYPES.includes(b.businessType)) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `businessType must be one of: ${ALLOWED_TYPES.join(", ")}` } });
+      }
+      if (!b.name || !String(b.name).trim() || !b.contactName || !String(b.contactName).trim()) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "name and contactName are required" } });
+      }
+      if (!b.contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.contactEmail).trim())) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid contactEmail is required" } });
+      }
+
+      const application = await prisma.venueApplication.create({
+        data: {
+          businessType: b.businessType,
+          name: String(b.name).trim(),
+          contactName: String(b.contactName).trim(),
+          contactEmail: String(b.contactEmail).trim(),
+          contactPhone: b.contactPhone ? String(b.contactPhone).trim() : null,
+          description: b.description ? String(b.description).trim() : null,
+          area: b.area ? String(b.area).trim() : null,
+          guestTags: Array.isArray(b.guestTags) ? b.guestTags : [],
+          priceRange: ["$", "$$", "$$$"].includes(b.priceRange) ? b.priceRange : null,
+          subscriptionTier: ["starter", "growth"].includes(b.subscriptionTier) ? b.subscriptionTier : null,
+        },
+      });
+
+      // Email is best-effort — the application is already durably stored
+      // above, so a Resend outage never loses a submission, only delays
+      // the team noticing it (see server/email.js: silent no-op if
+      // RESEND_API_KEY isn't set at all).
+      const notifyTo = process.env.VENUE_APPLICATION_NOTIFY_EMAIL || "dhairyarsaluja@gmail.com";
+      sendEmail({
+        to: notifyTo,
+        subject: `New venue application: ${application.name}`,
+        html: `
+          <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px">
+            <h2 style="margin:0 0 12px">New reservation-hosting application</h2>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;color:#222">
+              <tr><td style="padding:6px 0;color:#888">Venue</td><td style="padding:6px 0"><b>${application.name}</b></td></tr>
+              <tr><td style="padding:6px 0;color:#888">Type</td><td style="padding:6px 0">${application.businessType}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Area</td><td style="padding:6px 0">${application.area || "—"}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Contact</td><td style="padding:6px 0">${application.contactName}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Email</td><td style="padding:6px 0">${application.contactEmail}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Phone</td><td style="padding:6px 0">${application.contactPhone || "—"}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Price range</td><td style="padding:6px 0">${application.priceRange || "—"}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Tier interest</td><td style="padding:6px 0">${application.subscriptionTier || "—"}</td></tr>
+              <tr><td style="padding:6px 0;color:#888;vertical-align:top">Description</td><td style="padding:6px 0">${application.description || "—"}</td></tr>
+            </table>
+            <p style="color:#888;font-size:12px;margin-top:20px">Application ID: ${application.id}</p>
+          </div>
+        `,
+      }).catch((err) => captureError(err, { route: "POST /api/venue-applications (email)", applicationId: application.id }));
+
+      trackEvent(null, "venue_application_submitted", { applicationId: application.id, businessType: application.businessType });
+      res.status(201).json({ id: application.id, status: application.status });
+    } catch (err) {
+      captureError(err, { route: "POST /api/venue-applications" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ---- organizer dashboard ----
   app.get("/api/dashboard/summary", requireAuth, async (req, res) => {
     res.json(await db.dashboardSummary(req.user.id));
