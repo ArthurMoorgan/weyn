@@ -1626,3 +1626,59 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 .host-hub-notice strong { font: var(--t-card); }
 .host-hub-notice span { color: var(--text-2); font: var(--t-meta); }
+
+/* ---- Organizer: multi-photo gallery upload (reuses dropzone/preview-wrap/rm) ---- */
+.hint-inline { font-size: 11.5px; font-weight: 400; color: var(--text-3); margin-left: 6px; }
+.gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); margin-top: var(--space-3); }
+
+/* ---- Event detail: photo carousel (cover + gallery), scroll-snap based ---- */
+.cover.has-carousel { padding: 0; overflow: hidden; }
+.cover.has-carousel::after { z-index: 1; }
+.cover-carousel-track {
+  position: absolute; inset: 0; display: flex; overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.cover-carousel-track::-webkit-scrollbar { display: none; }
+.cover-carousel-slide {
+  flex: 0 0 100%; width: 100%; height: 100%;
+  background-size: cover; background-position: center;
+  scroll-snap-align: center;
+}
+.cover-carousel-dots {
+  position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%);
+  z-index: 2; display: flex; gap: 6px;
+}
+.cover-carousel-dot {
+  width: 6px; height: 6px; border-radius: var(--radius-pill);
+  background: rgba(255,255,255,0.5); transition: background-color .2s, width .2s;
+}
+.cover-carousel-dot.on { background: #fff; width: 16px; }
+
+/* ---- Tooltip: CSS-only, hover/focus-visible, inert on touch ---- */
+.tooltip-wrap { position: relative; display: inline-flex; }
+.tooltip-bubble {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--bg-elevated); color: var(--text); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 5px 9px; font-size: 12px; font-weight: 500;
+  white-space: nowrap; pointer-events: none; z-index: 30;
+  box-shadow: var(--shadow-sm);
+  opacity: 0; visibility: hidden;
+  transition: opacity .15s ease, visibility .15s ease;
+}
+.tooltip-bubble::after {
+  content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--border);
+}
+.tooltip-bubble::before {
+  content: ""; position: absolute; top: calc(100% - 1px); left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--bg-elevated);
+  z-index: 1;
+}
+.tooltip-wrap:hover .tooltip-bubble,
+.tooltip-wrap:focus-within .tooltip-bubble {
+  opacity: 1; visibility: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-bubble { transition: none; }
+}

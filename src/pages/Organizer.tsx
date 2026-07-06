@@ -5,6 +5,7 @@ import { getOrganizer, setOrganizer, useAccount } from "../store";
 import MapPicker from "../components/MapPicker";
 import ThemeToggle from "../components/ThemeToggle";
 import AccountWidget from "../components/AccountWidget";
+import Tooltip from "../components/Tooltip";
 
 // default datetime-local value = ~3h from now, rounded
 function defaultWhen() {
@@ -28,7 +29,11 @@ export default function Organizer() {
   const nav = useNavigate();
   const account = useAccount();
   const fileRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
   const [img, setImg] = useState<{ file: File; url: string } | null>(null);
+  const [gallery, setGallery] = useState<{ file: File; url: string }[]>([]);
+  const [galleryErr, setGalleryErr] = useState("");
+  const MAX_GALLERY = 8;
   const [loc, setLoc] = useState<{ lat: number; lng: number }>({ lat: 23.61, lng: 58.54 });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -74,6 +79,25 @@ export default function Organizer() {
     setErr("");
     setImportedImagePath(null);
     setImg({ file, url: URL.createObjectURL(file) });
+  }
+
+  function addGalleryPhotos(files: FileList | File[]) {
+    const list = Array.from(files);
+    const accepted: { file: File; url: string }[] = [];
+    let errMsg = "";
+    for (const file of list) {
+      if (!file.type.startsWith("image/")) { errMsg = "Only image files are allowed."; continue; }
+      if (file.size > 6 * 1024 * 1024) { errMsg = "Each image must be under 6 MB."; continue; }
+      if (gallery.length + accepted.length >= MAX_GALLERY) { errMsg = `You can add up to ${MAX_GALLERY} extra photos.`; break; }
+      accepted.push({ file, url: URL.createObjectURL(file) });
+    }
+    setGalleryErr(errMsg);
+    if (accepted.length) setGallery((g) => [...g, ...accepted]);
+  }
+
+  function removeGalleryPhoto(i: number) {
+    setGallery((g) => g.filter((_, j) => j !== i));
+    setGalleryErr("");
   }
 
   async function runInstagramImport(e: React.FormEvent) {
@@ -136,6 +160,7 @@ export default function Organizer() {
       if (tierPayload) fd.append("tiers", JSON.stringify(tierPayload));
       if (img) fd.append("image", img.file);
       else if (importedImagePath) fd.append("existingImage", importedImagePath);
+      gallery.forEach((g) => fd.append("gallery", g.file));
 
       const created = await api.createEvent(fd);
       setOrganizer(created.organizer);
@@ -227,7 +252,9 @@ export default function Organizer() {
           {coverUrl ? (
             <div className="preview-wrap">
               <img className="preview-img" src={coverUrl} alt="cover preview" />
-              <button className="rm" onClick={() => { setImg(null); setImportedImagePath(null); if (fileRef.current) fileRef.current.value = ""; }} aria-label="Remove photo"><i className="icon-x" /></button>
+              <Tooltip text="Remove photo">
+                <button className="rm" onClick={() => { setImg(null); setImportedImagePath(null); if (fileRef.current) fileRef.current.value = ""; }} aria-label="Remove photo"><i className="icon-x" /></button>
+              </Tooltip>
             </div>
           ) : (
             <div className="dropzone" onClick={() => fileRef.current?.click()}>
@@ -237,6 +264,35 @@ export default function Organizer() {
             </div>
           )}
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => pickImage(e.target.files?.[0])} />
+        </div>
+
+        {/* gallery photos (optional) — additional carousel photos beyond the cover */}
+        <div className="field">
+          <label>More photos <span className="hint-inline">optional, up to {MAX_GALLERY}</span></label>
+          {gallery.length < MAX_GALLERY && (
+            <div className="dropzone" onClick={() => galleryRef.current?.click()}>
+              <i className="icon-image-up" />
+              <p><b>Add more photos</b></p>
+              <small>Shown as a swipeable gallery on your event page · JPG, PNG or WebP · up to 6 MB each</small>
+            </div>
+          )}
+          <input
+            ref={galleryRef} type="file" accept="image/*" multiple hidden
+            onChange={(e) => { if (e.target.files) addGalleryPhotos(e.target.files); e.target.value = ""; }}
+          />
+          {galleryErr && <p className="errline">{galleryErr}</p>}
+          {gallery.length > 0 && (
+            <div className="gallery-grid">
+              {gallery.map((p, i) => (
+                <div className="preview-wrap" key={p.url}>
+                  <img className="preview-img" style={{ height: 90 }} src={p.url} alt={`gallery photo ${i + 1}`} />
+                  <Tooltip text="Remove photo">
+                    <button className="rm" onClick={() => removeGalleryPhoto(i)} aria-label="Remove photo"><i className="icon-x" /></button>
+                  </Tooltip>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="field">

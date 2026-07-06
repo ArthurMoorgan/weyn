@@ -28,6 +28,7 @@ export interface Weyn {
   capacity: number;
   sold: number;
   image: string | null;   // /uploads/xxx or null
+  gallery?: string[];      // extra carousel photos beyond the cover image
   imageFocalPoint?: string | null; // "50% 30%" CSS background-position, from Groq vision — null = center crop
   color: string;
   glyph: string;
@@ -297,8 +298,11 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 // make relative /uploads image paths absolute against the backend for native builds
-function absMedia<T extends { image?: string | null }>(e: T): T {
+function absMedia<T extends { image?: string | null; gallery?: string[] }>(e: T): T {
   if (API_BASE && e && typeof e.image === "string" && e.image.startsWith("/")) e.image = API_BASE + e.image;
+  if (API_BASE && e && Array.isArray(e.gallery)) {
+    e.gallery = e.gallery.map((g) => (typeof g === "string" && g.startsWith("/") ? API_BASE + g : g));
+  }
   return e;
 }
 

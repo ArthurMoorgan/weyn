@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api, VENUE_CATS, type Reservation, type VenueAvailabilitySlot } from "../api";
 import { useAsync } from "../hooks";
 import MiniMap from "../components/MiniMap";
+import Tooltip from "../components/Tooltip";
 
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -93,7 +94,7 @@ export default function VenueDetail() {
     <div className="detail">
       <div className="detail-grid">
         <div className="cover" style={coverStyle}>
-          <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button>
+          <Tooltip text="Back"><button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button></Tooltip>
           {!cover && <span className="glyph"><i className="icon-map-pin" /></span>}
         </div>
 

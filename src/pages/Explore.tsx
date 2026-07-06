@@ -8,6 +8,7 @@ import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
 import CityPill from "../components/CityPill";
 import { dismissSplash } from "../splash";
+import Tooltip from "../components/Tooltip";
 
 // Explore is built around DISCOVERY, not a single vertical feed. Sections
 // get different visual treatments: a Featured hero rail, horizontal
@@ -246,14 +247,16 @@ export default function Explore() {
             aria-activedescendant={activeIdx >= 0 ? `explore-suggest-${activeIdx}` : undefined}
           />
           {q && <button className="clearx" onClick={() => { setQ(""); setShowSuggest(false); }} aria-label="Clear"><i className="icon-x" /></button>}
-          <button
-            className={"search-filter-btn" + (activeFilterCount ? " on" : "")}
-            onClick={() => setShowFilters(true)}
-            aria-label="Filter events"
-          >
-            <i className="icon-sliders-horizontal" />
-            {activeFilterCount > 0 && <span className="search-filter-count">{activeFilterCount}</span>}
-          </button>
+          <Tooltip text="Filter events">
+            <button
+              className={"search-filter-btn" + (activeFilterCount ? " on" : "")}
+              onClick={() => setShowFilters(true)}
+              aria-label="Filter events"
+            >
+              <i className="icon-sliders-horizontal" />
+              {activeFilterCount > 0 && <span className="search-filter-count">{activeFilterCount}</span>}
+            </button>
+          </Tooltip>
         </div>
         {showSuggest && suggestions.length > 0 && (
           <div className="suggest" role="listbox" id="explore-suggest-listbox">

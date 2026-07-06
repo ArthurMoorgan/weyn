@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn } from "../api";
 import { useAsync, useClosing } from "../hooks";
@@ -7,6 +7,7 @@ import MiniMap from "../components/MiniMap";
 import FollowButton from "../components/FollowButton";
 import type { Collection } from "../api";
 import { downloadEventIcs } from "../ics";
+import Tooltip from "../components/Tooltip";
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -20,6 +21,8 @@ export default function EventDetail() {
   const [listSheet, setListSheet] = useState(false);
   const [shared, setShared] = useState(false);
   const account = useAccount();
+  const [activeSlide, setActiveSlide] = useState(0);
+  const trackRef = useRef<HTMLDivElement>(null);
 
   if (loading) return (
     <div className="detail">
@@ -106,25 +109,55 @@ export default function EventDetail() {
     ? { backgroundImage: `url(${ev.image})`, backgroundPosition: ev.imageFocalPoint || "center" }
     : { background: ev.color };
 
+  const slides = [ev.image, ...(ev.gallery || [])].filter((s): s is string => !!s);
+  const hasCarousel = slides.length > 1;
+
+  function onTrackScroll() {
+    const el = trackRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    setActiveSlide(idx);
+  }
+
   return (
     <div className="detail">
       <div className="detail-grid">
-      <div className="cover" style={coverStyle}>
-        <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button>
+      <div className={"cover" + (hasCarousel ? " has-carousel" : "")} style={hasCarousel ? undefined : coverStyle}>
+        {hasCarousel && (
+          <>
+            <div className="cover-carousel-track" ref={trackRef} onScroll={onTrackScroll}>
+              {slides.map((src, i) => (
+                <div className="cover-carousel-slide" key={src + i} style={{ backgroundImage: `url(${src})`, backgroundPosition: i === 0 ? (ev.imageFocalPoint || "center") : "center" }} />
+              ))}
+            </div>
+            <div className="cover-carousel-dots">
+              {slides.map((_, i) => (
+                <span key={i} className={"cover-carousel-dot" + (i === activeSlide ? " on" : "")} />
+              ))}
+            </div>
+          </>
+        )}
+        <Tooltip text="Back"><button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button></Tooltip>
         <div style={{ position: "relative", zIndex: 2, display: "flex", gap: 8 }}>
-          <button className="icon-btn" onClick={() => shareEvent(ev)} aria-label="Share">
-            <i className={(shared ? "icon-check" : "icon-share-2")} />
-          </button>
-          <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => toggleSave(ev.id)} aria-label={saved ? "Saved — tap to remove" : "Save"} aria-pressed={saved}>
-            <i className={(saved ? "icon-heart" : "icon-heart")} />
-          </button>
-          {account && (
-            <button className="icon-btn" onClick={() => setListSheet(true)} aria-label="Add to a list">
-              <i className="icon-folder-plus" />
+          <Tooltip text="Share">
+            <button className="icon-btn" onClick={() => shareEvent(ev)} aria-label="Share">
+              <i className={(shared ? "icon-check" : "icon-share-2")} />
             </button>
+          </Tooltip>
+          <Tooltip text={saved ? "Saved — tap to remove" : "Save"}>
+            <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => toggleSave(ev.id)} aria-label={saved ? "Saved — tap to remove" : "Save"} aria-pressed={saved}>
+              <i className={(saved ? "icon-heart" : "icon-heart")} />
+            </button>
+          </Tooltip>
+          {account && (
+            <Tooltip text="Add to a list">
+              <button className="icon-btn" onClick={() => setListSheet(true)} aria-label="Add to a list">
+                <i className="icon-folder-plus" />
+              </button>
+            </Tooltip>
           )}
         </div>
-        {!ev.image && <span className="glyph">{ev.glyph}</span>}
+        {!hasCarousel && !ev.image && <span className="glyph">{ev.glyph}</span>}
       </div>
       {listSheet && <AddToListSheet eventId={ev.id} onClose={() => setListSheet(false)} />}
 
@@ -227,9 +260,11 @@ export default function EventDetail() {
             <button className="btn done" disabled style={{ flex: 1 }}>
               <i className="icon-circle-check" /> {ev.price === 0 ? "You're going" : "Ticket reserved"}
             </button>
-            <button className="btn glass sq" onClick={() => downloadEventIcs(ev)} aria-label="Add to calendar">
-              <i className="icon-calendar-plus" />
-            </button>
+            <Tooltip text="Add to calendar">
+              <button className="btn glass sq" onClick={() => downloadEventIcs(ev)} aria-label="Add to calendar">
+                <i className="icon-calendar-plus" />
+              </button>
+            </Tooltip>
           </>
         ) : out ? (
           <button className="btn" disabled><i className="icon-ticket-x" /> Sold out</button>

@@ -5,6 +5,7 @@ import { useAccount } from "../store";
 import MapPicker from "../components/MapPicker";
 import ThemeToggle from "../components/ThemeToggle";
 import AccountWidget from "../components/AccountWidget";
+import Tooltip from "../components/Tooltip";
 
 // ============================================================
 // Host your venue — a distinct flow from Organizer.tsx (event hosting).
@@ -452,9 +453,11 @@ function StepPhotos({
               {i === 0 && (
                 <span className="ec-badge" style={{ position: "absolute", top: 6, left: 6 }}>Cover</span>
               )}
-              <button className="rm" onClick={() => removePhoto(i)} aria-label="Remove photo">
-                <i className="icon-x" />
-              </button>
+              <Tooltip text="Remove photo">
+                <button className="rm" onClick={() => removePhoto(i)} aria-label="Remove photo">
+                  <i className="icon-x" />
+                </button>
+              </Tooltip>
             </div>
           ))}
         </div>
