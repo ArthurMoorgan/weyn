@@ -246,7 +246,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 :root[data-theme="dark"] .segment button.on { box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 
 /* ---------- category chips ---------- */
-.chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 6px; scrollbar-width: none; }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 6px; scrollbar-width: none; overscroll-behavior-x: contain; }
 .chips::-webkit-scrollbar { display: none; }
 .chips.compact { padding: 8px 16px 2px; gap: 6px; }
 .chips.compact .chip { padding: 9px 12px; font-size: 12.5px; }
@@ -407,6 +407,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ex-rail {
   display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
   padding: 2px 16px 4px; scrollbar-width: none;
+  /* keep the horizontal swipe inside the rail — without this, flicking a
+     card rail on mobile can trip the browser's edge back-navigation gesture
+     and yank the user off the page mid-scroll */
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .ex-rail::-webkit-scrollbar { display: none; }
 .ex-rail > a { scroll-snap-align: start; }
@@ -701,11 +706,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .search { padding: 6px 16px 0; position: relative; }
 .search [class^="icon-"] { position: absolute; left: 30px; top: calc(50% + 3px); transform: translateY(-50%); font-size: 18px; color: var(--text-3); z-index: 1; }
 .search input {
-  width: 100%; font-family: inherit; font-size: 16px; padding: 12px 44px 12px 42px;
+  width: 100%; font-family: inherit; font-size: 16px; padding: 12px 84px 12px 42px;
   border-radius: var(--radius-sm); color: var(--text);
   background: var(--glass-strong); border: 1px solid var(--glass-line);
 
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; /* never hard-clip long text/placeholders */
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; /* never hard-clip long text/placeholders — right pad clears both the clear-X and filter icons */
 }
 .search input::placeholder { color: var(--text-3); }
 .search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -1564,12 +1569,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 .hv-avail-day.on { border-color: var(--accent); }
 .hv-avail-day-head { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; }
-.hv-avail-day-head input { width: 19px; height: 19px; accent-color: var(--accent); }
+.hv-avail-day-head input { width: 19px; height: 19px; accent-color: var(--accent); flex: 0 0 auto; }
+.hv-avail-closed { margin-left: auto; font-size: 12.5px; font-weight: 500; color: var(--text-3); }
 .hv-avail-ranges { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.hv-avail-range { display: grid; grid-template-columns: 1fr auto 1fr 90px 40px; gap: 6px; align-items: center; }
+/* 4 controls: open-time / dash / close-time / capacity. Grid keeps the two
+   native time inputs equal-width and lets them shrink (minmax 0) so the row
+   never overflows a narrow phone — native time inputs otherwise refuse to go
+   below their intrinsic width and push the capacity field off-screen. */
+.hv-avail-range { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) 68px; gap: 6px; align-items: center; }
 .hv-avail-range span { font-size: 12px; color: var(--text-3); text-align: center; }
-.hv-avail-range input[type="time"], .hv-avail-range input[type="number"] {
-  width: 100%; font-family: inherit; font-size: 13.5px; padding: 9px 8px;
+.hv-avail-range input[type="time"], .hv-avail-range input {
+  width: 100%; min-width: 0; font-family: inherit; font-size: 13.5px; padding: 9px 6px;
   border-radius: var(--radius-sm); color: var(--text);
   background: var(--glass-strong); border: 1px solid var(--glass-line);
 }
@@ -1637,7 +1647,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .cover-carousel-track {
   position: absolute; inset: 0; display: flex; overflow-x: auto; overflow-y: hidden;
   scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  scrollbar-width: none; overscroll-behavior-x: contain;
 }
 .cover-carousel-track::-webkit-scrollbar { display: none; }
 .cover-carousel-slide {

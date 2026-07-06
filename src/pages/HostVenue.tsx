@@ -552,39 +552,25 @@ function StepAvailability({
         <i className="icon-info" style={{ marginRight: 6 }} />
         This is saved with your submission for the Weyn team to set up — recurring slots aren't wired to live reservations yet.
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="hv-avail-list">
         {DAYS.map((day, i) => {
           const d = availability[i];
           return (
-            <div
-              key={day}
-              style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-                borderRadius: "var(--radius-sm)", background: "var(--surface)", border: "1px solid var(--hair)",
-              }}
-            >
-              <label style={{ display: "flex", alignItems: "center", gap: 8, width: 108, flex: "0 0 auto" }}>
+            <div key={day} className={"hv-avail-day" + (d.enabled ? " on" : "")}>
+              <label className="hv-avail-day-head">
                 <input type="checkbox" checked={d.enabled} onChange={(e) => updateDay(i, { enabled: e.target.checked })} />
-                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{day}</span>
+                <span>{day}</span>
+                {!d.enabled && <span className="hv-avail-closed">Closed</span>}
               </label>
-              {d.enabled ? (
-                <div style={{ display: "flex", gap: 6, flex: 1, alignItems: "center" }}>
-                  <input
-                    type="time" value={d.start} onChange={(e) => updateDay(i, { start: e.target.value })}
-                    style={{ flex: 1, minWidth: 0 }}
-                  />
-                  <span style={{ color: "var(--text-3)" }}>–</span>
-                  <input
-                    type="time" value={d.end} onChange={(e) => updateDay(i, { end: e.target.value })}
-                    style={{ flex: 1, minWidth: 0 }}
-                  />
-                  <input
-                    inputMode="numeric" value={d.capacity} onChange={(e) => updateDay(i, { capacity: e.target.value })}
-                    placeholder="Cap." style={{ width: 56, flex: "0 0 auto" }}
-                  />
+              {d.enabled && (
+                <div className="hv-avail-ranges">
+                  <div className="hv-avail-range">
+                    <input type="time" value={d.start} onChange={(e) => updateDay(i, { start: e.target.value })} aria-label={`${day} opening time`} />
+                    <span>–</span>
+                    <input type="time" value={d.end} onChange={(e) => updateDay(i, { end: e.target.value })} aria-label={`${day} closing time`} />
+                    <input inputMode="numeric" value={d.capacity} onChange={(e) => updateDay(i, { capacity: e.target.value })} placeholder="Cap." className="hv-avail-capacity" aria-label={`${day} capacity`} />
+                  </div>
                 </div>
-              ) : (
-                <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>Closed</span>
               )}
             </div>
           );
