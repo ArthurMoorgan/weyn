@@ -9,7 +9,7 @@ export default function HostHub() {
   const nav = useNavigate();
 
   return (
-    <div className="page host-hub">
+    <div className="host-hub">
       <header className="host-hub-head">
         <h1>Host on Weyn</h1>
         <p className="t-body">Bring your events or your venue to Weyn.</p>

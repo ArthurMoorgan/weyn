@@ -4,10 +4,11 @@ import { api, CATS, type Cat, type Weyn, dayLabel, timeLabel } from "../api";
 import Stub from "../components/Stub";
 import Logo from "../components/Logo";
 
-// Self-contained first-run onboarding flow. Not wired into App.tsx's route
-// table — a follow-up pass decides how/when this mounts (see repo notes).
-// All progress is local component state; only the final selections are
-// persisted, to localStorage, under the weyn.onboarding.* keys below.
+// First-run onboarding flow, mounted at /onboarding (see main.tsx) and
+// redirected into from Explore for any visitor without
+// weyn.onboarding.completed set. Progress is local component state; only
+// the final selections are persisted, to localStorage, under the
+// weyn.onboarding.* keys below.
 
 const INTERESTS_KEY = "weyn.onboarding.interests";
 const SOCIAL_KEY = "weyn.onboarding.socialPrefs";

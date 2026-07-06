@@ -250,7 +250,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .chips::-webkit-scrollbar { display: none; }
 .chips.compact { padding: 8px 16px 2px; gap: 6px; }
 .chips.compact .chip { padding: 9px 12px; font-size: 12.5px; }
-.chip-divider { flex: 0 0 auto; width: 1px; align-self: stretch; margin: 2px 2px; background: var(--glass-line); }
 .chip {
   flex: 0 0 auto; font-size: 13px; font-weight: 500; color: var(--text-2);
   padding: 10px 14px; border-radius: var(--radius-pill);
@@ -869,7 +868,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--accent); color: #fff;
   box-shadow: 0 2px 8px var(--accent-soft);
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
-  transition: transform .1s, opacity .12s;
+  /* transition is set once, in the MOTION section further down (that
+     declaration always wins the cascade since it comes later — this one
+     used to duplicate/shadow it with a different value, which was
+     unreachable dead weight) */
 }
 .btn.lg { min-height: var(--btn-h-lg); font-size: 16px; padding: 16px 24px; }
 .btn.sm { min-height: var(--btn-h-sm); padding: 8px 14px; font-size: 13px; width: auto; }
@@ -1102,8 +1104,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .section-head h1 { font: var(--t-hero); letter-spacing: -0.6px; }
 .empty { text-align: center; padding: 56px 36px; color: var(--text-2); }
 /* a contained, neutral circle rather than a bare icon floating in space —
-   deliberately no colored glow/shadow here, just a quiet frosted chip */
-.empty .ic {
+   deliberately no colored glow/shadow here, just a quiet frosted chip.
+   Base rule (not scoped to .empty) so confirmation/error screens that use
+   .ic outside an .empty block (CheckoutSuccess, CheckoutCancel,
+   InviteAccept, Collection) get the same contained circle instead of a
+   bare unstyled icon floating with no background. */
+.ic {
   width: 62px; height: 62px; margin: 0 auto 16px; border-radius: 50%;
   display: grid; place-items: center; font-size: 26px; color: var(--text-3);
   background: var(--chip-soft); border: 1px solid var(--glass-line);
@@ -1519,6 +1525,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 .hv-nav .btn.glass { flex: 0 0 auto; width: auto; }
 .hv-nav .btn.lg { flex: 1; }
+/* clears the now-fixed .hv-nav bar so the last field/button in a step
+   never renders underneath it */
+.hv-form { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
 
 .hv-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 6px 0; }
 .hv-select-card {

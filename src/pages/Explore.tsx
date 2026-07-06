@@ -6,6 +6,7 @@ import { useAccount } from "../store";
 import Stub from "../components/Stub";
 import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
+import CityPill from "../components/CityPill";
 import { dismissSplash } from "../splash";
 
 // Explore is built around DISCOVERY, not a single vertical feed. Sections
@@ -138,7 +139,6 @@ export default function Explore() {
   const [showSuggest, setShowSuggest] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [showFilters, setShowFilters] = useState(false);
-  const [showCityInfo, setShowCityInfo] = useState(false);
   const activeFilterCount = (when !== "all" ? 1 : 0) + (cat !== "all" ? 1 : 0);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -217,25 +217,9 @@ export default function Explore() {
         <Logo wordmark size={26} />
         <div className="tb-right">
           <ThemeToggle />
-          <button className="pill" onClick={() => setShowCityInfo(true)}>
-            <i className="icon-map-pin" /> Muscat
-          </button>
+          <CityPill />
         </div>
       </header>
-
-      {showCityInfo && (
-        <div className="city-popover-backdrop" onClick={() => setShowCityInfo(false)}>
-          <div className="city-popover" onClick={(e) => e.stopPropagation()}>
-            <div className="city-popover-head">
-              <i className="icon-map-pin" />
-              <b>Muscat</b>
-              <button className="clearx" onClick={() => setShowCityInfo(false)} aria-label="Close"><i className="icon-x" /></button>
-            </div>
-            <p>Weyn currently covers events and venues across Muscat only.</p>
-            <p className="t-caption">More cities are coming soon.</p>
-          </div>
-        </div>
-      )}
 
       {!searching && (
         <section className="ex-hero">

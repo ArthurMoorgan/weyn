@@ -3,6 +3,7 @@ import { api, VENUE_CATS, type Venue, type VenueCategory } from "../api";
 import VenueCard from "../components/VenueCard";
 import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
+import CityPill from "../components/CityPill";
 
 // Reservations mirrors Explore's browse pattern (topbar → search → chips →
 // grid/list → loading/empty states) but for venues instead of events, and
@@ -128,7 +129,7 @@ export default function Reservations() {
         <Logo wordmark size={26} />
         <div className="tb-right">
           <ThemeToggle />
-          <span className="pill"><i className="icon-map-pin" /> Muscat</span>
+          <CityPill />
         </div>
       </header>
 

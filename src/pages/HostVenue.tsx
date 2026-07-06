@@ -260,7 +260,7 @@ export default function HostVenue() {
         </p>
       </div>
 
-      <div className="form">
+      <div className="form hv-form">
         <div className="form-fields">
           {step === 0 && <StepBusinessType category={category} setCategory={setCategory} nav={nav} />}
           {step === 1 && <StepGuests tags={tags} toggleTag={toggleTag} />}
@@ -304,23 +304,28 @@ export default function HostVenue() {
 
           {err && <p className="errline">{err}</p>}
 
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            {step > 0 && (
-              <button type="button" className="btn glass" style={{ flex: "0 0 auto", width: "auto" }} onClick={goBack} disabled={busy}>
-                <i className="icon-arrow-left" /> Back
-              </button>
-            )}
-            {step < TOTAL_STEPS - 1 ? (
-              <button type="button" className="btn lg" onClick={goNext} disabled={!canNext}>
-                Next <i className="icon-arrow-right" />
-              </button>
-            ) : (
-              <button type="button" className="btn lg" onClick={submit} disabled={busy}>
-                <i className="icon-rocket" /> {busy ? "Submitting…" : "Submit venue"}
-              </button>
-            )}
-          </div>
         </div>
+      </div>
+
+      {/* fixed bottom bar, same treatment as the app's other sticky action
+          bars (.buybar, .ob-cta) — position:fixed means its place in the
+          DOM doesn't affect where it renders, so it can stay wherever the
+          step content naturally ends */}
+      <div className="hv-nav">
+        {step > 0 && (
+          <button type="button" className="btn glass" onClick={goBack} disabled={busy}>
+            <i className="icon-arrow-left" /> Back
+          </button>
+        )}
+        {step < TOTAL_STEPS - 1 ? (
+          <button type="button" className="btn lg" onClick={goNext} disabled={!canNext}>
+            Next <i className="icon-arrow-right" />
+          </button>
+        ) : (
+          <button type="button" className="btn lg" onClick={submit} disabled={busy}>
+            <i className="icon-rocket" /> {busy ? "Submitting…" : "Submit venue"}
+          </button>
+        )}
       </div>
     </>
   );

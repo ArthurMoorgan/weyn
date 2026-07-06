@@ -23,7 +23,6 @@ export default function VenueCard({ venue }: { venue: Venue }) {
   return (
     <Link to={`/reservations/${venue.id}`} className="ec-rail venue-card">
       <div className="ec-rail-cover" style={coverStyle}>
-        <span className="catpill venue-catpill">{CATEGORY_LABEL[venue.category]}</span>
         {venue.verified && (
           <span className="ec-badge confirmed venue-verified"><i className="icon-badge-check" /> Verified</span>
         )}
@@ -31,6 +30,8 @@ export default function VenueCard({ venue }: { venue: Venue }) {
       </div>
       <h3 className="ec-title">{venue.name}</h3>
       <div className="ec-meta">
+        <span className="catpill venue-catpill">{CATEGORY_LABEL[venue.category]}</span>
+        <span className="ec-dot">·</span>
         <span>{venue.area}</span>
         <span className="ec-dot">·</span>
         <span>{venue.priceRange}</span>
