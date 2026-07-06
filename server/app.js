@@ -196,6 +196,10 @@ export function createApp(storage) {
   // low-harm social writes (follow, collections) — a modest cap just to stop
   // scripted mass-actions, well above any real human's pace.
   const socialLimiter = rateLimit({ windowMs: 15 * 60e3, max: 120, standardHeaders: true, legacyHeaders: false });
+  // venue applications are public + fire a real email to the team on every
+  // submit — without a tight cap one IP could flood the inbox / Resend
+  // quota and stuff the table with junk. A real venue owner applies once.
+  const applicationLimiter = rateLimit({ windowMs: 60 * 60e3, max: 5, standardHeaders: true, legacyHeaders: false });
 
   // hard cap on tickets per single booking request — stops one call from
   // draining a whole event's inventory or issuing a huge number of ticket
@@ -430,6 +434,23 @@ export function createApp(storage) {
       return paytabsConfigured()
         ? res.status(400).json({ error: "This is a paid ticket — use POST /api/events/:id/checkout instead" })
         : res.status(503).json({ error: "Paid tickets aren't available yet — payments are still being set up." });
+    }
+
+    // Inventory-denial defense: a free RSVP claims real capacity, so without
+    // this one client could book a free event to its cap with junk and lock
+    // real people out. Require a device handle and allow one active booking
+    // per device per event — the real UI always sends getDeviceId(), so this
+    // only blocks scripted/repeat abuse, not a genuine attendee.
+    const bookingDeviceId = req.body?.deviceId;
+    if (!bookingDeviceId) {
+      return res.status(400).json({ error: "A device id is required to reserve a free ticket." });
+    }
+    const dupe = await prisma.booking.findFirst({
+      where: { eventId: e.id, deviceId: bookingDeviceId, status: { in: ["pending", "paid"] } },
+      select: { id: true },
+    });
+    if (dupe) {
+      return res.status(409).json({ error: "You've already reserved a ticket for this event." });
     }
 
     let bookedTier = null;
@@ -846,7 +867,7 @@ export function createApp(storage) {
   // ---- venue reservation-hosting applications (manual review, not
   // self-serve — see prisma/schema.prisma's VenueApplication comment).
   // Public: an applicant doesn't need a Weyn account to apply. ----
-  app.post("/api/venue-applications", async (req, res) => {
+  app.post("/api/venue-applications", applicationLimiter, async (req, res) => {
     try {
       const b = req.body || {};
       const ALLOWED_TYPES = ["restaurant", "cafe", "lounge", "rooftop", "beach_club", "experience"];
