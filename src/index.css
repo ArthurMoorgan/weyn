@@ -60,6 +60,18 @@
   /* fallback scrim used by Stub.tsx cover gradients — theme-aware so the
      hardcoded #14151A55 doesn't look wrong in light mode */
   --fallback-scrim: rgba(0,0,0,0.33);
+
+  /* GooeyNav (components/GooeyNav.css) particle palette + the opaque
+     "canvas" the blur/contrast goo filter renders against. Dark theme:
+     particles need to be LIGHTER than the canvas for `mix-blend-mode:
+     lighten` to show them; light theme (below) inverts to `darken` with
+     darker particle colors, or they'd wash out against a near-white canvas. */
+  --gooey-color-1: var(--primary);
+  --gooey-color-2: var(--success);
+  --gooey-color-3: var(--warning);
+  --gooey-color-4: #fff;
+  --gooey-canvas: var(--bg);
+  --gooey-blend: lighten;
 }
 
 /* Light mode kept as a real, distinct theme (not deleted — the toggle stays)
@@ -87,6 +99,13 @@
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
   --glass-edge: transparent; --glass-line: var(--border); --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
   --fallback-scrim: rgba(0,0,0,0.15);
+
+  --gooey-color-1: var(--primary);
+  --gooey-color-2: var(--success);
+  --gooey-color-3: var(--warning);
+  --gooey-color-4: var(--text);
+  --gooey-canvas: var(--bg);
+  --gooey-blend: darken;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -485,20 +504,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .tab.on [class^="icon-"] { color: var(--accent); }
 .sidebar-brand { display: none; }
 
-/* ---------- gooey nav indicator (mobile bottom bar only — the desktop
-   sidebar keeps its existing flat highlight, see the 900px override below;
-   a vertical sidebar needs a translateY/height variant this doesn't do,
-   and the flat highlight already looks right there per design review) ---- */
-.tabs.gooey { position: fixed; }
-.gooey-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
-.gooey-blob {
-  position: absolute; top: 4px; bottom: 4px; left: 0;
-  border-radius: 999px; background: var(--accent-soft);
-  transition: transform .38s cubic-bezier(.22,.9,.32,1.24), width .38s cubic-bezier(.22,.9,.32,1.24);
-}
-@media (prefers-reduced-motion: reduce) {
-  .gooey-blob { transition: none; }
-}
+/* Mobile gets the ReactBits GooeyNav (particle-burst pill nav, see
+   components/GooeyNav.tsx/.css); desktop's vertical sidebar keeps the plain
+   flat-highlight .tab list instead — a horizontal pill-burst effect doesn't
+   translate to a vertical layout. Swapped by media query, not JS, so there's
+   no layout flash on resize. */
+.tabs-plain { display: none; width: 100%; }
+.tabs-gooey { flex: 1; display: flex; }
 
 /* ---------- map ---------- */
 .mappick { margin-top: 2px; }
@@ -1266,11 +1278,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   }
   .tab [class^="icon-"] { font-size: 19px; }
   .tab.on { background: var(--accent-soft); }
-  /* vertical sidebar — the gooey blob only knows how to slide horizontally
-     (mobile bottom bar), so it's hidden here in favor of the flat
-     .tab.on background highlight above, which already reads correctly
-     in a sidebar. */
-  .gooey-layer { display: none; }
+  /* vertical sidebar — swap back to the plain flat-highlight list,
+     GooeyNav's horizontal pill-burst effect doesn't translate to a
+     vertical layout (see the comment on .tabs-plain/.tabs-gooey above). */
+  .tabs-plain { display: flex; flex-direction: column; width: 100%; gap: 2px; }
+  .tabs-gooey { display: none; }
 
   /* dense row lists become a 3-column grid on desktop — uses the width
      instead of one long centered column, without shrinking each row */
