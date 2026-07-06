@@ -472,6 +472,21 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .tab.on [class^="icon-"] { color: var(--accent); }
 .sidebar-brand { display: none; }
 
+/* ---------- gooey nav indicator (mobile bottom bar only — the desktop
+   sidebar keeps its existing flat highlight, see the 900px override below;
+   a vertical sidebar needs a translateY/height variant this doesn't do,
+   and the flat highlight already looks right there per design review) ---- */
+.tabs.gooey { position: fixed; }
+.gooey-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+.gooey-blob {
+  position: absolute; top: 4px; bottom: 4px; left: 0;
+  border-radius: 999px; background: var(--accent-soft);
+  transition: transform .38s cubic-bezier(.22,.9,.32,1.24), width .38s cubic-bezier(.22,.9,.32,1.24);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gooey-blob { transition: none; }
+}
+
 /* ---------- map ---------- */
 .mappick { margin-top: 2px; }
 .map-canvas {
@@ -1231,6 +1246,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   }
   .tab [class^="icon-"] { font-size: 19px; }
   .tab.on { background: var(--accent-soft); }
+  /* vertical sidebar — the gooey blob only knows how to slide horizontally
+     (mobile bottom bar), so it's hidden here in favor of the flat
+     .tab.on background highlight above, which already reads correctly
+     in a sidebar. */
+  .gooey-layer { display: none; }
 
   /* dense row lists become a 3-column grid on desktop — uses the width
      instead of one long centered column, without shrinking each row */
