@@ -61,17 +61,12 @@
      hardcoded #14151A55 doesn't look wrong in light mode */
   --fallback-scrim: rgba(0,0,0,0.33);
 
-  /* GooeyNav (components/GooeyNav.css) particle palette + the opaque
-     "canvas" the blur/contrast goo filter renders against. Dark theme:
-     particles need to be LIGHTER than the canvas for `mix-blend-mode:
-     lighten` to show them; light theme (below) inverts to `darken` with
-     darker particle colors, or they'd wash out against a near-white canvas. */
-  --gooey-color-1: var(--primary);
-  --gooey-color-2: var(--success);
-  --gooey-color-3: var(--warning);
-  --gooey-color-4: #fff;
-  --gooey-canvas: var(--bg);
-  --gooey-blend: lighten;
+  /* Tab-switch spark burst (see .tab-spark below) — small flecks in the
+     accent + a warm highlight, tuned per theme so they read against the
+     tab bar's actual background. */
+  --spark-color-1: var(--primary);
+  --spark-color-2: var(--primary-hover);
+  --spark-color-3: #fff;
 }
 
 /* Light mode kept as a real, distinct theme (not deleted — the toggle stays)
@@ -100,12 +95,9 @@
   --glass-edge: transparent; --glass-line: var(--border); --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
   --fallback-scrim: rgba(0,0,0,0.15);
 
-  --gooey-color-1: var(--primary);
-  --gooey-color-2: var(--success);
-  --gooey-color-3: var(--warning);
-  --gooey-color-4: var(--text);
-  --gooey-canvas: var(--bg);
-  --gooey-blend: darken;
+  --spark-color-1: var(--primary);
+  --spark-color-2: var(--primary-hover);
+  --spark-color-3: var(--text);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -499,18 +491,42 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-size: 10px; font-weight: 600; color: var(--text-3); padding: 6px 4px;
   transition: color .2s ease;
 }
-.tab [class^="icon-"] { font-size: 21px; }
+.tab [class^="icon-"] { font-size: 21px; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
 .tab.on { color: var(--accent); }
 .tab.on [class^="icon-"] { color: var(--accent); }
 .sidebar-brand { display: none; }
 
-/* Mobile gets the ReactBits GooeyNav (particle-burst pill nav, see
-   components/GooeyNav.tsx/.css); desktop's vertical sidebar keeps the plain
-   flat-highlight .tab list instead — a horizontal pill-burst effect doesn't
-   translate to a vertical layout. Swapped by media query, not JS, so there's
-   no layout flash on resize. */
-.tabs-plain { display: none; width: 100%; }
-.tabs-gooey { flex: 1; display: flex; }
+/* ---------- tab-switch spark burst ----------
+   A handful of small flecks fire outward from an icon the instant it
+   becomes active, then fall away — a quick, literal "spark" rather than a
+   sliding indicator. Pure CSS (a handful of ::before/::after-style spans
+   rendered by JS in App.tsx, one burst per switch, self-removing), so there
+   is no persistent DOM cost between switches. Icon itself gets a small
+   pop/scale to sell the moment of arrival. */
+.tab.on [class^="icon-"] { animation: tab-pop .35s cubic-bezier(.34,1.56,.64,1) both; }
+@keyframes tab-pop {
+  0%   { transform: scale(0.6); }
+  60%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+.tab-sparks {
+  position: absolute; top: 50%; left: 50%; width: 0; height: 0;
+  pointer-events: none; z-index: 3;
+}
+.tab-spark {
+  position: absolute; top: 0; left: 0; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--spark-color, var(--spark-color-1));
+  animation: tab-spark-fly .5s cubic-bezier(.2,.8,.3,1) both;
+}
+@keyframes tab-spark-fly {
+  0%   { opacity: 1; transform: translate(-50%, -50%) translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translate(var(--spark-x), var(--spark-y)) scale(0.3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab.on [class^="icon-"] { animation: none; }
+  .tab-spark { display: none; }
+}
 
 /* ---------- map ---------- */
 .mappick { margin-top: 2px; }
@@ -716,7 +732,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- search ---------- */
 .search { padding: 6px 16px 0; position: relative; }
-.search [class^="icon-"] { position: absolute; left: 30px; top: calc(50% + 3px); transform: translateY(-50%); font-size: 18px; color: var(--text-3); z-index: 1; }
+/* left:16px, not 30px — absolute children measure from the positioned
+   ancestor's OWN edge, not from inside its padding, so this icon was
+   sitting 14px further right than every heading/chip/card on the page
+   (all of which line up on the page's real 16px content edge via normal-
+   flow padding). This puts the search icon back on that same line. */
+.search [class^="icon-"] { position: absolute; left: 16px; top: calc(50% + 3px); transform: translateY(-50%); font-size: 18px; color: var(--text-3); z-index: 1; }
 .search input {
   width: 100%; font-family: inherit; font-size: 16px; padding: 12px 84px 12px 42px;
   border-radius: var(--radius-sm); color: var(--text);
@@ -1278,11 +1299,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   }
   .tab [class^="icon-"] { font-size: 19px; }
   .tab.on { background: var(--accent-soft); }
-  /* vertical sidebar — swap back to the plain flat-highlight list,
-     GooeyNav's horizontal pill-burst effect doesn't translate to a
-     vertical layout (see the comment on .tabs-plain/.tabs-gooey above). */
-  .tabs-plain { display: flex; flex-direction: column; width: 100%; gap: 2px; }
-  .tabs-gooey { display: none; }
 
   /* dense row lists become a 3-column grid on desktop — uses the width
      instead of one long centered column, without shrinking each row */
