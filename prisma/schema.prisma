@@ -167,6 +167,10 @@ model Event {
   // different aspect ratio) don't just default to a dead-center crop that
   // might cut off the actual subject. Null = plain center crop.
   imageFocalPoint       String?
+  // Extra photos beyond the single cover `image` — rendered as a swipeable
+  // carousel on the event detail page. `image` stays the one used for
+  // cards/thumbnails everywhere else, so nothing else needed to change.
+  gallery               String[]  @default([])
   color                 String
   glyph                 String
   blurb                 String

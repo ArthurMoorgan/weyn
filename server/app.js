@@ -278,7 +278,7 @@ export function createApp(storage) {
     res.json(e);
   });
 
-  app.post("/api/events", createEventLimiter, requireAuth, upload.single("image"), validateBody(createEventSchema), async (req, res) => {
+  app.post("/api/events", createEventLimiter, requireAuth, upload.fields([{ name: "image", maxCount: 1 }, { name: "gallery", maxCount: 8 }]), validateBody(createEventSchema), async (req, res) => {
     try {
       const b = req.body;
 
@@ -324,12 +324,27 @@ export function createApp(storage) {
         } catch { tiers = null; }
       }
 
+      const coverFile = req.files?.image?.[0];
+      const galleryFiles = req.files?.gallery || [];
+
       let image = existingImage;
-      if (req.file) {
-        const realMime = sniffImageMime(req.file.buffer);
+      if (coverFile) {
+        const realMime = sniffImageMime(coverFile.buffer);
         if (!realMime) return res.status(400).json({ error: "That file doesn't look like a valid PNG/JPEG/WEBP/GIF" });
         const ext = EXT_BY_MIME[realMime];
-        ({ url: image } = await storage.saveImage(req.file.buffer, ext));
+        ({ url: image } = await storage.saveImage(coverFile.buffer, ext));
+      }
+
+      // Carousel: extra photos beyond the single cover image, uploaded the
+      // same way. Invalid files are skipped rather than failing the whole
+      // event — the cover image is the one thing that must succeed.
+      const gallery = [];
+      for (const file of galleryFiles) {
+        const realMime = sniffImageMime(file.buffer);
+        if (!realMime) continue;
+        const ext = EXT_BY_MIME[realMime];
+        const { url } = await storage.saveImage(file.buffer, ext);
+        gallery.push(url);
       }
 
       const ev = {
@@ -354,6 +369,7 @@ export function createApp(storage) {
         // across the card/detail/dashboard's different aspect ratios — cosmetic
         // only, silently null (plain center crop) if AI isn't configured/fails
         imageFocalPoint: await suggestFocalPointFor(image),
+        gallery,
         color: b.color || "#3A4668",
         glyph: b.glyph || "🎟",
         blurb: (refined.blurb || b.blurb || "Join us — details to follow.").trim(),
