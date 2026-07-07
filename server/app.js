@@ -224,6 +224,27 @@ export function createApp(storage) {
   });
   app.use(attachUser); // sets req.user from a Bearer session token, if present and valid
 
+  // Pre-launch private-beta gate. Clerk has a native allowlist feature that
+  // would do this — but it 403s with "unsupported_subscription_plan_features"
+  // on the plan the LIVE Clerk instance (clerk.weynevents.com) is actually
+  // on, so it can only be enabled on free dev/test instances, not this one.
+  // This replicates the same restriction ourselves until that's resolved
+  // (upgrade the Clerk plan, or find another path) — set
+  // ADMIN_ALLOWLIST_EMAILS (comma-separated) to activate; unset (the
+  // default everywhere except the live prod deployment) is a complete
+  // no-op. waitlist.weynevents.com is exempt — that domain is the
+  // intentionally-public surface while this is active.
+  const adminAllowlist = (process.env.ADMIN_ALLOWLIST_EMAILS || "")
+    .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  if (adminAllowlist.length) {
+    app.use((req, res, next) => {
+      if (req.hostname === "waitlist.weynevents.com") return next();
+      const email = req.user?.email?.toLowerCase();
+      if (email && adminAllowlist.includes(email)) return next();
+      res.status(403).json({ error: { code: "PRIVATE_BETA", message: "Weyn is in private preview right now — join the waitlist at waitlist.weynevents.com." } });
+    });
+  }
+
   // event photos — served from wherever `storage` actually keeps them (local
   // disk or R2), so the URL shape (/uploads/:key) stays identical either way
   app.get("/uploads/:key", async (req, res) => {
