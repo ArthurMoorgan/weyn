@@ -671,7 +671,10 @@ export const db = {
     const ids = await db.followingIds(userId);
     if (!ids.length) return [];
     const events = await prisma.event.findMany({
-      where: { ownerId: { in: ids }, deletedAt: null, cancelled: false, startsAt: { gte: new Date() } },
+      // inviteOnly excluded — this is a discovery-style feed, same rule as
+      // GET /api/events; an invite-only event should only ever be reached
+      // via its direct link, never surfaced through a listing.
+      where: { ownerId: { in: ids }, deletedAt: null, cancelled: false, inviteOnly: false, startsAt: { gte: new Date() } },
       include: { tiers: true },
       orderBy: { startsAt: "asc" },
     });
@@ -689,13 +692,26 @@ export const db = {
       orderBy: { createdAt: "desc" },
     });
   },
-  async getCollection(id) {
+  // viewerId strips inviteCode from any invite-only event the viewer
+  // doesn't own — a collection (unlike the discovery listing) is allowed to
+  // contain an invite-only event (e.g. saving one you were personally
+  // invited to), but saving it must not leak the secret code to anyone else
+  // who opens the same (possibly public) collection.
+  async getCollection(id, viewerId = null) {
     const c = await prisma.collection.findUnique({
       where: { id },
       include: { items: { include: { event: { include: { tiers: true } } }, orderBy: { addedAt: "desc" } }, owner: { select: { id: true, name: true } } },
     });
     if (!c) return null;
-    return { id: c.id, name: c.name, isPublic: c.isPublic, ownerId: c.ownerId, ownerName: c.owner.name, events: c.items.map((i) => shape(i.event)) };
+    const events = c.items.map((i) => {
+      const e = shape(i.event);
+      if (e.inviteOnly && e.ownerId !== viewerId) {
+        const { inviteCode, ...safe } = e;
+        return safe;
+      }
+      return e;
+    });
+    return { id: c.id, name: c.name, isPublic: c.isPublic, ownerId: c.ownerId, ownerName: c.owner.name, events };
   },
   async renameCollection(id, name) {
     return prisma.collection.update({ where: { id }, data: { name: name.trim().slice(0, 60) } });
@@ -727,6 +743,7 @@ export const db = {
       FROM "Event" e
       WHERE e."deletedAt" IS NULL
         AND e."discoveryStatus" = 'APPROVED'
+        AND e."inviteOnly" = false
         AND (
           weyn_event_tsvector(e.title, e.organizer, e.venue, e.blurb, e.tags) @@ plainto_tsquery('english', ${q})
           OR similarity(e.organizer, ${q}) > 0.3

@@ -1658,7 +1658,7 @@ export function createApp(storage) {
   // public — a collection's whole point is to be shareable via its link,
   // gated only by isPublic (not by who's asking)
   app.get("/api/collections/:id", async (req, res) => {
-    const c = await db.getCollection(req.params.id);
+    const c = await db.getCollection(req.params.id, req.user?.id || null);
     if (!c || (!c.isPublic && c.ownerId !== req.user?.id)) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Collection not found" } });
     }
@@ -1669,7 +1669,7 @@ export function createApp(storage) {
     const { name, isPublic } = req.body || {};
     if (name !== undefined) await db.renameCollection(req.params.id, name);
     if (isPublic !== undefined) await prisma.collection.update({ where: { id: req.params.id }, data: { isPublic: !!isPublic } });
-    res.json(await db.getCollection(req.params.id));
+    res.json(await db.getCollection(req.params.id, req.user.id));
   });
 
   app.delete("/api/collections/:id", requireAuth, loadOwnedCollection, async (req, res) => {
@@ -1681,12 +1681,12 @@ export function createApp(storage) {
     const { eventId } = req.body || {};
     if (!eventId) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "eventId is required" } });
     await db.addToCollection(req.params.id, eventId);
-    res.status(201).json(await db.getCollection(req.params.id));
+    res.status(201).json(await db.getCollection(req.params.id, req.user.id));
   });
 
   app.delete("/api/collections/:id/items/:eventId", requireAuth, loadOwnedCollection, async (req, res) => {
     await db.removeFromCollection(req.params.id, req.params.eventId);
-    res.json(await db.getCollection(req.params.id));
+    res.json(await db.getCollection(req.params.id, req.user.id));
   });
 
   app.post("/api/admin/events/:id/moderate", requireAuth, requireRole("ADMIN"), async (req, res) => {
