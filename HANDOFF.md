@@ -1,11 +1,13 @@
 # Weyn — Handoff / Continuation Guide
-*Last updated: 2026-07-07.*
+*Last updated: 2026-07-07 (evening pass).*
 
 Read this whole file before touching anything. Large parts of the previous
 version of this doc (dated 2026-07-05) were stale — Google Sign-In was fully
 replaced by Clerk, PayTabs got real (if unused) integration, the preview
 tooling issue was root-caused, and a lot of new product surface shipped.
-This version reflects the actual current state.
+This version reflects the actual current state, including invite-only
+hosting, `dev.weynevents.com`, a real accounts page, and two production
+bugs (perceived slowness, event-visibility staleness) fixed this pass.
 
 ## 1. What Weyn is now
 
@@ -32,6 +34,7 @@ dhairya/
 │   ├── webpush.ts                Web Push (VAPID) subscribe/unsubscribe client helper
 │   ├── components/
 │   │   ├── AuthGate.tsx           mandatory sign-up/sign-in wall — wraps every route but /onboarding
+│   │   ├── AuthWall.tsx           the actual SignIn/SignUp UI, lazy-loaded from AuthGate — see §3
 │   │   ├── TicketSheet.tsx        renders a real scannable QR from a booking's ticket code
 │   │   ├── SubscriptionCard.tsx   Organizer Pro dashboard card (plan/renewal/features/billing history)
 │   │   ├── UpgradeModal.tsx       Organizer Pro upgrade modal (CTA is inert — no billing wired yet)
@@ -39,9 +42,10 @@ dhairya/
 │   │   └── featureCatalog.ts      human-readable labels for the Pro feature flags
 │   └── pages/
 │       ├── Explore.tsx            discovery feed — Featured/Trending/Tonight/Weekend/category rails
-│       ├── EventDetail.tsx        booking + "View ticket" QR retrieval
+│       ├── EventDetail.tsx        booking + "View ticket" QR retrieval + invite-only gating
 │       ├── HostVenue.tsx           venue-hosting application wizard (8 steps incl. 3-tier Pro plan picker)
 │       ├── Support.tsx            FAQ + contact form (/support)
+│       ├── Account.tsx            real profile/email/password/connected-accounts/delete page (/account) — see §9
 │       ├── You.tsx                 tabbed profile: Overview/Tickets/Saved/Lists/Organizer/Venues/Settings
 │       └── Onboarding.tsx          first-run walkthrough, the one route reachable signed-out
 ├── server/
@@ -78,6 +82,20 @@ instance) keys.** A `pk_live_` production instance already exists for this
 app (`app_3G49KglnXhwSxpbrXMTiIJ1beBB`, discovered via `clerk apps list`)
 but nothing points at it yet. Swapping in the live keys is the actual
 remaining step before this goes fully production-grade.
+
+**Bug fixed this pass — mandatory sign-up made the whole app slower for
+everyone.** `AuthGate.tsx` originally imported Clerk's `SignIn`/`SignUp`
+components eagerly. Since `AuthGate` wraps *every* route, that pulled a
+substantial chunk of Clerk's UI internals into the main JS bundle for every
+single page load — paid by every already-signed-in visitor, who never
+renders that UI at all. Split the actual sign-in/sign-up markup out into
+`AuthWall.tsx` and made `AuthGate` `lazy()`-import it only when rendering
+the signed-out branch. Cut the main bundle from 554KB to 313KB (159KB →
+93KB gzipped) — verified via `npm run build` output and a real Playwright
+check of both the signed-in and signed-out paths. If you're chasing "the
+site feels slow" again, check whether something new got imported eagerly
+into a component that sits above the route switch (`App.tsx`, `AuthGate.tsx`,
+`main.tsx`) before assuming it's a backend problem.
 
 ## 4. Organizer Pro — monetization layer (new)
 
@@ -323,12 +341,137 @@ Everything above was tested by directly exercising the real Prisma calls
 and real HTTP endpoints against production data with disposable test rows
 (a throwaway event, cleaned up after) — the same technique used
 throughout this session for ticket/QR and venue-approval verification, see
-§6. For the Stripe piece specifically, once real keys exist: use Stripe's
+§10. For the Stripe piece specifically, once real keys exist: use Stripe's
 test-mode keys + the Stripe CLI's `stripe trigger checkout.session.completed`
 (and the other event types above) to fire real, correctly-signed test
 webhooks at a local server before ever touching live keys.
 
-## 5. Backup practice established this session
+## 5. Invite-only hosting
+
+An organizer can mark any event invite-only — completely free, not an
+Organizer Pro feature. Migration `20260707200000_invite_only_events` adds
+`Event.inviteOnly` (bool) and `Event.inviteCode` (unique, nullable —
+generated the moment invite-only is turned on).
+
+- **Toggle/rotate**: `PATCH /api/events/:id/invite-only` (owner-only)
+  flips the flag and generates an 8-char code on first enable;
+  `POST /api/events/:id/invite-only/regenerate` rotates the code without
+  touching the flag — separate endpoints on purpose, so turning it off and
+  back on doesn't silently invalidate a link someone's already holding.
+- **Never appears in Discovery**: `GET /api/events`'s existing
+  cancelled/approved/past filter gained one more clause, `!e.inviteOnly`.
+  Still reachable by direct link (`GET /api/events/:id`) — the invite
+  recipient needs to see what they're being invited to — but that response
+  strips `inviteCode` for everyone except the owner, and sets
+  `Cache-Control: private, no-store` instead of the normal event-detail
+  caching, so a shared link never gets cached with the code baked in.
+- **Booking gate**: both `POST /api/events/:id/book` and `.../checkout`
+  403 with `{code: "INVITE_REQUIRED"}` unless the request body's
+  `inviteCode` matches. The frontend reads `?invite=CODE` off the URL
+  (`EventDetail.tsx`) and threads it through automatically — a recipient
+  who opens the shared link never has to type anything.
+- **Organizer UI**: `You.tsx` → Organizer dashboard → "Invite-only" button
+  per event opens `InviteOnlySheet` (same pattern as the existing
+  `MarketingSheet`) — toggle, copyable link, regenerate.
+
+Verified end-to-end against a real disposable production event before
+shipping: excluded from discovery ✓, code absent from the public detail
+response ✓, booking with no code rejected ✓, wrong code rejected ✓,
+correct code succeeds and issues a real ticket ✓.
+
+## 6. `dev.weynevents.com`
+
+A second, fully isolated environment for testing anything without
+touching real user data — separate Neon database, separate Clerk
+instance (the dev instance from §3 that was already configured), separate
+Vercel project, gated behind HTTP Basic Auth so it isn't just sitting open
+on the internet.
+
+- **Database**: Neon project `weyn-dev` (id `sweet-base-90708856`, same
+  `eu-central-1` region as prod). All 19 migrations applied via `prisma
+  migrate deploy` against its connection string — empty schema, no prod
+  data copied over (deliberately: this is for testing flows, not staging
+  real data).
+- **Vercel**: new project `weyn-dev` (not a preview deployment of the
+  `dhairya` project — a fully separate project, so its env vars, Blob
+  store, and domain can't accidentally collide with production). Tracks
+  its own `dev` git branch. Env vars: dev Clerk keys, the dev DATABASE_URL
+  above, a dedicated public Blob store (`weyn-dev-uploads`), its own
+  `SESSION_SECRET`. Shares the same Resend/Groq/Google/VAPID/Sentry keys
+  as prod (those are third-party accounts, safe to reuse) but **not**
+  PayTabs — prod itself doesn't have live PayTabs keys wired (see §11),
+  so there was nothing to carry over and no real-payment risk either way.
+- **Access control**: `server/app.js` gates the *entire* app behind HTTP
+  Basic Auth whenever `DEV_BASIC_AUTH_USER`/`DEV_BASIC_AUTH_PASS` are set
+  — checked as the very first middleware, before Helmet/CORS/routes. Only
+  set on the `weyn-dev` Vercel project; production never sets these, so
+  the check is a complete no-op there (verified: prod's `/api/health`
+  returns 200 with no auth prompt, `weyn-dev`'s returns 401 without
+  credentials, 401 with wrong ones, 200 with the right ones). Credentials
+  live in the `weyn-dev` Vercel project's env vars — ask whoever has
+  Vercel dashboard access if you need them and don't have them handed to
+  you separately.
+- **DNS — the one manual step**: `weynevents.com`'s DNS is on Cloudflare
+  (nameservers `molly`/`newt.ns.cloudflare.com`), and nothing in this
+  environment had write access to that zone (`wrangler`'s OAuth token is
+  `zone:read` only). Vercel's own domain-add flow needs one A record added
+  by hand in the Cloudflare dashboard: `dev` → `76.76.21.21`, DNS-only (grey
+  cloud, not proxied — same as the existing root-domain record). Until
+  that record exists, the working URL is `https://weyn-dev.vercel.app`
+  (same app, same basic-auth gate, same dev database) — fully usable today,
+  the custom domain is just a nicer name for it.
+
+## 7. Two production bugs fixed this pass
+
+**"Events I upload don't show up on other devices."** `GET /api/events`,
+`GET /api/events/:id`, `GET /api/venues`, and `GET /api/venues/:id` were
+all serving `Cache-Control: public, max-age=30` — cheap to justify
+(queries run in ~130ms warm, caching saved little) but meant a newly
+published event or venue could read as "missing" on another device or
+another edge POP for up to 30 seconds after publish. Switched all four to
+`no-store`. If discovery-feed traffic ever gets heavy enough that this
+matters for load, the right fix is a short `stale-while-revalidate`
+window, not going back to a blind `max-age`.
+
+**Site suddenly felt slow** — see §3's note on the `AuthGate`/`AuthWall`
+split. Same root cause investigation, listed here too since it was raised
+as a separate complaint at the time and is easy to miss if you only read
+§3 looking for auth-specific content.
+
+## 8. Accounts page (`/account`)
+
+Settings (Profile → Settings) previously only showed a read-only
+name/email/avatar row (`AccountWidget.tsx`) with a sign-out button — no
+way to actually change anything about your own account. `src/pages/Account.tsx`
+(lazy-loaded route, linked from Settings as "Manage account") now covers:
+
+- Name, username, avatar (direct `user.update()` / `user.setProfileImage()`
+  calls against Clerk — no new backend route needed, Clerk owns this data).
+- Email change with real code verification (`createEmailAddress` →
+  `prepareVerification({strategy:"email_code"})` → `attemptVerification` →
+  set as primary → delete the old address).
+- Password change (`user.updatePassword()`, `signOutOfOtherSessions: true`
+  so a password change actually kicks out anyone else with a live session).
+- Connect/disconnect Google (`user.createExternalAccount({strategy:
+  "oauth_google"})` / `externalAccount.destroy()`).
+- Delete account — moved here from Settings verbatim, same
+  `api.deleteAccount()` → cancels hosted events server-side → Clerk
+  `signOut()` flow as before.
+
+**Deliberately not** Clerk's prebuilt `<UserProfile/>` component, for two
+reasons: it bundles its own account-deletion flow that has no way to hook
+in the server-side hosted-events cleanup above (so using it would mean
+either two different delete flows or losing the cleanup), and — same
+lesson as §3 — it's another heavy Clerk UI import that would need
+lazy-loading discipline anyway, at which point hand-building the handful
+of fields this app actually needs was less code, not more.
+
+Not built: session/device management, 2FA setup (Clerk's `<UserProfile/>`
+gets these for free; this hand-built page doesn't have them). Worth
+revisiting if either becomes an actual user request rather than "Clerk
+would give it to us for free."
+
+## 9. Backup practice established this session
 
 No `pg_dump`/`psql`/`neonctl` available in this environment, and no Neon
 API key configured — so there's no managed-snapshot path. Instead: a
@@ -340,7 +483,7 @@ contain real user emails/PII; never commit one. Take a fresh one before
 any risky migration or direct-DB test session (this is now a standing
 habit, same as the CSS brace-balance check used to be).
 
-## 6. Testing approach for anything backend
+## 10. Testing approach for anything backend
 
 There's no test-user login flow to script (no way to obtain a real Clerk
 session token programmatically without a real password + a headless
@@ -358,9 +501,26 @@ new script invocation (`ETIMEDOUT` on the first query, works on retry) —
 this is normal Neon serverless-Postgres behavior, not a bug; just retry
 once before assuming something's actually broken.
 
-## 7. Known gaps, still real
+**Signing up through the real UI in headless Playwright doesn't work** —
+confirmed while testing §8: Clerk's Cloudflare Turnstile bot-check 401s
+against `challenges.cloudflare.com` in headless Chromium and the sign-up
+button spins forever. This is a well-known headless-browser limitation
+(Clerk's own docs point at installing `@clerk/testing`'s
+`setupClerkTestingToken()` specifically to bypass it), not an app bug —
+real users in a real browser are unaffected. `+clerk_test@` email
+addresses (which accept the fixed code `424242` with no real email) do
+still work for the *email verification step itself*; it's Turnstile on
+the initial submit that headless browsers can't clear. If you need a real
+signed-in session for E2E testing without adding that dependency, the
+established fallback in this codebase is §10's pattern above: create rows
+directly via Prisma rather than going through the UI at all.
+
+## 11. Known gaps, still real
 
 - **Production Clerk is on test-mode keys** (§3) — the biggest one.
+- **Organizer dashboard** — see §13 for the planned rebuild. Today's
+  Organizer tab is a flat per-event list with no cross-event view; the
+  Pro backend (§4) has no UI hooks into it yet either.
 - **Ticket/QR retrieval** was completely broken before this session (a
   booking issued a real server-side ticket that the client could never
   display) — fixed, but only for web/PWA; there's no native app.
@@ -374,10 +534,6 @@ once before assuming something's actually broken.
   event to apply to yet in production; it was tested via direct DB rows
   instead. Re-enabling paid Weyn ticketing is a separate, deliberate
   decision, not part of this work.
-- **`dev.weynevents.com`** — blocked on the user creating a second
-  Vercel project + a separate Neon dev database branch; nothing to build
-  until those exist.
-- **Invite-only hosting** — not yet started as of this doc's last update.
 - A subtle, unresolved **visual rendering bug**: a faint white seam along
   one edge of the desktop magazine hero / mobile Featured card, at high
   device-pixel-ratio displays. Isolated to a genuine Chromium anti-
@@ -388,12 +544,110 @@ once before assuming something's actually broken.
   only removing the rounded corner entirely fixes it, which is a real
   design change nobody's approved. Left as a known cosmetic issue.
 
-## 8. If you're a fresh Claude picking this up
+## 13. Organizer dashboard — planned rebuild (not started)
+
+Today's entire "organizer dashboard" is `OrganizerSection` inside
+`You.tsx`'s Organizer tab: one stat grid (lifetime totals, no trend), a
+flat list of event cards, and a row of up to 9 buttons per card that each
+open a separate modal sheet (`EditSheet`, `AttendeesSheet`,
+`MarketingSheet`, `AnalyticsSheet`, `TeamSheet`, `CheckInSheet`,
+`InviteOnlySheet`). It works, but it's a tab, not a product surface — and
+per explicit direction, this is meant to become one of the app's key
+features, not stay a corner of the profile screen.
+
+The good news: §4 already built most of the *backend* this needs
+(promo codes, waitlists, bulk notify, recurring events, CSV export,
+featured placement, advanced analytics) — none of it has UI hooks yet
+(flagged in §4.4). A large fraction of "the dashboard" is wiring work
+against endpoints that already exist and are already tested, not new
+product design. What follows is organized around that distinction.
+
+### Proposed structure
+
+Promote Organizer from a `You.tsx` tab to its own top-level section
+(`/organizer`, real routes not modal sheets, deep-linkable — e.g.
+`/organizer/events/:id/analytics` instead of a sheet with no URL of its
+own) with six areas:
+
+**1. Overview (home)** — *mostly new*
+Replace the static lifetime stat grid with an actual dashboard: a
+sales/revenue trend chart (needs a time-series query — today's stats are
+all-time totals, no day-by-day breakdown exists yet), next-3-upcoming-
+events at a glance, and an "needs attention" list surfacing things that
+currently require hunting through the event list to notice: events stuck
+in `MANUAL_REVIEW`, pending team invites, an upcoming event with zero
+sales, a waitlist with no invites sent.
+
+**2. Events** — *mostly wiring*
+Keep the existing card list but add filtering (upcoming/past/cancelled)
+and a calendar view (new, but pure frontend — the data already exists).
+Replace the 9-button row with a proper per-event workspace: a real tabbed
+page (Overview/Analytics, Attendees, Promo codes, Waitlist, Marketing,
+Team, Settings) instead of one-off modals — this is where promo codes,
+waitlists, notify, recurring, and featured-toggle actually get a UI for
+the first time. Bulk actions (bulk cancel/duplicate) are new but small.
+
+**3. Attendees / CRM (cross-event)** — *new, needs a new endpoint*
+Every attendee across every event the organizer owns, deduped by
+user/email, with total spend and events attended — lets an organizer see
+their repeat customers instead of only per-event attendee lists. Needs a
+new aggregate query (`GET /api/organizer/attendees`); nothing like this
+exists today even at the data layer.
+
+**4. Finance (cross-event)** — *new, and partly blocked*
+Revenue by event/by month, Weyn fees paid, refunds issued — the
+aggregate numbers mostly already exist per-event via `db.eventAnalytics()`
+and just need a cross-event rollup endpoint. Real payout tracking
+(when/how an organizer actually gets paid out) is blocked on §4.5 — there
+is no payment processor wired that could a produce a real payout event to
+track yet, so this section should ship as a reporting view first and stay
+honest that "payout status" isn't real until PayTabs (or Stripe, if that
+ever extends past Pro billing to ticket payments) is actually live.
+
+**5. Marketing (cross-event)** — *mostly wiring, one new piece*
+Surface the existing per-event AI marketing-copy generator and promo-code
+manager across all events instead of one at a time. One genuinely new,
+small addition: a shareable QR code / printable poster for an organizer's
+public profile page (`OrganizerProfile.tsx` already exists) for offline
+promotion — not built anywhere today. Referral/UTM tracking
+(`trafficSources` from §4.3) stays explicitly out of scope until real
+instrumentation exists.
+
+**6. Settings** — *new*
+Organizer public profile currently has no dedicated settings — bio,
+links, and branding shown on `OrganizerProfile.tsx` would need actual
+owner-editable fields (new, small schema addition). Relocate
+`SubscriptionCard` here from `You.tsx`. Default event settings (default
+refund policy/capacity/category, so creating a 10th event doesn't mean
+retyping the same values) is a pure quality-of-life addition with no
+backend complexity.
+
+### Suggested phasing
+
+1. **Wire what's already built**: promo codes, waitlist, notify,
+   recurring, featured, CSV export UI into a real per-event workspace.
+   This alone converts a large amount of already-shipped, already-tested
+   backend from "exists but nobody can reach it" into a real feature —
+   almost no new backend work, `FeatureLock.tsx` already exists to show
+   the Pro-gated state around each one.
+2. **Cross-event views**: Attendees/CRM and Finance rollups — new
+   aggregate endpoints, moderate backend work, big organizer-facing value
+   (this is the part that actually makes it feel like "a dashboard"
+   rather than a list of events).
+3. **Settings, calendar view, poster/QR generator, default event
+   settings** — smaller, independent, can slot in whenever.
+
+None of this is built yet — this is the plan, not a changelog entry. If
+you're picking this up, start with phase 1: it's the highest ratio of
+organizer-visible value to actual new code, since the hard part (the
+backend) already happened in §4.
+
+## 14. If you're a fresh Claude picking this up
 
 1. Read this file fully.
 2. Check `TaskList`/whatever task tracker the session before you left —
-   there's usually a live punch list more current than this doc's §7.
-3. Take a fresh backup (§5) before any schema/data work.
+   there's usually a live punch list more current than this doc's §11.
+3. Take a fresh backup (§9) before any schema/data work.
 4. For anything requiring visual verification, Playwright works directly
    against both localhost and the live production URL — the built-in
    preview tool and Chrome extension have not worked in this environment
