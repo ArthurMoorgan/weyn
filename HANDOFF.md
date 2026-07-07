@@ -1,13 +1,15 @@
 # Weyn — Handoff / Continuation Guide
-*Last updated: 2026-07-07 (evening pass).*
+*Last updated: 2026-07-08.*
 
 Read this whole file before touching anything. Large parts of the previous
 version of this doc (dated 2026-07-05) were stale — Google Sign-In was fully
 replaced by Clerk, PayTabs got real (if unused) integration, the preview
 tooling issue was root-caused, and a lot of new product surface shipped.
 This version reflects the actual current state, including invite-only
-hosting, `dev.weynevents.com`, a real accounts page, and two production
-bugs (perceived slowness, event-visibility staleness) fixed this pass.
+hosting, `dev.weynevents.com`, a real accounts page, two production bugs
+fixed, PostHog analytics, persistent tab navigation — **and the biggest
+change: the live app is now admin-only, and `waitlist.weynevents.com` is
+the new public face** (see §1 and §10).
 
 ## 1. What Weyn is now
 
@@ -23,6 +25,14 @@ human-reviewed application flow, distinct from event ticketing.
 
 **Sign-up is now mandatory app-wide** (see §3) — there is no anonymous
 browsing anymore, including shared event links.
+
+**As of this pass, the live app is private** — gated to 4 admin emails via
+Clerk's allowlist, enforced on both sign-up and sign-in (see §10). Nobody
+else can get in, including anyone who signed up before this change. The
+public-facing site is now `waitlist.weynevents.com` (§10), a landing page
+with an email waitlist — not the real app. This is a deliberate pre-launch
+state, not a bug: if you're reading this because "the app doesn't let
+anyone in," that's expected until launch.
 
 ## 2. Architecture at a glance
 
@@ -341,7 +351,7 @@ Everything above was tested by directly exercising the real Prisma calls
 and real HTTP endpoints against production data with disposable test rows
 (a throwaway event, cleaned up after) — the same technique used
 throughout this session for ticket/QR and venue-approval verification, see
-§10. For the Stripe piece specifically, once real keys exist: use Stripe's
+§12. For the Stripe piece specifically, once real keys exist: use Stripe's
 test-mode keys + the Stripe CLI's `stripe trigger checkout.session.completed`
 (and the other event types above) to fire real, correctly-signed test
 webhooks at a local server before ever touching live keys.
@@ -399,7 +409,7 @@ on the internet.
   above, a dedicated public Blob store (`weyn-dev-uploads`), its own
   `SESSION_SECRET`. Shares the same Resend/Groq/Google/VAPID/Sentry keys
   as prod (those are third-party accounts, safe to reuse) but **not**
-  PayTabs — prod itself doesn't have live PayTabs keys wired (see §11),
+  PayTabs — prod itself doesn't have live PayTabs keys wired (see §13),
   so there was nothing to carry over and no real-payment risk either way.
 - **Access control**: `server/app.js` gates the *entire* app behind HTTP
   Basic Auth whenever `DEV_BASIC_AUTH_USER`/`DEV_BASIC_AUTH_PASS` are set
@@ -471,7 +481,92 @@ gets these for free; this hand-built page doesn't have them). Worth
 revisiting if either becomes an actual user request rather than "Clerk
 would give it to us for free."
 
-## 9. Backup practice established this session
+## 9. Persistent tab navigation + PostHog analytics
+
+**Bottom-tab pages now stay mounted.** Explore/Reservations/HostHub/You
+used to fully unmount and remount on every tab switch (a plain
+`react-router-dom` `<Outlet/>` does this by default) — losing scroll
+position and re-fetching data every single time you tapped back to a tab
+you'd already loaded. `App.tsx` now renders these 4 pages itself (not via
+`<Outlet/>`): each mounts once on first visit, then just toggles
+`display:none` on further switches. Verified with a real browser test —
+tagged a DOM node inside Explore, switched through all 4 tabs, confirmed
+the exact same node (never recreated) was still there. Drill-down subpages
+reached from within a tab (`/saved`, `/host/events`, `/host/venue`,
+`/admin`) are **not** part of this — those still mount fresh via a normal
+`<Outlet/>`, which is correct for a page you navigate into and back out of
+rather than switch to repeatedly. See `main.tsx`'s route tree comment and
+`App.tsx`'s `MAIN_TABS` for the mechanism.
+
+**PostHog** (`src/posthog.ts` client, `server/monitoring.js` server —
+already existed but was never configured) is now live, same project token
+for both. The client import is **dynamic**, not static — `posthog-js` is a
+meaningful chunk of code, and main.tsx is the one place a static import
+can't be lazy-loaded away; a static import here would have put it right
+back in the entry bundle, the exact mistake just fixed for Clerk's
+SignIn/SignUp (§3). Confirmed via build output: it lands in its own
+`module-*.js` chunk, main bundle stays at 314KB. `identifyPostHog()` /
+`resetPostHog()` are wired into `ClerkAuthBridge` so anonymous activity
+links to the real user the moment they sign in.
+
+**`.profile-tabs` (You.tsx's Overview/Organizer/Tickets/Saved/Lists/
+Settings row) now wraps instead of horizontally scrolling.** This is
+primary navigation, not a filter row like Explore's category chips — Settings
+or Lists sitting permanently off-screen behind a swipe gesture was a real
+usability problem the user flagged directly ("really impractical").
+
+## 10. The live app is now admin-only; `waitlist.weynevents.com` is the new public face
+
+Per explicit direction: take the real app private ahead of a proper
+launch, put a waitlist landing page in its place. Two independent pieces:
+
+**1. Access gate — Clerk's built-in allowlist, not custom code.**
+`auth_access_control.allowlist_enabled` + `allowlist_blocklist_enforced_on_sign_in`
+are both now `true` on the Clerk instance weynevents.com actually uses
+(confirmed via `.env`: production is still on `pk_test_`/`sk_test_` keys,
+i.e. the "dev" instance — see §3 — so patching that instance is what
+takes effect on the live site, not a separate untouched "prod" instance).
+Four emails are on the allowlist: `dhairyarsaluja@gmail.com`,
+`rohitssaluja@gmail.com`, `krishivsaluja@gmail.com`,
+`bhattacharyamonami@gmail.com`. Nobody else can sign up **or sign in** —
+this includes anyone who already had an account before this change; their
+existing session may still work until it expires, but they can't get back
+in once it does. This also means `dev.weynevents.com` (§6), which reuses
+the same Clerk instance, is now double-gated (its existing HTTP Basic Auth
+plus this). To add or remove an admin: `clerk api /allowlist_identifiers`
+(POST to add, DELETE `/allowlist_identifiers/{id}` to remove) against the
+`dev` instance — see `clerk api ls allowlist` for the exact endpoints.
+
+To reverse this later (real public launch): `clerk config patch` setting
+both flags back to `false` on the same instance. Nothing else about the
+app changes — no code path depends on the allowlist being on.
+
+**2. `waitlist.weynevents.com` — a standalone landing page, not a route
+inside the real app.** `main.tsx` checks `window.location.hostname` before
+anything else mounts — Clerk, the router, the tab shell, none of it loads
+for a waitlist visitor, only `src/pages/WaitlistLanding.tsx` (its own
+~1KB lazy chunk). Email capture posts to `POST /api/waitlist`, backed by
+a new `LandingWaitlistSignup` table — deliberately separate from the
+existing per-event `WaitlistEntry` model (that one is sold-out-ticket
+waitlists tied to a real `Event`; this one is generic marketing capture
+with no relation to anything else). Local testing: `?waitlist=1` query
+param triggers the same branch as the real hostname (no easy way to hit
+an actual subdomain against `npm run dev`).
+
+Domain is added to the `dhairya` Vercel project (same project as the main
+app — this isn't a separate deployment) but **needs one manual DNS
+record**, same limitation as `dev.weynevents.com` in §6 (no zone-write
+access from this environment): `A waitlist.weynevents.com 76.76.21.21`,
+DNS-only/grey-cloud on Cloudflare. Until that's added, nothing serves at
+that hostname yet — the code is deployed and correct, it's purely the DNS
+record blocking it from being reachable.
+
+Signups aren't emailed anywhere automatically yet — they just accumulate
+in `LandingWaitlistSignup`. Query them directly via Prisma
+(`prisma.landingWaitlistSignup.findMany()`) until there's a real launch
+flow to notify them through.
+
+## 11. Backup practice established this session
 
 No `pg_dump`/`psql`/`neonctl` available in this environment, and no Neon
 API key configured — so there's no managed-snapshot path. Instead: a
@@ -483,7 +578,7 @@ contain real user emails/PII; never commit one. Take a fresh one before
 any risky migration or direct-DB test session (this is now a standing
 habit, same as the CSS brace-balance check used to be).
 
-## 10. Testing approach for anything backend
+## 12. Testing approach for anything backend
 
 There's no test-user login flow to script (no way to obtain a real Clerk
 session token programmatically without a real password + a headless
@@ -515,10 +610,14 @@ signed-in session for E2E testing without adding that dependency, the
 established fallback in this codebase is §10's pattern above: create rows
 directly via Prisma rather than going through the UI at all.
 
-## 11. Known gaps, still real
+## 13. Known gaps, still real
 
+- **`waitlist.weynevents.com` DNS record not added yet** (§10) — the code
+  is deployed, the domain is added to the Vercel project, but the actual
+  `A waitlist.weynevents.com 76.76.21.21` record needs to be added by hand
+  on Cloudflare. Nothing serves at that hostname until then.
 - **Production Clerk is on test-mode keys** (§3) — the biggest one.
-- **Organizer dashboard** — see §13 for the planned rebuild. Today's
+- **Organizer dashboard** — see §14 for the planned rebuild. Today's
   Organizer tab is a flat per-event list with no cross-event view; the
   Pro backend (§4) has no UI hooks into it yet either.
 - **Ticket/QR retrieval** was completely broken before this session (a
@@ -544,7 +643,7 @@ directly via Prisma rather than going through the UI at all.
   only removing the rounded corner entirely fixes it, which is a real
   design change nobody's approved. Left as a known cosmetic issue.
 
-## 13. Organizer dashboard — planned rebuild (not started)
+## 14. Organizer dashboard — planned rebuild (not started)
 
 Today's entire "organizer dashboard" is `OrganizerSection` inside
 `You.tsx`'s Organizer tab: one stat grid (lifetime totals, no trend), a
@@ -642,12 +741,12 @@ you're picking this up, start with phase 1: it's the highest ratio of
 organizer-visible value to actual new code, since the hard part (the
 backend) already happened in §4.
 
-## 14. If you're a fresh Claude picking this up
+## 15. If you're a fresh Claude picking this up
 
 1. Read this file fully.
 2. Check `TaskList`/whatever task tracker the session before you left —
-   there's usually a live punch list more current than this doc's §11.
-3. Take a fresh backup (§9) before any schema/data work.
+   there's usually a live punch list more current than this doc's §13.
+3. Take a fresh backup (§11) before any schema/data work.
 4. For anything requiring visual verification, Playwright works directly
    against both localhost and the live production URL — the built-in
    preview tool and Chrome extension have not worked in this environment
