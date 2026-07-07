@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api, CATS, type Cat, type Weyn, isTonight, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
@@ -130,10 +130,10 @@ const SUGGEST_ICON: Record<Suggestion["kind"], string> = {
 
 export default function Explore() {
   const account = useAccount();
-  const nav = useNavigate();
-  useEffect(() => {
-    if (!localStorage.getItem("weyn.onboarding.completed")) nav("/onboarding", { replace: true });
-  }, [nav]);
+  // The onboarding-redirect that used to live here moved to AuthGate
+  // (main.tsx) — Explore now sits behind that gate, so by the time this
+  // ever mounts, both onboarding and sign-up are already done. Keeping the
+  // check here too would just be dead code that never fires.
   const [cat, setCat] = useState<Cat | "all">("all");
   const [when, setWhen] = useState<"all" | "today" | "tomorrow" | "weekend">("all");
   const [q, setQ] = useState("");

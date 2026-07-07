@@ -253,10 +253,14 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
             <Logo size={36} />
             <h2 className="ob-title">Create your account</h2>
             <p className="ob-sub">Save events, get reminders, and pick up where you left off.</p>
+            {/* No "Maybe later" skip — an account is required to use Weyn at
+                all now (see AuthGate in main.tsx, the actual enforcement
+                point). Leaving a skip button here would be misleading: even
+                if someone found a way to mark onboarding "done" without
+                signing up, AuthGate blocks every route regardless. */}
             <SignUpButton mode="modal" forceRedirectUrl="/">
               <button className="btn lg" onClick={() => onDone?.()}>Sign up</button>
             </SignUpButton>
-            <button className="btn glass ob-cta" onClick={() => onDone?.()}>Maybe later</button>
           </div>
         )}
       </div>

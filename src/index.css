@@ -370,7 +370,16 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background-size: cover; background-position: center; background-color: var(--card-bg);
   display: grid; place-items: center;
 }
-.ec-feature-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,8,12,0.92) 0%, rgba(6,8,12,0.25) 45%, transparent 70%); }
+/* inset:-1px (not 0) — this overlay and the cover's own background-image are
+   two separate composited layers clipped by the same rounded corner, and at
+   that clip boundary the browser doesn't always agree pixel-for-pixel where
+   each layer ends, leaving a hairline gap that reads as a bright seam along
+   one edge (visible on real photos in production, confirmed by inspecting
+   the live site — the source images have no such seam baked in). Overdrawing
+   the overlay by 1px past the container's edge means .ec-feature-cover's own
+   overflow:hidden clip is what defines the visible edge, not two layers
+   trying to agree — the standard, reliable fix for this class of artifact. */
+.ec-feature-cover::after { content: ""; position: absolute; inset: -1px; background: linear-gradient(to top, rgba(6,8,12,0.92) 0%, rgba(6,8,12,0.25) 45%, transparent 70%); }
 .ec-feature-cover > .ec-badge { position: absolute; top: 10px; left: 10px; z-index: 1; backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
 .ec-feature-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 14px; }
 .ec-feature-organizer { font: var(--t-caption); letter-spacing: 0.4px; text-transform: uppercase; color: rgba(255,255,255,0.75); }
@@ -399,14 +408,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: none;
   position: relative; border-radius: 16px; overflow: hidden;
   background-size: cover; background-position: center;
-  /* Without a background-color fallback, the rounded-corner clip leaves a
-     hairline seam at the edge (border-radius + overflow:hidden + a cover
-     background-image don't perfectly agree on sub-pixel boundaries) that
-     shows through as white instead of blending into the card — same fix
-     already applied to .ec-rail-cover/.ec-feature-cover below. */
   background-color: var(--card-bg);
 }
-.ex-magazine-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,8,12,0.90) 0%, rgba(6,8,12,0.35) 45%, transparent 75%); }
+/* inset:-1px, see the identical comment on .ec-feature-cover::after — this
+   overlay and the element's own background-image are two separately
+   composited layers sharing one rounded-corner clip, and disagree by a
+   hairline at that boundary, showing as a bright seam along one edge.
+   Overdrawing the overlay past the container lets overflow:hidden alone
+   define the visible edge. (An earlier fix here — a background-color
+   fallback — addressed a different, real-but-smaller issue and is kept,
+   but did not fix this seam; confirmed by inspecting computed styles and
+   the raw source image on the live site, which has no seam baked in.) */
+.ex-magazine-hero::after { content: ""; position: absolute; inset: -1px; background: linear-gradient(to top, rgba(6,8,12,0.90) 0%, rgba(6,8,12,0.35) 45%, transparent 75%); }
 .ex-magazine-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 32px 36px; }
 .ex-magazine-organizer { font: var(--t-caption); letter-spacing: 0.5px; text-transform: uppercase; color: rgba(255,255,255,0.75); }
 .ex-magazine-title { font: var(--t-hero); font-size: 40px; color: #fff; letter-spacing: -1px; margin: 6px 0 10px; max-width: 22ch; }
@@ -1503,6 +1516,21 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   gap: var(--space-4);
   padding-top: var(--space-8);
 }
+
+/* ---------- mandatory auth wall (components/AuthGate.tsx) ---------- */
+.authwall {
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg); padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+}
+.authwall-inner {
+  width: 100%; max-width: 400px;
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px;
+}
+.authwall-title { font: var(--t-hero); letter-spacing: -0.6px; margin-top: 6px; }
+.authwall-sub { color: var(--text-2); font: var(--t-body); margin-bottom: 8px; }
+.authwall-form { width: 100%; }
+.authwall-switch { margin-top: 14px; font: var(--t-card); color: var(--accent); }
 
 .ob-headline {
   font: var(--t-hero);

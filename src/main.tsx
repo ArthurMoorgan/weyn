@@ -19,6 +19,7 @@ import { setTokenGetter } from "./store";
 import Explore from "./pages/Explore";
 import Onboarding from "./pages/Onboarding";
 import ErrorBoundary from "./components/ErrorBoundary";
+import AuthGate from "./components/AuthGate";
 import { initPush } from "./push";
 import { markSplashShown, dismissSplash } from "./splash";
 
@@ -114,24 +115,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense fallback={<div className="route-loading" aria-busy="true" />}>
           <Routes>
-            <Route element={<App />}>
-              <Route path="/" element={<Explore />} />
-              <Route path="/reservations" element={<Reservations />} />
-              <Route path="/saved" element={<Saved />} />
-              <Route path="/host" element={<HostHub />} />
-              <Route path="/host/events" element={<Organizer />} />
-              <Route path="/host/venue" element={<HostVenue />} />
-              <Route path="/you" element={<You />} />
-              <Route path="/admin" element={<Admin />} />
-            </Route>
-            <Route path="/e/:id" element={<EventDetail />} />
-            <Route path="/reservations/:id" element={<VenueDetail />} />
-            <Route path="/organizer/:id" element={<OrganizerProfile />} />
-            <Route path="/checkout/success" element={<CheckoutSuccess />} />
-            <Route path="/checkout/cancel" element={<CheckoutCancel />} />
-            <Route path="/invite/:token" element={<InviteAccept />} />
-            <Route path="/collections/:id" element={<CollectionPage />} />
-            <Route path="/support" element={<Support />} />
+            {/* /onboarding is the one route reachable signed-out — everything
+                else sits behind AuthGate, see that file for why. */}
             <Route
               path="/onboarding"
               element={
@@ -143,6 +128,26 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 />
               }
             />
+            <Route element={<AuthGate />}>
+              <Route element={<App />}>
+                <Route path="/" element={<Explore />} />
+                <Route path="/reservations" element={<Reservations />} />
+                <Route path="/saved" element={<Saved />} />
+                <Route path="/host" element={<HostHub />} />
+                <Route path="/host/events" element={<Organizer />} />
+                <Route path="/host/venue" element={<HostVenue />} />
+                <Route path="/you" element={<You />} />
+                <Route path="/admin" element={<Admin />} />
+              </Route>
+              <Route path="/e/:id" element={<EventDetail />} />
+              <Route path="/reservations/:id" element={<VenueDetail />} />
+              <Route path="/organizer/:id" element={<OrganizerProfile />} />
+              <Route path="/checkout/success" element={<CheckoutSuccess />} />
+              <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+              <Route path="/invite/:token" element={<InviteAccept />} />
+              <Route path="/collections/:id" element={<CollectionPage />} />
+              <Route path="/support" element={<Support />} />
+            </Route>
           </Routes>
           </Suspense>
         </Router>
