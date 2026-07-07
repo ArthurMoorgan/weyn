@@ -543,7 +543,7 @@ model VenueApplication {
   photos           String[]
   guestTags        String[]
   priceRange       String?
-  subscriptionTier String? // "starter" | "growth" — tier they expressed interest in
+  subscriptionTier String? // "basic" (OMR 5/mo) | "growth" (OMR 15/mo) | "premium" (OMR 30/mo) — see PLANS in HostVenue.tsx for feature breakdown
   // Ownership verification — the applicant must prove they own or operate
   // the venue before it can be listed. proofDocUrl is an uploaded photo of a
   // trade licence / commercial registration / authorization letter; role +

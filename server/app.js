@@ -987,7 +987,7 @@ export function createApp(storage) {
           proofDocUrl,
           guestTags: (() => { try { return Array.isArray(b.guestTags) ? b.guestTags : JSON.parse(b.guestTags || "[]"); } catch { return String(b.guestTags || "").split(",").map((t) => t.trim()).filter(Boolean); } })(),
           priceRange: ["$", "$$", "$$$"].includes(b.priceRange) ? b.priceRange : null,
-          subscriptionTier: ["starter", "growth", "standard"].includes(b.subscriptionTier) ? b.subscriptionTier : null,
+          subscriptionTier: ["basic", "growth", "premium"].includes(b.subscriptionTier) ? b.subscriptionTier : null,
           // Step-6 schedule, validated the same way setVenueSlots validates a
           // live venue's slots — this is what approval turns into real
           // VenueAvailabilitySlot rows, so a malformed entry here would

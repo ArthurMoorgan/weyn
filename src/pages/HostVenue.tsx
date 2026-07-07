@@ -38,24 +38,54 @@ const OWNERSHIP_ROLES: { key: OwnershipRole; label: string; hint: string }[] = [
 
 type DaySlot = { enabled: boolean; start: string; end: string; capacity: string };
 
+export type SubscriptionTier = "basic" | "growth" | "premium";
+
 type Plan = {
-  key: "standard";
+  key: SubscriptionTier;
   name: string;
   price: string;
+  priceOmr: number;
   features: string[];
 };
 
+// Three tiers, each strictly a superset of the one below it — makes the
+// step's "compare" reading trivial (every feature carries up) and matches
+// how the approval flow reads subscriptionTier back off the Venue: no
+// separate feature-flag table yet, just this tier key gating what's shown.
 const PLANS: Plan[] = [
   {
-    key: "standard",
-    name: "Weyn Reservations",
-    price: "OMR 29/month",
+    key: "basic",
+    name: "Basic",
+    price: "OMR 5/month",
+    priceOmr: 5,
     features: [
+      "Venue listing on Weyn",
       "Reservation management",
-      "Venue listing",
-      "Availability management",
+      "Availability calendar",
+    ],
+  },
+  {
+    key: "growth",
+    name: "Growth",
+    price: "OMR 15/month",
+    priceOmr: 15,
+    features: [
+      "Everything in Basic",
       "Customer dashboard",
-      "Analytics",
+      "Booking analytics",
+      "Guest tags & highlights (e.g. \"Date night\", \"Family friendly\")",
+    ],
+  },
+  {
+    key: "premium",
+    name: "Premium",
+    price: "OMR 30/month",
+    priceOmr: 30,
+    features: [
+      "Everything in Growth",
+      "Priority placement in Discovery",
+      "Featured badge on your listing",
+      "Priority support",
     ],
   },
 ];
@@ -124,8 +154,10 @@ export default function HostVenue() {
     return init;
   });
 
-  // Step 7 — subscription
-  const [tier, setTier] = useState<"standard" | null>("standard");
+  // Step 7 — subscription. No default — with three real, different price
+  // points now (vs. the old single-plan "standard" that was safe to
+  // pre-select), the applicant should make an active choice.
+  const [tier, setTier] = useState<SubscriptionTier | null>(null);
 
   function addPhotos(files: FileList | File[]) {
     const list = Array.from(files);
@@ -767,7 +799,7 @@ function StepAvailability({
 // ============================================================
 // Step 7 — subscription selection
 // ============================================================
-function StepPlan({ tier, setTier }: { tier: "standard" | null; setTier: (t: "standard") => void }) {
+function StepPlan({ tier, setTier }: { tier: SubscriptionTier | null; setTier: (t: SubscriptionTier) => void }) {
   return (
     <>
       <div className="page-head compact" style={{ padding: "0 0 10px" }}>
@@ -820,7 +852,7 @@ function StepReview({
   businessRegNo: string;
   proof: { file: File; url: string } | null;
   availability: Record<number, DaySlot>;
-  tier: "standard" | null;
+  tier: SubscriptionTier | null;
 }) {
   const catLabel = BUSINESS_TYPES.find((b) => b.key === category)?.label || "—";
   const roleLabel = OWNERSHIP_ROLES.find((r) => r.key === role)?.label || "—";
