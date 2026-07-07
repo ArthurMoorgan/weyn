@@ -293,7 +293,11 @@ export function createApp(storage) {
       );
       db.track("search", { userId: req.user?.id, metadata: { query: q, resultCount: events.length } }).catch(() => {});
     }
-    res.set('Cache-Control', 'public, max-age=30');
+    // no-store: this list changes on every publish, and a newly-created
+    // event appearing to "not show up" for up to 30s on another device
+    // (the previous max-age=30) reads as a real bug to users. The query
+    // itself is cheap (~130ms), so correctness wins over the CDN discount.
+    res.set('Cache-Control', 'no-store');
     res.json(events);
   });
 
@@ -321,7 +325,7 @@ export function createApp(storage) {
       return res.status(404).json({ error: "Event not found" });
     }
     db.track("event_view", { userId: req.user?.id, entityId: e.id }).catch(() => {});
-    res.set('Cache-Control', e.inviteOnly ? 'private, no-store' : 'public, max-age=30');
+    res.set('Cache-Control', e.inviteOnly ? 'private, no-store' : 'no-store');
     // Invite-only events are reachable by direct link (title/date/venue all
     // still show — the recipient needs to see what they're being invited
     // to), but the actual secret code is never sent to anyone except the
@@ -984,7 +988,7 @@ export function createApp(storage) {
         prisma.venue.count({ where }),
       ]);
 
-      res.set('Cache-Control', 'public, max-age=30');
+      res.set('Cache-Control', 'no-store');
       res.json({ venues, page, limit, total, totalPages: Math.ceil(total / limit) });
     } catch (err) {
       captureError(err, { route: "GET /api/venues" });
@@ -1016,7 +1020,7 @@ export function createApp(storage) {
         include: { slots: true },
       });
       if (!venue) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
-      res.set('Cache-Control', 'public, max-age=30');
+      res.set('Cache-Control', 'no-store');
       res.json(venue);
     } catch (err) {
       captureError(err, { route: "GET /api/venues/:id", venueId: req.params.id });

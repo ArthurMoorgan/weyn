@@ -1,7 +1,12 @@
-import { useState } from "react";
+import { Suspense, lazy } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
-import { useUser, SignIn, SignUp } from "@clerk/react";
-import Logo from "./Logo";
+import { useUser } from "@clerk/react";
+
+// Lazy: SignIn/SignUp (see AuthWall.tsx) pull in a substantial chunk of
+// Clerk's UI internals. AuthGate wraps every route in the app, so an eager
+// import here meant every signed-in visitor's critical-path bundle paid for
+// UI they'd never render — this defers that cost to the rare signed-out visit.
+const AuthWall = lazy(() => import("./AuthWall"));
 
 // An account is now required to use Weyn at all. This is a layout route (see
 // main.tsx) wrapping every route EXCEPT /onboarding — a first-time visitor
@@ -20,7 +25,6 @@ import Logo from "./Logo";
 // (delete this component from the route tree) if you want it back.
 export default function AuthGate() {
   const { isLoaded, isSignedIn } = useUser();
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-up");
   const location = useLocation();
 
   // First-time visitors see the walkthrough before being asked to commit —
@@ -38,26 +42,9 @@ export default function AuthGate() {
 
   if (!isSignedIn) {
     return (
-      <div className="authwall">
-        <div className="authwall-inner">
-          <Logo size={36} />
-          <h1 className="authwall-title">Welcome to Weyn</h1>
-          <p className="authwall-sub">Create an account to discover, book, and host events in Muscat.</p>
-          <div className="authwall-form">
-            {/* key= forces a remount on mode switch — SignIn/SignUp keep
-                internal step state (e.g. mid-verification) that shouldn't
-                carry over when the user taps the toggle below. */}
-            {mode === "sign-up" ? (
-              <SignUp key="sign-up" forceRedirectUrl="/" />
-            ) : (
-              <SignIn key="sign-in" forceRedirectUrl="/" />
-            )}
-          </div>
-          <button className="authwall-switch" onClick={() => setMode(mode === "sign-up" ? "sign-in" : "sign-up")}>
-            {mode === "sign-up" ? "Already have an account? Sign in" : "New here? Create an account"}
-          </button>
-        </div>
-      </div>
+      <Suspense fallback={<div className="route-loading" aria-busy="true" />}>
+        <AuthWall />
+      </Suspense>
     );
   }
 
