@@ -100,6 +100,15 @@ export default function HostVenue() {
   const [area, setArea] = useState("Muscat");
   const [loc, setLoc] = useState<{ lat: number; lng: number }>({ lat: 23.61, lng: 58.54 });
   const [priceRange, setPriceRange] = useState<PriceRange>("$$");
+  // Business contact — defaults to the signed-in account so most applicants
+  // never have to type anything, but stays editable: the person applying
+  // (e.g. a manager) is often not who guests/reviewers should actually
+  // reach for this venue. Previously this was hardcoded to account.name/
+  // account.email with no way to correct it, and there was no phone field
+  // in the UI at all despite the backend/notification email expecting one.
+  const [contactName, setContactName] = useState(account?.name || "");
+  const [contactEmail, setContactEmail] = useState(account?.email || "");
+  const [contactPhone, setContactPhone] = useState("");
 
   // Step 5 — verify ownership (role + optional reg number + REQUIRED proof doc)
   const [role, setRole] = useState<OwnershipRole | null>(null);
@@ -158,13 +167,14 @@ export default function HostVenue() {
       case 0: return !!category;
       case 1: return true; // tags optional
       case 2: return photos.length > 0;
-      case 3: return name.trim().length > 0 && address.trim().length > 0 && area.trim().length > 0;
+      case 3: return name.trim().length > 0 && address.trim().length > 0 && area.trim().length > 0
+        && contactName.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
       case 4: return !!role && !!proof; // ownership: role + proof doc required
-      case 5: return true; // availability optional / client-side only
+      case 5: return true; // availability optional, but now actually saved — see submit()
       case 6: return !!tier;
       default: return true;
     }
-  }, [step, category, photos, name, address, area, role, proof, tier]);
+  }, [step, category, photos, name, address, area, role, proof, tier, contactName, contactEmail]);
 
   function goNext() {
     if (!canNext) return;
@@ -181,11 +191,21 @@ export default function HostVenue() {
     setBusy(true); setErr("");
     try {
       const [cover, ...rest] = photos;
+      // Only send days actually toggled on — an untouched day still carries
+      // its default start/end/capacity, which would otherwise imply the
+      // applicant chose 10:00–22:00 for days they never looked at.
+      const enabledAvailability = Object.entries(availability)
+        .filter(([, d]) => d.enabled)
+        .map(([dayOfWeek, d]) => ({
+          dayOfWeek: Number(dayOfWeek), startTime: d.start, endTime: d.end,
+          capacity: Math.max(1, parseInt(d.capacity, 10) || 1),
+        }));
       const created = await api.applyForVenue({
         businessType: category,
         name: name.trim(),
-        contactName: account.name,
-        contactEmail: account.email,
+        contactName: contactName.trim(),
+        contactEmail: contactEmail.trim(),
+        contactPhone: contactPhone.trim() || undefined,
         description: description.trim() || undefined,
         venue: address.trim() || undefined,
         area: area.trim(),
@@ -196,6 +216,7 @@ export default function HostVenue() {
         subscriptionTier: tier,
         role,
         businessRegNo: businessRegNo.trim() || undefined,
+        availability: enabledAvailability.length ? enabledAvailability : undefined,
         proofDoc: proof.file,
         coverImage: cover?.file,
         photos: rest.map((p) => p.file),
@@ -318,6 +339,9 @@ export default function HostVenue() {
               area={area} setArea={setArea}
               loc={loc} setLoc={setLoc}
               priceRange={priceRange} setPriceRange={setPriceRange}
+              contactName={contactName} setContactName={setContactName}
+              contactEmail={contactEmail} setContactEmail={setContactEmail}
+              contactPhone={contactPhone} setContactPhone={setContactPhone}
             />
           )}
           {step === 4 && (
@@ -522,6 +546,7 @@ function StepPhotos({
 function StepDetails({
   name, setName, description, setDescription, address, setAddress, area, setArea,
   loc, setLoc, priceRange, setPriceRange,
+  contactName, setContactName, contactEmail, setContactEmail, contactPhone, setContactPhone,
 }: {
   name: string; setName: (v: string) => void;
   description: string; setDescription: (v: string) => void;
@@ -529,6 +554,9 @@ function StepDetails({
   area: string; setArea: (v: string) => void;
   loc: { lat: number; lng: number }; setLoc: (v: { lat: number; lng: number }) => void;
   priceRange: PriceRange; setPriceRange: (v: PriceRange) => void;
+  contactName: string; setContactName: (v: string) => void;
+  contactEmail: string; setContactEmail: (v: string) => void;
+  contactPhone: string; setContactPhone: (v: string) => void;
 }) {
   return (
     <>
@@ -578,6 +606,23 @@ function StepDetails({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Prefilled from the signed-in account, but editable — the person
+          applying isn't always who guests/reviewers should reach for this
+          venue (e.g. a manager applying on the owner's behalf). */}
+      <div className="filter-sheet-label" style={{ marginTop: 8 }}>Venue contact</div>
+      <div className="field">
+        <label>Contact name</label>
+        <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Full name" />
+      </div>
+      <div className="field">
+        <label>Contact email</label>
+        <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="you@business.com" />
+      </div>
+      <div className="field">
+        <label>Contact phone <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label>
+        <input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="+968 9xxx xxxx" />
       </div>
     </>
   );

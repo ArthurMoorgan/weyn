@@ -47,6 +47,7 @@ model User {
   reportsReviewed Report[]          @relation("ReportReviewer")
   venues          Venue[]
   venueApplications VenueApplication[]
+  webPushSubscriptions WebPushSubscription[]
 
   @@index([email])
 }
@@ -414,7 +415,29 @@ model PushToken {
   secretHash   String?
   token        String
   platform     String   @default("ios")
+  // Set when the device registers while signed in — lets pushes target a
+  // person (e.g. venue-approval) instead of only a deviceId from a booking.
+  userId       String?
   registeredAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Web Push (VAPID) subscriptions — browser/PWA push. This is the channel
+// that actually reaches current users: PushToken above is native-APNs only
+// and there is no native app in users' hands yet. One row per
+// browser+device; endpoint is globally unique per the Push API spec.
+model WebPushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model MarketingAsset {
@@ -528,6 +551,10 @@ model VenueApplication {
   role             String? // "owner" | "manager" | "authorized"
   businessRegNo    String?
   proofDocUrl      String?
+  // Step-6 schedule as entered by the applicant: [{ dayOfWeek, startTime,
+  // endTime, capacity }]. Approval turns these into real
+  // VenueAvailabilitySlot rows so the owner never re-enters their hours.
+  availability     Json?
   status           String   @default("pending") // "pending" | "approved" | "rejected"
   // Admin review trail.
   reviewedBy       String?

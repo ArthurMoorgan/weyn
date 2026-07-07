@@ -301,7 +301,7 @@ export const db = {
   },
 
   // ---- push tokens (one active token per device) ----
-  async upsertPushToken(deviceId, token, platform, deviceSecret) {
+  async upsertPushToken(deviceId, token, platform, deviceSecret, userId = null) {
     const secretHash = deviceSecret ? crypto.createHash("sha256").update(deviceSecret).digest("hex") : null;
     const existing = await prisma.pushToken.findUnique({ where: { deviceId } });
     if (existing?.secretHash && existing.secretHash !== secretHash) {
@@ -309,13 +309,19 @@ export const db = {
     }
     await prisma.pushToken.upsert({
       where: { deviceId },
-      create: { deviceId, token, platform, secretHash },
-      update: { token, platform, secretHash: existing?.secretHash || secretHash, registeredAt: new Date() },
+      create: { deviceId, token, platform, secretHash, userId },
+      update: { token, platform, secretHash: existing?.secretHash || secretHash, userId: userId || existing?.userId, registeredAt: new Date() },
     });
   },
   async tokenForDevice(deviceId) {
     const t = await prisma.pushToken.findUnique({ where: { deviceId } });
     return t?.token;
+  },
+  // All of a user's native push tokens — a user may have registered from
+  // more than one device.
+  async tokensForUser(userId) {
+    const rows = await prisma.pushToken.findMany({ where: { userId } });
+    return rows.map((r) => r.token);
   },
 
   // ---- bookings (device -> event, for reminder targeting + attendee lists) ----

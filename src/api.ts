@@ -392,6 +392,33 @@ export const api = {
       body: JSON.stringify({ deviceId, deviceSecret, token, platform }),
     }).then((r) => json(r));
   },
+  async contactSupport(input: { subject: string; message: string }): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/support`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async deleteAccount(): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/me`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+  getVapidPublicKey(): Promise<{ publicKey: string | null }> {
+    return fetch(`${API_BASE}/api/push/vapid-public-key`).then((r) => json(r));
+  },
+  async webPushSubscribe(subscription: PushSubscriptionJSON): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/push/web-subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ subscription }),
+    }).then((r) => json(r));
+  },
+  async webPushUnsubscribe(endpoint: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/push/web-unsubscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ endpoint }),
+    }).then((r) => json(r));
+  },
   async getOrganizerProfile(id: string): Promise<OrganizerProfile> {
     return fetch(`${API_BASE}/api/organizers/${id}`, { headers: await authHeaders() })
       .then((r) => json<OrganizerProfile>(r))
@@ -572,15 +599,18 @@ export const api = {
   },
   // Reservation hosting is manual-review, not self-serve — this submits an
   // application (see prisma's VenueApplication model), not a live Venue.
-  // No auth headers: an applicant doesn't need a Weyn account yet.
+  // The backend accepts an anonymous applicantId, but HostVenue.tsx gates
+  // this behind sign-in so contactName/contactEmail can be attributed to a
+  // real account (needed for the approval email + future push). Auth header
+  // attached so the application is linked to the applicant's account.
   // multipart — carries the mandatory ownership-proof document + optional
-  // cover/gallery photos alongside the text fields. Auth header attached
-  // when signed in so the application is linked to the applicant's account.
+  // cover/gallery photos alongside the text fields.
   async applyForVenue(input: {
     businessType: VenueCategory; name: string; contactName: string; contactEmail: string;
     contactPhone?: string; description?: string; venue?: string; area?: string;
     lat?: number; lng?: number; guestTags?: string[]; priceRange?: PriceRange;
     subscriptionTier?: string; role: "owner" | "manager" | "authorized"; businessRegNo?: string;
+    availability?: { dayOfWeek: number; startTime: string; endTime: string; capacity: number }[];
     proofDoc: File; coverImage?: File; photos?: File[];
   }): Promise<{ id: string; status: string }> {
     const fd = new FormData();
@@ -593,6 +623,7 @@ export const api = {
     };
     for (const [k, v] of Object.entries(scalars)) if (v !== undefined && v !== null) fd.append(k, String(v));
     fd.append("guestTags", JSON.stringify(input.guestTags || []));
+    if (input.availability?.length) fd.append("availability", JSON.stringify(input.availability));
     fd.append("proofDoc", input.proofDoc);
     if (input.coverImage) fd.append("coverImage", input.coverImage);
     for (const p of (input.photos || [])) fd.append("photos", p);

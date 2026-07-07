@@ -36,6 +36,7 @@ const HostHub = lazy(() => import("./pages/HostHub"));
 const HostVenue = lazy(() => import("./pages/HostVenue"));
 const Reservations = lazy(() => import("./pages/Reservations"));
 const VenueDetail = lazy(() => import("./pages/VenueDetail"));
+const Support = lazy(() => import("./pages/Support"));
 
 // as close to page-load as this module can get, so the splash's minimum
 // on-screen duration is measured from real first-paint, not from whenever
@@ -130,6 +131,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/checkout/cancel" element={<CheckoutCancel />} />
             <Route path="/invite/:token" element={<InviteAccept />} />
             <Route path="/collections/:id" element={<CollectionPage />} />
+            <Route path="/support" element={<Support />} />
             <Route
               path="/onboarding"
               element={

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useClerk } from "@clerk/react";
 import { Html5Qrcode } from "html5-qrcode";
 import { api, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn, type TeamRole, type Venue, type Reservation, type VenueAvailabilitySlot } from "../api";
 import { useAsync, useClosing } from "../hooks";
@@ -8,6 +9,7 @@ import Stub from "../components/Stub";
 import ThemeToggle from "../components/ThemeToggle";
 import InstallPrompt from "../components/InstallPrompt";
 import AccountWidget from "../components/AccountWidget";
+import { webPushStatus, webPushSupported, subscribeWebPush, unsubscribeWebPush } from "../webpush";
 
 const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 
@@ -187,9 +189,53 @@ function SavedTab({ events }: { events: Weyn[] }) {
   );
 }
 
-/* ---------- Settings — account, theme, admin ---------- */
+/* ---------- Settings — account, theme, notifications, support, admin ---------- */
 function SettingsTab({ account }: { account: boolean }) {
   const acc = useAccount();
+  const { signOut } = useClerk();
+  const nav = useNavigate();
+  const [pushState, setPushState] = useState<"unsupported" | "denied" | "subscribed" | "available" | "loading">("loading");
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushErr, setPushErr] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteErr, setDeleteErr] = useState("");
+
+  useEffect(() => {
+    if (!webPushSupported()) { setPushState("unsupported"); return; }
+    webPushStatus().then(setPushState);
+  }, []);
+
+  async function togglePush() {
+    setPushErr(""); setPushBusy(true);
+    try {
+      if (pushState === "subscribed") {
+        await unsubscribeWebPush(api);
+        setPushState("available");
+      } else {
+        await subscribeWebPush(api);
+        setPushState("subscribed");
+      }
+    } catch (e: any) {
+      setPushErr(e.message || "Couldn't update notification settings.");
+      setPushState(await webPushStatus());
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function deleteAccount() {
+    if (!confirm("Delete your account? This cancels any events you're hosting and can't be undone.")) return;
+    setDeleting(true); setDeleteErr("");
+    try {
+      await api.deleteAccount();
+      await signOut();
+      nav("/", { replace: true });
+    } catch (e: any) {
+      setDeleteErr(e.message || "Couldn't delete your account. Please try again, or contact support.");
+      setDeleting(false);
+    }
+  }
+
   return (
     <section>
       <div className="date-head"><h2>Settings</h2></div>
@@ -198,6 +244,23 @@ function SettingsTab({ account }: { account: boolean }) {
           <span>Appearance</span>
           <ThemeToggle />
         </div>
+
+        {account && pushState !== "unsupported" && (
+          <div className="settings-row">
+            <span>Notifications</span>
+            {pushState === "denied" ? (
+              <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>Blocked in browser settings</span>
+            ) : pushState === "loading" ? (
+              <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>…</span>
+            ) : (
+              <button className={"switch" + (pushState === "subscribed" ? " on" : "")} disabled={pushBusy} onClick={togglePush} aria-pressed={pushState === "subscribed"} aria-label="Toggle push notifications">
+                <span className="switch-thumb" />
+              </button>
+            )}
+          </div>
+        )}
+        {pushErr && <p className="errline">{pushErr}</p>}
+
         {account && (
           <div className="account-row" style={{ marginTop: 12 }}>
             <AccountWidget />
@@ -207,6 +270,21 @@ function SettingsTab({ account }: { account: boolean }) {
           <Link to="/admin" className="copy-btn" style={{ marginTop: 12 }}>
             <i className="icon-shield-check" /> Admin dashboard
           </Link>
+        )}
+
+        <Link to="/support" className="copy-btn" style={{ marginTop: 12 }}>
+          <i className="icon-life-buoy" /> Help &amp; support
+        </Link>
+
+        {account && (
+          <div className="danger-zone">
+            <b>Delete account</b>
+            <p>Permanently deletes your account. Any events you're hosting are cancelled. This can't be undone.</p>
+            {deleteErr && <p className="errline">{deleteErr}</p>}
+            <button className="btn" style={{ borderColor: "var(--error)", color: "var(--error)" }} disabled={deleting} onClick={deleteAccount}>
+              {deleting ? "Deleting…" : "Delete my account"}
+            </button>
+          </div>
         )}
       </div>
     </section>

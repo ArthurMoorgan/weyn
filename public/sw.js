@@ -18,6 +18,35 @@ self.addEventListener("activate", (e) => {
   );
 });
 
+// Web Push (VAPID) — server/webpush.js sends JSON.stringify({title, body,
+// data, url}) as the push payload; this listener is what actually turns
+// that payload into a visible OS notification. Without it, a subscribed
+// browser silently receives the push event and shows nothing.
+self.addEventListener("push", (e) => {
+  let payload = {};
+  try { payload = e.data ? e.data.json() : {}; } catch { payload = { title: "Weyn", body: e.data?.text() || "" }; }
+  const { title = "Weyn", body = "", url = "/", data = {} } = payload;
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { ...data, url },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = e.notification.data?.url || "/";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const c of clients) if (c.url.includes(self.location.origin) && "focus" in c) return c.focus();
+      return self.clients.openWindow(url);
+    })
+  );
+});
+
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;

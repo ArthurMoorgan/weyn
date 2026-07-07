@@ -15,6 +15,7 @@ import rateLimit from "express-rate-limit";
 import { fileURLToPath } from "url";
 import { db, prisma } from "./db.js";
 import { sendPush, pushConfigured } from "./push.js";
+import { sendWebPush, webPushConfigured } from "./webpush.js";
 import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./instagram-import.js";
 import { generateMarketingCopy } from "./marketing.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
@@ -48,6 +49,30 @@ function publicOrigin(req) {
   return `${req.protocol}://${req.get("host")}`;
 }
 
+// Fan out a push to every device a user has registered — web (VAPID,
+// browsers/PWA) and native (APNs), best-effort per-device so one bad
+// subscription never blocks the others. Used wherever a server-side event
+// (e.g. venue approval) needs to reach a *person* rather than the one
+// deviceId a specific booking happened to be made from.
+async function notifyUser(userId, { title, body, data, url } = {}) {
+  if (!userId) return { sent: 0 };
+  let sent = 0;
+  const [webSubs, nativeTokens] = await Promise.all([
+    prisma.webPushSubscription.findMany({ where: { userId } }),
+    db.tokensForUser(userId),
+  ]);
+  await Promise.all(webSubs.map(async (sub) => {
+    const result = await sendWebPush(sub, { title, body, data, url });
+    if (result.sent) sent++;
+    // The browser revoked/expired this subscription — stop retrying it.
+    else if (result.expired) await prisma.webPushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+  }));
+  await Promise.all(nativeTokens.map(async (token) => {
+    const result = await sendPush(token, { title, body, data });
+    if (result.sent) sent++;
+  }));
+  return { sent };
+}
 
 // reminder scanner — every 5 min, notify devices whose booked event starts in
 // ~2h. On Workers this is called from server/worker.js's scheduled() export
@@ -200,6 +225,9 @@ export function createApp(storage) {
   // submit — without a tight cap one IP could flood the inbox / Resend
   // quota and stuff the table with junk. A real venue owner applies once.
   const applicationLimiter = rateLimit({ windowMs: 60 * 60e3, max: 5, standardHeaders: true, legacyHeaders: false });
+  // same reasoning as applicationLimiter — a public form that fires a real
+  // email on every submit needs its own tight cap, separate from reports.
+  const supportLimiter = rateLimit({ windowMs: 60 * 60e3, max: 10, standardHeaders: true, legacyHeaders: false });
 
   // hard cap on tickets per single booking request — stops one call from
   // draining a whole event's inventory or issuing a huge number of ticket
@@ -960,6 +988,22 @@ export function createApp(storage) {
           guestTags: (() => { try { return Array.isArray(b.guestTags) ? b.guestTags : JSON.parse(b.guestTags || "[]"); } catch { return String(b.guestTags || "").split(",").map((t) => t.trim()).filter(Boolean); } })(),
           priceRange: ["$", "$$", "$$$"].includes(b.priceRange) ? b.priceRange : null,
           subscriptionTier: ["starter", "growth", "standard"].includes(b.subscriptionTier) ? b.subscriptionTier : null,
+          // Step-6 schedule, validated the same way setVenueSlots validates a
+          // live venue's slots — this is what approval turns into real
+          // VenueAvailabilitySlot rows, so a malformed entry here would
+          // otherwise surface as a crash at approval time instead of now.
+          availability: (() => {
+            let raw;
+            try { raw = JSON.parse(b.availability || "[]"); } catch { return null; }
+            if (!Array.isArray(raw)) return null;
+            const clean = raw.filter((s) =>
+              s && Number.isInteger(s.dayOfWeek) && s.dayOfWeek >= 0 && s.dayOfWeek <= 6 &&
+              typeof s.startTime === "string" && /^\d{2}:\d{2}$/.test(s.startTime) &&
+              typeof s.endTime === "string" && /^\d{2}:\d{2}$/.test(s.endTime) &&
+              Number.isInteger(s.capacity) && s.capacity > 0
+            ).map((s) => ({ dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime, capacity: s.capacity }));
+            return clean.length ? clean : null;
+          })(),
         },
       });
 
@@ -1101,37 +1145,68 @@ export function createApp(storage) {
       if (app_.status === "approved" && app_.resultingVenueId) {
         return res.status(409).json({ error: { code: "ALREADY_APPROVED", message: "This application is already approved", venueId: app_.resultingVenueId } });
       }
-      const venue = await prisma.venue.create({
-        data: {
-          name: app_.name,
-          category: app_.businessType,
-          description: app_.description || "",
-          venue: app_.venue || app_.area || "Muscat",
-          area: app_.area || "Muscat",
-          lat: app_.lat ?? 23.6100,
-          lng: app_.lng ?? 58.5400,
-          distanceKm: +(Math.random() * 8 + 1).toFixed(1),
-          coverImage: app_.coverImage,
-          photos: app_.photos,
-          priceRange: app_.priceRange,
-          tags: app_.guestTags,
-          ownerId: app_.applicantId,
-          verified: true,
-          subscriptionTier: app_.subscriptionTier,
-          subscriptionStatus: "active",
-        },
+      // Atomic: previously venue.create and venueApplication.update were
+      // separate calls, so a failure between them left an orphaned live
+      // Venue while the application still showed "pending" — and retrying
+      // the approve would mint a SECOND Venue (the ALREADY_APPROVED guard
+      // above only trips once resultingVenueId is successfully written).
+      // A transaction makes the whole approval succeed or fail as one unit.
+      const { venue, updated } = await prisma.$transaction(async (tx) => {
+        const venue = await tx.venue.create({
+          data: {
+            name: app_.name,
+            category: app_.businessType,
+            description: app_.description || "",
+            venue: app_.venue || app_.area || "Muscat",
+            area: app_.area || "Muscat",
+            lat: app_.lat ?? 23.6100,
+            lng: app_.lng ?? 58.5400,
+            distanceKm: +(Math.random() * 8 + 1).toFixed(1),
+            coverImage: app_.coverImage,
+            photos: app_.photos,
+            priceRange: app_.priceRange,
+            tags: app_.guestTags,
+            ownerId: app_.applicantId,
+            verified: true,
+            subscriptionTier: app_.subscriptionTier,
+            subscriptionStatus: "active",
+          },
+        });
+        // Carry the Step-6 availability the applicant already entered
+        // straight into real bookable slots — previously this data was
+        // collected and silently discarded, so an approved owner opened
+        // their brand-new dashboard to find zero slots and had to redo
+        // work they'd already done once.
+        if (Array.isArray(app_.availability) && app_.availability.length) {
+          await tx.venueAvailabilitySlot.createMany({
+            data: app_.availability.map((s) => ({
+              venueId: venue.id, dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime, capacity: s.capacity,
+            })),
+          });
+        }
+        const updated = await tx.venueApplication.update({
+          where: { id: app_.id },
+          data: { status: "approved", reviewedBy: req.user.id, reviewedAt: new Date(), resultingVenueId: venue.id, reviewNote: req.body?.note ? String(req.body.note) : null },
+        });
+        return { venue, updated };
       });
-      const updated = await prisma.venueApplication.update({
-        where: { id: app_.id },
-        data: { status: "approved", reviewedBy: req.user.id, reviewedAt: new Date(), resultingVenueId: venue.id, reviewNote: req.body?.note ? String(req.body.note) : null },
-      });
-      // Let the applicant know they're live.
+      // Let the applicant know they're live — both email and push,
+      // best-effort and independent (one failing never blocks the other,
+      // and neither blocks the response since approval already succeeded).
       if (app_.contactEmail) {
         sendEmail({
           to: app_.contactEmail,
           subject: `${app_.name} is now live on Weyn`,
           html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">You're approved 🎉</h2><p style="color:#444;line-height:1.5"><b>${app_.name}</b> is now listed on Weyn for reservations. Sign in and open your venue dashboard to set your availability and manage bookings.</p><p style="margin:22px 0"><a href="${(process.env.PUBLIC_APP_URL || "https://weynevents.com").replace(/\/$/, "")}/you" style="background:#1C6DD0;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Open my dashboard</a></p></div>`,
         }).catch((err) => captureError(err, { route: "approve venue-application (email)", applicationId: app_.id }));
+      }
+      if (app_.applicantId) {
+        notifyUser(app_.applicantId, {
+          title: "You're approved 🎉",
+          body: `${app_.name} is now live on Weyn for reservations.`,
+          data: { type: "venue_approved", venueId: venue.id },
+          url: "/you",
+        }).catch((err) => captureError(err, { route: "approve venue-application (push)", applicationId: app_.id }));
       }
       trackEvent(req.user.id, "venue_application_approved", { applicationId: app_.id, venueId: venue.id });
       res.json({ application: updated, venue });
@@ -1390,8 +1465,64 @@ export function createApp(storage) {
   // attachUser's token verification above) — this just hands the frontend
   // the User row's app-side fields (role, id) that aren't part of the Clerk
   // session token, e.g. for gating the admin dashboard link.
+  // Support contact form (src/pages/Support.tsx) — no dedicated inbox/ticket
+  // system, just routes to the same notify address venue applications use,
+  // which is a real setting (VENUE_APPLICATION_NOTIFY_EMAIL) rather than a
+  // hardcoded one so it can point anywhere without a code change.
+  app.post("/api/support", supportLimiter, async (req, res) => {
+    const { subject, message } = req.body || {};
+    if (!subject || !String(subject).trim() || !message || !String(message).trim()) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "subject and message are required" } });
+    }
+    const notifyTo = process.env.SUPPORT_NOTIFY_EMAIL || process.env.VENUE_APPLICATION_NOTIFY_EMAIL || "dhairyarsaluja@gmail.com";
+    const fromLabel = req.user ? `${req.user.name} <${req.user.email}>` : "Signed-out visitor";
+    await sendEmail({
+      to: notifyTo,
+      subject: `[Support] ${String(subject).trim()}`,
+      html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 12px">New support message</h2>
+        <p style="color:#888;font-size:13px;margin:0 0 16px">From: ${fromLabel}</p>
+        <p style="white-space:pre-wrap;line-height:1.5;color:#222">${String(message).trim().replace(/</g, "&lt;")}</p>
+      </div>`,
+    }).catch((err) => captureError(err, { route: "POST /api/support" }));
+    trackEvent(req.user?.id || null, "support_message_sent", {});
+    res.status(201).json({ ok: true });
+  });
+
   app.get("/api/me", requireAuth, (req, res) => {
     res.json({ id: req.user.id, email: req.user.email, name: req.user.name, avatarUrl: req.user.avatarUrl, role: req.user.role });
+  });
+
+  // Account deletion — soft-delete (deletedAt), same pattern every read path
+  // in db.js already filters on (User/Event both already respect
+  // `deletedAt: null`, see db.js:459,244 etc), so this doesn't need new
+  // filtering logic elsewhere, only to actually set the column. Cancels any
+  // events the user owns so nothing live is left behind with a deleted
+  // owner, and clears push subscriptions so a deleted user's devices stop
+  // receiving notifications immediately. Does NOT touch venues they own —
+  // those are real businesses with their own guests/reservations and
+  // shouldn't vanish because the account that applied for them was deleted;
+  // ownership transfer is a manual admin action, not automatic.
+  // Clerk still owns the actual session — the frontend calls Clerk's
+  // signOut() right after this succeeds; revokeSessions() below only stops
+  // this app's own token-version check from trusting an old token in the
+  // meantime.
+  app.delete("/api/me", requireAuth, async (req, res) => {
+    const userId = req.user.id;
+    try {
+      await prisma.$transaction([
+        prisma.event.updateMany({ where: { ownerId: userId, cancelled: false }, data: { cancelled: true } }),
+        prisma.webPushSubscription.deleteMany({ where: { userId } }),
+        prisma.pushToken.updateMany({ where: { userId }, data: { userId: null } }),
+        prisma.user.update({ where: { id: userId }, data: { deletedAt: new Date(), email: `deleted+${userId}@weynevents.com`, name: "Deleted user" } }),
+      ]);
+      await db.revokeSessions(userId);
+      await db.audit("user.delete_account", { actorId: userId, entityType: "user", entityId: userId });
+      res.json({ ok: true });
+    } catch (err) {
+      captureError(err, { route: "DELETE /api/me", userId });
+      res.status(500).json({ error: "Couldn't delete your account. Please try again." });
+    }
   });
 
   app.get("/api/push/status", (_req, res) => res.json({ configured: pushConfigured() }));
@@ -1403,11 +1534,37 @@ export function createApp(storage) {
       return res.status(400).json({ error: "Invalid push registration payload" });
     }
     try {
-      await db.upsertPushToken(deviceId, token, ["ios", "android"].includes(platform) ? platform : "ios", deviceSecret);
+      await db.upsertPushToken(deviceId, token, ["ios", "android"].includes(platform) ? platform : "ios", deviceSecret, req.user?.id || null);
       res.json({ ok: true });
     } catch {
       res.status(403).json({ error: "Invalid device secret" });
     }
+  });
+
+  // Web Push (VAPID) — browser/PWA notifications. Keyed by userId (unlike
+  // PushToken's deviceId), so this is what lets a server-side event like
+  // "your venue application was approved" reach a specific person's devices
+  // without needing a deviceId collected earlier in an unrelated flow.
+  app.get("/api/push/vapid-public-key", (_req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null });
+  });
+  app.post("/api/push/web-subscribe", requireAuth, async (req, res) => {
+    const { endpoint, keys } = req.body?.subscription || req.body || {};
+    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      return res.status(400).json({ error: "A valid PushSubscription (endpoint + keys.p256dh + keys.auth) is required" });
+    }
+    await prisma.webPushSubscription.upsert({
+      where: { endpoint },
+      create: { userId: req.user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth },
+      update: { userId: req.user.id, p256dh: keys.p256dh, auth: keys.auth },
+    });
+    res.json({ ok: true });
+  });
+  app.post("/api/push/web-unsubscribe", requireAuth, async (req, res) => {
+    const { endpoint } = req.body || {};
+    if (!endpoint) return res.status(400).json({ error: "endpoint is required" });
+    await prisma.webPushSubscription.deleteMany({ where: { endpoint, userId: req.user.id } });
+    res.json({ ok: true });
   });
 
   // ADMIN-only: this fires a real push to any registered device, so leaving

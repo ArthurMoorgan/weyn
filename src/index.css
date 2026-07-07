@@ -399,6 +399,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: none;
   position: relative; border-radius: 16px; overflow: hidden;
   background-size: cover; background-position: center;
+  /* Without a background-color fallback, the rounded-corner clip leaves a
+     hairline seam at the edge (border-radius + overflow:hidden + a cover
+     background-image don't perfectly agree on sub-pixel boundaries) that
+     shows through as white instead of blending into the card — same fix
+     already applied to .ec-rail-cover/.ec-feature-cover below. */
+  background-color: var(--card-bg);
 }
 .ex-magazine-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,8,12,0.90) 0%, rgba(6,8,12,0.35) 45%, transparent 75%); }
 .ex-magazine-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 32px 36px; }
@@ -994,6 +1000,26 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .note { padding: 13px 15px; border-radius: var(--radius-sm); background: var(--accent-soft); border: 1px solid var(--accent-soft); font-size: 13.5px; color: var(--accent-2); margin-bottom: 18px; line-height: 1.5; }
 .errline { color: var(--danger); font-size: 13px; margin: -6px 0 14px; }
+
+/* ---------- support / FAQ ---------- */
+.faq-list { display: flex; flex-direction: column; gap: 8px; }
+.faq-item { border: 1px solid var(--card-border); border-radius: var(--radius-sm); background: var(--card-bg); padding: 2px 14px; }
+.faq-item summary { padding: 12px 0; font-size: 14.5px; font-weight: 600; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::after { content: "+"; font-size: 18px; font-weight: 400; color: var(--text-3); flex: 0 0 auto; }
+.faq-item[open] summary::after { content: "–"; }
+.faq-item p { padding: 0 0 14px; margin: 0; font-size: 13.5px; color: var(--text-2); line-height: 1.55; }
+
+.danger-zone { border: 1px solid var(--error); border-radius: var(--radius-sm); padding: 14px; margin-top: 20px; }
+.danger-zone b { color: var(--error); display: block; margin-bottom: 4px; }
+.danger-zone p { font-size: 13px; color: var(--text-2); margin: 0 0 12px; line-height: 1.5; }
+
+/* ---------- simple on/off switch (Settings → Notifications) ---------- */
+.switch { position: relative; width: 44px; height: 26px; border-radius: 999px; background: var(--surface-hover); border: 1px solid var(--border); flex: 0 0 auto; transition: background-color .15s ease; }
+.switch .switch-thumb { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s ease; }
+.switch.on { background: var(--accent); border-color: var(--accent); }
+.switch.on .switch-thumb { transform: translateX(18px); }
+.switch:disabled { opacity: .6; }
 
 /* ---------- Instagram import (Feature 1) ---------- */
 .ig-import-toggle {
