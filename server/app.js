@@ -25,7 +25,7 @@ import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOw
 import { createEventSchema, updateEventSchema, validateBody } from "./validators.js";
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
-import { sendEmail, emailConfigured, teamInviteEmail } from "./email.js";
+import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
 
 // Normalise a user-typed ticket URL so it always redirects OUT of the app.
@@ -516,6 +516,21 @@ export function createApp(storage) {
       const token = await db.tokenForDevice(deviceId);
       if (token) sendPush(token, { title: "You're going! 🎟", body: `${e.title}${bookedTier ? ` (${bookedTier})` : ""} — we'll remind you before it starts.` }).catch(() => {});
     }
+    // Email confirmation — best-effort, independent of push. A booking
+    // previously only ever produced a push notification, so anyone who
+    // booked without push permission granted (or on a browser with no push
+    // support at all) got zero confirmation of any kind that it worked.
+    // Free RSVP's email is optional (only collected if the user typed one),
+    // so this simply does nothing when it's absent — same as before.
+    if (account?.email) {
+      const dateStr = new Date(e.startsAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+      const { subject, html } = bookingConfirmationEmail({
+        eventTitle: e.title, dateLabel: dateStr, venue: `${e.venue}, ${e.area}`,
+        ticketUrl: `${publicOrigin(req)}/e/${e.id}?booking=${booking.id}&accessToken=${encodeURIComponent(booking.accessToken)}`,
+        free: true,
+      });
+      sendEmail({ to: account.email, subject, html }).catch((err) => captureError(err, { route: "POST /api/events/:id/book (email)", bookingId: booking.id }));
+    }
     trackEvent(req.user?.id || deviceId, "booking_completed", { eventId: e.id, qty, tierId, free: true });
     res.json({ ...(await db.get(e.id)), bookingId: booking.id, accessToken: booking.accessToken });
   });
@@ -612,12 +627,24 @@ export function createApp(storage) {
     await db.issueTickets(booking.id, booking.eventId, booking.qty);
     trackEvent(booking.deviceId || "unknown", "checkout_completed", { eventId: booking.eventId, qty: booking.qty });
 
+    const e = await db.get(booking.eventId);
     if (booking.deviceId) {
       const token = await db.tokenForDevice(booking.deviceId);
       if (token) {
-        const e = await db.get(booking.eventId);
         sendPush(token, { title: "You're going! 🎟", body: `${e?.title || "Your ticket"} is confirmed — we'll remind you before it starts.` }).catch(() => {});
       }
+    }
+    // Paid checkout always collects an email (unlike free RSVP, where it's
+    // optional) — see the checkout form — so this fires for every paid
+    // booking, not just ones where push happened to be available.
+    if (booking.email && e) {
+      const dateStr = new Date(e.startsAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+      const { subject, html } = bookingConfirmationEmail({
+        eventTitle: e.title, dateLabel: dateStr, venue: `${e.venue}, ${e.area}`,
+        ticketUrl: `${(process.env.PUBLIC_APP_URL || "https://weynevents.com").replace(/\/$/, "")}/e/${e.id}?booking=${booking.id}&accessToken=${encodeURIComponent(booking.accessToken)}`,
+        free: false,
+      });
+      sendEmail({ to: booking.email, subject, html }).catch((err) => captureError(err, { route: "confirmPaymentFromPayTabs (email)", bookingId: booking.id }));
     }
   }
 
@@ -1220,10 +1247,21 @@ export function createApp(storage) {
     try {
       const app_ = await prisma.venueApplication.findUnique({ where: { id: req.params.id } });
       if (!app_) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Application not found" } });
+      const note = req.body?.note ? String(req.body.note) : null;
       const updated = await prisma.venueApplication.update({
         where: { id: app_.id },
-        data: { status: "rejected", reviewedBy: req.user.id, reviewedAt: new Date(), reviewNote: req.body?.note ? String(req.body.note) : null },
+        data: { status: "rejected", reviewedBy: req.user.id, reviewedAt: new Date(), reviewNote: note },
       });
+      // Previously silent — approval emailed the applicant but rejection
+      // didn't, so a rejected applicant just never heard back at all with
+      // no way to tell "still pending" from "rejected".
+      if (app_.contactEmail) {
+        sendEmail({
+          to: app_.contactEmail,
+          subject: `Update on your Weyn application: ${app_.name}`,
+          html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">About your application</h2><p style="color:#444;line-height:1.5">We've reviewed <b>${app_.name}</b> and aren't able to list it on Weyn at this time.${note ? ` <br/><br/>${note.replace(/</g, "&lt;")}` : ""}</p><p style="color:#444;line-height:1.5">If you think this was a mistake or have questions, reply to this email and we'll take another look.</p></div>`,
+        }).catch((err) => captureError(err, { route: "reject venue-application (email)", applicationId: app_.id }));
+      }
       trackEvent(req.user.id, "venue_application_rejected", { applicationId: app_.id });
       res.json(updated);
     } catch (err) {

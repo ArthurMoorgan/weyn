@@ -24,6 +24,38 @@ export async function sendEmail({ to, subject, html }) {
   return res.json();
 }
 
+// Booking confirmation — sent on both the free-RSVP path and the paid
+// webhook path (see server/app.js). Previously a booking only ever
+// triggered a push notification, which needs a registered device/token; a
+// user who booked without ever granting push permission (or on a browser
+// with no push support) got NO confirmation of any kind. Email is
+// best-effort like every other email here — only sent when Booking.email
+// is present (collected optionally on free RSVP, and from the checkout
+// form on paid bookings).
+export function bookingConfirmationEmail({ eventTitle, dateLabel, venue, ticketUrl, free }) {
+  return {
+    subject: `You're going: ${eventTitle}`,
+    html: `
+      <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 12px">You're going! 🎟</h2>
+        <p style="color:#444;line-height:1.5">
+          Your ${free ? "spot" : "ticket"} for <strong>${eventTitle}</strong> is confirmed.
+        </p>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;color:#222;margin:16px 0">
+          <tr><td style="padding:6px 0;color:#888">When</td><td style="padding:6px 0">${dateLabel}</td></tr>
+          <tr><td style="padding:6px 0;color:#888">Where</td><td style="padding:6px 0">${venue}</td></tr>
+        </table>
+        <p style="margin:22px 0">
+          <a href="${ticketUrl}" style="background:#1C6DD0;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">
+            View your ticket
+          </a>
+        </p>
+        <p style="color:#888;font-size:12px">We'll remind you again before it starts.</p>
+      </div>
+    `,
+  };
+}
+
 export function teamInviteEmail({ eventTitle, role, inviteLink }) {
   const roleLabel = role === "MANAGER" ? "manager" : "staff";
   return {
