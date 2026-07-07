@@ -415,7 +415,7 @@ on the internet.
   above, a dedicated public Blob store (`weyn-dev-uploads`), its own
   `SESSION_SECRET`. Shares the same Resend/Groq/Google/VAPID/Sentry keys
   as prod (those are third-party accounts, safe to reuse) but **not**
-  PayTabs — prod itself doesn't have live PayTabs keys wired (see §13),
+  PayTabs — prod itself doesn't have live PayTabs keys wired (see §16),
   so there was nothing to carry over and no real-payment risk either way.
 - **Access control**: `server/app.js` gates the *entire* app behind HTTP
   Basic Auth whenever `DEV_BASIC_AUTH_USER`/`DEV_BASIC_AUTH_PASS` are set
@@ -590,7 +590,95 @@ in `LandingWaitlistSignup`. Query them directly via Prisma
 (`prisma.landingWaitlistSignup.findMany()`) until there's a real launch
 flow to notify them through.
 
-## 11. Full QA sweep (security, functional, visual, performance)
+**3. `AuthGate.tsx` now shows this same page on `weynevents.com` itself,
+to anyone who isn't an admin — not just on the separate waitlist
+subdomain.** Originally, a non-admin who signed up on the real domain
+still saw the normal sign-up form, then landed on a completely broken
+all-401s app shell once every API call hit the server-side gate above.
+`AuthGate` now makes one `GET /api/me` check after sign-in and uses its
+status as the single source of truth: signed-out or non-admin both
+render `WaitlistLanding` (imported directly, not via the hostname
+branch — same component, two different entry points), with a discreet
+"Team sign in" link/back-button pair so an admin who hasn't
+authenticated yet can still reach the real sign-in form. See §12 for
+what that page actually looks like now.
+
+## 11. Critical: Clerk had "require an organization" turned on — likely blocking real signups silently
+
+Found by accident while testing §10's gate, not something anyone was
+looking for: Clerk's `organization_settings.force_organization_selection`
+was `true` on **both** the dev and the live production instance. Weyn
+has no Organizations feature anywhere in this codebase — it's a
+single-tenant consumer app — so this was dead config, almost certainly
+left over from Clerk's default project scaffolding and never noticed.
+
+**What it actually did**: after a successful sign-in, Clerk considers
+the session "pending" (not fully active) until the user completes an
+org-selection/creation step. Since neither `<SignIn/>`/`<SignUp/>` nor
+anything else in this app renders Clerk's organization UI, a user in
+that state got redirected to Clerk's internal `#/tasks/choose-organization`
+route — which our router doesn't recognize, doesn't render anything for,
+and which the user has no way to get past. Their session was real and
+"signed in" by some checks (`isSignedIn` in `@clerk/react`) but every
+authenticated API call 401'd (`toAuth().userId` is `null` for a pending
+session), which is indistinguishable from the account simply not being
+allowlisted — this is exactly what made it hard to notice: it looks like
+"the private-beta gate is working," not "sign-in is broken."
+
+**Impact**: potentially every brand-new sign-up on production, ever,
+depending on account/session state — not something introduced this
+session, this predates all of today's work. Given the private-beta gate
+(§10) already blocks all real traffic right now, the practical blast
+radius today is limited to the 4 admin accounts, but this would have
+been a real, silent blocker to public launch if it had shipped as-is.
+
+**Fix**: `organization_settings.enabled: false` on both Clerk instances
+(via `clerk config patch`), which also flips `force_organization_selection`
+to `false`. Verified via a real signed-in session before (stuck on the
+waitlist page with a 401 from `/api/me`, URL parked at
+`#/tasks/choose-organization`) and after (lands on the real app
+immediately, `/api/me` returns 200) the fix.
+
+## 12. Landing page rebuild
+
+`WaitlistLanding.tsx` (§10) went from a bare headline + email form to an
+actual landing page, built from three React Bits components — adapted,
+not pasted in as-is:
+
+- **Ferrofluid** (`src/components/landing/Ferrofluid.tsx`) — a WebGL
+  magnetic-fluid shader background (`ogl`), retuned to Weyn's own
+  indigo/blue brand colors instead of the demo palette, masked with a
+  radial gradient so it reads as an ambient glow behind the hero rather
+  than a hard-edged rectangle, and **lazy-loaded** (`React.lazy`) — ogl +
+  shader compilation is the single heaviest piece of this page, and the
+  headline/form need to work even on a browser with no WebGL. Cleanup on
+  unmount calls `program.remove()`/`geometry.remove()` (the actual ogl
+  API — `Renderer` itself has no equivalent method, verified against ogl's
+  shipped `.d.ts` files) plus `WEBGL_lose_context`, since this is a
+  marketing page real users may navigate away from repeatedly.
+- **SplitText** (`gsap` + `gsap/SplitText`, free as of GSAP 3.13 — no
+  paywall to work around) — word-by-word reveal animation for the
+  headline.
+- **RotatingText** (`motion/react`) — cycles "discover events / host
+  events / reserve a table" in the subheading instead of three static
+  headlines.
+
+All three, plus `@base-ui/react` (used for the email form's `Field`
+primitives — proper label/input association instead of bare `<input>`s)
+live entirely inside `WaitlistLanding`'s own lazy chunk. Verified via
+`npm run build` output: the main app bundle is untouched (~315KB,
+same as after §3's fix); the new deps only ship to whoever actually
+lands on the waitlist page.
+
+Also added a real "first look" section with three actual product
+screenshots (Discover feed, an event detail page, desktop with the
+magazine hero) — captured live against a disposable Clerk test account
+and disposable demo events (real Unsplash photos, verified by eye before
+use, cleaned up after), optimized PNG→WebP (`cwebp -q 82`, ~15-20% of
+original size, e.g. 490KB→56KB) — plus a three-pillar
+Discover/Host/Reserve feature strip reusing the app's existing icon font.
+
+## 13. Full QA sweep (security, functional, visual, performance)
 
 Requested explicitly given how much shipped this session. A dedicated
 subagent did a manual security read of every route in `server/app.js`
@@ -710,6 +798,8 @@ from this session's location to Vercel's edge, not app code; worth
 checking Vercel's function region is actually close to Oman if real
 users start reporting slowness once the app is public.
 
+## 14. Backup practice established this session
+
 No `pg_dump`/`psql`/`neonctl` available in this environment, and no Neon
 API key configured — so there's no managed-snapshot path. Instead: a
 Node script connects via `pg` using the root `.env`'s `DATABASE_URL`,
@@ -720,7 +810,7 @@ contain real user emails/PII; never commit one. Take a fresh one before
 any risky migration or direct-DB test session (this is now a standing
 habit, same as the CSS brace-balance check used to be).
 
-## 13. Testing approach for anything backend
+## 15. Testing approach for anything backend
 
 There's no test-user login flow to script (no way to obtain a real Clerk
 session token programmatically without a real password + a headless
@@ -752,14 +842,13 @@ signed-in session for E2E testing without adding that dependency, the
 established fallback in this codebase is §10's pattern above: create rows
 directly via Prisma rather than going through the UI at all.
 
-## 14. Known gaps, still real
+## 16. Known gaps, still real
 
 - **`waitlist.weynevents.com` DNS record not added yet** (§10) — the code
   is deployed, the domain is added to the Vercel project, but the actual
   `A waitlist.weynevents.com 76.76.21.21` record needs to be added by hand
   on Cloudflare. Nothing serves at that hostname until then.
-- **Production Clerk is on test-mode keys** (§3) — the biggest one.
-- **Organizer dashboard** — see §14 for the planned rebuild. Today's
+- **Organizer dashboard** — see §17 for the planned rebuild. Today's
   Organizer tab is a flat per-event list with no cross-event view; the
   Pro backend (§4) has no UI hooks into it yet either.
 - **Ticket/QR retrieval** was completely broken before this session (a
@@ -785,7 +874,7 @@ directly via Prisma rather than going through the UI at all.
   only removing the rounded corner entirely fixes it, which is a real
   design change nobody's approved. Left as a known cosmetic issue.
 
-## 15. Organizer dashboard — planned rebuild (not started)
+## 17. Organizer dashboard — planned rebuild (not started)
 
 Today's entire "organizer dashboard" is `OrganizerSection` inside
 `You.tsx`'s Organizer tab: one stat grid (lifetime totals, no trend), a
@@ -883,12 +972,12 @@ you're picking this up, start with phase 1: it's the highest ratio of
 organizer-visible value to actual new code, since the hard part (the
 backend) already happened in §4.
 
-## 16. If you're a fresh Claude picking this up
+## 18. If you're a fresh Claude picking this up
 
 1. Read this file fully.
 2. Check `TaskList`/whatever task tracker the session before you left —
-   there's usually a live punch list more current than this doc's §14.
-3. Take a fresh backup (§12) before any schema/data work.
+   there's usually a live punch list more current than this doc's §16.
+3. Take a fresh backup (§14) before any schema/data work.
 4. For anything requiring visual verification, Playwright works directly
    against both localhost and the live production URL — the built-in
    preview tool and Chrome extension have not worked in this environment
