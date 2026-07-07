@@ -102,7 +102,29 @@ export interface Account {
 type TokenGetter = () => Promise<string | null>;
 let tokenGetter: TokenGetter | null = null;
 export function setTokenGetter(fn: TokenGetter | null) { tokenGetter = fn; }
-export function getAuthToken(): Promise<string | null> { return tokenGetter ? tokenGetter() : Promise.resolve(null); }
+
+// Real bug this fixed: a page that mounts and fires an authenticated fetch
+// in the same commit ClerkAuthBridge registers the token getter in (very
+// common right after sign-in, or when a tab is already active when auth
+// resolves) could call getAuthToken() a tick before tokenGetter was set,
+// getting back null -> an unauthenticated 401 -> a permanent "Couldn't
+// reach the server" error screen, since useAsync only refetches when its
+// dependency reference changes again, which isn't guaranteed once the
+// account object settles. Polling briefly (instant in the overwhelmingly
+// common case — this only ever waits when called in that exact narrow
+// window) closes the race at the source instead of patching every call site.
+export function getAuthToken(): Promise<string | null> {
+  if (tokenGetter) return tokenGetter();
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const poll = () => {
+      if (tokenGetter) return resolve(tokenGetter());
+      if (Date.now() - start > 3000) return resolve(null);
+      setTimeout(poll, 50);
+    };
+    poll();
+  });
+}
 
 export function useAccount(): Account | null {
   const { user, isLoaded } = useUser();
