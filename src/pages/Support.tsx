@@ -14,7 +14,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: "Where's my ticket / QR code?", a: "Open the event from My Tickets on your Profile tab — your ticket and its QR code are shown there once your booking is confirmed." },
   { q: "Can I get a refund?", a: "Refund policy is set per event by the organizer and shown on the event page before you book. For a specific booking, contact us below with your booking reference and we'll help." },
   { q: "I applied to host a venue — how long does review take?", a: "Every venue application is checked by hand before it goes live, usually within a few business days. You'll get an email (and a notification, if enabled) the moment it's approved." },
-  { q: "How do I delete my account?", a: "Go to Profile → Settings → Delete account. This is permanent — it cancels any events you're hosting and can't be undone." },
+  { q: "How do I delete my account?", a: "Go to Profile → Settings → Manage account → Delete account. This is permanent — it cancels any events you're hosting and can't be undone." },
   { q: "An event I'm going to got cancelled — now what?", a: "You'll see a \"Cancelled\" badge on that event and, if you paid, a refund is processed automatically. Reach out below if you don't see it within a few days." },
 ];
 

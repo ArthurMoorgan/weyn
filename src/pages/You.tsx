@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useClerk } from "@clerk/react";
+import { Link } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import { api, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn, type TeamRole, type Venue, type Reservation, type VenueAvailabilitySlot } from "../api";
 import { useAsync, useClosing } from "../hooks";
@@ -193,13 +192,9 @@ function SavedTab({ events }: { events: Weyn[] }) {
 /* ---------- Settings — account, theme, notifications, support, admin ---------- */
 function SettingsTab({ account }: { account: boolean }) {
   const acc = useAccount();
-  const { signOut } = useClerk();
-  const nav = useNavigate();
   const [pushState, setPushState] = useState<"unsupported" | "denied" | "subscribed" | "available" | "loading">("loading");
   const [pushBusy, setPushBusy] = useState(false);
   const [pushErr, setPushErr] = useState("");
-  const [deleting, setDeleting] = useState(false);
-  const [deleteErr, setDeleteErr] = useState("");
 
   useEffect(() => {
     if (!webPushSupported()) { setPushState("unsupported"); return; }
@@ -221,19 +216,6 @@ function SettingsTab({ account }: { account: boolean }) {
       setPushState(await webPushStatus());
     } finally {
       setPushBusy(false);
-    }
-  }
-
-  async function deleteAccount() {
-    if (!confirm("Delete your account? This cancels any events you're hosting and can't be undone.")) return;
-    setDeleting(true); setDeleteErr("");
-    try {
-      await api.deleteAccount();
-      await signOut();
-      nav("/", { replace: true });
-    } catch (e: any) {
-      setDeleteErr(e.message || "Couldn't delete your account. Please try again, or contact support.");
-      setDeleting(false);
     }
   }
 
@@ -274,6 +256,12 @@ function SettingsTab({ account }: { account: boolean }) {
             <AccountWidget />
           </div>
         )}
+
+        {account && (
+          <Link to="/account" className="copy-btn" style={{ marginTop: 12 }}>
+            <i className="icon-user-cog" /> Manage account
+          </Link>
+        )}
         {acc?.role === "ADMIN" && (
           <Link to="/admin" className="copy-btn" style={{ marginTop: 12 }}>
             <i className="icon-shield-check" /> Admin dashboard
@@ -283,17 +271,6 @@ function SettingsTab({ account }: { account: boolean }) {
         <Link to="/support" className="copy-btn" style={{ marginTop: 12 }}>
           <i className="icon-life-buoy" /> Help &amp; support
         </Link>
-
-        {account && (
-          <div className="danger-zone">
-            <b>Delete account</b>
-            <p>Permanently deletes your account. Any events you're hosting are cancelled. This can't be undone.</p>
-            {deleteErr && <p className="errline">{deleteErr}</p>}
-            <button className="btn" style={{ borderColor: "var(--error)", color: "var(--error)" }} disabled={deleting} onClick={deleteAccount}>
-              {deleting ? "Deleting…" : "Delete my account"}
-            </button>
-          </div>
-        )}
       </div>
     </section>
   );
