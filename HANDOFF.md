@@ -27,12 +27,13 @@ human-reviewed application flow, distinct from event ticketing.
 browsing anymore, including shared event links.
 
 **As of this pass, the live app is private** — gated to 4 admin emails via
-Clerk's allowlist, enforced on both sign-up and sign-in (see §10). Nobody
-else can get in, including anyone who signed up before this change. The
-public-facing site is now `waitlist.weynevents.com` (§10), a landing page
-with an email waitlist — not the real app. This is a deliberate pre-launch
-state, not a bug: if you're reading this because "the app doesn't let
-anyone in," that's expected until launch.
+a custom middleware (not Clerk's native allowlist — see §10 for why that
+didn't work). Nobody else can get in, including anyone who signed up
+before this change. The public-facing site is now
+`waitlist.weynevents.com` (§10), a landing page with an email waitlist —
+not the real app. This is a deliberate pre-launch state, not a bug: if
+you're reading this because "the app doesn't let anyone in," that's
+expected until launch.
 
 ## 2. Architecture at a glance
 
@@ -87,11 +88,16 @@ only renders fields with `required_for_sign_up: true` — merely enabling
 `used_for_sign_up` isn't enough to make a field appear, which cost real
 time to track down.
 
-**Production is still running Clerk's `pk_test_`/`sk_test_` (development
-instance) keys.** A `pk_live_` production instance already exists for this
-app (`app_3G49KglnXhwSxpbrXMTiIJ1beBB`, discovered via `clerk apps list`)
-but nothing points at it yet. Swapping in the live keys is the actual
-remaining step before this goes fully production-grade.
+**Correction to earlier versions of this doc**: production does **not**
+run Clerk's `pk_test_`/`sk_test_` keys — that was wrong, discovered while
+debugging §10. The local `.env` file has the test key, which is stale/
+out of sync with what's actually deployed; the real signal is what's
+baked into the deployed JS bundle. Confirmed directly: `curl` the
+deployed bundle and grep for `pk_live_`/`pk_test_` — production embeds
+`pk_live_Y2xlcmsud2V5bmV2ZW50cy5jb20k` (decodes to `clerk.weynevents.com`),
+the real production Clerk instance (`ins_3G4j3dNWSVbXIowYuXcdTYtwEAK`),
+not the dev one. If you need to know which instance is actually live
+again in the future, don't trust `.env` — check the deployed bundle.
 
 **Bug fixed this pass — mandatory sign-up made the whole app slower for
 everyone.** `AuthGate.tsx` originally imported Clerk's `SignIn`/`SignUp`
@@ -520,26 +526,44 @@ usability problem the user flagged directly ("really impractical").
 Per explicit direction: take the real app private ahead of a proper
 launch, put a waitlist landing page in its place. Two independent pieces:
 
-**1. Access gate — Clerk's built-in allowlist, not custom code.**
-`auth_access_control.allowlist_enabled` + `allowlist_blocklist_enforced_on_sign_in`
-are both now `true` on the Clerk instance weynevents.com actually uses
-(confirmed via `.env`: production is still on `pk_test_`/`sk_test_` keys,
-i.e. the "dev" instance — see §3 — so patching that instance is what
-takes effect on the live site, not a separate untouched "prod" instance).
-Four emails are on the allowlist: `dhairyarsaluja@gmail.com`,
-`rohitssaluja@gmail.com`, `krishivsaluja@gmail.com`,
-`bhattacharyamonami@gmail.com`. Nobody else can sign up **or sign in** —
-this includes anyone who already had an account before this change; their
-existing session may still work until it expires, but they can't get back
-in once it does. This also means `dev.weynevents.com` (§6), which reuses
-the same Clerk instance, is now double-gated (its existing HTTP Basic Auth
-plus this). To add or remove an admin: `clerk api /allowlist_identifiers`
-(POST to add, DELETE `/allowlist_identifiers/{id}` to remove) against the
-`dev` instance — see `clerk api ls allowlist` for the exact endpoints.
+**1. Access gate — a custom middleware, NOT Clerk's built-in allowlist.**
+The first attempt at this used Clerk's native `auth_access_control`
+allowlist feature, patched onto the "dev" Clerk instance. That had zero
+effect on the live site: production actually runs on the **separate live
+instance** (`clerk.weynevents.com`, `ins_3G4j3dNWSVbXIowYuXcdTYtwEAK` —
+see the correction in §3), and that instance's Clerk plan doesn't support
+the allowlist feature at all — enabling it 403s with
+`unsupported_subscription_plan_features`. **The app was fully open to
+public sign-up for some amount of this session before this was caught
+and fixed** — if anyone signed up during that window, their account
+still exists (Clerk user, not deleted) but can no longer sign in.
 
-To reverse this later (real public launch): `clerk config patch` setting
-both flags back to `false` on the same instance. Nothing else about the
-app changes — no code path depends on the allowlist being on.
+The actual, working gate: `server/app.js`, registered right after
+`app.use(attachUser)`. Reads `ADMIN_ALLOWLIST_EMAILS` (comma-separated,
+set only on the `dhairya` Vercel project's Production env and as a
+`wrangler secret` on the Cloudflare Worker — **not** in local `.env`, so
+local dev stays open) and rejects any request — including fully
+anonymous ones — whose resolved email isn't on the list, with one
+exemption: requests to the `waitlist.weynevents.com` hostname always pass
+through. Four emails are allowed: `dhairyarsaluja@gmail.com`,
+`rohitssaluja@gmail.com`, `krishivsaluja@gmail.com`,
+`bhattacharyamonami@gmail.com`. Verified directly against production:
+anonymous `GET /api/events` → `403 PRIVATE_BETA`; the same request with
+`Host: waitlist.weynevents.com` → `200` (real event data).
+
+**A real, separate gotcha surfaced while testing this**: Clerk's
+allowlist (were it available) only matches by exact identifier —
+usernames can't be allowlisted at all (`identifier must be either a
+valid email address, a valid phone number... or a valid web3 wallet`).
+Not relevant to the custom gate above (which checks the resolved
+account's actual email, not whatever string was typed at sign-in), but
+worth knowing if Clerk's native allowlist ever gets revisited (e.g. after
+a plan upgrade) — a user signing in by username instead of email would
+be rejected even if their email is on the list.
+
+To reverse this later (real public launch): remove `ADMIN_ALLOWLIST_EMAILS`
+from both the Vercel project and the Worker secret, then redeploy both.
+Nothing else about the app depends on it being set.
 
 **2. `waitlist.weynevents.com` — a standalone landing page, not a route
 inside the real app.** `main.tsx` checks `window.location.hostname` before
@@ -566,7 +590,125 @@ in `LandingWaitlistSignup`. Query them directly via Prisma
 (`prisma.landingWaitlistSignup.findMany()`) until there's a real launch
 flow to notify them through.
 
-## 11. Backup practice established this session
+## 11. Full QA sweep (security, functional, visual, performance)
+
+Requested explicitly given how much shipped this session. A dedicated
+subagent did a manual security read of every route in `server/app.js`
+plus `auth.js`/`db.js`/`payments.js`/`moderation.js`/`image-utils.js`;
+functional/visual/race-condition testing below was done directly against
+real signed-in browser sessions (a disposable Clerk test user, cleaned up
+after) on local dev and, for the access-gate fix, production itself.
+
+### Fixed immediately (all deployed)
+
+1. **CRITICAL — the admin-only gate wasn't actually gating production.**
+   Covered in full in §10. Found *during this sweep*, not before —
+   worth restating here because it's the single most important thing
+   this pass turned up: a security feature can look completely correct
+   in isolation (the Clerk config really was patched, really did have
+   the allowlist enabled) and still do nothing, if it's pointed at the
+   wrong instance. The lesson: when a fix depends on "which environment
+   is actually live," verify against the deployed artifact itself
+   (the JS bundle, in this case), not against local config files or
+   assumptions from earlier in the same session.
+2. **CRITICAL — invite-only event codes leaked via search, following-feed,
+   and collections.** Full detail in §5's cross-reference and the git log
+   (`bc63abd`). The original invite-only fix only touched `GET /api/events`
+   and `GET /api/events/:id`; `shape()`'s three other callers didn't
+   filter/strip at all. Verified exploitable end-to-end (create a
+   collection, add the invite-only event's id, read the code back) before
+   fixing, and confirmed closed after.
+3. **HIGH — a real, intermittent app bug**: the Profile tab (Overview,
+   Organizer, Venues, Settings — including the Manage Account link) could
+   get permanently stuck on "Couldn't reach the server" right after
+   sign-in. Root cause and fix in `src/store.ts`'s `getAuthToken()` — see
+   git log (`33b3e14`) for the full writeup. Reproduced intermittently
+   with real network traces before the fix (a burst of 401s on `/api/me`,
+   `/api/dashboard/events`, `/api/dashboard/summary`, `/api/venues/mine`);
+   ran clean 5/5 after.
+4. **MEDIUM — webhook handler crash**: `verifyIpnSignature`'s HMAC call
+   sat outside its own try/catch and threw on a non-JSON request body,
+   which would have crashed that request once PayTabs keys are ever set.
+   Fixed (`server/payments.js`).
+5. **MEDIUM — CSV injection** in the attendees export: attendee
+   name/email (unvalidated checkout free text) could start with
+   `=`/`+`/`-`/`@` and execute as a formula when the organizer opened the
+   CSV in Excel/Sheets. Fixed with a leading-apostrophe guard
+   (`server/app.js`).
+6. **LOW-MEDIUM, bundled together**: non-constant-time invite-code
+   comparison (now `crypto.timingSafeEqual`), missing rate limiters on
+   `POST /api/promo-codes/validate` (human-guessable-code brute-force
+   oracle) and `POST /api/events/:id/team/invite` (unbounded real emails
+   per authenticated account), and unescaped event
+   title/subject/message in booking-confirmation, team-invite, and
+   bulk-notify emails (XSS-adjacent HTML injection into a trusted,
+   branded email — not exploitable on the site itself, since the React
+   frontend never uses `dangerouslySetInnerHTML`). All fixed in one pass,
+   see git log (`9219539`).
+
+### Confirmed safe (audited, not just assumed)
+
+No SQL injection anywhere (100% parameterized Prisma, including every
+raw `$queryRaw` call) · the `DEV_BASIC_AUTH` gate's timing-safe comparison
+has no bypass path · identity is derived exclusively from Clerk's verified
+session, never from client-supplied data · CORS refuses to boot without an
+explicit origin allowlist · CSP has no `unsafe-inline`/`unsafe-eval` in
+`script-src` · booking/ticket capacity claims and check-in are atomic
+(no overselling/double-check-in races) · booking access tokens are
+`crypto.randomBytes`-generated · team invites are single-use and
+email-matched · every file upload sniffs real magic bytes rather than
+trusting `Content-Type` · `/api/waitlist` already had its own rate limiter
+and doesn't leak whether an email already exists.
+
+### Known, not fixed this pass (flagged, not silently left)
+
+- **Rate limiting is real per-process but not real in production.**
+  Every limiter in `server/app.js` uses `express-rate-limit`'s default
+  in-memory store, but production runs as Vercel serverless functions —
+  each concurrent function instance has its own independent counter, so
+  the effective ceiling under real concurrent load is
+  `configured_max × concurrent_instances`, not the number in the code.
+  This is a systemic gap across every limiter, not a single-route bug.
+  Fix requires a shared store (Redis/Upstash) reachable from every
+  instance — real infra work, not a quick patch, and this app has zero
+  real signed-up users right now so it's low urgency until that changes.
+- **`requireFeature()` on a few MANAGER-reachable Pro routes** (featured,
+  promo codes, CSV export, notify, recurring) checks the *acting* user's
+  subscription rather than the *event owner's* — inconsistent with
+  `GET /api/events/:id/analytics`, which explicitly checks the owner's
+  plan. Not exploitable today (everyone auto-gets Pro for free per §4),
+  fails closed (a MANAGER without their own grant gets wrongly 403'd, not
+  wrongly admitted) — worth aligning before real billing differentiates
+  plans.
+- **SSRF guard in `instagram-import.js`** blocklists literal
+  hostnames/IPs but doesn't resolve DNS first, so a theoretical
+  DNS-rebinding attack could bypass it. Narrow real exposure (the scraped
+  URL comes from Instagram's own page content, not directly from
+  attacker input) — informational, not urgent.
+- **Icon-and-label buttons/links throughout the app compute a slightly
+  wrong accessible name** — e.g. the bottom-nav "Host" link's accessible
+  name is `" Host"` (leading space), not `"Host"`, because the decorative
+  `<i className="icon-*">` before the label isn't marked
+  `aria-hidden="true"`, and browsers' accessible-name computation still
+  counts its (empty) presence as a separate node needing a separator
+  space. Cosmetically invisible (click targets, layout, and visual
+  rendering are all unaffected), but a real screen-reader/automated-a11y-
+  testing correctness issue, and it's the same pattern almost everywhere
+  in this codebase (`<i className="icon-x"/><span>Label</span>`) — a
+  fix would be mechanical (add `aria-hidden="true"` to every purely
+  decorative icon `<i>`) but touches a lot of files, so it wasn't done
+  as a drive-by during this sweep.
+
+### Visual / functional / performance — no other issues found
+
+Screenshots at mobile (390×844) and desktop (1440×900), both light and
+dark mode, of the auth wall and the waitlist landing page: no layout,
+contrast, or theming bugs. Main JS bundle: 314KB / 93KB gzipped (down
+from 554KB pre-session, per §3's fix). Production TTFB from this
+environment: ~570-600ms warm — dominated by network/geographic distance
+from this session's location to Vercel's edge, not app code; worth
+checking Vercel's function region is actually close to Oman if real
+users start reporting slowness once the app is public.
 
 No `pg_dump`/`psql`/`neonctl` available in this environment, and no Neon
 API key configured — so there's no managed-snapshot path. Instead: a
@@ -578,7 +720,7 @@ contain real user emails/PII; never commit one. Take a fresh one before
 any risky migration or direct-DB test session (this is now a standing
 habit, same as the CSS brace-balance check used to be).
 
-## 12. Testing approach for anything backend
+## 13. Testing approach for anything backend
 
 There's no test-user login flow to script (no way to obtain a real Clerk
 session token programmatically without a real password + a headless
@@ -610,7 +752,7 @@ signed-in session for E2E testing without adding that dependency, the
 established fallback in this codebase is §10's pattern above: create rows
 directly via Prisma rather than going through the UI at all.
 
-## 13. Known gaps, still real
+## 14. Known gaps, still real
 
 - **`waitlist.weynevents.com` DNS record not added yet** (§10) — the code
   is deployed, the domain is added to the Vercel project, but the actual
@@ -643,7 +785,7 @@ directly via Prisma rather than going through the UI at all.
   only removing the rounded corner entirely fixes it, which is a real
   design change nobody's approved. Left as a known cosmetic issue.
 
-## 14. Organizer dashboard — planned rebuild (not started)
+## 15. Organizer dashboard — planned rebuild (not started)
 
 Today's entire "organizer dashboard" is `OrganizerSection` inside
 `You.tsx`'s Organizer tab: one stat grid (lifetime totals, no trend), a
@@ -741,12 +883,12 @@ you're picking this up, start with phase 1: it's the highest ratio of
 organizer-visible value to actual new code, since the hard part (the
 backend) already happened in §4.
 
-## 15. If you're a fresh Claude picking this up
+## 16. If you're a fresh Claude picking this up
 
 1. Read this file fully.
 2. Check `TaskList`/whatever task tracker the session before you left —
-   there's usually a live punch list more current than this doc's §13.
-3. Take a fresh backup (§11) before any schema/data work.
+   there's usually a live punch list more current than this doc's §14.
+3. Take a fresh backup (§12) before any schema/data work.
 4. For anything requiring visual verification, Playwright works directly
    against both localhost and the live production URL — the built-in
    preview tool and Chrome extension have not worked in this environment
