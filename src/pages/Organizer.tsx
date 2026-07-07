@@ -261,6 +261,7 @@ export default function Organizer() {
               <i className="icon-image-up" />
               <p><b>Add a cover photo</b></p>
               <small>This becomes your event's cover · JPG, PNG or WebP · up to 6 MB</small>
+              <small>Recommended: at least 1600×1200px (4:3) · shows everywhere from wide feature banners to a tall detail-page crop, so keep the subject centered</small>
             </div>
           )}
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => pickImage(e.target.files?.[0])} />
@@ -274,6 +275,7 @@ export default function Organizer() {
               <i className="icon-image-up" />
               <p><b>Add more photos</b></p>
               <small>Shown as a swipeable gallery on your event page · JPG, PNG or WebP · up to 6 MB each</small>
+              <small>Recommended: at least 1600×1200px (4:3), same crop-safety guidance as the cover photo</small>
             </div>
           )}
           <input

@@ -544,6 +544,7 @@ function StepPhotos({
         <i className="icon-image-up" />
         <p><b>Drag photos here, or click to browse</b></p>
         <small>JPG, PNG or WebP · up to 6 MB each</small>
+        <small>Recommended: at least 1600×1200px (4:3) · same crop used across venue cards and listings</small>
       </div>
       <input
         ref={fileInputRef} type="file" accept="image/*" multiple hidden
