@@ -258,6 +258,7 @@ export function createApp(storage) {
   // same reasoning as applicationLimiter — a public form that fires a real
   // email on every submit needs its own tight cap, separate from reports.
   const supportLimiter = rateLimit({ windowMs: 60 * 60e3, max: 10, standardHeaders: true, legacyHeaders: false });
+  const waitlistLimiter = rateLimit({ windowMs: 15 * 60e3, max: 10, standardHeaders: true, legacyHeaders: false });
 
   // hard cap on tickets per single booking request — stops one call from
   // draining a whole event's inventory or issuing a huge number of ticket
@@ -1765,6 +1766,29 @@ export function createApp(storage) {
     }).catch((err) => captureError(err, { route: "POST /api/support" }));
     trackEvent(req.user?.id || null, "support_message_sent", {});
     res.status(201).json({ ok: true });
+  });
+
+  // waitlist.weynevents.com landing page — public, no auth (see
+  // LandingWaitlistSignup in schema.prisma, deliberately separate from the
+  // per-event WaitlistEntry model used for sold-out tickets).
+  app.post("/api/waitlist", waitlistLimiter, async (req, res) => {
+    const { email, name, role, source } = req.body || {};
+    const trimmedEmail = String(email || "").trim().toLowerCase();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid email is required" } });
+    }
+    try {
+      await prisma.landingWaitlistSignup.upsert({
+        where: { email: trimmedEmail },
+        create: { email: trimmedEmail, name: name ? String(name).trim().slice(0, 120) : null, role: role ? String(role).slice(0, 40) : null, source: source ? String(source).slice(0, 120) : null },
+        update: {},
+      });
+      trackEvent(null, "landing_waitlist_joined", { role: role || null, source: source || null });
+      res.status(201).json({ ok: true });
+    } catch (err) {
+      captureError(err, { route: "POST /api/waitlist" });
+      res.status(500).json({ error: { code: "SERVER_ERROR", message: "Couldn't join the waitlist — please try again." } });
+    }
   });
 
   app.get("/api/me", requireAuth, (req, res) => {

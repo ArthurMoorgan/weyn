@@ -94,6 +94,29 @@ function SplashDismisser() {
   return null;
 }
 
+// waitlist.weynevents.com serves ONLY the waitlist landing page — no Clerk,
+// no Router, no tab shell. Checked before any of that mounts so a visitor
+// there never downloads any of it. `?waitlist=1` is a local-dev escape
+// hatch (no easy way to hit a real subdomain against `npm run dev`).
+const isWaitlistHost =
+  window.location.hostname === "waitlist.weynevents.com" ||
+  new URLSearchParams(window.location.search).has("waitlist");
+
+if (isWaitlistHost) {
+  import("./pages/WaitlistLanding").then(({ default: WaitlistLanding }) => {
+    markSplashShown();
+    dismissSplash();
+    ReactDOM.createRoot(document.getElementById("root")!).render(
+      <React.StrictMode>
+        <WaitlistLanding />
+      </React.StrictMode>
+    );
+  });
+} else {
+  renderMainApp();
+}
+
+function renderMainApp() {
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -178,3 +201,4 @@ if ("serviceWorker" in navigator) {
 
 // no-op on web; requests permission + registers for APNs on native iOS/Android
 initPush();
+}

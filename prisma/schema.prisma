@@ -723,6 +723,19 @@ model PromoCode {
   @@unique([eventId, code])
 }
 
+// ---- marketing waitlist (waitlist.weynevents.com landing page) ----
+// Deliberately separate from WaitlistEntry above — that one is a per-event
+// sold-out-ticket waitlist tied to a real Event; this is a generic email
+// capture with no relation to anything else in the schema.
+model LandingWaitlistSignup {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      String? // "attendee" | "organizer" | "venue" — self-reported interest, optional
+  source    String? // free-text: where they heard about it, or a UTM-ish tag
+  createdAt DateTime @default(now())
+}
+
 // ---- waitlist (sold-out events) ----
 model WaitlistEntry {
   id         String    @id @default(cuid())
