@@ -1,13 +1,26 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
+import { Field } from "@base-ui/react/field";
 import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
+import SplitText from "../components/landing/SplitText";
+import RotatingText from "../components/landing/RotatingText";
 
 // The public face of weynevents.com while the real app is admin-only (see
 // HANDOFF.md) — served standalone, no Clerk/Router/tab-shell, when the page
-// is loaded on waitlist.weynevents.com (see main.tsx's hostname check).
-// Deliberately its own tiny render tree rather than a route inside the main
-// app: nothing here needs auth, the API client, or the tab bar, and keeping
-// it separate means visitors here never download any of that.
+// is loaded on waitlist.weynevents.com or by a non-admin visitor to the
+// main app (see main.tsx and AuthGate.tsx). Deliberately its own tiny
+// render tree rather than a route inside the main app: nothing here needs
+// auth, the API client, or the tab bar, and keeping it separate means
+// visitors here never download any of that.
+//
+// Ferrofluid (the WebGL hero background) is lazy — ogl + shader compilation
+// is the heaviest single piece of this page, and the headline/form must be
+// usable immediately even on a slow connection or a browser with no WebGL.
+// SplitText/RotatingText stay in this chunk directly: they gate the
+// headline itself, so lazy-loading them would just trade a layout flash
+// for a network round-trip with no real benefit.
+const Ferrofluid = lazy(() => import("../components/landing/Ferrofluid"));
+
 type Role = "attendee" | "organizer" | "venue";
 
 const ROLES: { key: Role; label: string; icon: string }[] = [
@@ -16,7 +29,23 @@ const ROLES: { key: Role; label: string; icon: string }[] = [
   { key: "venue", label: "List my venue", icon: "store" },
 ];
 
-export default function WaitlistLanding() {
+const ROTATING_PHRASES = ["discover events", "host events", "reserve a table"];
+
+interface WaitlistLandingProps {
+  // Set by AuthGate when a signed-in-but-non-admin visitor lands here on
+  // weynevents.com itself (as opposed to a fresh, signed-out visitor on
+  // waitlist.weynevents.com) — swaps the footer's "Sign in" link for a
+  // short explanation plus a sign-out action instead.
+  signedInAs?: string;
+  onSignOut?: () => void;
+  // AuthGate also needs a way back to the real sign-in flow for an admin
+  // who hasn't authenticated yet — rendered as a discreet footer link
+  // rather than surfaced as the default action, since this page's whole
+  // point is that it's the front door for everyone else.
+  onRequestSignIn?: () => void;
+}
+
+export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn }: WaitlistLandingProps) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("attendee");
@@ -54,64 +83,162 @@ export default function WaitlistLanding() {
         <ThemeToggle />
       </header>
 
-      <main className="wl-hero">
-        <span className="wl-eyebrow">Coming soon to Muscat</span>
-        <h1>Every event worth going to, in one place.</h1>
-        <p className="wl-sub">
-          Weyn is a new way to discover events, book tickets, and host your own — built for
-          Muscat. We're putting the finishing touches on it. Join the waitlist to be first in
-          when we open the doors.
-        </p>
+      <section className="wl-hero">
+        <div className="wl-hero-bg" aria-hidden="true">
+          <Suspense fallback={null}>
+            <Ferrofluid
+              colors={["#4F46E5", "#4A8DFF", "#8B7CF6"]}
+              speed={0.35}
+              scale={1.1}
+              turbulence={0.8}
+              fluidity={0.15}
+              rimWidth={0.22}
+              sharpness={2.5}
+              shimmer={0.8}
+              glow={1.6}
+              flowDirection="up"
+              opacity={0.55}
+              mouseInteraction
+              mouseStrength={0.8}
+              mouseRadius={0.35}
+            />
+          </Suspense>
+        </div>
 
-        {done ? (
-          <div className="wl-success">
-            <i className="icon-check-circle" />
-            <b>You're on the list.</b>
-            <span>We'll email you the moment Weyn is ready.</span>
-          </div>
-        ) : (
-          <form className="wl-form" onSubmit={submit}>
-            <div className="wl-roles">
-              {ROLES.map((r) => (
-                <button
-                  type="button"
-                  key={r.key}
-                  className={"wl-role" + (role === r.key ? " on" : "")}
-                  onClick={() => setRole(r.key)}
-                >
-                  <i className={"icon-" + r.icon} />
-                  {r.label}
+        <div className="wl-hero-content">
+          <span className="wl-eyebrow">Coming soon to Muscat</span>
+          <SplitText
+            tag="h1"
+            className="wl-headline"
+            text="Every event worth going to, in one place."
+            splitType="words"
+            delay={40}
+            duration={0.9}
+            from={{ opacity: 0, y: 24 }}
+            to={{ opacity: 1, y: 0 }}
+            textAlign="center"
+          />
+          <p className="wl-sub">
+            The easiest way to{" "}
+            <RotatingText
+              texts={ROTATING_PHRASES}
+              mainClassName="wl-rotating"
+              staggerFrom="last"
+              initial={{ y: "100%", opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "-120%", opacity: 0 }}
+              staggerDuration={0.015}
+              transition={{ type: "spring", damping: 28, stiffness: 380 }}
+              rotationInterval={2400}
+            />{" "}
+            in Muscat. We're putting the finishing touches on it — join the waitlist to be
+            first in when we open the doors.
+          </p>
+
+          {done ? (
+            <div className="wl-success">
+              <i className="icon-check-circle" />
+              <b>You're on the list.</b>
+              <span>We'll email you the moment Weyn is ready.</span>
+            </div>
+          ) : (
+            <form className="wl-form" onSubmit={submit}>
+              <div className="wl-roles" role="radiogroup" aria-label="What are you interested in?">
+                {ROLES.map((r) => (
+                  <button
+                    type="button"
+                    key={r.key}
+                    role="radio"
+                    aria-checked={role === r.key}
+                    className={"wl-role" + (role === r.key ? " on" : "")}
+                    onClick={() => setRole(r.key)}
+                  >
+                    <i className={"icon-" + r.icon} />
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <div className="wl-fields">
+                <Field.Root className="field">
+                  <Field.Label className="wl-field-label">Name (optional)</Field.Label>
+                  <Field.Control
+                    type="text"
+                    className="wl-input"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    autoComplete="name"
+                  />
+                </Field.Root>
+                <Field.Root className="field">
+                  <Field.Label className="wl-field-label">Email</Field.Label>
+                  <Field.Control
+                    type="email"
+                    className="wl-input"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    required
+                  />
+                </Field.Root>
+                <button type="submit" className="btn" disabled={busy || !email.trim()}>
+                  {busy ? "Joining…" : "Join the waitlist"}
                 </button>
-              ))}
-            </div>
-            <div className="wl-fields">
-              <input
-                type="text"
-                placeholder="Your name (optional)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoComplete="name"
-              />
-              <input
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                required
-              />
-              <button type="submit" className="btn" disabled={busy || !email.trim()}>
-                {busy ? "Joining…" : "Join the waitlist"}
-              </button>
-            </div>
-            {err && <p className="errline">{err}</p>}
-          </form>
-        )}
-      </main>
+              </div>
+              {err && <p className="errline">{err}</p>}
+            </form>
+          )}
+        </div>
+      </section>
+
+      <section className="wl-shots">
+        <div className="wl-shots-head">
+          <h2>A first look</h2>
+          <p>Built for the way Muscat actually goes out.</p>
+        </div>
+        <div className="wl-shots-grid">
+          <div className="wl-shot-desktop">
+            <img src="/marketing/screenshot-desktop.webp" alt="Weyn's discovery feed on desktop, showing a featured event and trending events near you" loading="lazy" />
+          </div>
+          <div className="wl-shot-phones">
+            <img src="/marketing/screenshot-discover.webp" alt="Weyn's discovery feed on mobile" loading="lazy" />
+            <img src="/marketing/screenshot-event.webp" alt="An event detail page with booking details" loading="lazy" />
+          </div>
+        </div>
+      </section>
+
+      <section className="wl-pillars">
+        <div className="wl-pillar">
+          <i className="icon-sparkles" />
+          <b>Discover</b>
+          <span>Everything happening near you, sorted by what's actually good.</span>
+        </div>
+        <div className="wl-pillar">
+          <i className="icon-circle-plus" />
+          <b>Host</b>
+          <span>Publish an event free, track sales, and check people in at the door.</span>
+        </div>
+        <div className="wl-pillar">
+          <i className="icon-utensils" />
+          <b>Reserve</b>
+          <span>Book a table at Muscat's cafes, restaurants, and lounges.</span>
+        </div>
+      </section>
 
       <footer className="wl-foot">
         <span>Weyn — Muscat, Oman</span>
-        <a href="mailto:support@weynevents.com">support@weynevents.com</a>
+        <div className="wl-foot-right">
+          {signedInAs ? (
+            <span className="wl-foot-note">
+              Signed in as {signedInAs} — this app isn't public yet.{" "}
+              <button type="button" className="wl-linklike" onClick={onSignOut}>Sign out</button>
+            </span>
+          ) : onRequestSignIn ? (
+            <button type="button" className="wl-linklike" onClick={onRequestSignIn}>Team sign in</button>
+          ) : null}
+          <a href="mailto:support@weynevents.com">support@weynevents.com</a>
+        </div>
       </footer>
     </div>
   );

@@ -1553,6 +1553,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .authwall-sub { color: var(--text-2); font: var(--t-body); margin-bottom: 8px; }
 .authwall-form { width: 100%; }
 .authwall-switch { margin-top: 14px; font: var(--t-card); color: var(--accent); }
+.authwall-back-wrap { position: relative; min-height: 100dvh; }
+.authwall-back { position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 16px; z-index: 5; background: var(--surface-2); color: var(--text); }
 
 .ob-headline {
   font: var(--t-hero);
@@ -1847,23 +1849,37 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .venue-app-reject input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .venue-app-actions .btn.danger-btn, .venue-app-reject .btn.danger-btn { color: var(--danger); }
 
-/* ---------- waitlist.weynevents.com landing page ---------- */
-.wl-page {
-  min-height: 100dvh; display: flex; flex-direction: column;
-  max-width: 640px; margin: 0 auto; padding: 0 24px;
+/* ---------- weynevents.com landing page (waitlist.weynevents.com, and
+   what a signed-out/non-admin visitor sees on the main domain too) ---------- */
+.wl-page { min-height: 100dvh; display: flex; flex-direction: column; }
+.wl-top, .wl-foot {
+  max-width: 640px; margin: 0 auto; width: 100%; box-sizing: border-box; padding-left: 24px; padding-right: 24px;
 }
-.wl-top { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
+.wl-top { display: flex; align-items: center; justify-content: space-between; padding-top: 20px; padding-bottom: 20px; }
+
 .wl-hero {
-  flex: 1; display: flex; flex-direction: column; justify-content: center;
-  padding: 40px 0 60px; text-align: center; align-items: center;
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px 64px; text-align: center;
 }
+.wl-hero-bg {
+  position: absolute; inset: 0; z-index: 0;
+  /* fades to the page background at the edges so the effect reads as an
+     ambient glow behind the hero, not a hard-edged rectangle */
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 40%, transparent 90%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 40%, transparent 90%);
+}
+.wl-hero-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; }
 .wl-eyebrow {
   font-size: 12.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--accent); background: var(--accent-soft); padding: 6px 14px; border-radius: var(--radius-pill);
   margin-bottom: 20px;
 }
-.wl-hero h1 { font-size: clamp(28px, 5vw, 44px); line-height: 1.15; font-weight: 800; margin: 0 0 16px; max-width: 520px; }
-.wl-sub { font-size: 16px; line-height: 1.55; color: var(--text-2); max-width: 460px; margin: 0 0 32px; }
+.wl-headline, .wl-headline.split-parent {
+  font-size: clamp(28px, 5vw, 44px); line-height: 1.15; font-weight: 800; margin: 0 0 16px; max-width: 560px;
+}
+.wl-sub { font-size: 16px; line-height: 1.55; color: var(--text-2); max-width: 480px; margin: 0 0 32px; }
+.wl-rotating { color: var(--accent); font-weight: 700; }
 .wl-form { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 12px; }
 .wl-roles { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .wl-role {
@@ -1873,11 +1889,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 .wl-role.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .wl-fields { display: flex; flex-direction: column; gap: 10px; }
-.wl-fields input {
+.wl-field-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; text-align: left; }
+.wl-input {
   width: 100%; padding: 14px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border);
-  background: var(--surface); color: var(--text); font-size: 15px;
+  background: var(--surface); color: var(--text); font-size: 15px; box-sizing: border-box;
 }
-.wl-fields input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.wl-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .wl-success {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   padding: 32px 24px; border-radius: var(--radius); background: var(--success-soft);
@@ -1886,8 +1903,51 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .wl-success [class^="icon-"] { font-size: 28px; color: var(--success); margin-bottom: 4px; }
 .wl-success b { font-size: 16px; }
 .wl-success span { font-size: 14px; color: var(--text-2); }
+
+/* ---- screenshots showcase ---- */
+.wl-shots { max-width: 1100px; margin: 0 auto; width: 100%; box-sizing: border-box; padding: 24px 24px 8px; }
+.wl-shots-head { text-align: center; margin-bottom: 28px; }
+.wl-shots-head h2 { font-size: clamp(22px, 3.5vw, 30px); font-weight: 800; margin: 0 0 6px; }
+.wl-shots-head p { color: var(--text-2); font-size: 15px; margin: 0; }
+.wl-shots-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: center; justify-items: center; }
+.wl-shot-desktop, .wl-shot-phones { width: 100%; }
+.wl-shot-desktop img {
+  width: 100%; max-width: 720px; display: block; margin: 0 auto; border-radius: 14px;
+  border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+}
+.wl-shot-phones { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.wl-shot-phones img {
+  width: 100%; max-width: 220px; border-radius: 18px; border: 6px solid var(--surface);
+  outline: 1px solid var(--border); box-shadow: var(--shadow-md); display: block;
+}
+@media (min-width: 900px) {
+  .wl-shots-grid { grid-template-columns: 1.6fr 1fr; gap: 32px; }
+  .wl-shot-phones { flex-direction: column; align-items: center; }
+}
+
+/* ---- three-pillar feature strip ---- */
+.wl-pillars {
+  max-width: 1000px; margin: 48px auto 8px; width: 100%; box-sizing: border-box; padding: 0 24px;
+  display: grid; grid-template-columns: 1fr; gap: 16px;
+}
+@media (min-width: 700px) { .wl-pillars { grid-template-columns: repeat(3, 1fr); } }
+.wl-pillar {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface);
+}
+.wl-pillar [class^="icon-"] { font-size: 22px; color: var(--accent); }
+.wl-pillar b { font-size: 15px; }
+.wl-pillar span { font-size: 13.5px; color: var(--text-2); line-height: 1.45; }
+
 .wl-foot {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 0 32px; font-size: 13px; color: var(--text-3); border-top: 1px solid var(--hair);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding-top: 20px; padding-bottom: 32px; margin-top: 40px;
+  font-size: 13px; color: var(--text-3); border-top: 1px solid var(--hair);
 }
 .wl-foot a { color: var(--text-2); }
+.wl-foot-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.wl-foot-note { color: var(--text-3); }
+.wl-linklike {
+  color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: underline;
+  text-underline-offset: 2px; background: none; border: none; cursor: pointer; padding: 0;
+}
