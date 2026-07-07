@@ -280,6 +280,12 @@ export function createApp(storage) {
   // email on every submit needs its own tight cap, separate from reports.
   const supportLimiter = rateLimit({ windowMs: 60 * 60e3, max: 10, standardHeaders: true, legacyHeaders: false });
   const waitlistLimiter = rateLimit({ windowMs: 15 * 60e3, max: 10, standardHeaders: true, legacyHeaders: false });
+  // Promo codes are short, human-guessable strings — without this, the
+  // validate endpoint is a viable oracle for brute-forcing active codes.
+  const promoValidateLimiter = rateLimit({ windowMs: 15 * 60e3, max: 20, standardHeaders: true, legacyHeaders: false });
+  // Sends a real email per call, with no dedupe — bound how many an
+  // authenticated (even brand-new) account can fire off.
+  const teamInviteLimiter = rateLimit({ windowMs: 60 * 60e3, max: 20, standardHeaders: true, legacyHeaders: false });
 
   // hard cap on tickets per single booking request — stops one call from
   // draining a whole event's inventory or issuing a huge number of ticket
@@ -510,6 +516,18 @@ export function createApp(storage) {
     }
   });
 
+  // Constant-time invite-code check — same reasoning as the DEV_BASIC_AUTH
+  // gate above: a plain !== short-circuits on the first differing
+  // character, which leaks timing information about how much of a guessed
+  // code is correct. Low practical risk for an 8-char code, but it's a real
+  // secret comparison so it gets the same treatment.
+  function inviteCodeMatches(provided, actual) {
+    if (typeof provided !== "string" || typeof actual !== "string") return false;
+    const a = Buffer.from(provided);
+    const b = Buffer.from(actual);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
+
   function priceFor(e, tierId) {
     if (Array.isArray(e.tiers) && e.tiers.length) {
       const tier = e.tiers.find((t) => t.id === tierId);
@@ -522,7 +540,7 @@ export function createApp(storage) {
     const e = await db.get(req.params.id);
     if (!e) return res.status(404).json({ error: "Event not found" });
     if (e.cancelled) return res.status(410).json({ error: "This event was cancelled" });
-    if (e.inviteOnly && req.body?.inviteCode !== e.inviteCode) {
+    if (e.inviteOnly && !inviteCodeMatches(req.body?.inviteCode, e.inviteCode)) {
       return res.status(403).json({ error: { code: "INVITE_REQUIRED", message: "This event is invite-only — a valid invite code is required." } });
     }
     if (e.ticketingType && e.ticketingType !== "weyn") {
@@ -609,7 +627,7 @@ export function createApp(storage) {
     const e = await db.get(req.params.id);
     if (!e) return res.status(404).json({ error: "Event not found" });
     if (e.cancelled) return res.status(410).json({ error: "This event was cancelled" });
-    if (e.inviteOnly && req.body?.inviteCode !== e.inviteCode) {
+    if (e.inviteOnly && !inviteCodeMatches(req.body?.inviteCode, e.inviteCode)) {
       return res.status(403).json({ error: { code: "INVITE_REQUIRED", message: "This event is invite-only — a valid invite code is required." } });
     }
     if (e.ticketingType !== "weyn") {
@@ -907,7 +925,7 @@ export function createApp(storage) {
   });
   // Public — a buyer redeeming a code at checkout has no subscription of
   // their own; what's gated is CREATING campaigns above, not using one.
-  app.post("/api/promo-codes/validate", async (req, res) => {
+  app.post("/api/promo-codes/validate", promoValidateLimiter, async (req, res) => {
     const { eventId, code } = req.body || {};
     if (!eventId || !code) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "eventId and code are required" } });
     const promo = await prisma.promoCode.findUnique({ where: { eventId_code: { eventId, code: String(code).trim().toUpperCase() } } });
@@ -926,7 +944,16 @@ export function createApp(storage) {
       include: { tickets: { select: { code: true, checkedInAt: true } } },
       orderBy: { bookedAt: "asc" },
     });
-    const escape = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    // Prefix a leading apostrophe on any value starting with =, +, -, or @ —
+    // Excel/Sheets evaluate those as formulas regardless of CSV quoting, so
+    // an attendee-supplied name/email at checkout (unvalidated free text)
+    // could otherwise run a formula in the organizer's spreadsheet the
+    // moment they open this export (classic CSV-injection).
+    const escape = (v) => {
+      let s = String(v ?? "");
+      if (/^[=+\-@]/.test(s)) s = "'" + s;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const lines = ["Name,Email,Booked At,Qty,Ticket Code,Checked In"];
     for (const b of rows) {
       const tickets = b.tickets.length ? b.tickets : [{ code: "", checkedInAt: null }];
@@ -972,11 +999,14 @@ export function createApp(storage) {
     if (!subject || !message) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "subject and message are required" } });
     const bookings = await prisma.booking.findMany({ where: { eventId: req.event.id, status: "paid" }, select: { email: true, deviceId: true } });
     let emailed = 0;
+    const safeSubject = escapeHtml(subject);
+    const safeMessage = escapeHtml(message);
+    const safeTitle = escapeHtml(req.event.title);
     await Promise.all(bookings.filter((b) => b.email).map((b) =>
       sendEmail({
         to: b.email,
         subject: `${req.event.title}: ${subject}`,
-        html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${subject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${message.replace(/</g, "&lt;")}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you have a ticket to ${req.event.title}.</p></div>`,
+        html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${safeSubject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${safeMessage}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you have a ticket to ${safeTitle}.</p></div>`,
       }).then(() => emailed++).catch((err) => captureError(err, { route: "POST /api/events/:id/notify", eventId: req.event.id }))
     ));
     const deviceIds = [...new Set(bookings.filter((b) => b.deviceId).map((b) => b.deviceId))];
@@ -1554,7 +1584,7 @@ export function createApp(storage) {
   // ---- team management (see schema.prisma's EventTeamMember comment) ----
   // Invite/revoke are owner-only (requireEventOwnerStrict) — a MANAGER runs
   // the event day-to-day but can't grant or remove other people's access.
-  app.post("/api/events/:id/team/invite", requireEventOwnerStrict(), async (req, res) => {
+  app.post("/api/events/:id/team/invite", teamInviteLimiter, requireEventOwnerStrict(), async (req, res) => {
     const { email, role } = req.body || {};
     if (!email || !["MANAGER", "STAFF"].includes(role)) {
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "email and role (MANAGER or STAFF) are required" } });

@@ -3,6 +3,13 @@
 // never the only way to deliver something (see team invite route).
 const FROM = process.env.RESEND_FROM || "Weyn <noreply@weynevents.com>";
 
+// eventTitle/venue below are organizer-controlled free text with no
+// HTML-stripping anywhere in their pipeline — escape before interpolating
+// into an email actually sent to attendees from a trusted, branded address.
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 export function emailConfigured() {
   return !!process.env.RESEND_API_KEY;
 }
@@ -33,17 +40,18 @@ export async function sendEmail({ to, subject, html }) {
 // is present (collected optionally on free RSVP, and from the checkout
 // form on paid bookings).
 export function bookingConfirmationEmail({ eventTitle, dateLabel, venue, ticketUrl, free }) {
+  const safeTitle = escapeHtml(eventTitle);
   return {
     subject: `You're going: ${eventTitle}`,
     html: `
       <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="margin:0 0 12px">You're going! 🎟</h2>
         <p style="color:#444;line-height:1.5">
-          Your ${free ? "spot" : "ticket"} for <strong>${eventTitle}</strong> is confirmed.
+          Your ${free ? "spot" : "ticket"} for <strong>${safeTitle}</strong> is confirmed.
         </p>
         <table style="width:100%;border-collapse:collapse;font-size:14px;color:#222;margin:16px 0">
-          <tr><td style="padding:6px 0;color:#888">When</td><td style="padding:6px 0">${dateLabel}</td></tr>
-          <tr><td style="padding:6px 0;color:#888">Where</td><td style="padding:6px 0">${venue}</td></tr>
+          <tr><td style="padding:6px 0;color:#888">When</td><td style="padding:6px 0">${escapeHtml(dateLabel)}</td></tr>
+          <tr><td style="padding:6px 0;color:#888">Where</td><td style="padding:6px 0">${escapeHtml(venue)}</td></tr>
         </table>
         <p style="margin:22px 0">
           <a href="${ticketUrl}" style="background:#1C6DD0;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">
@@ -65,7 +73,7 @@ export function teamInviteEmail({ eventTitle, role, inviteLink }) {
         <h2 style="margin:0 0 12px">You're invited to the team</h2>
         <p style="color:#444;line-height:1.5">
           You've been invited as <strong>${roleLabel}</strong> for
-          <strong>${eventTitle}</strong> on Weyn.
+          <strong>${escapeHtml(eventTitle)}</strong> on Weyn.
         </p>
         <p style="margin:24px 0">
           <a href="${inviteLink}" style="background:#7C5CFF;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">

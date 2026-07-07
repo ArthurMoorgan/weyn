@@ -83,10 +83,14 @@ export async function fetchTransactionStatus(tranRef) {
 // `verify` hook in server/index.js) — HMAC is order- and whitespace-sensitive.
 export function verifyIpnSignature(rawBody, signatureHeader) {
   if (!signatureHeader || !SERVER_KEY) return false;
-  const expected = crypto.createHmac("sha256", SERVER_KEY).update(rawBody).digest("hex");
   try {
+    // rawBody is undefined whenever the request's Content-Type isn't
+    // application/json (see the raw-body capture middleware in app.js) —
+    // Hmac.update(undefined) throws synchronously, which used to happen
+    // outside this try/catch and could crash the whole request.
+    const expected = crypto.createHmac("sha256", SERVER_KEY).update(rawBody || Buffer.alloc(0)).digest("hex");
     return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));
   } catch {
-    return false; // length mismatch etc — definitely not a match
+    return false; // length mismatch, missing body, etc — definitely not a match
   }
 }
