@@ -108,6 +108,31 @@ export function createApp(storage) {
   const app = express();
   app.set("trust proxy", 1);
 
+  // Non-production deployments (dev.weynevents.com) are otherwise reachable
+  // by anyone who guesses the subdomain — real user-facing data doesn't live
+  // there, but it's still a live Clerk/DB instance we don't want indexed or
+  // poked at. Gate the entire app behind HTTP Basic Auth whenever both env
+  // vars are set; a no-op everywhere else (prod never sets these).
+  const devAuthUser = process.env.DEV_BASIC_AUTH_USER;
+  const devAuthPass = process.env.DEV_BASIC_AUTH_PASS;
+  if (devAuthUser && devAuthPass) {
+    app.use((req, res, next) => {
+      const header = req.headers.authorization || "";
+      const [scheme, encoded] = header.split(" ");
+      if (scheme === "Basic" && encoded) {
+        const [user, pass] = Buffer.from(encoded, "base64").toString("utf8").split(":");
+        const userBuf = Buffer.from(user || "");
+        const passBuf = Buffer.from(pass || "");
+        const expectedUserBuf = Buffer.from(devAuthUser);
+        const expectedPassBuf = Buffer.from(devAuthPass);
+        const userOk = userBuf.length === expectedUserBuf.length && crypto.timingSafeEqual(userBuf, expectedUserBuf);
+        const passOk = passBuf.length === expectedPassBuf.length && crypto.timingSafeEqual(passBuf, expectedPassBuf);
+        if (userOk && passOk) return next();
+      }
+      res.set("WWW-Authenticate", 'Basic realm="Weyn dev"').status(401).send("Authentication required");
+    });
+  }
+
   // security headers (HSTS, X-Content-Type-Options, disabled X-Powered-By,
   // frame-ancestors via CSP, etc). Every directive below maps to a specific
   // external resource this app actually loads (see index.html, src/main.tsx's
