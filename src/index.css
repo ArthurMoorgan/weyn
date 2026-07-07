@@ -1032,6 +1032,29 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .danger-zone b { color: var(--error); display: block; margin-bottom: 4px; }
 .danger-zone p { font-size: 13px; color: var(--text-2); margin: 0 0 12px; line-height: 1.5; }
 
+/* ---------- Organizer Pro: subscription card / upgrade modal / feature lock ---------- */
+.sub-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 16px; margin-top: 12px; }
+.sub-card-skel { height: 110px; background: var(--surface-hover); animation: skel-pulse 1.3s ease-in-out infinite; }
+.sub-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.sub-card-plan { display: flex; align-items: center; gap: 8px; font: var(--t-section); }
+.sub-card-plan [class^="icon-"] { color: var(--accent); }
+.sub-card-sub { font: var(--t-meta); color: var(--text-3); margin-top: 4px; }
+.sub-card-price { font: var(--t-card); font-weight: 700; color: var(--accent); white-space: nowrap; }
+.sub-status { font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--success-soft); color: var(--success); }
+.sub-status-past_due, .sub-status-suspended, .sub-status-failed { background: rgba(214,164,75,0.15); color: var(--warning); }
+.sub-status-cancelled, .sub-status-expired, .sub-status-inactive { background: var(--surface-hover); color: var(--text-3); }
+.sub-card-toggle { display: flex; align-items: center; gap: 6px; margin-top: 12px; font: var(--t-meta); color: var(--text-2); }
+.sub-feature-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sub-feature-list li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.sub-feature-list li [class^="icon-"] { color: var(--success); font-size: 15px; flex: 0 0 auto; }
+.sub-billing-history { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hair); }
+.sub-billing-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 6px 0; color: var(--text-2); }
+
+.upgrade-badge { display: inline-flex; align-items: center; gap: 6px; font: var(--t-caption); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--accent); background: var(--accent-soft); padding: 5px 10px; border-radius: 999px; margin-bottom: 12px; }
+.feature-lock { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-hover); border: 1px dashed var(--border); color: var(--text-2); font-size: 13.5px; }
+.feature-lock [class^="icon-"]:first-child { color: var(--text-3); }
+.pro-badge { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; color: #fff; background: var(--accent); padding: 2px 6px; border-radius: 5px; }
+
 /* ---------- simple on/off switch (Settings → Notifications) ---------- */
 .switch { position: relative; width: 44px; height: 26px; border-radius: 999px; background: var(--surface-hover); border: 1px solid var(--border); flex: 0 0 auto; transition: background-color .15s ease; }
 .switch .switch-thumb { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s ease; }

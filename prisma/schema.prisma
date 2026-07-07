@@ -48,6 +48,7 @@ model User {
   venues          Venue[]
   venueApplications VenueApplication[]
   webPushSubscriptions WebPushSubscription[]
+  subscription    Subscription?
 
   @@index([email])
 }
@@ -192,6 +193,12 @@ model Event {
   // server/moderation.js for the pipeline that sets this.
   discoveryStatus DiscoveryStatus @default(PENDING_REVIEW)
 
+  // Organizer Pro — "featured placement" / "priority ranking" (see
+  // server/features.js). Existed only as a dead, never-populated field on
+  // the frontend Weyn type before this; now a real column an organizer with
+  // the featuredPlacement feature can set on their own event.
+  featured          Boolean            @default(false)
+
   owner             User?              @relation(fields: [ownerId], references: [id])
   tiers             Tier[]
   bookings          Booking[]
@@ -199,8 +206,11 @@ model Event {
   teamMembers       EventTeamMember[]
   collectionItems   CollectionItem[]
   moderationResults ModerationResult[]
+  promoCodes        PromoCode[]
+  waitlistEntries   WaitlistEntry[]
 
   @@index([organizer])
+  @@index([featured])
   @@index([startsAt])
   @@index([ownerId])
   @@index([discoveryStatus])
@@ -567,4 +577,155 @@ model VenueApplication {
 
   @@index([status])
   @@index([applicantId])
+}
+
+// ============================================================
+// Organizer Pro monetization layer.
+//
+// Ship state (see handoff.md for the full writeup): every organizer is
+// currently auto-granted an ACTIVE subscription to the "pro" plan for
+// free — see db.ensureSubscription() in server/db.js — so every feature
+// flag below already resolves true for every real user. hasFeature()
+// (server/features.js) is the one place that decides that, and is what
+// every Pro-gated code path calls; nothing checks Subscription.status
+// directly. No payment processor is wired to actually create/charge a
+// subscription yet — see the "Stripe integration, parked" section of
+// handoff.md for the architecture to wire in when that's turned on. This
+// schema, and hasFeature()'s shape, doesn't change when that happens —
+// only ensureSubscription()'s default plan/status does.
+// ============================================================
+
+enum SubscriptionStatus {
+  INACTIVE
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+  SUSPENDED
+  TRIALING
+}
+
+model SubscriptionPlan {
+  id            String   @id @default(cuid())
+  key           String   @unique // "free" | "pro"
+  name          String
+  priceOmr      Float
+  billingPeriod String   @default("month")
+  createdAt     DateTime @default(now())
+
+  subscriptions Subscription[]
+  featureAccess FeatureAccess[]
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  userId             String             @unique // one subscription per organizer account
+  planId             String
+  status             SubscriptionStatus @default(INACTIVE)
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean            @default(false)
+  // Populated once real billing is wired — null for every row created by
+  // the current free-grant path. stripeSubscriptionId is the natural
+  // dedup/idempotency key for webhook-driven updates (see BillingEvent).
+  stripeCustomerId     String?
+  stripeSubscriptionId String? @unique
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user           User             @relation(fields: [userId], references: [id])
+  plan           SubscriptionPlan @relation(fields: [planId], references: [id])
+  billingEvents  BillingEvent[]
+  paymentHistory PaymentHistory[]
+
+  @@index([status])
+  @@index([planId])
+}
+
+// Plan -> feature matrix, not a per-user table — every organizer on the
+// same plan gets the same features, so this is a small, cacheable lookup
+// (~25 rows total) rather than one row per user per feature. hasFeature()
+// resolves userId -> Subscription.planId -> this table.
+model FeatureAccess {
+  id      String  @id @default(cuid())
+  planId  String
+  feature String // matches a key in server/features.js's FEATURES catalog
+  enabled Boolean @default(true)
+
+  plan SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@unique([planId, feature])
+  @@index([feature])
+}
+
+// Raw provider webhook log — the dedup + replay-protection mechanism.
+// providerEventId is unique so a redelivered Stripe webhook (Stripe
+// explicitly recommends coding for at-least-once delivery) can't be
+// processed twice; a handler checks for an existing row with the same id
+// before acting, then writes processedAt once it has.
+model BillingEvent {
+  id              String    @id @default(cuid())
+  subscriptionId  String?
+  providerEventId String    @unique
+  provider        String    @default("stripe")
+  type            String // e.g. "invoice.paid", "customer.subscription.updated"
+  payload         Json
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([subscriptionId])
+  @@index([type])
+}
+
+model PaymentHistory {
+  id             String    @id @default(cuid())
+  subscriptionId String
+  amountOmr      Float
+  status         String // "paid" | "failed" | "refunded"
+  providerRef    String? // Stripe payment_intent / invoice id
+  paidAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+
+  @@index([subscriptionId])
+}
+
+// ---- promo codes (covers promoCodes / discountCampaigns / earlyBirdCampaigns
+// from the feature list — one model, a campaign is just a code with a
+// date window, not a separate system) ----
+model PromoCode {
+  id            String    @id @default(cuid())
+  eventId       String
+  code          String // shown/entered as-is; uniqueness is scoped per event, not global
+  discountType  String // "percent" | "flat"
+  discountValue Float // percent: 0-100, flat: OMR amount
+  maxUses       Int? // null = unlimited
+  usedCount     Int       @default(0)
+  startsAt      DateTime? // null = active immediately (early-bird window's open end)
+  endsAt        DateTime? // null = no expiry
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, code])
+}
+
+// ---- waitlist (sold-out events) ----
+model WaitlistEntry {
+  id         String    @id @default(cuid())
+  eventId    String
+  email      String
+  name       String?
+  deviceId   String?
+  createdAt  DateTime  @default(now())
+  notifiedAt DateTime?
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, email])
+  @@index([eventId])
 }

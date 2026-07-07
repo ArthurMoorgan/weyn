@@ -24,6 +24,7 @@ import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, payt
 import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, authConfigured } from "./auth.js";
 import { createEventSchema, updateEventSchema, validateBody } from "./validators.js";
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
+import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature } from "./features.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
@@ -755,6 +756,166 @@ export function createApp(storage) {
     res.json(await db.attendeesForEvent(req.event.id));
   });
 
+  // ============================================================
+  // Organizer Pro features. Every route below either requires a specific
+  // feature flag (requireFeature — see server/features.js) or, for
+  // attendee-facing routes like the waitlist join, checks the EVENT
+  // OWNER's access rather than the requester's (an anonymous visitor
+  // joining a waitlist has no subscription of their own to check).
+  // ============================================================
+
+  // ---- Discovery: featured placement / priority ranking ----
+  app.patch("/api/events/:id/featured", requireEventOwner(), requireFeature("featuredPlacement"), async (req, res) => {
+    const featured = !!req.body?.featured;
+    const updated = await prisma.event.update({ where: { id: req.event.id }, data: { featured } });
+    await db.audit("event.featured", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { featured } });
+    res.json({ id: updated.id, featured: updated.featured });
+  });
+
+  // ---- Marketing: promo codes (covers promoCodes / discountCampaigns /
+  // earlyBirdCampaigns — a campaign is a code with a date window, not a
+  // separate system) ----
+  app.post("/api/events/:id/promo-codes", requireEventOwner(), requireFeature("promoCodes"), async (req, res) => {
+    const b = req.body || {};
+    const code = String(b.code || "").trim().toUpperCase();
+    if (!code || code.length < 3) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Code must be at least 3 characters" } });
+    if (!["percent", "flat"].includes(b.discountType)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "discountType must be 'percent' or 'flat'" } });
+    const discountValue = Number(b.discountValue);
+    if (!Number.isFinite(discountValue) || discountValue <= 0 || (b.discountType === "percent" && discountValue > 100)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid discountValue" } });
+    }
+    try {
+      const created = await prisma.promoCode.create({
+        data: {
+          eventId: req.event.id, code, discountType: b.discountType, discountValue,
+          maxUses: b.maxUses != null ? Math.max(1, parseInt(b.maxUses, 10)) : null,
+          startsAt: b.startsAt ? new Date(b.startsAt) : null,
+          endsAt: b.endsAt ? new Date(b.endsAt) : null,
+        },
+      });
+      res.status(201).json(created);
+    } catch (err) {
+      if (err.code === "P2002") return res.status(409).json({ error: { code: "DUPLICATE", message: "That code already exists for this event" } });
+      throw err;
+    }
+  });
+  app.get("/api/events/:id/promo-codes", requireEventOwner(), requireFeature("promoCodes"), async (req, res) => {
+    res.json(await prisma.promoCode.findMany({ where: { eventId: req.event.id }, orderBy: { createdAt: "desc" } }));
+  });
+  app.patch("/api/events/:id/promo-codes/:codeId", requireEventOwner(), requireFeature("promoCodes"), async (req, res) => {
+    const existing = await prisma.promoCode.findUnique({ where: { id: req.params.codeId } });
+    if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Promo code not found" } });
+    const updated = await prisma.promoCode.update({ where: { id: existing.id }, data: { active: !!req.body?.active } });
+    res.json(updated);
+  });
+  // Public — a buyer redeeming a code at checkout has no subscription of
+  // their own; what's gated is CREATING campaigns above, not using one.
+  app.post("/api/promo-codes/validate", async (req, res) => {
+    const { eventId, code } = req.body || {};
+    if (!eventId || !code) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "eventId and code are required" } });
+    const promo = await prisma.promoCode.findUnique({ where: { eventId_code: { eventId, code: String(code).trim().toUpperCase() } } });
+    if (!promo || !promo.active) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Invalid promo code" } });
+    const now = new Date();
+    if (promo.startsAt && promo.startsAt > now) return res.status(400).json({ error: { code: "NOT_STARTED", message: "This code isn't active yet" } });
+    if (promo.endsAt && promo.endsAt < now) return res.status(400).json({ error: { code: "EXPIRED", message: "This code has expired" } });
+    if (promo.maxUses != null && promo.usedCount >= promo.maxUses) return res.status(400).json({ error: { code: "EXHAUSTED", message: "This code has reached its usage limit" } });
+    res.json({ code: promo.code, discountType: promo.discountType, discountValue: promo.discountValue });
+  });
+
+  // ---- Operations: CSV export ----
+  app.get("/api/events/:id/attendees.csv", requireEventOwner(), requireFeature("csvExports"), async (req, res) => {
+    const rows = await prisma.booking.findMany({
+      where: { eventId: req.event.id, status: "paid" },
+      include: { tickets: { select: { code: true, checkedInAt: true } } },
+      orderBy: { bookedAt: "asc" },
+    });
+    const escape = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = ["Name,Email,Booked At,Qty,Ticket Code,Checked In"];
+    for (const b of rows) {
+      const tickets = b.tickets.length ? b.tickets : [{ code: "", checkedInAt: null }];
+      for (const t of tickets) {
+        lines.push([escape(b.name), escape(b.email), escape(b.bookedAt?.toISOString()), escape(b.qty), escape(t.code), escape(t.checkedInAt ? "yes" : "no")].join(","));
+      }
+    }
+    res.set("Content-Type", "text/csv");
+    res.set("Content-Disposition", `attachment; filename="attendees-${req.event.id}.csv"`);
+    res.send(lines.join("\n"));
+  });
+
+  // ---- Operations: waitlist ----
+  // Gated on the EVENT OWNER's plan, not the joiner's — an anonymous
+  // attendee joining a waitlist has no subscription to check.
+  app.post("/api/events/:id/waitlist", socialLimiter, async (req, res) => {
+    const e = await db.get(req.params.id);
+    if (!e) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    if (!e.ownerId || !(await hasFeature(e.ownerId, "waitlists"))) {
+      return res.status(403).json({ error: { code: "FEATURE_LOCKED", message: "This event isn't accepting waitlist signups" } });
+    }
+    const email = String(req.body?.email || "").trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid email is required" } });
+    try {
+      const entry = await prisma.waitlistEntry.create({
+        data: { eventId: e.id, email, name: req.body?.name ? String(req.body.name).trim() : null, deviceId: req.body?.deviceId || null },
+      });
+      res.status(201).json({ id: entry.id });
+    } catch (err) {
+      if (err.code === "P2002") return res.status(409).json({ error: { code: "DUPLICATE", message: "You're already on the waitlist for this event" } });
+      throw err;
+    }
+  });
+  app.get("/api/events/:id/waitlist", requireEventOwner(), requireFeature("waitlists"), async (req, res) => {
+    res.json(await prisma.waitlistEntry.findMany({ where: { eventId: req.event.id }, orderBy: { createdAt: "asc" } }));
+  });
+
+  // ---- Marketing: bulk notify attendees (send-now; true scheduled/future-
+  // dated sends aren't built yet, see handoff.md) ----
+  app.post("/api/events/:id/notify", socialLimiter, requireEventOwner(), requireFeature("bulkNotifications"), async (req, res) => {
+    const subject = String(req.body?.subject || "").trim();
+    const message = String(req.body?.message || "").trim();
+    if (!subject || !message) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "subject and message are required" } });
+    const bookings = await prisma.booking.findMany({ where: { eventId: req.event.id, status: "paid" }, select: { email: true, deviceId: true } });
+    let emailed = 0;
+    await Promise.all(bookings.filter((b) => b.email).map((b) =>
+      sendEmail({
+        to: b.email,
+        subject: `${req.event.title}: ${subject}`,
+        html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${subject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${message.replace(/</g, "&lt;")}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you have a ticket to ${req.event.title}.</p></div>`,
+      }).then(() => emailed++).catch((err) => captureError(err, { route: "POST /api/events/:id/notify", eventId: req.event.id }))
+    ));
+    const deviceIds = [...new Set(bookings.filter((b) => b.deviceId).map((b) => b.deviceId))];
+    let pushed = 0;
+    await Promise.all(deviceIds.map(async (deviceId) => {
+      const token = await db.tokenForDevice(deviceId);
+      if (!token) return;
+      const result = await sendPush(token, { title: req.event.title, body: subject });
+      if (result.sent) pushed++;
+    }));
+    await db.audit("event.notify", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { subject, emailed, pushed } });
+    res.json({ ok: true, recipients: bookings.length, emailed, pushed });
+  });
+
+  // ---- Team management: recurring events (lightweight — creates N future
+  // copies spaced by a fixed interval, reusing the same copy logic as
+  // /duplicate; a real recurrence-rule engine (custom weekday patterns,
+  // "every 2nd Tuesday", exceptions) is future work, see handoff.md) ----
+  app.post("/api/events/:id/recurring", requireEventOwner(), requireFeature("recurringEvents"), async (req, res) => {
+    const count = Math.min(52, Math.max(1, parseInt(req.body?.count, 10) || 1));
+    const intervalDays = Math.max(1, parseInt(req.body?.intervalDays, 10) || 7);
+    const e = req.event;
+    const { tiers, ...rest } = e;
+    const created = [];
+    for (let i = 1; i <= count; i++) {
+      const startsAt = new Date(new Date(e.startsAt).getTime() + i * intervalDays * 864e5).toISOString();
+      const copy = {
+        ...rest, id: slug(e.title) + "-" + crypto.randomUUID().slice(0, 4), sold: 0, cancelled: false, startsAt,
+        tiers: tiers ? tiers.map(({ id, ...t }) => t) : null,
+      };
+      created.push(await db.insert(copy));
+    }
+    await db.audit("event.recurring", { actorId: req.user.id, entityType: "event", entityId: e.id, metadata: { count, intervalDays } });
+    res.status(201).json({ created: created.map((c) => ({ id: c.id, startsAt: c.startsAt })) });
+  });
+
   // ---- reservations (tables/spots at restaurants, cafes, lounges,
   // rooftops, beach clubs, experience venues) — separate from Event/Booking
   // ticketing above. See schema.prisma's Venue/VenueAvailabilitySlot/
@@ -1286,7 +1447,11 @@ export function createApp(storage) {
   });
 
   app.get("/api/events/:id/analytics", requireEventAccess("MANAGER"), async (req, res) => {
-    res.json(await db.eventAnalytics(req.event.id));
+    // Gated on the EVENT OWNER's plan, not the viewer's — a team member
+    // with MANAGER access should see the same advanced stats the owner
+    // would, not a downgraded view based on their own personal account.
+    const advanced = !!(req.event.ownerId && (await hasFeature(req.event.ownerId, "advancedAnalytics")));
+    res.json(await db.eventAnalytics(req.event.id, { advanced }));
   });
 
   // ---- team management (see schema.prisma's EventTeamMember comment) ----
@@ -1529,6 +1694,32 @@ export function createApp(storage) {
 
   app.get("/api/me", requireAuth, (req, res) => {
     res.json({ id: req.user.id, email: req.user.email, name: req.user.name, avatarUrl: req.user.avatarUrl, role: req.user.role });
+  });
+
+  // Organizer Pro — subscription dashboard data (plan, renewal date,
+  // billing history, active features). Everyone currently resolves to an
+  // active free "pro" grant (see features.js), so this endpoint already
+  // exercises the real subscription model rather than a mocked response.
+  app.get("/api/me/subscription", requireAuth, async (req, res) => {
+    try {
+      const sub = await ensureSubscription(req.user.id);
+      const [plan, features, paymentHistory] = await Promise.all([
+        prisma.subscriptionPlan.findUnique({ where: { id: sub.planId } }),
+        allFeatures(req.user.id),
+        prisma.paymentHistory.findMany({ where: { subscriptionId: sub.id }, orderBy: { createdAt: "desc" }, take: 20 }),
+      ]);
+      res.json({
+        plan: { key: plan.key, name: plan.name, priceOmr: plan.priceOmr, billingPeriod: plan.billingPeriod },
+        status: sub.status,
+        currentPeriodEnd: sub.currentPeriodEnd,
+        cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+        features,
+        paymentHistory,
+      });
+    } catch (err) {
+      captureError(err, { route: "GET /api/me/subscription", userId: req.user.id });
+      res.status(500).json({ error: "Couldn't load subscription info" });
+    }
   });
 
   // Account deletion — soft-delete (deletedAt), same pattern every read path

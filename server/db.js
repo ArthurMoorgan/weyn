@@ -576,7 +576,17 @@ export const db = {
     ].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, limit);
     return feed;
   },
-  async eventAnalytics(eventId) {
+  // `advanced` (Organizer Pro's advancedAnalytics feature — see
+  // server/features.js) adds views/conversionRate/check-in stats on top of
+  // the same base fields every organizer already gets; free callers get
+  // exactly what this returned before. conversionRate was already a
+  // placeholder here (`null` — "needs page-view tracking, not yet
+  // instrumented") — this fills it in using the event_view AnalyticsEvent
+  // rows already recorded on every GET /api/events/:id, no new client
+  // instrumentation needed. trafficSources (referrer/UTM) and
+  // audienceInsights (demographic breakdown) are NOT built — there's no
+  // source data for either yet; see handoff.md.
+  async eventAnalytics(eventId, { advanced = false } = {}) {
     const event = await prisma.event.findUnique({ where: { id: eventId }, include: { tiers: true } });
     if (!event) return null;
     const bookings = await prisma.booking.findMany({ where: { eventId, status: "paid" }, select: { qty: true, tierId: true, bookedAt: true } });
@@ -589,14 +599,27 @@ export const db = {
       const day = b.bookedAt.toISOString().slice(0, 10);
       salesByDay[day] = (salesByDay[day] || 0) + b.qty;
     }
+    let advancedFields = { conversionRate: null };
+    if (advanced) {
+      const [views, tickets] = await Promise.all([
+        prisma.analyticsEvent.count({ where: { type: "event_view", entityId: eventId } }),
+        prisma.ticket.findMany({ where: { eventId }, select: { checkedInAt: true } }),
+      ]);
+      const checkedIn = tickets.filter((t) => t.checkedInAt).length;
+      advancedFields = {
+        views,
+        conversionRate: views > 0 ? +((bookings.length / views) * 100).toFixed(1) : null,
+        checkIn: { total: tickets.length, checkedIn, rate: tickets.length ? +((checkedIn / tickets.length) * 100).toFixed(1) : null },
+      };
+    }
     return {
       eventId,
       ticketsSold: event.sold,
       capacity: event.capacity,
       revenue: +revenue.toFixed(2),
-      conversionRate: null, // needs page-view tracking — not yet instrumented, see audit notes
       tierBreakdown,
       salesByDay: Object.entries(salesByDay).map(([date, qty]) => ({ date, qty })).sort((a, b) => a.date.localeCompare(b.date)),
+      ...advancedFields,
     };
   },
 

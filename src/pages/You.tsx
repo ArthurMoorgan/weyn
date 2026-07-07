@@ -10,6 +10,7 @@ import ThemeToggle from "../components/ThemeToggle";
 import InstallPrompt from "../components/InstallPrompt";
 import AccountWidget from "../components/AccountWidget";
 import { webPushStatus, webPushSupported, subscribeWebPush, unsubscribeWebPush } from "../webpush";
+import SubscriptionCard from "../components/SubscriptionCard";
 
 const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 
@@ -260,6 +261,13 @@ function SettingsTab({ account }: { account: boolean }) {
           </div>
         )}
         {pushErr && <p className="errline">{pushErr}</p>}
+
+        {account && (
+          <>
+            <div className="filter-sheet-label" style={{ marginTop: 16 }}>Subscription</div>
+            <SubscriptionCard />
+          </>
+        )}
 
         {account && (
           <div className="account-row" style={{ marginTop: 12 }}>

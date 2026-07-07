@@ -167,6 +167,10 @@ export interface EventAnalytics {
   conversionRate: number | null;
   tierBreakdown: { id: string; name: string; sold: number; capacity: number; revenue: number }[];
   salesByDay: { date: string; qty: number }[];
+  // Organizer Pro (advancedAnalytics) — present only when the event owner
+  // has that feature; absent (not just null) for free-tier events.
+  views?: number;
+  checkIn?: { total: number; checkedIn: number; rate: number | null };
 }
 
 export type TeamRole = "MANAGER" | "STAFF";
@@ -351,6 +355,11 @@ async function json<T>(res: Response): Promise<T> {
   }
   return res.json() as Promise<T>;
 }
+
+export type PromoCode = {
+  id: string; code: string; discountType: "percent" | "flat"; discountValue: number;
+  maxUses: number | null; usedCount: number; startsAt: string | null; endsAt: string | null; active: boolean;
+};
 
 export const api = {
   listEvents(params: { cat?: string; q?: string } = {}): Promise<Weyn[]> {
@@ -636,6 +645,66 @@ export const api = {
     }).then((r) => json<{ id: string; status: string }>(r));
   },
 
+  // ---- Organizer Pro ----
+  async mySubscription(): Promise<{
+    plan: { key: string; name: string; priceOmr: number; billingPeriod: string };
+    status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean;
+    features: Record<string, boolean>;
+    paymentHistory: { id: string; amountOmr: number; status: string; paidAt: string | null; createdAt: string }[];
+  }> {
+    return fetch(`${API_BASE}/api/me/subscription`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async setEventFeatured(eventId: string, featured: boolean): Promise<{ id: string; featured: boolean }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/featured`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ featured }),
+    }).then((r) => json(r));
+  },
+  async listPromoCodes(eventId: string): Promise<PromoCode[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/promo-codes`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async createPromoCode(eventId: string, input: { code: string; discountType: "percent" | "flat"; discountValue: number; maxUses?: number; startsAt?: string; endsAt?: string }): Promise<PromoCode> {
+    return fetch(`${API_BASE}/api/events/${eventId}/promo-codes`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async setPromoCodeActive(eventId: string, codeId: string, active: boolean): Promise<PromoCode> {
+    return fetch(`${API_BASE}/api/events/${eventId}/promo-codes/${codeId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ active }),
+    }).then((r) => json(r));
+  },
+  async validatePromoCode(eventId: string, code: string): Promise<{ code: string; discountType: "percent" | "flat"; discountValue: number }> {
+    return fetch(`${API_BASE}/api/promo-codes/validate`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId, code }),
+    }).then((r) => json(r));
+  },
+  attendeesCsvUrl(eventId: string): string {
+    return `${API_BASE}/api/events/${eventId}/attendees.csv`;
+  },
+  async joinWaitlist(eventId: string, input: { email: string; name?: string; deviceId?: string }): Promise<{ id: string }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/waitlist`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async listWaitlist(eventId: string): Promise<{ id: string; email: string; name: string | null; createdAt: string }[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/waitlist`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async notifyAttendees(eventId: string, input: { subject: string; message: string }): Promise<{ ok: boolean; recipients: number; emailed: number; pushed: number }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/notify`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async createRecurringEvents(eventId: string, input: { count: number; intervalDays: number }): Promise<{ created: { id: string; startsAt: string }[] }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/recurring`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
   // ---- venue owner dashboard ----
   async myVenues(): Promise<(Venue & { _count?: { reservations: number; slots: number } })[]> {
     return fetch(`${API_BASE}/api/venues/mine`, { headers: { ...(await authHeaders()) } })
