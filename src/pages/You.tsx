@@ -81,7 +81,7 @@ export default function You() {
     );
   }
 
-  const myTickets = (allEvents.data || []).filter((e) => tickets.includes(e.id));
+  const myTickets = (allEvents.data || []).filter((e) => tickets.some((t) => t.eventId === e.id));
   const savedEvents = (allEvents.data || []).filter((e) => saved.includes(e.id));
   const isHost = (summary.data?.events.length || 0) > 0;
   const venues = myVenues.data || [];

@@ -366,12 +366,16 @@ export const api = {
   async createEvent(form: FormData): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events`, { method: "POST", headers: await authHeaders(), body: form }).then((r) => json<Weyn>(r)).then(absMedia);
   },
-  bookEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string): Promise<Weyn> {
+  // The server actually returns bookingId/accessToken merged in alongside
+  // the event (see server/app.js's POST /api/events/:id/book) — the type
+  // here previously said Promise<Weyn>, silently hiding them, which is
+  // exactly why free RSVPs had a bookingId to persist but never did.
+  bookEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string): Promise<Weyn & { bookingId: string; accessToken: string }> {
     return fetch(`${API_BASE}/api/events/${id}/book`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId }),
-    }).then((r) => json<Weyn>(r)).then(absMedia);
+    }).then((r) => json<Weyn & { bookingId: string; accessToken: string }>(r)).then(absMedia);
   },
   // paid tickets: returns a hosted Thawani checkout URL to redirect to — the
   // ticket isn't actually booked until Thawani confirms payment (see BookingStatus)

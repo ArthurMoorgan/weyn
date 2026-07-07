@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn } from "../api";
 import { useAsync, useClosing } from "../hooks";
-import { isSaved, toggleSave, useSaved, addTicket, getDeviceId, useAccount } from "../store";
+import { isSaved, toggleSave, useSaved, addTicket, ticketFor, getDeviceId, useAccount } from "../store";
 import MiniMap from "../components/MiniMap";
 import FollowButton from "../components/FollowButton";
+import TicketSheet from "../components/TicketSheet";
 import type { Collection } from "../api";
 import { downloadEventIcs } from "../ics";
 import Tooltip from "../components/Tooltip";
@@ -12,6 +13,7 @@ import Tooltip from "../components/Tooltip";
 export default function EventDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   useSaved();
   const { data: e, loading, error, reload } = useAsync(() => api.getEvent(id!), [id], { cacheKey: `event:${id}` });
   const [booked, setBooked] = useState<Weyn | null>(null);
@@ -19,10 +21,27 @@ export default function EventDetail() {
   const [bookErr, setBookErr] = useState("");
   const [tierId, setTierId] = useState<string | null>(null);
   const [listSheet, setListSheet] = useState(false);
+  const [ticketSheet, setTicketSheet] = useState(false);
   const [shared, setShared] = useState(false);
   const account = useAccount();
   const [activeSlide, setActiveSlide] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
+
+  // Restores the "you're going / ticket reserved" bar on a return visit —
+  // previously `booked` only ever got set optimistically inside book()
+  // itself, so navigating away and back showed the normal buy button again
+  // even though the user already had a real ticket. Also covers arriving
+  // here straight from CheckoutSuccess's "View ticket" link
+  // (?booking=&accessToken= in the URL) on a device where localStorage
+  // doesn't have the record yet — e.g. the link was forwarded/opened
+  // elsewhere — by persisting it the first time it's seen.
+  useEffect(() => {
+    if (!e) return;
+    const urlBooking = searchParams.get("booking");
+    const urlToken = searchParams.get("accessToken") || undefined;
+    if (urlBooking && !ticketFor(e.id)) addTicket(e.id, urlBooking, urlToken);
+    if (ticketFor(e.id)) setBooked(e);
+  }, [e, searchParams]);
 
   if (loading) return (
     <div className="detail">
@@ -95,7 +114,7 @@ export default function EventDetail() {
       try {
         const confirmed = await api.bookEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id);
         setBooked(confirmed);
-        addTicket(ev.id);
+        addTicket(ev.id, confirmed.bookingId, confirmed.accessToken);
       } catch (err: any) {
         setBooked(null);
         setBookErr(err.message || "Couldn't book");
@@ -160,6 +179,12 @@ export default function EventDetail() {
         {!hasCarousel && !ev.image && <span className="glyph">{ev.glyph}</span>}
       </div>
       {listSheet && <AddToListSheet eventId={ev.id} onClose={() => setListSheet(false)} />}
+      {ticketSheet && (() => {
+        const rec = ticketFor(ev.id);
+        return rec?.bookingId ? (
+          <TicketSheet eventTitle={ev.title} bookingId={rec.bookingId} accessToken={rec.accessToken} onClose={() => setTicketSheet(false)} />
+        ) : null;
+      })()}
 
       <div className="sheet glass">
         <span className={`catpill cat-${ev.cat}`}>{cat?.label}</span>
@@ -257,9 +282,15 @@ export default function EventDetail() {
           </div>
         ) : booked ? (
           <>
-            <button className="btn done" disabled style={{ flex: 1 }}>
-              <i className="icon-circle-check" /> {ev.price === 0 ? "You're going" : "Ticket reserved"}
-            </button>
+            {ticketFor(ev.id)?.bookingId ? (
+              <button className="btn done" style={{ flex: 1 }} onClick={() => setTicketSheet(true)}>
+                <i className="icon-qr-code" /> View ticket
+              </button>
+            ) : (
+              <button className="btn done" disabled style={{ flex: 1 }}>
+                <i className="icon-circle-check" /> {ev.price === 0 ? "You're going" : "Ticket reserved"}
+              </button>
+            )}
             <Tooltip text="Add to calendar">
               <button className="btn glass sq" onClick={() => downloadEventIcs(ev)} aria-label="Add to calendar">
                 <i className="icon-calendar-plus" />

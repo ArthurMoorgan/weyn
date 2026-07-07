@@ -25,7 +25,7 @@ export default function CheckoutSuccess() {
         const s = await api.getBooking(bookingId);
         if (cancelled) return;
         setStatus(s);
-        if (s.status === "paid") { addTicket(s.eventId); return; }
+        if (s.status === "paid") { if (bookingId) addTicket(s.eventId, bookingId, accessToken); return; }
         if (s.status !== "pending" || ++tries >= 8) return;
         setAttempts(tries);
         setTimeout(poll, 1500);

@@ -28,16 +28,34 @@ export function useSaved(): string[] { return useSyncExternalStore(subscribe, ()
 export const isSaved = (id: string) => saved.includes(id);
 
 // ---- tickets the user has booked / RSVP'd ----
-let tickets: string[] = read<string[]>(TICKETS_KEY, []);
-export function addTicket(id: string) {
-  if (!tickets.includes(id)) {
-    tickets = [id, ...tickets];
+// Stores the bookingId/accessToken alongside the eventId, not just the
+// eventId — previously this only remembered "you have a ticket for event X"
+// with no way to actually fetch that ticket's QR code back (GET
+// /api/bookings/:id/tickets needs the bookingId + accessToken, neither of
+// which were ever saved). That was the root cause of tickets being
+// completely unretrievable after the moment you booked.
+export type TicketRecord = { eventId: string; bookingId: string; accessToken?: string };
+
+function readTickets(): TicketRecord[] {
+  const raw = read<unknown[]>(TICKETS_KEY, []);
+  if (!raw.length) return [];
+  // Migrate the old string[]-of-eventIds shape — bookingId is unrecoverable
+  // for these, so "View ticket" just won't work for tickets booked before
+  // this change (there's no bookingId to have ever been thrown away).
+  if (typeof raw[0] === "string") return (raw as string[]).map((eventId) => ({ eventId, bookingId: "" }));
+  return raw as TicketRecord[];
+}
+let tickets: TicketRecord[] = readTickets();
+export function addTicket(eventId: string, bookingId: string, accessToken?: string) {
+  if (!tickets.some((t) => t.eventId === eventId)) {
+    tickets = [{ eventId, bookingId, accessToken }, ...tickets];
     localStorage.setItem(TICKETS_KEY, JSON.stringify(tickets));
     emit();
   }
 }
-export function useTickets(): string[] { return useSyncExternalStore(subscribe, () => tickets); }
-export const hasTicket = (id: string) => tickets.includes(id);
+export function useTickets(): TicketRecord[] { return useSyncExternalStore(subscribe, () => tickets); }
+export const hasTicket = (id: string) => tickets.some((t) => t.eventId === id);
+export const ticketFor = (eventId: string) => tickets.find((t) => t.eventId === eventId);
 
 // ---- anonymous per-install device id (used to target push notifications) ----
 const DEVICE_KEY = "weyn.deviceId";
