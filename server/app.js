@@ -240,7 +240,17 @@ export function createApp(storage) {
     // MANUAL_REVIEW, PENDING_REVIEW, and DISCOVERY_BLOCKED events are still
     // real and still reachable by direct link (see GET /api/events/:id),
     // they just don't get algorithmic reach. See server/moderation.js.
-    events = events.filter((e) => !e.cancelled && e.discoveryStatus === "APPROVED");
+    // Past events also drop out of discovery once they're over: an event's
+    // effective end is endsAt, or startsAt + 3h when no end time is set (so an
+    // in-progress event without an explicit end stays visible while it's
+    // happening rather than vanishing the moment it starts). Still reachable by
+    // direct link via GET /api/events/:id so ticket-holders keep their event.
+    const nowTs = Date.now();
+    const isOver = (e) => {
+      const end = e.endsAt ? new Date(e.endsAt).getTime() : new Date(e.startsAt).getTime() + 3 * 3600e3;
+      return Number.isFinite(end) && end < nowTs;
+    };
+    events = events.filter((e) => !e.cancelled && e.discoveryStatus === "APPROVED" && !isOver(e));
     if (cat && cat !== "all") events = events.filter((e) => e.cat === cat);
     if (organizer) events = events.filter((e) => e.organizer === organizer);
     if (q) {

@@ -418,6 +418,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ex-rail {
   display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
   padding: 2px 16px 4px; scrollbar-width: none;
+  /* Without this, `scroll-snap-type: mandatory` force-scrolls each OVERFLOWING
+     rail on load so its first card snaps to the scrollport's physical left
+     edge (0px), scrolling the 16px padding out of view — while rails that
+     don't overflow keep their 16px padding. That's what made some rails' first
+     cards sit flush to the screen edge and others 16px in, misaligned with the
+     section headings (always 16px). scroll-padding insets the snap origin by
+     16px so every snapped card lands on the same 16px line as everything else. */
+  scroll-padding: 0 16px;
   /* keep the horizontal swipe inside the rail — without this, flicking a
      card rail on mobile can trip the browser's edge back-navigation gesture
      and yank the user off the page mid-scroll */
@@ -474,11 +482,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin: 0 auto; max-width: var(--maxw);
   display: flex; align-items: stretch;
   /* On a home-screen-installed PWA, env(safe-area-inset-bottom) is the real
-     home-indicator height (~34px) — adding a flat 4px on TOP of that (as
-     before) made the bar visibly taller/more stretched than it needs to be
-     once installed. max() keeps a small minimum on non-notch devices
-     without stacking extra height where the inset is already generous. */
-  padding: 2px 4px max(4px, env(safe-area-inset-bottom));
+     home-indicator height (~34px). Using the FULL inset as bottom padding left
+     the labels visibly floating well above the screen edge ("really high up").
+     We only need to clear the home indicator, not reserve the whole inset, so
+     trim ~12px off it — this pulls the labels down toward the edge while still
+     keeping comfortable clearance (~22px on a notched iPhone). max() keeps a
+     small minimum on non-notch devices where the inset is 0. */
+  padding: 2px 4px max(6px, calc(env(safe-area-inset-bottom) - 12px));
   background: color-mix(in srgb, var(--bg) 82%, transparent);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
@@ -732,12 +742,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- search ---------- */
 .search { padding: 6px 16px 0; position: relative; }
-/* left:16px, not 30px — absolute children measure from the positioned
-   ancestor's OWN edge, not from inside its padding, so this icon was
-   sitting 14px further right than every heading/chip/card on the page
-   (all of which line up on the page's real 16px content edge via normal-
-   flow padding). This puts the search icon back on that same line. */
-.search [class^="icon-"] { position: absolute; left: 16px; top: calc(50% + 3px); transform: translateY(-50%); font-size: 18px; color: var(--text-3); z-index: 1; }
+/* The magnifier is INSIDE the input, not aligned to the page's content edge.
+   The input itself starts at 16px (the .search padding) and has 42px of left
+   text-padding; this centers the 18px icon within that left padding
+   (16 + (42-18)/2 ≈ 28px) so it sits comfortably between the input's rounded
+   left edge and the placeholder text, rather than jammed against the border. */
+.search [class^="icon-"] { position: absolute; left: 28px; top: calc(50% + 3px); transform: translateY(-50%); font-size: 18px; color: var(--text-3); z-index: 1; }
 .search input {
   width: 100%; font-family: inherit; font-size: 16px; padding: 12px 84px 12px 42px;
   border-radius: var(--radius-sm); color: var(--text);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, CATS, type Cat, type Weyn, isTonight, isToday, isTomorrow, isThisWeekend, dayLabel, timeLabel } from "../api";
+import { api, CATS, type Cat, type Weyn, isTonight, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import Stub from "../components/Stub";
@@ -150,7 +150,7 @@ export default function Explore() {
   // here is exactly what the first-launch splash should cover.
   useEffect(() => { if (!loading) dismissSplash(); }, [loading]);
 
-  const suggestions = useMemo(() => buildSuggestions((data || []).filter((e) => !e.cancelled), q), [data, q]);
+  const suggestions = useMemo(() => buildSuggestions((data || []).filter((e) => !e.cancelled && !isPast(e)), q), [data, q]);
 
   function chooseSuggestion(s: Suggestion) {
     setQ(s.value);
@@ -168,7 +168,7 @@ export default function Explore() {
 
   // one fetch → many derived sections
   const S = useMemo(() => {
-    const all = (data || []).filter((e) => !e.cancelled).sort(bySoonest);
+    const all = (data || []).filter((e) => !e.cancelled && !isPast(e)).sort(bySoonest);
     const catFiltered = cat === "all" ? all : all.filter((e) => e.cat === cat);
 
     if (searching) {
@@ -224,7 +224,7 @@ export default function Explore() {
 
       {!searching && (
         <section className="ex-hero">
-          <h1>What's on in Muscat</h1>
+          <h1>What's on</h1>
           <Link to="/host/events" className="ex-hero-host">Host an event <i className="icon-arrow-right" /></Link>
         </section>
       )}

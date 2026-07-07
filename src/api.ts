@@ -644,6 +644,17 @@ export const isSoldOut = (e: Weyn) => e.price >= 0 && e.capacity < 9000 && e.sol
 
 export function startDate(e: Weyn) { return new Date(e.startsAt); }
 
+// An event drops out of discovery once it's over. Mirrors the server's
+// isOver() filter in server/app.js (kept in sync): effective end is endsAt, or
+// startsAt + 3h when no end time is set, so an in-progress event without an
+// explicit end stays visible while it's happening. Applied client-side too so
+// cached event lists (see useAsync cacheKey) also hide past events across a
+// day/session boundary without waiting for a refetch.
+export function isPast(e: Weyn): boolean {
+  const end = e.endsAt ? new Date(e.endsAt).getTime() : startDate(e).getTime() + 3 * 3600e3;
+  return Number.isFinite(end) && end < Date.now();
+}
+
 export function isToday(e: Weyn) {
   const d = startDate(e), n = new Date();
   return d.toDateString() === n.toDateString();
