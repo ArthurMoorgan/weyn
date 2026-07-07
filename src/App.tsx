@@ -1,11 +1,35 @@
-import { useRef, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import Explore from "./pages/Explore";
+
+// Lazy, same as every other non-critical-path route (see main.tsx) — these
+// just aren't *routed* through main.tsx anymore, App renders them directly.
+const Reservations = lazy(() => import("./pages/Reservations"));
+const HostHub = lazy(() => import("./pages/HostHub"));
+const You = lazy(() => import("./pages/You"));
 
 const TABS = [
   { to: "/", icon: "sparkles", label: "Discover" },
   { to: "/reservations", icon: "utensils", label: "Reservations" },
   { to: "/host", icon: "circle-plus", label: "Host" },
   { to: "/you", icon: "user", label: "Profile" },
+];
+
+// The 4 bottom-tab pages, kept mounted once visited instead of unmounting
+// on every switch — a plain <Outlet/> would tear down and rebuild Explore's
+// feed, You's tab state, etc. every time, losing scroll position and
+// re-fetching data each visit. Each one mounts on first visit, then just
+// toggles display:none/contents on further switches — "stays loaded until
+// you close the app," matching how native tab-bar apps behave. Nested
+// subpages (/saved, /host/events, /host/venue, /admin) are NOT part of this
+// — those still mount fresh via the normal <Outlet/> below, which is the
+// right behavior for a page you navigate into and back out of rather than
+// switch to repeatedly.
+const MAIN_TABS: { path: string; Component: React.ComponentType }[] = [
+  { path: "/", Component: Explore },
+  { path: "/reservations", Component: Reservations },
+  { path: "/host", Component: HostHub },
+  { path: "/you", Component: You },
 ];
 
 const SPARK_COLORS = ["var(--spark-color-1)", "var(--spark-color-2)", "var(--spark-color-3)"];
@@ -23,6 +47,15 @@ let burstId = 0;
 export default function App() {
   const navRef = useRef<HTMLElement>(null);
   const [bursts, setBursts] = useState<Burst[]>([]);
+  const location = useLocation();
+  const activeMainTab = MAIN_TABS.find((t) => t.path === location.pathname);
+  const [visited, setVisited] = useState<Set<string>>(() => new Set(activeMainTab ? [activeMainTab.path] : []));
+
+  useEffect(() => {
+    if (activeMainTab && !visited.has(activeMainTab.path)) {
+      setVisited((prev) => new Set(prev).add(activeMainTab.path));
+    }
+  }, [activeMainTab, visited]);
 
   function fireSpark(e: React.MouseEvent<HTMLAnchorElement>, alreadyActive: boolean) {
     if (alreadyActive || !navRef.current) return;
@@ -48,7 +81,16 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Outlet />
+      {MAIN_TABS.map(({ path, Component }) =>
+        visited.has(path) ? (
+          <div key={path} style={location.pathname === path ? undefined : { display: "none" }}>
+            <Suspense fallback={<div className="route-loading" aria-busy="true" />}>
+              <Component />
+            </Suspense>
+          </div>
+        ) : null
+      )}
+      {!activeMainTab && <Outlet />}
       <nav className="tabs" ref={navRef as React.RefObject<HTMLElement>}>
         <div className="sidebar-brand"><i className="icon-sparkles" /> Weyn</div>
         {/* NavLink sets aria-current="page" on the active link automatically */}

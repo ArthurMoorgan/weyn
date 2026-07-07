@@ -159,7 +159,11 @@ export function createApp(storage) {
         // Clerk's Frontend API — dev instances live on *.clerk.accounts.dev,
         // production instances get a dedicated clerk.<yourdomain> subdomain
         // once configured (see HANDOFF.md's Clerk section) — both covered.
-        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.weynevents.com", "https://maps.googleapis.com", "https://nominatim.openstreetmap.org"],
+        // PostHog (posthog-js, bundled via npm like Clerk — no scriptSrc host
+        // needed, just its API host for event capture) uses whatever
+        // VITE_POSTHOG_HOST is set to; both US and EU cloud covered since
+        // either could be configured per-environment.
+        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.weynevents.com", "https://maps.googleapis.com", "https://nominatim.openstreetmap.org", "https://us.i.posthog.com", "https://eu.i.posthog.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
       },

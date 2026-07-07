@@ -1,4 +1,4 @@
-import {ClerkProvider, useAuth} from "@clerk/react";
+import {ClerkProvider, useAuth, useUser} from "@clerk/react";
 import React, { Suspense, lazy, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { HashRouter, BrowserRouter, Routes, Route } from "react-router-dom";
@@ -8,34 +8,32 @@ import "./lucide.css";
 import "./index.css";
 import App from "./App";
 import { setTokenGetter } from "./store";
-// Explore (the root/first-paint route) and Onboarding (the first-run
-// redirect target) stay eagerly bundled — they're the critical path a brand
-// new visitor hits, so lazy-loading them would just add a chunk fetch to the
-// very first render. Everything else is code-split: each route becomes its
-// own chunk fetched on navigation, which pulls the heavy deps out of the
-// initial bundle — leaflet (MapPicker/MiniMap, used by host + venue-detail)
-// and html5-qrcode (You.tsx's door scanner, ~200KB) now only download when
-// someone actually visits those routes.
-import Explore from "./pages/Explore";
+// Onboarding (the first-run redirect target) stays eagerly bundled — it's
+// critical path for a brand new visitor. The 4 bottom-tab pages (Explore,
+// Reservations, HostHub, You) are imported and rendered by App.tsx itself,
+// not routed here — see the comment there for why. Everything else is
+// code-split: each route becomes its own chunk fetched on navigation, which
+// pulls the heavy deps out of the initial bundle — leaflet (MapPicker/
+// MiniMap, used by host + venue-detail) and html5-qrcode (You.tsx's door
+// scanner, ~200KB) now only download when someone actually visits those
+// routes.
 import Onboarding from "./pages/Onboarding";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AuthGate from "./components/AuthGate";
 import { initPush } from "./push";
 import { markSplashShown, dismissSplash } from "./splash";
+import { initPostHog, identifyPostHog, resetPostHog } from "./posthog";
 
 const EventDetail = lazy(() => import("./pages/EventDetail"));
 const Saved = lazy(() => import("./pages/Saved"));
 const Organizer = lazy(() => import("./pages/Organizer"));
-const You = lazy(() => import("./pages/You"));
 const CheckoutSuccess = lazy(() => import("./pages/CheckoutSuccess"));
 const CheckoutCancel = lazy(() => import("./pages/CheckoutCancel"));
 const InviteAccept = lazy(() => import("./pages/InviteAccept"));
 const CollectionPage = lazy(() => import("./pages/Collection"));
 const Admin = lazy(() => import("./pages/Admin"));
 const OrganizerProfile = lazy(() => import("./pages/OrganizerProfile"));
-const HostHub = lazy(() => import("./pages/HostHub"));
 const HostVenue = lazy(() => import("./pages/HostVenue"));
-const Reservations = lazy(() => import("./pages/Reservations"));
 const VenueDetail = lazy(() => import("./pages/VenueDetail"));
 const Support = lazy(() => import("./pages/Support"));
 const Account = lazy(() => import("./pages/Account"));
@@ -44,6 +42,7 @@ const Account = lazy(() => import("./pages/Account"));
 // on-screen duration is measured from real first-paint, not from whenever
 // Explore's data finishes loading.
 markSplashShown();
+initPostHog();
 
 // BrowserRouter (real paths) on web — required for server-side OG/meta tags
 // on shared event links, which HashRouter makes structurally impossible
@@ -68,11 +67,16 @@ const PUBLISHABLE_KEY = (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | 
 // call also need an authenticated fetch and sit outside App's <Outlet>.
 function ClerkAuthBridge() {
   const { getToken, isLoaded } = useAuth();
+  const { user } = useUser();
   useEffect(() => {
     if (!isLoaded) return;
     setTokenGetter(() => getToken());
     return () => setTokenGetter(null);
   }, [isLoaded, getToken]);
+  useEffect(() => {
+    if (user) identifyPostHog(user.id, { email: user.primaryEmailAddress?.emailAddress });
+    else resetPostHog();
+  }, [user?.id]);
   return null;
 }
 
@@ -130,14 +134,21 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               }
             />
             <Route element={<AuthGate />}>
+              {/* "/", "/reservations", "/host", "/you" have no element here —
+                  App.tsx renders those 4 bottom-tab pages itself, keeping
+                  each mounted (scroll position, in-flight state, etc.
+                  preserved) once visited instead of remounting on every tab
+                  switch like a normal Outlet would. These Routes exist only
+                  so the router matches the path and mounts <App/> at all;
+                  see App.tsx for the actual rendering. */}
               <Route element={<App />}>
-                <Route path="/" element={<Explore />} />
-                <Route path="/reservations" element={<Reservations />} />
+                <Route path="/" />
+                <Route path="/reservations" />
                 <Route path="/saved" element={<Saved />} />
-                <Route path="/host" element={<HostHub />} />
+                <Route path="/host" />
                 <Route path="/host/events" element={<Organizer />} />
                 <Route path="/host/venue" element={<HostVenue />} />
-                <Route path="/you" element={<You />} />
+                <Route path="/you" />
                 <Route path="/admin" element={<Admin />} />
               </Route>
               <Route path="/e/:id" element={<EventDetail />} />

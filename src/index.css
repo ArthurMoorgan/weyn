@@ -656,14 +656,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- Profile tab bar (Overview/Tickets/Saved/Lists/Organizer/Settings) ---------- */
 .profile-tabs {
-  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
+  /* wraps instead of horizontally scrolling — this is primary navigation
+     (Settings/Lists could otherwise sit permanently off-screen behind a
+     swipe gesture), unlike .chips' filter rows where scrolling is fine
+     since everything past the fold is optional, not essential wayfinding */
+  display: flex; flex-wrap: wrap; gap: 4px;
   padding: 8px 12px 10px; border-bottom: 1px solid var(--hair);
-  /* fade the trailing edge so a horizontally-scrollable strip doesn't look
-     like a complete, final list when more tabs sit off-screen */
-  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
-.profile-tabs::-webkit-scrollbar { display: none; }
 .profile-tab {
   flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
   font: var(--t-meta); font-weight: 600; color: var(--text-3);
