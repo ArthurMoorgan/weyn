@@ -94,6 +94,12 @@ export default function EventDetail() {
   const payPrice = hasTiers ? (selectedTier?.price ?? 0) : ev.price;
   const payFee = +(payPrice * 0.08).toFixed(2);
 
+  // The organizer's shared link is /e/:id?invite=CODE — this is the only
+  // place a signed-out visitor's browser ever has the code, so it has to
+  // be read from the URL, not fetched (GET /api/events/:id never returns
+  // inviteCode to a non-owner, see server/app.js).
+  const inviteCode = searchParams.get("invite") || undefined;
+
   async function book() {
     if (hasTiers && !selectedTier) { setBookErr("Choose a ticket type first."); return; }
     setBooking(true); setBookErr("");
@@ -102,7 +108,7 @@ export default function EventDetail() {
         // paid ticket: redirect to Thawani's hosted checkout — the booking is
         // only confirmed once payment succeeds (see /checkout/success), so
         // there's nothing to show optimistically here.
-        const { checkoutUrl } = await api.checkoutEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id);
+        const { checkoutUrl } = await api.checkoutEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id, inviteCode);
         window.location.href = checkoutUrl;
         return;
       }
@@ -112,7 +118,7 @@ export default function EventDetail() {
       // pre-book state (and undo the local ticket-list write) on failure.
       setBooked(ev);
       try {
-        const confirmed = await api.bookEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id);
+        const confirmed = await api.bookEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id, inviteCode);
         setBooked(confirmed);
         addTicket(ev.id, confirmed.bookingId, confirmed.accessToken);
       } catch (err: any) {
@@ -268,6 +274,10 @@ export default function EventDetail() {
       <div className="buybar">
         {ev.cancelled ? (
           <button className="btn" disabled><i className="icon-ban" /> Event cancelled</button>
+        ) : ev.inviteOnly && !inviteCode && !booked ? (
+          <div className="btn dark" style={{ cursor: "default" }}>
+            <i className="icon-lock" /> Invite-only — you need an invite link to book
+          </div>
         ) : ev.ticketingType === "external" ? (
           <a className="btn" href={ev.externalTicketUrl || "#"} target="_blank" rel="noreferrer">
             <i className="icon-external-link" /> Visit ticket website

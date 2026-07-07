@@ -48,6 +48,11 @@ export interface Weyn {
   // Never fabricate these client-side (no fake attendee counts / social proof).
   organizerVerified?: boolean;
   featured?: boolean;
+  inviteOnly?: boolean;
+  // Never present unless the requester is the event's owner (see GET
+  // /api/events/:id) — a signed-out visitor using a shared invite link
+  // gets it from the URL itself, not this field.
+  inviteCode?: string | null;
   ownerId?: string | null; // absent on legacy/seeded events created before real auth existed
   discoveryStatus?: "PENDING_REVIEW" | "APPROVED" | "DISCOVERY_LIMITED" | "MANUAL_REVIEW" | "DISCOVERY_BLOCKED";
 }
@@ -379,20 +384,20 @@ export const api = {
   // the event (see server/app.js's POST /api/events/:id/book) — the type
   // here previously said Promise<Weyn>, silently hiding them, which is
   // exactly why free RSVPs had a bookingId to persist but never did.
-  bookEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string): Promise<Weyn & { bookingId: string; accessToken: string }> {
+  bookEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string, inviteCode?: string): Promise<Weyn & { bookingId: string; accessToken: string }> {
     return fetch(`${API_BASE}/api/events/${id}/book`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode }),
     }).then((r) => json<Weyn & { bookingId: string; accessToken: string }>(r)).then(absMedia);
   },
   // paid tickets: returns a hosted Thawani checkout URL to redirect to — the
   // ticket isn't actually booked until Thawani confirms payment (see BookingStatus)
-  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string): Promise<{ checkoutUrl: string; bookingId: string; accessToken?: string }> {
+  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string, inviteCode?: string): Promise<{ checkoutUrl: string; bookingId: string; accessToken?: string }> {
     return fetch(`${API_BASE}/api/events/${id}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode }),
     }).then((r) => json(r));
   },
   getBooking(bookingId: string): Promise<BookingStatus> {
@@ -658,6 +663,17 @@ export const api = {
     return fetch(`${API_BASE}/api/events/${eventId}/featured`, {
       method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify({ featured }),
+    }).then((r) => json(r));
+  },
+  async setEventInviteOnly(eventId: string, inviteOnly: boolean): Promise<{ id: string; inviteOnly: boolean; inviteCode: string | null; inviteUrl: string }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/invite-only`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ inviteOnly }),
+    }).then((r) => json(r));
+  },
+  async regenerateInviteCode(eventId: string): Promise<{ id: string; inviteCode: string; inviteUrl: string }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/invite-only/regenerate`, {
+      method: "POST", headers: await authHeaders(),
     }).then((r) => json(r));
   },
   async listPromoCodes(eventId: string): Promise<PromoCode[]> {

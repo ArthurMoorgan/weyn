@@ -199,6 +199,15 @@ model Event {
   // the featuredPlacement feature can set on their own event.
   featured          Boolean            @default(false)
 
+  // Invite-only hosting: an event that never appears in public Discovery
+  // (GET /api/events) and can't be booked without inviteCode matching —
+  // only reachable/bookable via a direct link the organizer shares. The
+  // code is never returned by GET /api/events/:id to a non-owner; the
+  // frontend only ever has it because it was in the link the organizer
+  // sent (?invite=CODE), same pattern as Booking.accessToken elsewhere.
+  inviteOnly Boolean @default(false)
+  inviteCode String? @unique
+
   owner             User?              @relation(fields: [ownerId], references: [id])
   tiers             Tier[]
   bookings          Booking[]

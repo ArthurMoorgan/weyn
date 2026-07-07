@@ -441,6 +441,7 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
   const [analyticsFor, setAnalyticsFor] = useState<Weyn | null>(null);
   const [teamFor, setTeamFor] = useState<Weyn | null>(null);
   const [checkinFor, setCheckinFor] = useState<Weyn | null>(null);
+  const [inviteFor, setInviteFor] = useState<Weyn | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   if (!isHost) {
@@ -512,6 +513,7 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
                 <button onClick={() => setCheckinFor(e)}><i className="icon-qr-code" /> Check-in</button>
                 <button onClick={() => setTeamFor(e)}><i className="icon-users-round" /> Team</button>
                 <button onClick={() => setMarketingFor(e)}><i className="icon-megaphone" /> Marketing</button>
+                <button onClick={() => setInviteFor(e)}><i className="icon-user-plus" /> Invite-only{e.inviteOnly ? " (on)" : ""}</button>
                 <button onClick={() => duplicate(e)} disabled={busyId === e.id}><i className="icon-copy" /> Duplicate</button>
                 <button onClick={() => cancel(e)} disabled={busyId === e.id} className="danger"><i className="icon-ban" /> Cancel</button>
               </div>
@@ -528,6 +530,7 @@ function OrganizerSection({ name, summary, reload }: { name: string; summary: an
       {analyticsFor && <AnalyticsSheet event={analyticsFor} onClose={() => setAnalyticsFor(null)} />}
       {teamFor && <TeamSheet event={teamFor} onClose={() => setTeamFor(null)} />}
       {checkinFor && <CheckInSheet event={checkinFor} onClose={() => setCheckinFor(null)} />}
+      {inviteFor && <InviteOnlySheet event={inviteFor} onClose={() => setInviteFor(null)} onChanged={reload} />}
     </section>
   );
 }
@@ -874,6 +877,88 @@ function MarketingSheet({ event, onClose }: { event: Weyn; onClose: () => void }
           <i className="icon-refresh-cw" /> {regenerating ? "Regenerating…" : "Regenerate"}
         </button>
         <button className="btn glass" style={{ marginTop: 8 }} onClick={close}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Invite-only sheet — not a Pro feature, free for every
+   organizer. Toggling on generates a shareable link+code; the event drops
+   out of Discovery entirely and can only be booked via that link. ---------- */
+function InviteOnlySheet({ event, onClose, onChanged }: { event: Weyn; onClose: () => void; onChanged: () => void }) {
+  const { closing, close } = useClosing(onClose);
+  const [inviteOnly, setInviteOnly] = useState(!!event.inviteOnly);
+  // The dashboard's own event listing (unlike the public GET
+  // /api/events/:id) includes inviteCode for the owner, so this is
+  // already known on mount whenever the event was previously turned on —
+  // no need to wait on a request just to show it again.
+  const [inviteUrl, setInviteUrl] = useState<string | null>(
+    event.inviteOnly && event.inviteCode ? `${window.location.origin}/e/${event.id}?invite=${event.inviteCode}` : null
+  );
+  const [busy, setBusy] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function toggle() {
+    setBusy(true); setErr("");
+    try {
+      const next = !inviteOnly;
+      const res = await api.setEventInviteOnly(event.id, next);
+      setInviteOnly(res.inviteOnly);
+      setInviteUrl(res.inviteOnly ? res.inviteUrl : null);
+      onChanged();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't update this event.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function regenerate() {
+    setRegenerating(true); setErr("");
+    try {
+      const res = await api.regenerateInviteCode(event.id);
+      setInviteUrl(res.inviteUrl);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't regenerate the code.");
+    } finally {
+      setRegenerating(false);
+    }
+  }
+  function copy() {
+    if (!inviteUrl) return;
+    navigator.clipboard?.writeText(inviteUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  }
+
+  return (
+    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
+      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginBottom: 4 }}>Invite-only — {event.title}</h3>
+        <p className="hint" style={{ margin: "0 0 14px" }}>
+          When on, this event never appears in Discovery or search — only people with the link below can view or book it.
+        </p>
+        <div className="settings-row">
+          <span>Invite-only</span>
+          <button className={"switch" + (inviteOnly ? " on" : "")} disabled={busy} onClick={toggle} aria-pressed={inviteOnly} aria-label="Toggle invite-only">
+            <span className="switch-thumb" />
+          </button>
+        </div>
+        {err && <p className="errline">{err}</p>}
+        {inviteOnly && (
+          <div style={{ marginTop: 14 }}>
+            <label>Invite link</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input readOnly value={inviteUrl || "Loading…"} style={{ flex: 1 }} onFocus={(e) => e.target.select()} />
+              <button className="copy-btn" onClick={copy} disabled={!inviteUrl}>
+                <i className={copied ? "icon-check" : "icon-copy"} /> {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <button className="btn glass" onClick={regenerate} disabled={regenerating} style={{ marginTop: 10 }}>
+              <i className="icon-refresh-cw" /> {regenerating ? "Regenerating…" : "Regenerate link (invalidates the old one)"}
+            </button>
+          </div>
+        )}
+        <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Close</button>
       </div>
     </div>
   );

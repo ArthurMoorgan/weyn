@@ -279,7 +279,11 @@ export function createApp(storage) {
       const end = e.endsAt ? new Date(e.endsAt).getTime() : new Date(e.startsAt).getTime() + 3 * 3600e3;
       return Number.isFinite(end) && end < nowTs;
     };
-    events = events.filter((e) => !e.cancelled && e.discoveryStatus === "APPROVED" && !isOver(e));
+    // Invite-only events (see PATCH /api/events/:id/invite-only) never
+    // appear in any listing/browse/search context — only reachable via a
+    // direct link the organizer shares, which hits GET /api/events/:id
+    // instead of this route.
+    events = events.filter((e) => !e.cancelled && e.discoveryStatus === "APPROVED" && !e.inviteOnly && !isOver(e));
     if (cat && cat !== "all") events = events.filter((e) => e.cat === cat);
     if (organizer) events = events.filter((e) => e.organizer === organizer);
     if (q) {
@@ -317,8 +321,14 @@ export function createApp(storage) {
       return res.status(404).json({ error: "Event not found" });
     }
     db.track("event_view", { userId: req.user?.id, entityId: e.id }).catch(() => {});
-    res.set('Cache-Control', 'public, max-age=30');
-    res.json(e);
+    res.set('Cache-Control', e.inviteOnly ? 'private, no-store' : 'public, max-age=30');
+    // Invite-only events are reachable by direct link (title/date/venue all
+    // still show — the recipient needs to see what they're being invited
+    // to), but the actual secret code is never sent to anyone except the
+    // owner. The frontend already has it from the URL (?invite=CODE) if
+    // it's unlocking the buy bar, so it never needs it echoed back here.
+    const { inviteCode, ...safe } = e;
+    res.json(isOwner ? e : safe);
   });
 
   app.post("/api/events", createEventLimiter, requireAuth, upload.fields([{ name: "image", maxCount: 1 }, { name: "gallery", maxCount: 8 }]), validateBody(createEventSchema), async (req, res) => {
@@ -457,6 +467,9 @@ export function createApp(storage) {
     const e = await db.get(req.params.id);
     if (!e) return res.status(404).json({ error: "Event not found" });
     if (e.cancelled) return res.status(410).json({ error: "This event was cancelled" });
+    if (e.inviteOnly && req.body?.inviteCode !== e.inviteCode) {
+      return res.status(403).json({ error: { code: "INVITE_REQUIRED", message: "This event is invite-only — a valid invite code is required." } });
+    }
     if (e.ticketingType && e.ticketingType !== "weyn") {
       return res.status(400).json({ error: "This event isn't ticketed through Weyn — see externalTicketUrl/organizerContact instead" });
     }
@@ -541,6 +554,9 @@ export function createApp(storage) {
     const e = await db.get(req.params.id);
     if (!e) return res.status(404).json({ error: "Event not found" });
     if (e.cancelled) return res.status(410).json({ error: "This event was cancelled" });
+    if (e.inviteOnly && req.body?.inviteCode !== e.inviteCode) {
+      return res.status(403).json({ error: { code: "INVITE_REQUIRED", message: "This event is invite-only — a valid invite code is required." } });
+    }
     if (e.ticketingType !== "weyn") {
       return res.status(400).json({ error: "This event isn't ticketed through Weyn" });
     }
@@ -770,6 +786,32 @@ export function createApp(storage) {
     const updated = await prisma.event.update({ where: { id: req.event.id }, data: { featured } });
     await db.audit("event.featured", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { featured } });
     res.json({ id: updated.id, featured: updated.featured });
+  });
+
+  // ---- Invite-only hosting: not a Pro feature (no requireFeature) — event
+  // creation/publishing/hosting stays free with no gate for every
+  // organizer. Turning it on generates a short shareable code (kept, not
+  // cleared, when turned back off — so re-enabling doesn't invalidate a
+  // link someone already shared without the organizer asking to rotate).
+  app.patch("/api/events/:id/invite-only", requireEventOwner(), async (req, res) => {
+    const inviteOnly = !!req.body?.inviteOnly;
+    const data = { inviteOnly };
+    if (inviteOnly && !req.event.inviteCode) {
+      data.inviteCode = crypto.randomBytes(6).toString("base64url").replace(/[-_]/g, "").slice(0, 8).toUpperCase();
+    }
+    const updated = await prisma.event.update({ where: { id: req.event.id }, data });
+    await db.audit("event.invite_only", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { inviteOnly } });
+    res.json({ id: updated.id, inviteOnly: updated.inviteOnly, inviteCode: updated.inviteCode, inviteUrl: `${publicOrigin(req)}/e/${updated.id}?invite=${updated.inviteCode}` });
+  });
+  // Rotates the code, invalidating every link shared before this call —
+  // a deliberate action (someone leaked the old link), not something
+  // toggling inviteOnly on/off should ever do automatically.
+  app.post("/api/events/:id/invite-only/regenerate", requireEventOwner(), async (req, res) => {
+    if (!req.event.inviteOnly) return res.status(400).json({ error: { code: "NOT_INVITE_ONLY", message: "This event isn't invite-only" } });
+    const inviteCode = crypto.randomBytes(6).toString("base64url").replace(/[-_]/g, "").slice(0, 8).toUpperCase();
+    const updated = await prisma.event.update({ where: { id: req.event.id }, data: { inviteCode } });
+    await db.audit("event.invite_code_regenerate", { actorId: req.user.id, entityType: "event", entityId: req.event.id });
+    res.json({ id: updated.id, inviteCode: updated.inviteCode, inviteUrl: `${publicOrigin(req)}/e/${updated.id}?invite=${updated.inviteCode}` });
   });
 
   // ---- Marketing: promo codes (covers promoCodes / discountCampaigns /
