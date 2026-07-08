@@ -2091,6 +2091,84 @@ export function createApp(storage) {
     res.set("Content-Disposition", `attachment; filename="finance-${req.user.id}.csv"`);
     res.send(lines.join("\n"));
   });
+
+  // ---- File Library (URL references) ----
+  app.get("/api/organizer/files", requireAuth, async (req, res) => {
+    res.json(await db.listMediaAssets(req.user.id, req.query.eventId || undefined));
+  });
+  app.post("/api/organizer/files", requireAuth, async (req, res) => {
+    const b = req.body || {};
+    if (!b.url || !String(b.url).trim()) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A URL is required." } });
+    const asset = await db.createMediaAsset({
+      organizerId: req.user.id, eventId: b.eventId || null, url: String(b.url).trim().slice(0, 1000),
+      type: ["image", "video", "document"].includes(b.type) ? b.type : "document",
+      folder: b.folder ? String(b.folder).trim().slice(0, 60) : null,
+      tags: Array.isArray(b.tags) ? b.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 10) : [],
+    });
+    res.status(201).json(asset);
+  });
+  app.delete("/api/organizer/files/:id", requireAuth, async (req, res) => {
+    const ok = await db.deleteMediaAsset(req.params.id, req.user.id);
+    if (!ok) return res.status(404).json({ error: { code: "NOT_FOUND", message: "File not found" } });
+    res.json({ ok: true });
+  });
+
+  // ---- Sponsor management ----
+  app.get("/api/organizer/sponsors", requireAuth, async (req, res) => {
+    res.json(await db.listSponsors(req.user.id, req.query.eventId || undefined));
+  });
+  app.post("/api/organizer/sponsors", requireAuth, async (req, res) => {
+    const b = req.body || {};
+    if (!b.name || !String(b.name).trim()) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A sponsor name is required." } });
+    const sponsor = await db.createSponsor({
+      organizerId: req.user.id, eventId: b.eventId || null, name: String(b.name).trim().slice(0, 100),
+      contactEmail: b.contactEmail || null, contactPhone: b.contactPhone || null, contractUrl: b.contractUrl || null,
+      logoUrl: b.logoUrl || null, amount: b.amount != null ? Number(b.amount) : null,
+      deliverables: Array.isArray(b.deliverables) ? b.deliverables.map((d) => String(d).trim()).filter(Boolean).slice(0, 20) : [],
+    });
+    res.status(201).json(sponsor);
+  });
+  app.patch("/api/organizer/sponsors/:id", requireAuth, async (req, res) => {
+    const patch = {};
+    if (req.body?.status && ["prospect", "confirmed", "delivered"].includes(req.body.status)) patch.status = req.body.status;
+    const updated = await db.updateSponsor(req.params.id, req.user.id, patch);
+    if (!updated) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Sponsor not found" } });
+    res.json(updated);
+  });
+  app.delete("/api/organizer/sponsors/:id", requireAuth, async (req, res) => {
+    const ok = await db.deleteSponsor(req.params.id, req.user.id);
+    if (!ok) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Sponsor not found" } });
+    res.json({ ok: true });
+  });
+
+  // ---- Vendor management ----
+  app.get("/api/organizer/vendors", requireAuth, async (req, res) => {
+    res.json(await db.listVendors(req.user.id, req.query.eventId || undefined));
+  });
+  app.post("/api/organizer/vendors", requireAuth, async (req, res) => {
+    const b = req.body || {};
+    if (!b.name || !String(b.name).trim() || !b.category) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A vendor name and category are required." } });
+    const vendor = await db.createVendor({
+      organizerId: req.user.id, eventId: b.eventId || null, category: String(b.category).trim().slice(0, 40), name: String(b.name).trim().slice(0, 100),
+      contactEmail: b.contactEmail || null, contactPhone: b.contactPhone || null, contractUrl: b.contractUrl || null,
+      paymentStatus: b.paymentStatus || "pending", notes: b.notes || null,
+    });
+    res.status(201).json(vendor);
+  });
+  app.patch("/api/organizer/vendors/:id", requireAuth, async (req, res) => {
+    const patch = {};
+    if (req.body?.paymentStatus) patch.paymentStatus = String(req.body.paymentStatus).slice(0, 20);
+    if (req.body?.rating != null) patch.rating = Math.max(1, Math.min(5, Number(req.body.rating)));
+    const updated = await db.updateVendor(req.params.id, req.user.id, patch);
+    if (!updated) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Vendor not found" } });
+    res.json(updated);
+  });
+  app.delete("/api/organizer/vendors/:id", requireAuth, async (req, res) => {
+    const ok = await db.deleteVendor(req.params.id, req.user.id);
+    if (!ok) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Vendor not found" } });
+    res.json({ ok: true });
+  });
+
   app.get("/api/me/organizer-settings", requireAuth, async (req, res) => {
     res.json({ settings: await db.getOrganizerSettings(req.user.id) });
   });

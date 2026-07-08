@@ -22,6 +22,7 @@ function DiscoveryBadge({ status }: { status?: Weyn["discoveryStatus"] }) {
 export default function OrganizerEvents() {
   const events = useAsync(() => api.dashboardEvents(), []);
   const [filter, setFilter] = useState<Filter>("upcoming");
+  const [view, setView] = useState<"list" | "calendar">("list");
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const list = events.data || [];
@@ -66,26 +67,34 @@ export default function OrganizerEvents() {
 
   return (
     <>
-      <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 6px 4px" }}>
-        {(["upcoming", "past", "drafts", "templates", "cancelled", "all"] as Filter[]).map((f) => (
-          <button key={f} className={"chip" + (filter === f ? " on" : "")} onClick={() => setFilter(f)}>
-            {f === "upcoming" ? "Upcoming" : f === "past" ? "Past" : f === "drafts" ? `Drafts${draftCount ? ` (${draftCount})` : ""}` : f === "templates" ? "Templates" : f === "cancelled" ? "Cancelled" : "All"}
-          </button>
-        ))}
+      <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 6px 4px", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {(["upcoming", "past", "drafts", "templates", "cancelled", "all"] as Filter[]).map((f) => (
+            <button key={f} className={"chip" + (filter === f ? " on" : "")} onClick={() => setFilter(f)}>
+              {f === "upcoming" ? "Upcoming" : f === "past" ? "Past" : f === "drafts" ? `Drafts${draftCount ? ` (${draftCount})` : ""}` : f === "templates" ? "Templates" : f === "cancelled" ? "Cancelled" : "All"}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button className={"chip" + (view === "list" ? " on" : "")} onClick={() => setView("list")}><i className="icon-list" /></button>
+          <button className={"chip" + (view === "calendar" ? " on" : "")} onClick={() => setView("calendar")}><i className="icon-calendar" /></button>
+        </div>
       </div>
 
-      {events.loading && (
+      {view === "calendar" && !events.loading && <CalendarView events={filtered} />}
+
+      {view === "list" && events.loading && (
         <div className="feed" style={{ paddingTop: 8 }}>
           <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
           <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
         </div>
       )}
       {events.error && <p className="errline">{events.error}</p>}
-      {!events.loading && filtered.length === 0 && (
+      {view === "list" && !events.loading && filtered.length === 0 && (
         <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "8px 6px" }}>No {filter === "all" ? "" : filter} events.</p>
       )}
 
-      <div className="organizer-events-grid">
+      {view === "list" && <div className="organizer-events-grid">
         {filtered.map((e) => {
           const left = ticketsLeft(e);
           const out = isSoldOut(e);
@@ -131,9 +140,57 @@ export default function OrganizerEvents() {
             </div>
           );
         })}
-      </div>
+      </div>}
 
       <Link to="/host/events" className="btn glass" style={{ marginTop: 8 }}><i className="icon-plus" /> Host another event</Link>
     </>
+  );
+}
+
+function CalendarView({ events }: { events: Weyn[] }) {
+  const [monthOffset, setMonthOffset] = useState(0);
+  const base = new Date();
+  const month = new Date(base.getFullYear(), base.getMonth() + monthOffset, 1);
+  const firstWeekday = month.getDay();
+  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+
+  const byDay = useMemo(() => {
+    const map = new Map<string, Weyn[]>();
+    for (const e of events) {
+      const d = new Date(e.startsAt);
+      if (d.getFullYear() !== month.getFullYear() || d.getMonth() !== month.getMonth()) continue;
+      const key = d.getDate();
+      map.set(String(key), [...(map.get(String(key)) || []), e]);
+    }
+    return map;
+  }, [events, month]);
+
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <div className="dash-card" style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <button className="copy-btn" onClick={() => setMonthOffset((m) => m - 1)}>‹</button>
+        <b>{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</b>
+        <button className="copy-btn" onClick={() => setMonthOffset((m) => m + 1)}>›</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <div key={i} style={{ textAlign: "center" }}>{d}</div>)}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+        {cells.map((d, i) => (
+          <div key={i} style={{ minHeight: 56, borderRadius: 8, padding: 4, background: d ? "var(--card-alt, rgba(0,0,0,0.03))" : "transparent" }}>
+            {d && <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 2 }}>{d}</div>}
+            {d && (byDay.get(String(d)) || []).slice(0, 2).map((e) => (
+              <Link key={e.id} to={`/organizer/events/${e.id}`} title={e.title} style={{ display: "block", fontSize: 10, padding: "1px 3px", borderRadius: 4, background: e.color, color: "#fff", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {e.title}
+              </Link>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

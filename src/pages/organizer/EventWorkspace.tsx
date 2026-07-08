@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
-import { api, API_BASE, TEAM_PERMISSIONS, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign } from "../../api";
+import { api, API_BASE, TEAM_PERMISSIONS, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor } from "../../api";
 import { useAsync } from "../../hooks";
 import { getAuthToken } from "../../store";
 import FeatureLock from "../../components/FeatureLock";
@@ -548,6 +548,148 @@ function MarketingTab({ event, features }: { event: Weyn; features: Record<strin
 
       <p className="hint" style={{ margin: "20px 0 8px" }}>Promotion</p>
       <PromotionSection event={event} />
+
+      <p className="hint" style={{ margin: "20px 0 8px" }}>Files</p>
+      <FileLibrarySection event={event} />
+
+      <p className="hint" style={{ margin: "20px 0 8px" }}>Sponsors</p>
+      <SponsorsSection event={event} />
+
+      <p className="hint" style={{ margin: "20px 0 8px" }}>Vendors</p>
+      <VendorsSection event={event} />
+    </>
+  );
+}
+
+/* ---------- File Library: URL references, not raw uploads ---------- */
+function FileLibrarySection({ event }: { event: Weyn }) {
+  const { data, loading, reload } = useAsync(() => api.listFiles(event.id), [event.id]);
+  const [url, setUrl] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    if (!url.trim()) return;
+    setSaving(true);
+    try { await api.addFile({ url: url.trim(), eventId: event.id }); setUrl(""); reload(); } finally { setSaving(false); }
+  }
+  async function remove(id: string) {
+    await api.deleteFile(id); reload();
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 10px" }}>Keep contracts, riders, and shared-drive links for this event in one place.</p>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://drive.google.com/…" style={{ flex: 1 }} />
+        <button className="btn" onClick={add} disabled={saving || !url.trim()}>{saving ? "Adding…" : "Add"}</button>
+      </div>
+      {loading && <p className="hint">Loading…</p>}
+      {!loading && (data || []).length > 0 && (
+        <ul className="steps">
+          {data!.map((f) => (
+            <li key={f.id}>
+              <i className="icon-file" />
+              <span><a href={f.url} target="_blank" rel="noreferrer" style={{ wordBreak: "break-all" }}>{f.url}</a></span>
+              <button className="copy-btn" onClick={() => remove(f.id)} style={{ marginLeft: "auto" }}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!loading && (data || []).length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No files yet.</p>}
+    </>
+  );
+}
+
+/* ---------- Sponsor management ---------- */
+function SponsorsSection({ event }: { event: Weyn }) {
+  const { data, loading, reload } = useAsync(() => api.listSponsors(event.id), [event.id]);
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    if (!name.trim()) return;
+    setSaving(true);
+    try { await api.addSponsor({ name: name.trim(), eventId: event.id, amount: amount ? Number(amount) : undefined }); setName(""); setAmount(""); reload(); } finally { setSaving(false); }
+  }
+  async function cycleStatus(s: Sponsor) {
+    const next: Record<Sponsor["status"], Sponsor["status"]> = { prospect: "confirmed", confirmed: "delivered", delivered: "prospect" };
+    await api.updateSponsorStatus(s.id, next[s.status]); reload();
+  }
+  async function remove(id: string) {
+    await api.deleteSponsor(id); reload();
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Sponsor name" style={{ flex: 2 }} />
+        <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="OMR" inputMode="decimal" style={{ flex: 1 }} />
+        <button className="btn" onClick={add} disabled={saving || !name.trim()}>{saving ? "Adding…" : "Add"}</button>
+      </div>
+      {loading && <p className="hint">Loading…</p>}
+      {!loading && (data || []).length > 0 && (
+        <ul className="steps">
+          {data!.map((s) => (
+            <li key={s.id}>
+              <i className="icon-award" />
+              <span>{s.name}{s.amount ? ` · ${s.amount} OMR` : ""}</span>
+              <button className="chip" style={{ marginLeft: "auto" }} onClick={() => cycleStatus(s)}>{s.status}</button>
+              <button className="copy-btn" onClick={() => remove(s.id)}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!loading && (data || []).length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No sponsors yet.</p>}
+    </>
+  );
+}
+
+/* ---------- Vendor management ---------- */
+const VENDOR_CATEGORIES = ["catering", "photography", "security", "cleaning", "entertainment", "other"];
+
+function VendorsSection({ event }: { event: Weyn }) {
+  const { data, loading, reload } = useAsync(() => api.listVendors(event.id), [event.id]);
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState(VENDOR_CATEGORIES[0]);
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    if (!name.trim()) return;
+    setSaving(true);
+    try { await api.addVendor({ name: name.trim(), category, eventId: event.id }); setName(""); reload(); } finally { setSaving(false); }
+  }
+  async function cycleStatus(v: Vendor) {
+    const next: Record<string, string> = { pending: "paid", paid: "pending" };
+    await api.updateVendorStatus(v.id, next[v.paymentStatus] || "pending"); reload();
+  }
+  async function remove(id: string) {
+    await api.deleteVendor(id); reload();
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Vendor name" style={{ flex: 2 }} />
+        <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ flex: 1 }}>
+          {VENDOR_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button className="btn" onClick={add} disabled={saving || !name.trim()}>{saving ? "Adding…" : "Add"}</button>
+      </div>
+      {loading && <p className="hint">Loading…</p>}
+      {!loading && (data || []).length > 0 && (
+        <ul className="steps">
+          {data!.map((v) => (
+            <li key={v.id}>
+              <i className="icon-truck" />
+              <span>{v.name}<br /><small style={{ color: "var(--text-3)" }}>{v.category}</small></span>
+              <button className="chip" style={{ marginLeft: "auto" }} onClick={() => cycleStatus(v)}>{v.paymentStatus}</button>
+              <button className="copy-btn" onClick={() => remove(v.id)}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!loading && (data || []).length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No vendors yet.</p>}
     </>
   );
 }

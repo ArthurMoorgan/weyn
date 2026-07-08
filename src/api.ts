@@ -511,6 +511,47 @@ export interface Expense {
   createdAt: string;
 }
 
+export interface MediaAsset {
+  id: string;
+  organizerId: string;
+  eventId: string | null;
+  url: string;
+  type: "image" | "video" | "document";
+  folder: string | null;
+  tags: string[];
+  createdAt: string;
+}
+
+export interface Sponsor {
+  id: string;
+  organizerId: string;
+  eventId: string | null;
+  name: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  contractUrl: string | null;
+  logoUrl: string | null;
+  amount: number | null;
+  deliverables: string[];
+  status: "prospect" | "confirmed" | "delivered";
+  createdAt: string;
+}
+
+export interface Vendor {
+  id: string;
+  organizerId: string;
+  eventId: string | null;
+  category: string;
+  name: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  contractUrl: string | null;
+  paymentStatus: string;
+  rating: number | null;
+  notes: string | null;
+  createdAt: string;
+}
+
 export const api = {
   listEvents(params: { cat?: string; q?: string } = {}): Promise<Weyn[]> {
     const sp = new URLSearchParams();
@@ -932,6 +973,56 @@ export const api = {
   async deleteExpense(id: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/organizer/expenses/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
+
+  // ---- File Library ----
+  async listFiles(eventId?: string): Promise<MediaAsset[]> {
+    return fetch(`${API_BASE}/api/organizer/files${eventId ? `?eventId=${eventId}` : ""}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async addFile(input: { url: string; type?: "image" | "video" | "document"; folder?: string; eventId?: string }): Promise<MediaAsset> {
+    return fetch(`${API_BASE}/api/organizer/files`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async deleteFile(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/organizer/files/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Sponsor management ----
+  async listSponsors(eventId?: string): Promise<Sponsor[]> {
+    return fetch(`${API_BASE}/api/organizer/sponsors${eventId ? `?eventId=${eventId}` : ""}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async addSponsor(input: { name: string; eventId?: string; contactEmail?: string; contactPhone?: string; amount?: number }): Promise<Sponsor> {
+    return fetch(`${API_BASE}/api/organizer/sponsors`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async updateSponsorStatus(id: string, status: Sponsor["status"]): Promise<Sponsor> {
+    return fetch(`${API_BASE}/api/organizer/sponsors/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ status }),
+    }).then((r) => json(r));
+  },
+  async deleteSponsor(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/organizer/sponsors/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Vendor management ----
+  async listVendors(eventId?: string): Promise<Vendor[]> {
+    return fetch(`${API_BASE}/api/organizer/vendors${eventId ? `?eventId=${eventId}` : ""}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async addVendor(input: { name: string; category: string; eventId?: string; contactEmail?: string; contactPhone?: string }): Promise<Vendor> {
+    return fetch(`${API_BASE}/api/organizer/vendors`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async updateVendorStatus(id: string, paymentStatus: string): Promise<Vendor> {
+    return fetch(`${API_BASE}/api/organizer/vendors/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ paymentStatus }),
+    }).then((r) => json(r));
+  },
+  async deleteVendor(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/organizer/vendors/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
   async getOrganizerSettings(): Promise<Record<string, any> | null> {
     return fetch(`${API_BASE}/api/me/organizer-settings`, { headers: await authHeaders() }).then((r) => json(r)).then((d: any) => d.settings);
   },

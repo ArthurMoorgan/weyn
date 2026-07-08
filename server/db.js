@@ -957,6 +957,60 @@ export const db = {
     return [...bySource.values()].map((s) => ({ ...s, revenue: +s.revenue.toFixed(2) })).sort((a, b) => b.tickets - a.tickets);
   },
 
+  // ---- File Library: URL references (own upload, Drive/Dropbox link, etc)
+  // rather than a new byte-storage pipeline — organizers keep contracts/
+  // riders/photos organized without this app hosting the files itself. ----
+  async listMediaAssets(organizerId, eventId) {
+    return prisma.mediaAsset.findMany({ where: { organizerId, ...(eventId ? { eventId } : {}) }, orderBy: { createdAt: "desc" } });
+  },
+  async createMediaAsset({ organizerId, eventId, url, type, folder, tags }) {
+    return prisma.mediaAsset.create({ data: { organizerId, eventId: eventId || null, url, type, folder: folder || null, tags: tags || [] } });
+  },
+  async deleteMediaAsset(id, organizerId) {
+    const existing = await prisma.mediaAsset.findUnique({ where: { id } });
+    if (!existing || existing.organizerId !== organizerId) return false;
+    await prisma.mediaAsset.delete({ where: { id } });
+    return true;
+  },
+
+  // ---- Sponsor management ----
+  async listSponsors(organizerId, eventId) {
+    return prisma.sponsor.findMany({ where: { organizerId, ...(eventId ? { eventId } : {}) }, orderBy: { createdAt: "desc" } });
+  },
+  async createSponsor({ organizerId, eventId, name, contactEmail, contactPhone, contractUrl, logoUrl, amount, deliverables }) {
+    return prisma.sponsor.create({ data: { organizerId, eventId: eventId || null, name, contactEmail: contactEmail || null, contactPhone: contactPhone || null, contractUrl: contractUrl || null, logoUrl: logoUrl || null, amount: amount ?? null, deliverables: deliverables || [] } });
+  },
+  async updateSponsor(id, organizerId, patch) {
+    const existing = await prisma.sponsor.findUnique({ where: { id } });
+    if (!existing || existing.organizerId !== organizerId) return null;
+    return prisma.sponsor.update({ where: { id }, data: patch });
+  },
+  async deleteSponsor(id, organizerId) {
+    const existing = await prisma.sponsor.findUnique({ where: { id } });
+    if (!existing || existing.organizerId !== organizerId) return false;
+    await prisma.sponsor.delete({ where: { id } });
+    return true;
+  },
+
+  // ---- Vendor management ----
+  async listVendors(organizerId, eventId) {
+    return prisma.vendor.findMany({ where: { organizerId, ...(eventId ? { eventId } : {}) }, orderBy: { createdAt: "desc" } });
+  },
+  async createVendor({ organizerId, eventId, category, name, contactEmail, contactPhone, contractUrl, paymentStatus, notes }) {
+    return prisma.vendor.create({ data: { organizerId, eventId: eventId || null, category, name, contactEmail: contactEmail || null, contactPhone: contactPhone || null, contractUrl: contractUrl || null, paymentStatus: paymentStatus || "pending", notes: notes || null } });
+  },
+  async updateVendor(id, organizerId, patch) {
+    const existing = await prisma.vendor.findUnique({ where: { id } });
+    if (!existing || existing.organizerId !== organizerId) return null;
+    return prisma.vendor.update({ where: { id }, data: patch });
+  },
+  async deleteVendor(id, organizerId) {
+    const existing = await prisma.vendor.findUnique({ where: { id } });
+    if (!existing || existing.organizerId !== organizerId) return false;
+    await prisma.vendor.delete({ where: { id } });
+    return true;
+  },
+
   // ---- AI Studio ----
   async logAiGeneration({ organizerId, eventId, feature, prompt, output }) {
     await prisma.aiGenerationLog.create({ data: { organizerId, eventId: eventId || null, feature, prompt, output } });
