@@ -26,6 +26,8 @@ export default function OrganizerOverview() {
   const overview = useAsync(() => api.organizerOverview(), []);
   const finance = useAsync(() => api.organizerFinance(), []);
 
+  const [showMore, setShowMore] = useState(false);
+
   const s = summary.data;
   const o = overview.data;
   const f = finance.data;
@@ -106,26 +108,35 @@ export default function OrganizerOverview() {
         )}
       </div>
 
-      {f && f.byEvent.length > 0 && (
+      <button type="button" className="ig-import-toggle" onClick={() => setShowMore((v) => !v)} aria-expanded={showMore} style={{ marginTop: 4 }}>
+        <i className="icon-layout-list" /> Revenue by event, goals & expenses
+        <i className={showMore ? "icon-chevron-up" : "icon-chevron-down"} style={{ marginLeft: "auto" }} />
+      </button>
+
+      {showMore && (
         <>
-          <div className="date-head" style={{ paddingLeft: 6 }}><h2>Revenue by event</h2></div>
-          <ul className="steps">
-            {f.byEvent.map((e) => (
-              <li key={e.eventId}>
-                <i className="icon-ticket" />
-                <span><Link to={`/organizer/events/${e.eventId}`}>{e.title}</Link><br /><small style={{ color: "var(--text-3)" }}>{e.ticketsSold} tickets</small></span>
-                <b style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>{omr(e.revenue)} OMR</b>
-              </li>
-            ))}
-          </ul>
+          {f && f.byEvent.length > 0 && (
+            <>
+              <div className="date-head" style={{ paddingLeft: 6 }}><h2>Revenue by event</h2></div>
+              <ul className="steps">
+                {f.byEvent.map((e) => (
+                  <li key={e.eventId}>
+                    <i className="icon-ticket" />
+                    <span><Link to={`/organizer/events/${e.eventId}`}>{e.title}</Link><br /><small style={{ color: "var(--text-3)" }}>{e.ticketsSold} tickets</small></span>
+                    <b style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>{omr(e.revenue)} OMR</b>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <div className="date-head" style={{ paddingLeft: 6 }}><h2>This month's goals</h2></div>
+          <GoalsPanel />
+
+          <div className="date-head" style={{ paddingLeft: 6 }}><h2>Expenses & P&L</h2></div>
+          <FinancialDashboard finance={f} />
         </>
       )}
-
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>This month's goals</h2></div>
-      <GoalsPanel />
-
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Expenses & P&L</h2></div>
-      <FinancialDashboard finance={f} />
     </>
   );
 }

@@ -546,23 +546,45 @@ function MarketingTab({ event, features }: { event: Weyn; features: Record<strin
       <p className="hint" style={{ margin: "20px 0 8px" }}>Waitlist</p>
       <WaitlistSection event={event} enabled={!!features.waitlists} />
 
-      <p className="hint" style={{ margin: "20px 0 8px" }}>Promotion</p>
-      <PromotionSection event={event} />
+      <MoreEventTools event={event} />
+    </>
+  );
+}
 
-      <p className="hint" style={{ margin: "20px 0 8px" }}>Files</p>
-      <FileLibrarySection event={event} />
+// Promotion/Files/Sponsors/Vendors/Feedback/Automation are all occasional-use
+// tools, not things an organizer checks every visit — folded behind one
+// toggle rather than six always-open sections, per the standing feedback
+// that this dashboard gets complicated fast when everything is expanded by
+// default (see HANDOFF's Phase B note).
+function MoreEventTools({ event }: { event: Weyn }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="ig-import-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open} style={{ marginTop: 16 }}>
+        <i className="icon-layout-list" /> More tools: promotion, files, sponsors, vendors, feedback, automation
+        <i className={open ? "icon-chevron-up" : "icon-chevron-down"} style={{ marginLeft: "auto" }} />
+      </button>
+      {open && (
+        <>
+          <p className="hint" style={{ margin: "16px 0 8px" }}>Promotion</p>
+          <PromotionSection event={event} />
 
-      <p className="hint" style={{ margin: "20px 0 8px" }}>Sponsors</p>
-      <SponsorsSection event={event} />
+          <p className="hint" style={{ margin: "20px 0 8px" }}>Files</p>
+          <FileLibrarySection event={event} />
 
-      <p className="hint" style={{ margin: "20px 0 8px" }}>Vendors</p>
-      <VendorsSection event={event} />
+          <p className="hint" style={{ margin: "20px 0 8px" }}>Sponsors</p>
+          <SponsorsSection event={event} />
 
-      <p className="hint" style={{ margin: "20px 0 8px" }}>Feedback</p>
-      <FeedbackSection event={event} />
+          <p className="hint" style={{ margin: "20px 0 8px" }}>Vendors</p>
+          <VendorsSection event={event} />
 
-      <p className="hint" style={{ margin: "20px 0 8px" }}>Automation</p>
-      <AutomationSection event={event} />
+          <p className="hint" style={{ margin: "20px 0 8px" }}>Feedback</p>
+          <FeedbackSection event={event} />
+
+          <p className="hint" style={{ margin: "20px 0 8px" }}>Automation</p>
+          <AutomationSection event={event} />
+        </>
+      )}
     </>
   );
 }
