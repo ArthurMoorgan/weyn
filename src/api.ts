@@ -492,9 +492,23 @@ export interface OrganizerFinance {
   totalRevenue: number;
   netRevenue: number;
   feesPaid: number;
+  totalExpenses: number;
+  netProfit: number;
   byEvent: { eventId: string; title: string; revenue: number; ticketsSold: number }[];
   revenueByMonth: { month: string; revenue: number }[];
   payoutsLive: boolean;
+}
+
+export interface Expense {
+  id: string;
+  organizerId: string;
+  eventId: string | null;
+  event: { id: string; title: string } | null;
+  category: string;
+  amount: number;
+  note: string | null;
+  date: string;
+  createdAt: string;
 }
 
 export const api = {
@@ -906,6 +920,17 @@ export const api = {
   },
   async organizerFinance(): Promise<OrganizerFinance> {
     return fetch(`${API_BASE}/api/organizer/finance`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async listExpenses(eventId?: string): Promise<Expense[]> {
+    return fetch(`${API_BASE}/api/organizer/expenses${eventId ? `?eventId=${eventId}` : ""}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async createExpense(input: { category: string; amount: number; note?: string; eventId?: string; date?: string }): Promise<Expense> {
+    return fetch(`${API_BASE}/api/organizer/expenses`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async deleteExpense(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/organizer/expenses/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
   async getOrganizerSettings(): Promise<Record<string, any> | null> {
     return fetch(`${API_BASE}/api/me/organizer-settings`, { headers: await authHeaders() }).then((r) => json(r)).then((d: any) => d.settings);

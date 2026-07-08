@@ -2052,6 +2052,45 @@ export function createApp(storage) {
   app.get("/api/organizer/finance", requireAuth, async (req, res) => {
     res.json(await db.organizerFinance(req.user.id));
   });
+  app.get("/api/organizer/expenses", requireAuth, async (req, res) => {
+    res.json(await db.listExpenses(req.user.id, req.query.eventId || undefined));
+  });
+  app.post("/api/organizer/expenses", requireAuth, async (req, res) => {
+    const b = req.body || {};
+    const amount = Number(b.amount);
+    if (!b.category || !String(b.category).trim() || !(amount > 0)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A category and a positive amount are required." } });
+    }
+    const expense = await db.createExpense({
+      organizerId: req.user.id, eventId: b.eventId || null, category: String(b.category).trim().slice(0, 60),
+      amount, note: b.note ? String(b.note).trim().slice(0, 500) : null, date: b.date ? new Date(b.date) : undefined,
+    });
+    res.status(201).json(expense);
+  });
+  app.delete("/api/organizer/expenses/:id", requireAuth, async (req, res) => {
+    const ok = await db.deleteExpense(req.params.id, req.user.id);
+    if (!ok) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Expense not found" } });
+    res.json({ ok: true });
+  });
+  app.get("/api/organizer/finance/export.csv", requireAuth, requireFeature("csvExports"), async (req, res) => {
+    const [finance, expenses] = await Promise.all([db.organizerFinance(req.user.id), db.listExpenses(req.user.id)]);
+    const escape = (v) => {
+      let s = String(v ?? "");
+      if (/^[=+\-@]/.test(s)) s = "'" + s;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const lines = ["Section,Event/Category,Tickets,Amount (OMR),Date"];
+    for (const e of finance.byEvent) lines.push(["Revenue", escape(e.title), e.ticketsSold, e.revenue, ""].join(","));
+    for (const ex of expenses) lines.push(["Expense", escape(ex.event ? `${ex.category} (${ex.event.title})` : ex.category), "", -ex.amount, escape(ex.date.toISOString().slice(0, 10))].join(","));
+    lines.push(["", "", "", "", ""].join(","));
+    lines.push(["Summary", "Total revenue", "", finance.totalRevenue, ""].join(","));
+    lines.push(["Summary", "Platform fees", "", -finance.feesPaid, ""].join(","));
+    lines.push(["Summary", "Total expenses", "", -finance.totalExpenses, ""].join(","));
+    lines.push(["Summary", "Net profit", "", finance.netProfit, ""].join(","));
+    res.set("Content-Type", "text/csv");
+    res.set("Content-Disposition", `attachment; filename="finance-${req.user.id}.csv"`);
+    res.send(lines.join("\n"));
+  });
   app.get("/api/me/organizer-settings", requireAuth, async (req, res) => {
     res.json({ settings: await db.getOrganizerSettings(req.user.id) });
   });

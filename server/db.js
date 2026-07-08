@@ -900,14 +900,40 @@ export const db = {
       .map(([month, revenue]) => ({ month, revenue: +revenue.toFixed(2) }));
 
     const totalRevenue = byEvent.reduce((s, e) => s + e.revenue, 0);
+    const feesPaid = +(totalRevenue * 0.08).toFixed(2);
+    const expenses = await prisma.expense.findMany({ where: { organizerId: userId }, select: { amount: true } });
+    const totalExpenses = +expenses.reduce((s, e) => s + e.amount, 0).toFixed(2);
     return {
       totalRevenue: +totalRevenue.toFixed(2),
       netRevenue: +(totalRevenue * 0.92).toFixed(2),
-      feesPaid: +(totalRevenue * 0.08).toFixed(2),
+      feesPaid,
+      totalExpenses,
+      netProfit: +(totalRevenue * 0.92 - totalExpenses).toFixed(2),
       byEvent: byEvent.sort((a, b) => b.revenue - a.revenue),
       revenueByMonth,
       payoutsLive: false,
     };
+  },
+
+  // ---- Financial Dashboard: manually-logged costs (venue, staff, supplies…)
+  // set against real ticket revenue for a real P&L, not just a sales total. ----
+  async listExpenses(organizerId, eventId) {
+    return prisma.expense.findMany({
+      where: { organizerId, ...(eventId ? { eventId } : {}) },
+      include: { event: { select: { id: true, title: true } } },
+      orderBy: { date: "desc" },
+    });
+  },
+  async createExpense({ organizerId, eventId, category, amount, note, date }) {
+    return prisma.expense.create({
+      data: { organizerId, eventId: eventId || null, category, amount, note: note || null, date: date || undefined },
+    });
+  },
+  async deleteExpense(id, organizerId) {
+    const existing = await prisma.expense.findUnique({ where: { id } });
+    if (!existing || existing.organizerId !== organizerId) return false;
+    await prisma.expense.delete({ where: { id } });
+    return true;
   },
 
   // ---- Promotion Center: which UTM-tagged links actually drove bookings
