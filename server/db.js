@@ -753,6 +753,16 @@ export const db = {
       if (unnotified > 0) {
         needsAttention.push({ type: "waitlist_pending", eventId: e.id, eventTitle: e.title, message: `${unnotified} waitlist ${unnotified === 1 ? "signup" : "signups"} not yet notified.` });
       }
+      // Smart Notifications: a couple of derived, no-schema tips folded into
+      // the same "needs attention" feed rather than a new destination —
+      // organizers already check this list, so a new UI surface for these
+      // would just be a second inbox nobody opens.
+      if (e.capacity < 9000 && e.capacity > 0 && new Date(e.startsAt) >= now) {
+        const soldPct = e.sold / e.capacity;
+        if (soldPct >= 0.85) {
+          needsAttention.push({ type: "selling_fast", eventId: e.id, eventTitle: e.title, message: `${Math.round(soldPct * 100)}% sold — consider raising the price or capacity for next time.` });
+        }
+      }
     }
     if (eventIds.length) {
       const pendingInvites = await prisma.eventTeamMember.findMany({
@@ -796,7 +806,105 @@ export const db = {
     }
     const revenueTrend = trendDays.map((date) => ({ date, revenue: +revenueByDay[date].toFixed(2) }));
 
-    return { needsAttention, nextUpcoming, revenueTrend };
+    return { needsAttention, nextUpcoming, revenueTrend, reputationScore: await db.reputationScore(userId, events) };
+  },
+
+  // ---- Organizer Reputation Score: a single 0-100 number blending sell-
+  // through rate and attendee feedback ratings — both signals an organizer
+  // can actually act on, not an opaque platform metric. Weighted 60/40
+  // toward sell-through since feedback data is sparse for most organizers
+  // early on; falls back to sell-through alone when there's no feedback yet.
+  async reputationScore(organizerId, preloadedEvents) {
+    const events = preloadedEvents || await prisma.event.findMany({
+      where: { ownerId: organizerId, deletedAt: null, cancelled: false, capacity: { lt: 9000 } },
+      select: { id: true, sold: true, capacity: true },
+    });
+    const finite = events.filter((e) => e.capacity > 0 && e.capacity < 9000);
+    const avgSellThrough = finite.length ? finite.reduce((s, e) => s + e.sold / e.capacity, 0) / finite.length : null;
+    const eventIds = events.map((e) => e.id);
+    const feedback = eventIds.length ? await prisma.eventFeedback.findMany({ where: { eventId: { in: eventIds }, rating: { not: null } }, select: { rating: true } }) : [];
+    const avgRating = feedback.length ? feedback.reduce((s, f) => s + f.rating, 0) / feedback.length : null;
+    if (avgSellThrough === null && avgRating === null) return null;
+    const sellScore = avgSellThrough !== null ? Math.min(100, avgSellThrough * 100) : null;
+    const ratingScore = avgRating !== null ? (avgRating / 5) * 100 : null;
+    const score = sellScore !== null && ratingScore !== null ? sellScore * 0.6 + ratingScore * 0.4 : (sellScore ?? ratingScore);
+    return { score: Math.round(score), avgSellThroughRate: avgSellThrough !== null ? +(avgSellThrough * 100).toFixed(1) : null, avgRating: avgRating !== null ? +avgRating.toFixed(1) : null, feedbackCount: feedback.length };
+  },
+
+  // ---- Feedback Center ----
+  async submitFeedback({ eventId, bookingId, rating, npsScore, comment }) {
+    return prisma.eventFeedback.create({ data: { eventId, bookingId: bookingId || null, rating: rating ?? null, npsScore: npsScore ?? null, comment: comment || null } });
+  },
+  async listFeedback(eventId) {
+    const rows = await prisma.eventFeedback.findMany({ where: { eventId }, orderBy: { createdAt: "desc" } });
+    const rated = rows.filter((r) => r.rating != null);
+    const avgRating = rated.length ? +(rated.reduce((s, r) => s + r.rating, 0) / rated.length).toFixed(1) : null;
+    return { entries: rows, avgRating, count: rows.length };
+  },
+
+  // ---- Organizer Goals ----
+  async getGoal(organizerId, month) {
+    return prisma.organizerGoal.findUnique({ where: { organizerId_month: { organizerId, month } } });
+  },
+  async setGoal(organizerId, month, patch) {
+    return prisma.organizerGoal.upsert({
+      where: { organizerId_month: { organizerId, month } },
+      create: { organizerId, month, ...patch },
+      update: patch,
+    });
+  },
+  // ---- Automation Builder ----
+  async listAutomationRules(organizerId, eventId) {
+    return prisma.automationRule.findMany({ where: { organizerId, ...(eventId ? { eventId } : {}) }, orderBy: { createdAt: "desc" } });
+  },
+  async createAutomationRule({ organizerId, eventId, name, trigger, action, config }) {
+    return prisma.automationRule.create({ data: { organizerId, eventId: eventId || null, name, trigger, action, config: config || {} } });
+  },
+  async setAutomationRuleEnabled(id, organizerId, enabled) {
+    const existing = await prisma.automationRule.findUnique({ where: { id } });
+    if (!existing || existing.organizerId !== organizerId) return null;
+    return prisma.automationRule.update({ where: { id }, data: { enabled } });
+  },
+  async deleteAutomationRule(id, organizerId) {
+    const existing = await prisma.automationRule.findUnique({ where: { id } });
+    if (!existing || existing.organizerId !== organizerId) return false;
+    await prisma.automationRule.delete({ where: { id } });
+    return true;
+  },
+  // Only "capacity_threshold" is evaluated on a scan today — the trigger/
+  // action strings on the model cover more cases than are wired up yet
+  // (see schema.prisma's comment), flagged honestly rather than accepting
+  // rules that silently never fire.
+  async dueCapacityThresholdRules() {
+    const rules = await prisma.automationRule.findMany({
+      where: { enabled: true, trigger: "capacity_threshold", lastRunAt: null },
+      include: { event: { select: { id: true, title: true, sold: true, capacity: true, cancelled: true, ownerId: true } } },
+    });
+    return rules.filter((r) => {
+      const e = r.event;
+      if (!e || e.cancelled || !(e.capacity > 0) || e.capacity >= 9000) return false;
+      const threshold = Number(r.config?.thresholdPercent) || 80;
+      return (e.sold / e.capacity) * 100 >= threshold;
+    });
+  },
+  async markAutomationRuleRun(id) {
+    await prisma.automationRule.update({ where: { id }, data: { lastRunAt: new Date() } });
+  },
+
+  async goalProgress(organizerId, month) {
+    const goal = await db.getGoal(organizerId, month);
+    if (!goal) return { goal: null, progress: null };
+    const [year, mo] = month.split("-").map(Number);
+    const start = new Date(Date.UTC(year, mo - 1, 1));
+    const end = new Date(Date.UTC(year, mo, 1));
+    const bookings = await prisma.booking.findMany({
+      where: { status: "paid", bookedAt: { gte: start, lt: end }, event: { ownerId: organizerId } },
+      select: { qty: true, tier: { select: { price: true } }, event: { select: { price: true } } },
+    });
+    const revenue = bookings.reduce((s, b) => s + b.qty * (b.tier ? b.tier.price : b.event.price), 0);
+    const attendance = bookings.reduce((s, b) => s + b.qty, 0);
+    const eventsCount = await prisma.event.count({ where: { ownerId: organizerId, deletedAt: null, cancelled: false, createdAt: { gte: start, lt: end } } });
+    return { goal, progress: { revenue: +revenue.toFixed(2), attendance, eventsCount } };
   },
 
   // Deduped by email (Booking has no userId FK — see HANDOFF.md). Anonymous

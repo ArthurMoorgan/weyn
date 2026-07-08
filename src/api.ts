@@ -466,7 +466,7 @@ export type PromoCode = {
 
 // ---- organizer dashboard: cross-event views ----
 export interface OrganizerNeedsAttentionItem {
-  type: "manual_review" | "zero_sales" | "waitlist_pending" | "pending_invite";
+  type: "manual_review" | "zero_sales" | "waitlist_pending" | "pending_invite" | "selling_fast";
   eventId: string;
   eventTitle: string;
   message: string;
@@ -475,6 +475,40 @@ export interface OrganizerOverview {
   needsAttention: OrganizerNeedsAttentionItem[];
   nextUpcoming: { id: string; title: string; startsAt: string; sold: number; capacity: number; image: string | null; color: string; glyph: string }[];
   revenueTrend: { date: string; revenue: number }[];
+  reputationScore: { score: number; avgSellThroughRate: number | null; avgRating: number | null; feedbackCount: number } | null;
+}
+
+export interface OrganizerGoal {
+  organizerId: string;
+  month: string;
+  revenueGoal: number | null;
+  attendanceGoal: number | null;
+  eventsGoal: number | null;
+  followersGoal: number | null;
+}
+
+export interface GoalProgress {
+  goal: OrganizerGoal | null;
+  progress: { revenue: number; attendance: number; eventsCount: number } | null;
+}
+
+export interface AutomationRule {
+  id: string;
+  organizerId: string;
+  eventId: string | null;
+  name: string;
+  trigger: string;
+  action: string;
+  config: Record<string, any> | null;
+  enabled: boolean;
+  lastRunAt: string | null;
+  createdAt: string;
+}
+
+export interface FeedbackSummary {
+  entries: { id: string; rating: number | null; npsScore: number | null; comment: string | null; createdAt: string }[];
+  avgRating: number | null;
+  count: number;
 }
 export interface OrganizerAttendee {
   key: string;
@@ -1021,6 +1055,44 @@ export const api = {
   },
   async deleteVendor(id: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/organizer/vendors/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Feedback Center ----
+  async submitFeedback(eventId: string, input: { rating?: number; npsScore?: number; comment?: string; bookingId?: string }): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/feedback`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async listFeedback(eventId: string): Promise<FeedbackSummary> {
+    return fetch(`${API_BASE}/api/events/${eventId}/feedback`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Organizer Goals ----
+  async goalProgress(month: string): Promise<GoalProgress> {
+    return fetch(`${API_BASE}/api/organizer/goals/${month}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async setGoal(month: string, patch: Partial<Pick<OrganizerGoal, "revenueGoal" | "attendanceGoal" | "eventsGoal" | "followersGoal">>): Promise<OrganizerGoal> {
+    return fetch(`${API_BASE}/api/organizer/goals/${month}`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(patch),
+    }).then((r) => json(r));
+  },
+
+  // ---- Automation Builder ----
+  async listAutomations(eventId?: string): Promise<AutomationRule[]> {
+    return fetch(`${API_BASE}/api/organizer/automations${eventId ? `?eventId=${eventId}` : ""}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async createAutomation(input: { name: string; trigger: string; action: string; eventId?: string; config?: Record<string, any> }): Promise<AutomationRule> {
+    return fetch(`${API_BASE}/api/organizer/automations`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async setAutomationEnabled(id: string, enabled: boolean): Promise<AutomationRule> {
+    return fetch(`${API_BASE}/api/organizer/automations/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ enabled }),
+    }).then((r) => json(r));
+  },
+  async deleteAutomation(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/organizer/automations/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
 
   async getOrganizerSettings(): Promise<Record<string, any> | null> {

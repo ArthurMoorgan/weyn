@@ -11,7 +11,10 @@ const ATTENTION_ICON: Record<string, string> = {
   zero_sales: "icon-trending-down",
   waitlist_pending: "icon-clock",
   pending_invite: "icon-mail",
+  selling_fast: "icon-flame",
 };
+
+const thisMonth = () => new Date().toISOString().slice(0, 7);
 
 // One page, everything that matters at a glance — per direct feedback that
 // the dashboard had grown too many separate destinations for what it does.
@@ -36,6 +39,7 @@ export default function OrganizerOverview() {
         <div className="stat"><div className="k">Tickets sold</div><div className="v">{s ? s.totalAttendees.toLocaleString() : "—"}</div></div>
         <div className="stat"><div className="k">Live events</div><div className="v">{s ? s.totalEvents : "—"}</div></div>
         <div className="stat"><div className="k">New today</div><div className="v">{s ? s.newRegistrationsToday : "—"}</div></div>
+        {o?.reputationScore && <div className="stat"><div className="k">Reputation score</div><div className="v">{o.reputationScore.score} <small>/ 100</small></div></div>}
       </div>
 
       <div className="date-head" style={{ paddingLeft: 6 }}><h2>Needs attention</h2>{o && <span>{o.needsAttention.length}</span>}</div>
@@ -117,9 +121,73 @@ export default function OrganizerOverview() {
         </>
       )}
 
+      <div className="date-head" style={{ paddingLeft: 6 }}><h2>This month's goals</h2></div>
+      <GoalsPanel />
+
       <div className="date-head" style={{ paddingLeft: 6 }}><h2>Expenses & P&L</h2></div>
       <FinancialDashboard finance={f} />
     </>
+  );
+}
+
+function GoalsPanel() {
+  const month = thisMonth();
+  const { data, loading, reload } = useAsync(() => api.goalProgress(month), [month]);
+  const [revenueGoal, setRevenueGoal] = useState("");
+  const [attendanceGoal, setAttendanceGoal] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.setGoal(month, {
+        revenueGoal: revenueGoal ? Number(revenueGoal) : undefined,
+        attendanceGoal: attendanceGoal ? Number(attendanceGoal) : undefined,
+      } as any);
+      setRevenueGoal(""); setAttendanceGoal("");
+      reload();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const goal = data?.goal;
+  const progress = data?.progress;
+  const revenuePct = goal?.revenueGoal ? Math.min(100, Math.round(((progress?.revenue || 0) / goal.revenueGoal) * 100)) : null;
+  const attendancePct = goal?.attendanceGoal ? Math.min(100, Math.round(((progress?.attendance || 0) / goal.attendanceGoal) * 100)) : null;
+
+  return (
+    <div className="dash-card" style={{ padding: 16 }}>
+      {loading && <p className="hint">Loading…</p>}
+      {!loading && goal && (
+        <div style={{ marginBottom: 16 }}>
+          {goal.revenueGoal != null && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                <span>Revenue</span><span style={{ color: "var(--text-2)" }}>{omr(progress?.revenue || 0)} / {omr(goal.revenueGoal)} OMR</span>
+              </div>
+              <div className="bar"><i style={{ width: `${revenuePct}%` }} /></div>
+            </div>
+          )}
+          {goal.attendanceGoal != null && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                <span>Attendance</span><span style={{ color: "var(--text-2)" }}>{progress?.attendance || 0} / {goal.attendanceGoal}</span>
+              </div>
+              <div className="bar"><i style={{ width: `${attendancePct}%` }} /></div>
+            </div>
+          )}
+        </div>
+      )}
+      {!loading && !goal && <p style={{ color: "var(--text-2)", fontSize: 13.5, marginBottom: 12 }}>No goal set for this month yet.</p>}
+
+      <p className="hint" style={{ margin: "0 0 10px" }}>Set (or update) this month's targets.</p>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div className="field" style={{ flex: 1 }}><label>Revenue goal (OMR)</label><input inputMode="decimal" value={revenueGoal} onChange={(e) => setRevenueGoal(e.target.value)} placeholder={goal?.revenueGoal ? String(goal.revenueGoal) : "1000"} /></div>
+        <div className="field" style={{ flex: 1 }}><label>Attendance goal</label><input inputMode="numeric" value={attendanceGoal} onChange={(e) => setAttendanceGoal(e.target.value)} placeholder={goal?.attendanceGoal ? String(goal.attendanceGoal) : "200"} /></div>
+      </div>
+      <button className="btn" onClick={save} disabled={saving || (!revenueGoal && !attendanceGoal)}>{saving ? "Saving…" : "Save goal"}</button>
+    </div>
   );
 }
 

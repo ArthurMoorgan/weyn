@@ -135,6 +135,29 @@ export async function runCampaignScan() {
     await db.markCampaignSent(c.id);
   }
 }
+
+// Automation Builder — only the "capacity_threshold" trigger is real today
+// (see db.dueCapacityThresholdRules's comment); notifies the organizer by
+// email/push once, then marks the rule run so it doesn't refire every scan.
+export async function runAutomationScan() {
+  const due = await db.dueCapacityThresholdRules();
+  for (const rule of due) {
+    const e = rule.event;
+    const pct = Math.round((e.sold / e.capacity) * 100);
+    if (emailConfigured()) {
+      const owner = await prisma.user.findUnique({ where: { id: e.ownerId }, select: { email: true } });
+      if (owner?.email) {
+        sendEmail({
+          to: owner.email,
+          subject: `${e.title} just hit ${pct}% sold`,
+          html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><p>Your automation rule "${escapeHtml(rule.name)}" fired: <b>${escapeHtml(e.title)}</b> is now ${pct}% sold.</p></div>`,
+        }).catch((err) => captureError(err, { route: "runAutomationScan", ruleId: rule.id }));
+      }
+    }
+    notifyUser(e.ownerId, { title: "Automation triggered", body: `${e.title} is ${pct}% sold.` }).catch(() => {});
+    await db.markAutomationRuleRun(rule.id);
+  }
+}
 export { SCAN_EVERY_MS };
 
 export function createApp(storage) {
@@ -2189,6 +2212,63 @@ export function createApp(storage) {
   });
   app.get("/api/events/:id/audit-log", requireEventAccess("MANAGER"), async (req, res) => {
     res.json(await db.eventAuditLog(req.event.id));
+  });
+
+  // ---- Feedback Center — public submission (any past attendee, no auth),
+  // organizer-side viewing is owner/manager only ----
+  app.post("/api/events/:id/feedback", socialLimiter, async (req, res) => {
+    const e = await db.get(req.params.id);
+    if (!e) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    const b = req.body || {};
+    const rating = b.rating != null ? Math.max(1, Math.min(5, Math.round(Number(b.rating)))) : null;
+    const npsScore = b.npsScore != null ? Math.max(0, Math.min(10, Math.round(Number(b.npsScore)))) : null;
+    if (rating === null && npsScore === null && !b.comment) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Give a rating or a comment." } });
+    }
+    const feedback = await db.submitFeedback({ eventId: e.id, bookingId: b.bookingId || null, rating, npsScore, comment: b.comment ? String(b.comment).trim().slice(0, 1000) : null });
+    res.status(201).json({ id: feedback.id, ok: true });
+  });
+  app.get("/api/events/:id/feedback", requireEventAccess("MANAGER"), async (req, res) => {
+    res.json(await db.listFeedback(req.event.id));
+  });
+
+  // ---- Organizer Goals ----
+  app.get("/api/organizer/goals/:month", requireAuth, async (req, res) => {
+    res.json(await db.goalProgress(req.user.id, req.params.month));
+  });
+  app.put("/api/organizer/goals/:month", requireAuth, async (req, res) => {
+    const b = req.body || {};
+    const patch = {};
+    for (const key of ["revenueGoal", "attendanceGoal", "eventsGoal", "followersGoal"]) {
+      if (b[key] != null && b[key] !== "") patch[key] = key === "revenueGoal" ? Number(b[key]) : parseInt(b[key], 10);
+    }
+    const goal = await db.setGoal(req.user.id, req.params.month, patch);
+    res.json(goal);
+  });
+
+  // ---- Automation Builder (see schema.prisma's AutomationRule comment —
+  // only "capacity_threshold" actually fires, see runAutomationScan) ----
+  app.get("/api/organizer/automations", requireAuth, async (req, res) => {
+    res.json(await db.listAutomationRules(req.user.id, req.query.eventId || undefined));
+  });
+  app.post("/api/organizer/automations", requireAuth, async (req, res) => {
+    const b = req.body || {};
+    if (!b.name || !b.trigger || !b.action) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Name, trigger, and action are required." } });
+    const rule = await db.createAutomationRule({
+      organizerId: req.user.id, eventId: b.eventId || null, name: String(b.name).trim().slice(0, 80),
+      trigger: b.trigger, action: b.action, config: b.config || {},
+    });
+    res.status(201).json(rule);
+  });
+  app.patch("/api/organizer/automations/:id", requireAuth, async (req, res) => {
+    const updated = await db.setAutomationRuleEnabled(req.params.id, req.user.id, !!req.body?.enabled);
+    if (!updated) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Automation rule not found" } });
+    res.json(updated);
+  });
+  app.delete("/api/organizer/automations/:id", requireAuth, async (req, res) => {
+    const ok = await db.deleteAutomationRule(req.params.id, req.user.id);
+    if (!ok) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Automation rule not found" } });
+    res.json({ ok: true });
   });
 
   // ---- team management (see schema.prisma's EventTeamMember comment) ----

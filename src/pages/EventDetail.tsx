@@ -315,6 +315,7 @@ export default function EventDetail() {
             Powered by <a href="https://weynevents.com" style={{ color: "inherit" }}>Weyn</a>
           </p>
         )}
+        {searchParams.get("feedback") === "1" && <FeedbackWidget eventId={ev.id} bookingId={ticketFor(ev.id)?.bookingId} />}
       </div>
       </div>
 
@@ -432,6 +433,45 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
         )}
         <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Done</button>
       </div>
+    </div>
+  );
+}
+
+// Feedback Center — reached via a link the organizer shares (see
+// EventWorkspace's Marketing tab), not surfaced to every visitor by default.
+function FeedbackWidget({ eventId, bookingId }: { eventId: string; bookingId?: string }) {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit() {
+    if (!rating && !comment.trim()) return;
+    setBusy(true); setErr("");
+    try {
+      await api.submitFeedback(eventId, { rating: rating || undefined, comment: comment.trim() || undefined, bookingId });
+      setSent(true);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't send feedback");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (sent) return <p style={{ textAlign: "center", fontSize: 13.5, color: "var(--accent)", marginTop: 20 }}>Thanks for the feedback!</p>;
+
+  return (
+    <div className="dash-card" style={{ padding: 16, marginTop: 20 }}>
+      <b style={{ display: "block", marginBottom: 10 }}>How was it?</b>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} onClick={() => setRating(n)} aria-label={`${n} star`} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: n <= rating ? "var(--accent)" : "var(--text-3)" }}>★</button>
+        ))}
+      </div>
+      <textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Anything you'd like the organizer to know? (optional)" style={{ width: "100%", marginBottom: 10 }} />
+      {err && <p className="errline">{err}</p>}
+      <button className="btn" onClick={submit} disabled={busy || (!rating && !comment.trim())}>{busy ? "Sending…" : "Send feedback"}</button>
     </div>
   );
 }

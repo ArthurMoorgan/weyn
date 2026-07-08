@@ -557,6 +557,104 @@ function MarketingTab({ event, features }: { event: Weyn; features: Record<strin
 
       <p className="hint" style={{ margin: "20px 0 8px" }}>Vendors</p>
       <VendorsSection event={event} />
+
+      <p className="hint" style={{ margin: "20px 0 8px" }}>Feedback</p>
+      <FeedbackSection event={event} />
+
+      <p className="hint" style={{ margin: "20px 0 8px" }}>Automation</p>
+      <AutomationSection event={event} />
+    </>
+  );
+}
+
+/* ---------- Feedback Center — read-only here; attendees submit via a
+   public link (shared separately, e.g. in a post-event email) ---------- */
+function FeedbackSection({ event }: { event: Weyn }) {
+  const { data, loading } = useAsync(() => api.listFeedback(event.id), [event.id]);
+  const feedbackUrl = `${window.location.origin}/e/${event.id}?feedback=1`;
+  const [copied, setCopied] = useState(false);
+
+  function copyLink() {
+    navigator.clipboard?.writeText(feedbackUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 10px" }}>Share this link with attendees after the event to collect ratings and comments.</p>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input readOnly value={feedbackUrl} style={{ flex: 1 }} onFocus={(e) => e.target.select()} />
+        <button className="copy-btn" onClick={copyLink}><i className={copied ? "icon-check" : "icon-copy"} /> {copied ? "Copied" : "Copy"}</button>
+      </div>
+      {loading && <p className="hint">Loading…</p>}
+      {!loading && data && data.count > 0 && (
+        <>
+          <p className="hint" style={{ margin: "0 0 10px" }}>Average rating: <b>{data.avgRating ?? "—"}</b> / 5 ({data.count} response{data.count === 1 ? "" : "s"})</p>
+          <ul className="steps">
+            {data.entries.filter((e) => e.comment).map((e) => (
+              <li key={e.id}>
+                <i className="icon-message-square" />
+                <span>{e.rating ? "★".repeat(e.rating) : ""}<br /><small style={{ color: "var(--text-3)" }}>{e.comment}</small></span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {!loading && (!data || data.count === 0) && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No feedback yet.</p>}
+    </>
+  );
+}
+
+/* ---------- Automation Builder — only "capacity threshold" actually fires
+   (see server's runAutomationScan) ---------- */
+const AUTOMATION_TRIGGERS = [{ key: "capacity_threshold", label: "Capacity crosses a threshold" }];
+const AUTOMATION_ACTIONS = [{ key: "notify_staff", label: "Notify me (email + push)" }];
+
+function AutomationSection({ event }: { event: Weyn }) {
+  const { data, loading, reload } = useAsync(() => api.listAutomations(event.id), [event.id]);
+  const [name, setName] = useState("");
+  const [threshold, setThreshold] = useState("80");
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      await api.createAutomation({ name: name.trim(), trigger: "capacity_threshold", action: "notify_staff", eventId: event.id, config: { thresholdPercent: Number(threshold) || 80 } });
+      setName(""); reload();
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function toggle(id: string, enabled: boolean) {
+    await api.setAutomationEnabled(id, !enabled); reload();
+  }
+  async function remove(id: string) {
+    await api.deleteAutomation(id); reload();
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 10px" }}>Get notified automatically when this event crosses a capacity threshold — fires once.</p>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Rule name, e.g. Almost sold out" style={{ flex: 2 }} />
+        <input value={threshold} onChange={(e) => setThreshold(e.target.value)} inputMode="numeric" style={{ flex: 1 }} placeholder="80" />
+        <span style={{ alignSelf: "center", fontSize: 13, color: "var(--text-3)" }}>%</span>
+        <button className="btn" onClick={add} disabled={saving || !name.trim()}>{saving ? "Adding…" : "Add"}</button>
+      </div>
+      {loading && <p className="hint">Loading…</p>}
+      {!loading && (data || []).length > 0 && (
+        <ul className="steps">
+          {data!.map((r) => (
+            <li key={r.id}>
+              <i className="icon-zap" />
+              <span>{r.name}<br /><small style={{ color: "var(--text-3)" }}>{AUTOMATION_TRIGGERS.find((t) => t.key === r.trigger)?.label || r.trigger} → {AUTOMATION_ACTIONS.find((a) => a.key === r.action)?.label || r.action}{r.lastRunAt ? " · already fired" : ""}</small></span>
+              <button className="chip" style={{ marginLeft: "auto" }} onClick={() => toggle(r.id, r.enabled)}>{r.enabled ? "On" : "Off"}</button>
+              <button className="copy-btn" onClick={() => remove(r.id)}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!loading && (data || []).length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No automations yet.</p>}
     </>
   );
 }
