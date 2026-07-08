@@ -5,7 +5,7 @@ import { useAsync } from "../../hooks";
 
 const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 
-type Filter = "upcoming" | "past" | "cancelled" | "all";
+type Filter = "upcoming" | "past" | "drafts" | "templates" | "cancelled" | "all";
 
 function DiscoveryBadge({ status }: { status?: Weyn["discoveryStatus"] }) {
   const copy: Record<string, { label: string; cls: string }> = {
@@ -28,9 +28,14 @@ export default function OrganizerEvents() {
   const filtered = useMemo(() => {
     if (filter === "all") return list;
     if (filter === "cancelled") return list.filter((e) => e.cancelled);
-    if (filter === "past") return list.filter((e) => !e.cancelled && isPast(e));
-    return list.filter((e) => !e.cancelled && !isPast(e));
+    if (filter === "drafts") return list.filter((e) => e.isDraft && !e.isTemplate && !e.cancelled);
+    if (filter === "templates") return list.filter((e) => e.isTemplate && !e.cancelled);
+    const live = list.filter((e) => !e.cancelled && !e.isDraft && !e.isTemplate);
+    if (filter === "past") return live.filter((e) => isPast(e));
+    return live.filter((e) => !isPast(e));
   }, [list, filter]);
+
+  const draftCount = list.filter((e) => e.isDraft && !e.isTemplate && !e.cancelled).length;
 
   async function duplicate(e: Weyn) {
     setBusyId(e.id);
@@ -41,13 +46,30 @@ export default function OrganizerEvents() {
     setBusyId(e.id);
     try { await api.cancelEvent(e.id); events.reload(); } finally { setBusyId(null); }
   }
+  async function publish(e: Weyn) {
+    setBusyId(e.id);
+    try { await api.publishEvent(e.id); events.reload(); } finally { setBusyId(null); }
+  }
+  async function useTemplate(e: Weyn) {
+    setBusyId(e.id);
+    try { await api.duplicateEvent(e.id); events.reload(); } finally { setBusyId(null); }
+  }
+  async function saveAsTemplate(e: Weyn) {
+    setBusyId(e.id);
+    try { await api.saveAsTemplate(e.id); events.reload(); } finally { setBusyId(null); }
+  }
+  async function discardDraft(e: Weyn) {
+    if (!confirm(`Discard the draft "${e.title || "Untitled draft"}"? This can't be undone.`)) return;
+    setBusyId(e.id);
+    try { await api.cancelEvent(e.id); events.reload(); } finally { setBusyId(null); }
+  }
 
   return (
     <>
       <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 6px 4px" }}>
-        {(["upcoming", "past", "cancelled", "all"] as Filter[]).map((f) => (
+        {(["upcoming", "past", "drafts", "templates", "cancelled", "all"] as Filter[]).map((f) => (
           <button key={f} className={"chip" + (filter === f ? " on" : "")} onClick={() => setFilter(f)}>
-            {f === "upcoming" ? "Upcoming" : f === "past" ? "Past" : f === "cancelled" ? "Cancelled" : "All"}
+            {f === "upcoming" ? "Upcoming" : f === "past" ? "Past" : f === "drafts" ? `Drafts${draftCount ? ` (${draftCount})` : ""}` : f === "templates" ? "Templates" : f === "cancelled" ? "Cancelled" : "All"}
           </button>
         ))}
       </div>
@@ -69,26 +91,40 @@ export default function OrganizerEvents() {
           const out = isSoldOut(e);
           const pct = e.capacity >= 9000 ? 0 : Math.min(100, Math.round((e.sold / e.capacity) * 100));
           const gross = e.sold * e.price;
+          const isDraftRow = e.isDraft && !e.isTemplate;
           return (
             <div key={e.id} className="dash-card">
-              <Link to={`/organizer/events/${e.id}`} className="dash-row" style={{ marginBottom: 0 }}>
+              <Link to={isDraftRow || e.isTemplate ? "#" : `/organizer/events/${e.id}`} onClick={(ev) => { if (isDraftRow || e.isTemplate) ev.preventDefault(); }} className="dash-row" style={{ marginBottom: 0 }}>
                 <div className="thumb" style={e.image ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" } : { background: e.color }}>
                   {!e.image && e.glyph}
                 </div>
                 <div className="info">
-                  <b>{e.title}{e.cancelled && <span className="cancelled-tag">Cancelled</span>}{!e.cancelled && <DiscoveryBadge status={e.discoveryStatus} />}{e.featured && <span className="ec-badge confirmed" style={{ marginLeft: 6 }}><i className="icon-star" /> Featured</span>}</b>
-                  <span>{dayLabel(e)} · {timeLabel(e)} · {e.area}</span>
-                  {e.capacity < 9000 && !e.cancelled && <div className="bar"><i className={pct >= 100 ? "full" : ""} style={{ width: `${pct}%` }} /></div>}
+                  <b>{e.title || "Untitled draft"}{isDraftRow && <span className="discovery-tag warn">Draft</span>}{e.isTemplate && <span className="discovery-tag">Template</span>}{e.cancelled && <span className="cancelled-tag">Cancelled</span>}{!e.cancelled && !isDraftRow && !e.isTemplate && <DiscoveryBadge status={e.discoveryStatus} />}{e.featured && <span className="ec-badge confirmed" style={{ marginLeft: 6 }}><i className="icon-star" /> Featured</span>}</b>
+                  <span>{isDraftRow || e.isTemplate ? (e.venue || "TBD") : `${dayLabel(e)} · ${timeLabel(e)} · ${e.area}`}</span>
+                  {e.capacity < 9000 && !e.cancelled && !isDraftRow && !e.isTemplate && <div className="bar"><i className={pct >= 100 ? "full" : ""} style={{ width: `${pct}%` }} /></div>}
                 </div>
                 <div className="amt">
-                  <b>{e.price === 0 ? "Free" : `${omr(+gross.toFixed(2))} OMR`}</b>
-                  <span>{e.cancelled ? "—" : out ? "Sold out" : e.capacity >= 9000 ? `${e.sold} in` : `${left} left`}</span>
+                  <b>{isDraftRow || e.isTemplate ? "" : e.price === 0 ? "Free" : `${omr(+gross.toFixed(2))} OMR`}</b>
+                  <span>{e.cancelled ? "—" : isDraftRow || e.isTemplate ? "" : out ? "Sold out" : e.capacity >= 9000 ? `${e.sold} in` : `${left} left`}</span>
                 </div>
               </Link>
-              {!e.cancelled && (
+              {isDraftRow && (
+                <div className="dash-actions">
+                  <Link to="/host/events" state={{ resumeDraftId: e.id }} className="btn glass sm"><i className="icon-edit" /> Resume editing</Link>
+                  <button onClick={() => publish(e)} disabled={busyId === e.id}><i className="icon-rocket" /> Publish</button>
+                  <button onClick={() => discardDraft(e)} disabled={busyId === e.id} className="danger"><i className="icon-trash" /> Discard</button>
+                </div>
+              )}
+              {e.isTemplate && (
+                <div className="dash-actions">
+                  <button onClick={() => useTemplate(e)} disabled={busyId === e.id}><i className="icon-copy" /> Use this template</button>
+                </div>
+              )}
+              {!e.cancelled && !isDraftRow && !e.isTemplate && (
                 <div className="dash-actions">
                   <Link to={`/organizer/events/${e.id}`} className="btn glass sm"><i className="icon-layout-dashboard" /> Open workspace</Link>
                   <button onClick={() => duplicate(e)} disabled={busyId === e.id}><i className="icon-copy" /> Duplicate</button>
+                  <button onClick={() => saveAsTemplate(e)} disabled={busyId === e.id}><i className="icon-bookmark" /> Save as template</button>
                   <button onClick={() => cancel(e)} disabled={busyId === e.id} className="danger"><i className="icon-ban" /> Cancel</button>
                 </div>
               )}

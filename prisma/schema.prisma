@@ -45,6 +45,15 @@ model User {
   analyticsEvents AnalyticsEvent[]
   auditLogs       AuditLog[]
   aiGenerations   AiGenerationLog[]
+  eventVenues     EventVenue[]
+  attendeeProfiles AttendeeProfile[]
+  campaigns       Campaign[]
+  expenses        Expense[]
+  mediaAssets     MediaAsset[]
+  sponsors        Sponsor[]
+  vendors         Vendor[]
+  automationRules AutomationRule[]
+  goals           OrganizerGoal[]
   teamMemberships EventTeamMember[] @relation("TeamMembership")
   teamInvitesSent EventTeamMember[] @relation("TeamInviter")
   following       Follow[]          @relation("Follower")
@@ -187,6 +196,17 @@ model Event {
   // page only. Distinct from `color`/`glyph` above (the card thumbnail
   // fallback when there's no cover image) — null = use the app default.
   accentColor           String?
+  // Event Builder 2.0: drafts are real Event rows (not a separate table) so
+  // publishing is just flipping a flag, not a data migration — but every
+  // public listing query needs `isDraft: false` added alongside its
+  // existing `cancelled`/`discoveryStatus` filters. `draftData` holds the
+  // wizard's in-progress form state before the row has enough required
+  // fields to be a real Event (title/venue/etc are still required at the
+  // DB level, so a very early autosave lives here as free-form JSON instead).
+  isDraft               Boolean   @default(false)
+  isTemplate            Boolean   @default(false)
+  draftData             Json?
+  venueProfileId        String?
   blurb                 String
   tags                  String[]
   refundPolicy          String
@@ -235,6 +255,7 @@ model Event {
   inviteCode String? @unique
 
   owner             User?              @relation(fields: [ownerId], references: [id])
+  venueProfile      EventVenue?        @relation(fields: [venueProfileId], references: [id])
   tiers             Tier[]
   bookings          Booking[]
   tickets           Ticket[]
@@ -244,11 +265,19 @@ model Event {
   promoCodes        PromoCode[]
   waitlistEntries   WaitlistEntry[]
   aiGenerations     AiGenerationLog[]
+  campaigns         Campaign[]
+  expenses          Expense[]
+  mediaAssets       MediaAsset[]
+  sponsors          Sponsor[]
+  vendors           Vendor[]
+  feedback          EventFeedback[]
+  automationRules   AutomationRule[]
 
   @@index([organizer])
   @@index([featured])
   @@index([startsAt])
   @@index([ownerId])
+  @@index([venueProfileId])
   @@index([discoveryStatus])
 }
 
@@ -322,6 +351,10 @@ model EventTeamMember {
   invitedBy    String
   createdAt    DateTime         @default(now())
   acceptedAt   DateTime?
+  // Finer-grained than role alone — e.g. a STAFF member restricted to
+  // "scannerOnly" can't see attendee lists, only the check-in scanner.
+  // Empty array = full access implied by `role` (STAFF=check-in, MANAGER=all).
+  permissions  String[]         @default([])
 
   event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user    User? @relation("TeamMembership", fields: [userId], references: [id])
@@ -355,6 +388,15 @@ model Tier {
   price    Float
   capacity Int
   sold     Int    @default(0)
+  // Advanced ticketing: "standard" | "vip" | "group" | "family" | "membership" | "donation"
+  kind          String    @default("standard")
+  minQty        Int? // group/family bundle minimum quantity per purchase
+  includesMerch Boolean   @default(false)
+  // Private/hidden tiers — never listed on the public event page; reachable
+  // only via a direct link (?tier=id) that also supplies the password if set.
+  hidden        Boolean   @default(false)
+  password      String?
+  releaseAt     DateTime? // timed release — not purchasable/visible before this
 
   event    Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
   bookings Booking[]
@@ -809,4 +851,213 @@ model AiGenerationLog {
 
   @@index([organizerId])
   @@index([eventId])
+}
+
+// ---- Venue Management: an organizer's own reusable venue profiles ----
+// Deliberately separate from the reservation-hosting `Venue` model (that
+// one is for cafes/restaurants accepting table bookings from the public —
+// a different product surface). This is a private library only the
+// organizer who created it can see, picked from a dropdown in Event Builder.
+model EventVenue {
+  id                 String   @id @default(cuid())
+  organizerId        String
+  name               String
+  address            String?
+  lat                Float?
+  lng                Float?
+  capacity           Int?
+  parkingAvailable   Boolean  @default(false)
+  accessibilityNotes String?
+  indoorOutdoor      String? // "indoor" | "outdoor" | "both"
+  images             String[] @default([])
+  notes              String?
+  contacts           Json?
+  supplierContacts   Json?
+  createdAt          DateTime @default(now())
+
+  organizer User    @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  events    Event[]
+
+  @@index([organizerId])
+}
+
+// ---- Attendee CRM: a persistent profile per (organizer, email) ----
+// Distinct from the computed cross-event spend rollup in db.organizerAttendees
+// (that's read-only, derived from Booking every time) — this is where an
+// organizer's own tags/notes/loyalty points actually live.
+model AttendeeProfile {
+  id            String    @id @default(cuid())
+  organizerId   String
+  email         String
+  name          String?
+  phone         String?
+  tags          String[]  @default([])
+  notes         String?
+  loyaltyPoints Int       @default(0)
+  birthday      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@unique([organizerId, email])
+  @@index([organizerId])
+}
+
+// ---- Messaging Center: scheduled + drip campaigns ----
+// Extends the existing "send now" bulk-notify (POST /api/events/:id/notify)
+// with a real scheduled/segment-targeted concept — sent by the same
+// reminder-scan cron that already runs every 5 minutes, not a new worker.
+model Campaign {
+  id           String    @id @default(cuid())
+  organizerId  String
+  eventId      String?
+  channel      String // "email" | "push"
+  subject      String?
+  message      String
+  segment      Json? // e.g. {tags: ["vip"], minSpend: 50} — matched against AttendeeProfile/Booking
+  scheduledFor DateTime?
+  sentAt       DateTime?
+  status       String    @default("scheduled") // scheduled | sent | cancelled
+  createdAt    DateTime  @default(now())
+
+  organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  event     Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([organizerId])
+  @@index([eventId])
+  @@index([status, scheduledFor])
+}
+
+// ---- Financial Dashboard: manual expense tracking ----
+// Revenue is already fully derivable from Booking/Payment (see
+// db.organizerFinance) — expenses have no equivalent source, since Weyn
+// never processes an organizer's actual costs, so this is the one genuinely
+// new financial primitive: manually logged, not synced from anywhere.
+model Expense {
+  id          String   @id @default(cuid())
+  organizerId String
+  eventId     String?
+  category    String
+  amount      Float
+  note        String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  event     Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([organizerId])
+  @@index([eventId])
+}
+
+// ---- File Library ----
+model MediaAsset {
+  id          String   @id @default(cuid())
+  organizerId String
+  eventId     String?
+  url         String
+  type        String // "image" | "video" | "document"
+  folder      String?
+  tags        String[] @default([])
+  createdAt   DateTime @default(now())
+
+  organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  event     Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([organizerId])
+}
+
+// ---- Sponsor Management ----
+model Sponsor {
+  id           String   @id @default(cuid())
+  organizerId  String
+  eventId      String?
+  name         String
+  contactEmail String?
+  contactPhone String?
+  contractUrl  String?
+  logoUrl      String?
+  amount       Float?
+  deliverables String[] @default([])
+  status       String   @default("prospect") // prospect | confirmed | delivered
+  createdAt    DateTime @default(now())
+
+  organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  event     Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([organizerId])
+}
+
+// ---- Vendor Management ----
+model Vendor {
+  id            String   @id @default(cuid())
+  organizerId   String
+  eventId       String?
+  category      String // catering | photography | security | cleaning | entertainment | other
+  name          String
+  contactEmail  String?
+  contactPhone  String?
+  contractUrl   String?
+  paymentStatus String   @default("pending")
+  rating        Int?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  event     Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([organizerId])
+}
+
+// ---- Feedback Center: post-event surveys ----
+model EventFeedback {
+  id        String   @id @default(cuid())
+  eventId   String
+  bookingId String?
+  rating    Int?
+  npsScore  Int?
+  comment   String?
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+// ---- Automation Builder: simple IF/THEN rules over real platform events ----
+// Evaluated by the same reminder-scan cron for time/threshold-based
+// triggers; purchase-based triggers (e.g. "someone buys VIP") are checked
+// inline at the moment of the relevant action instead of polled.
+model AutomationRule {
+  id          String    @id @default(cuid())
+  organizerId String
+  eventId     String?
+  name        String
+  trigger     String // "vip_purchase" | "capacity_threshold" | "sales_drop" | "waitlist_threshold" | "event_published"
+  action      String // "notify_staff" | "tag_attendee" | "send_email"
+  config      Json?
+  enabled     Boolean   @default(true)
+  lastRunAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  event     Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([organizerId])
+}
+
+// ---- Organizer Goals ----
+model OrganizerGoal {
+  id             String  @id @default(cuid())
+  organizerId    String
+  month          String // "2026-07"
+  revenueGoal    Float?
+  attendanceGoal Int?
+  eventsGoal     Int?
+  followersGoal  Int?
+
+  organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@unique([organizerId, month])
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { api, CATS, type Cat, type TicketingType } from "../api";
+import { useLocation, useNavigate } from "react-router-dom";
+import { api, CATS, type Cat, type TicketingType, type EventVenue } from "../api";
 import { getOrganizer, setOrganizer, useAccount } from "../store";
 import MapPicker from "../components/MapPicker";
 import ThemeToggle from "../components/ThemeToggle";
@@ -28,6 +28,8 @@ const TICKETING_OPTIONS: { key: TicketingType; label: string; icon: string; hint
 
 export default function Organizer() {
   const nav = useNavigate();
+  const location = useLocation();
+  const resumeDraftId = (location.state as { resumeDraftId?: string } | null)?.resumeDraftId || null;
   const account = useAccount();
   const fileRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -39,6 +41,59 @@ export default function Organizer() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [toast, setToast] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+  // Venue Management: pick a saved venue instead of retyping name/area/pin
+  // every time — see /organizer/venues for the library this reads from.
+  const [savedVenues, setSavedVenues] = useState<EventVenue[]>([]);
+  const [selectedVenueProfileId, setSelectedVenueProfileId] = useState("");
+  useEffect(() => { api.listEventVenues().then(setSavedVenues).catch(() => {}); }, []);
+
+  // Resuming a draft from /organizer/events "Drafts" tab: prefill the form
+  // from the saved row, then discard() below replaces it on next save (the
+  // draft PATCH route only covers a few text fields, not images/tiers, so
+  // it's simpler and more reliable to re-save fresh and drop the old row).
+  useEffect(() => {
+    if (!resumeDraftId) return;
+    api.dashboardEvents().then((events) => {
+      const d = events.find((e) => e.id === resumeDraftId);
+      if (!d) return;
+      setF((prev) => ({
+        ...prev,
+        title: d.title === "Untitled draft" ? "" : d.title || "",
+        organizer: d.organizer || prev.organizer,
+        cat: (d.cat as Cat) || prev.cat,
+        when: d.startsAt ? new Date(d.startsAt).toISOString().slice(0, 16) : prev.when,
+        venue: d.venue === "TBD" ? "" : d.venue || "",
+        area: d.area || prev.area,
+        price: String(d.price ?? prev.price),
+        capacity: String(d.capacity ?? prev.capacity),
+        minAge: String(d.minAge ?? prev.minAge),
+        tags: Array.isArray(d.tags) ? d.tags.join(", ") : prev.tags,
+        refundPolicy: d.refundPolicy || prev.refundPolicy,
+        blurb: d.blurb || prev.blurb,
+        ticketingType: (d.ticketingType as TicketingType) || prev.ticketingType,
+        externalTicketUrl: d.externalTicketUrl || prev.externalTicketUrl,
+        organizerContact: d.organizerContact || prev.organizerContact,
+        paymentLinkUrl: d.paymentLinkUrl || prev.paymentLinkUrl,
+        transferDetails: d.transferDetails || prev.transferDetails,
+        paymentMethod: d.transferDetails ? "transfer" : prev.paymentMethod,
+      }));
+      if (d.lat != null && d.lng != null) setLoc({ lat: d.lat, lng: d.lng });
+      if (d.venueProfileId) setSelectedVenueProfileId(d.venueProfileId);
+      if (d.image) {
+        const path = d.image.replace(/^https?:\/\/[^/]+/, "");
+        if (path.startsWith("/uploads/")) setImportedImagePath(path);
+      }
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeDraftId]);
+  function applyVenueProfile(id: string) {
+    setSelectedVenueProfileId(id);
+    const v = savedVenues.find((v) => v.id === id);
+    if (!v) return;
+    setF((prev) => ({ ...prev, venue: v.name, area: v.address || prev.area }));
+    if (v.lat != null && v.lng != null) setLoc({ lat: v.lat, lng: v.lng });
+  }
 
   // Feature 1: Import from Instagram
   const [igOpen, setIgOpen] = useState(false);
@@ -157,26 +212,32 @@ export default function Organizer() {
     }
   }
 
-  async function publish() {
-    if (!img && !importedImagePath) { setErr("Add a cover photo — it's what people see first."); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
-    if (!f.title.trim() || !f.venue.trim()) { setErr("Please add at least a title and a venue."); return; }
-    if ((f.ticketingType === "external" || f.ticketingType === "registration") && !f.externalTicketUrl.trim()) {
-      setTicketsOpen(true);
-      setErr("Add the link where people get tickets/register."); return;
-    }
-    if (f.ticketingType === "organizer_payment") {
-      if (f.paymentMethod === "link" && !f.paymentLinkUrl.trim()) {
-        setTicketsOpen(true); setErr("Add your payment link, or switch to bank transfer details."); return;
+  async function publish(asDraft = false) {
+    // Drafts skip the "must be publish-ready" checks entirely — the whole
+    // point is being able to save an incomplete event and come back later.
+    if (!asDraft) {
+      if (!img && !importedImagePath) { setErr("Add a cover photo — it's what people see first."); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+      if (!f.title.trim() || !f.venue.trim()) { setErr("Please add at least a title and a venue."); return; }
+      if ((f.ticketingType === "external" || f.ticketingType === "registration") && !f.externalTicketUrl.trim()) {
+        setTicketsOpen(true);
+        setErr("Add the link where people get tickets/register."); return;
       }
-      if (f.paymentMethod === "transfer" && !f.transferDetails.trim()) {
-        setTicketsOpen(true); setErr("Add your transfer/bank details for buyers to see."); return;
+      if (f.ticketingType === "organizer_payment") {
+        if (f.paymentMethod === "link" && !f.paymentLinkUrl.trim()) {
+          setTicketsOpen(true); setErr("Add your payment link, or switch to bank transfer details."); return;
+        }
+        if (f.paymentMethod === "transfer" && !f.transferDetails.trim()) {
+          setTicketsOpen(true); setErr("Add your transfer/bank details for buyers to see."); return;
+        }
       }
+    } else if (!f.title.trim()) {
+      setErr("Give it at least a title before saving as a draft."); return;
     }
     const tierPayload = f.ticketingType === "weyn" && useTiers
       ? tiers.map((t) => ({ name: t.name.trim(), price: Number(t.price) || 0, capacity: Number(t.capacity) || 0 }))
              .filter((t) => t.name)
       : null;
-    if (f.ticketingType === "weyn" && useTiers && (!tierPayload || tierPayload.length === 0 || tierPayload.some((t) => t.capacity < 1))) {
+    if (!asDraft && f.ticketingType === "weyn" && useTiers && (!tierPayload || tierPayload.length === 0 || tierPayload.some((t) => t.capacity < 1))) {
       setErr("Give each ticket type a name and a capacity of at least 1."); return;
     }
     setBusy(true); setErr("");
@@ -184,14 +245,15 @@ export default function Organizer() {
       const fd = new FormData();
       const startsAt = f.when ? new Date(f.when).toISOString() : new Date(Date.now() + 3 * 3600e3).toISOString();
       Object.entries({
-        title: f.title, organizer: f.organizer || "You", cat: f.cat, startsAt,
-        venue: f.venue, area: f.area, lat: loc.lat, lng: loc.lng,
+        title: f.title || "Untitled draft", organizer: f.organizer || "You", cat: f.cat, startsAt,
+        venue: f.venue || "TBD", area: f.area, lat: loc.lat, lng: loc.lng,
         price: f.price, capacity: f.capacity,
         minAge: f.minAge, tags: f.tags, refundPolicy: f.refundPolicy, blurb: f.blurb,
         ticketingType: f.ticketingType, externalTicketUrl: f.externalTicketUrl, organizerContact: f.organizerContact,
         paymentLinkUrl: f.ticketingType === "organizer_payment" && f.paymentMethod === "link" ? f.paymentLinkUrl : "",
         transferDetails: f.ticketingType === "organizer_payment" && f.paymentMethod === "transfer" ? f.transferDetails : "",
         sourceUrl: sourceUrl || "", importedFromInstagram: String(importedFromInstagram),
+        isDraft: String(asDraft), venueProfileId: selectedVenueProfileId || "",
       }).forEach(([k, v]) => fd.append(k, String(v)));
       if (tierPayload) fd.append("tiers", JSON.stringify(tierPayload));
       if (img) fd.append("image", img.file);
@@ -200,6 +262,14 @@ export default function Organizer() {
 
       const created = await api.createEvent(fd);
       setOrganizer(created.organizer);
+      if (resumeDraftId && resumeDraftId !== created.id) {
+        api.cancelEvent(resumeDraftId).catch(() => {});
+      }
+      if (asDraft) {
+        setErr(""); setDraftSaved(true);
+        setTimeout(() => nav("/organizer/events"), 900);
+        return;
+      }
       setToast(true);
       setTimeout(() => nav("/you"), 1100);
     } catch (e: any) {
@@ -353,6 +423,15 @@ export default function Organizer() {
           <input type="datetime-local" value={f.when} onChange={set("when")} />
         </div>
 
+        {savedVenues.length > 0 && (
+          <div className="field">
+            <label>Use a saved venue <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label>
+            <select value={selectedVenueProfileId} onChange={(e) => applyVenueProfile(e.target.value)}>
+              <option value="">— Type a new one below —</option>
+              {savedVenues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          </div>
+        )}
         <div className="field">
           <label>Venue name</label>
           <input value={f.venue} onChange={set("venue")} placeholder="Shatti rooftop" />
@@ -528,8 +607,11 @@ export default function Organizer() {
 
         {err && <p className="errline">{err}</p>}
 
-        <button className="btn lg" onClick={publish} disabled={busy}>
+        <button className="btn lg" onClick={() => publish(false)} disabled={busy}>
           <i className="icon-rocket" /> {busy ? "Publishing…" : "Publish to Weyn"}
+        </button>
+        <button className="btn glass" style={{ marginTop: 8 }} onClick={() => publish(true)} disabled={busy}>
+          <i className="icon-save" /> {draftSaved ? "Saved ✓" : "Save as draft"}
         </button>
         <p style={{ textAlign: "center", fontSize: 12, color: "var(--text-3)", margin: "12px 0 0" }}>
           Saved to the Weyn backend. Appears in Explore instantly.

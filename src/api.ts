@@ -10,6 +10,31 @@ export interface Tier {
   price: number;     // OMR
   capacity: number;
   sold: number;
+  // Advanced ticketing
+  kind?: "standard" | "vip" | "group" | "family" | "membership" | "donation";
+  minQty?: number | null;
+  includesMerch?: boolean;
+  hidden?: boolean;
+  password?: string | null;
+  releaseAt?: string | null;
+}
+
+export interface EventVenue {
+  id: string;
+  organizerId: string;
+  name: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  capacity: number | null;
+  parkingAvailable: boolean;
+  accessibilityNotes: string | null;
+  indoorOutdoor: string | null;
+  images: string[];
+  notes: string | null;
+  contacts: Record<string, any> | null;
+  supplierContacts: Record<string, any> | null;
+  createdAt: string;
 }
 
 export interface Weyn {
@@ -46,6 +71,11 @@ export interface Weyn {
   // Automated reminders, hours-before-start (e.g. [72, 24]) — empty = none.
   // "scheduledAnnouncements" Pro feature, see server's PATCH /api/events/:id.
   reminderSchedule?: number[];
+  // Event Builder 2.0
+  isDraft?: boolean;
+  isTemplate?: boolean;
+  draftData?: Record<string, any> | null;
+  venueProfileId?: string | null;
   // "customEventThemes" Pro feature — overrides the default purple accent
   // on this event's own detail page. null = app default.
   accentColor?: string | null;
@@ -560,6 +590,41 @@ export const api = {
   },
   async duplicateEvent(id: string): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events/${id}/duplicate`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
+  },
+  // ---- Event Builder 2.0: drafts, autosave, templates ----
+  async autosaveDraft(id: string, patch: Record<string, any>): Promise<Weyn> {
+    return fetch(`${API_BASE}/api/events/${id}/draft`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(patch),
+    }).then((r) => json<Weyn>(r)).then(absMedia);
+  },
+  async publishEvent(id: string): Promise<Weyn> {
+    return fetch(`${API_BASE}/api/events/${id}/publish`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
+  },
+  async saveAsTemplate(id: string): Promise<Weyn> {
+    return fetch(`${API_BASE}/api/events/${id}/save-template`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
+  },
+  async listTemplates(): Promise<Weyn[]> {
+    return fetch(`${API_BASE}/api/organizer/templates`, { headers: await authHeaders() }).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));
+  },
+  // ---- Venue Management library ----
+  async listEventVenues(): Promise<EventVenue[]> {
+    return fetch(`${API_BASE}/api/organizer/venues`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async createEventVenue(input: Partial<EventVenue>): Promise<EventVenue> {
+    return fetch(`${API_BASE}/api/organizer/venues`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async updateEventVenue(id: string, patch: Partial<EventVenue>): Promise<EventVenue> {
+    return fetch(`${API_BASE}/api/organizer/venues/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(patch),
+    }).then((r) => json(r));
+  },
+  async deleteEventVenue(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/organizer/venues/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+  async venueRecommendation(id: string): Promise<{ recommendation: string }> {
+    return fetch(`${API_BASE}/api/organizer/venues/${id}/recommendation`, { headers: await authHeaders() }).then((r) => json(r));
   },
   async getAttendees(id: string): Promise<Attendee[]> {
     return fetch(`${API_BASE}/api/events/${id}/attendees`, { headers: await authHeaders() }).then((r) => json<Attendee[]>(r));

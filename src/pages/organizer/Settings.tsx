@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CATS, type Cat, type TeamRole } from "../../api";
+import { CATS, type Cat, type TeamRole, type EventVenue } from "../../api";
 import { api } from "../../api";
 import { useAsync } from "../../hooks";
 import SubscriptionCard from "../../components/SubscriptionCard";
@@ -146,9 +146,128 @@ export default function OrganizerSettings() {
       <div className="date-head" style={{ paddingLeft: 6 }}><h2>Team</h2></div>
       <OrganizerTeamPanel />
 
+      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Venue library</h2></div>
+      <VenueLibraryPanel />
+
       <div className="date-head" style={{ paddingLeft: 6 }}><h2>Subscription</h2></div>
       <SubscriptionCard />
     </>
+  );
+}
+
+// Reusable venues — save a place once (name, address, pin, capacity, notes)
+// and pick it from a dropdown on the host form instead of retyping it every
+// time (see Organizer.tsx's "Use a saved venue" select, which reads this
+// same list). Kept in Settings rather than a new top-level nav entry — an
+// occasional setup action, not a daily destination.
+function VenueLibraryPanel() {
+  const { data, loading, error, reload } = useAsync(() => api.listEventVenues(), []);
+  const [editing, setEditing] = useState<EventVenue | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [capacity, setCapacity] = useState("");
+  const [indoorOutdoor, setIndoorOutdoor] = useState("");
+  const [parkingAvailable, setParkingAvailable] = useState(false);
+  const [accessibilityNotes, setAccessibilityNotes] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  function startAdd() {
+    setEditing(null); setAdding(true);
+    setName(""); setAddress(""); setCapacity(""); setIndoorOutdoor(""); setParkingAvailable(false); setAccessibilityNotes(""); setNotes("");
+  }
+  function startEdit(v: EventVenue) {
+    setEditing(v); setAdding(true);
+    setName(v.name); setAddress(v.address || ""); setCapacity(v.capacity != null ? String(v.capacity) : "");
+    setIndoorOutdoor(v.indoorOutdoor || ""); setParkingAvailable(!!v.parkingAvailable);
+    setAccessibilityNotes(v.accessibilityNotes || ""); setNotes(v.notes || "");
+  }
+
+  async function save() {
+    if (!name.trim()) return;
+    setSaving(true);
+    const payload = {
+      name: name.trim(), address: address.trim() || undefined,
+      capacity: capacity ? Number(capacity) : undefined,
+      indoorOutdoor: indoorOutdoor || undefined, parkingAvailable,
+      accessibilityNotes: accessibilityNotes.trim() || undefined, notes: notes.trim() || undefined,
+    };
+    try {
+      if (editing) await api.updateEventVenue(editing.id, payload);
+      else await api.createEventVenue(payload);
+      setAdding(false); setEditing(null);
+      reload();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(v: EventVenue) {
+    if (!confirm(`Delete "${v.name}" from your venue library?`)) return;
+    setBusyId(v.id);
+    try { await api.deleteEventVenue(v.id); reload(); } finally { setBusyId(null); }
+  }
+
+  return (
+    <div className="dash-card" style={{ padding: 16 }}>
+      <p className="hint" style={{ margin: "0 0 14px" }}>
+        Save your regular venues once — pick them from a dropdown instead of retyping name, address and pin every time you host.
+      </p>
+      {loading && <p className="hint">Loading…</p>}
+      {error && <p className="errline">{error}</p>}
+
+      {!loading && (data || []).length > 0 && (
+        <ul className="steps" style={{ marginBottom: 14 }}>
+          {data!.map((v) => (
+            <li key={v.id}>
+              <i className="icon-map-pin" />
+              <span>
+                {v.name} {v.capacity ? <small style={{ color: "var(--text-3)" }}>· cap {v.capacity}</small> : null}
+                {v.address && <><br /><small style={{ color: "var(--text-3)" }}>{v.address}</small></>}
+              </span>
+              <button className="copy-btn" onClick={() => startEdit(v)} style={{ marginLeft: "auto" }}>Edit</button>
+              <button className="copy-btn" onClick={() => remove(v)} disabled={busyId === v.id}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!loading && (data || []).length === 0 && !adding && (
+        <p style={{ color: "var(--text-2)", fontSize: 13.5, margin: "0 0 14px" }}>No saved venues yet.</p>
+      )}
+
+      {adding ? (
+        <>
+          <div className="field"><label>Venue name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Shatti rooftop" /></div>
+          <div className="field"><label>Address / area</label><input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Shatti Al Qurum, Muscat" /></div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <div className="field" style={{ flex: 1 }}><label>Capacity</label><input inputMode="numeric" value={capacity} onChange={(e) => setCapacity(e.target.value)} /></div>
+            <div className="field" style={{ flex: 1 }}>
+              <label>Indoor / outdoor</label>
+              <select value={indoorOutdoor} onChange={(e) => setIndoorOutdoor(e.target.value)}>
+                <option value="">—</option>
+                <option value="indoor">Indoor</option>
+                <option value="outdoor">Outdoor</option>
+                <option value="both">Both</option>
+              </select>
+            </div>
+          </div>
+          <label className="tier-toggle">
+            <input type="checkbox" checked={parkingAvailable} onChange={(e) => setParkingAvailable(e.target.checked)} />
+            Parking available
+          </label>
+          <div className="field"><label>Accessibility notes <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label><input value={accessibilityNotes} onChange={(e) => setAccessibilityNotes(e.target.value)} placeholder="Step-free entry, accessible restroom…" /></div>
+          <div className="field"><label>Notes <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional, supplier contacts etc.</span></label><textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn" onClick={save} disabled={saving || !name.trim()}>{saving ? "Saving…" : editing ? "Save changes" : "Add venue"}</button>
+            <button className="btn glass" onClick={() => { setAdding(false); setEditing(null); }}>Cancel</button>
+          </div>
+        </>
+      ) : (
+        <button className="btn glass" onClick={startAdd}><i className="icon-plus" /> Add a venue</button>
+      )}
+    </div>
   );
 }
 

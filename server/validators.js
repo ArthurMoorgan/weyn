@@ -36,6 +36,8 @@ export const createEventSchema = z.object({
   transferDetails: z.string().trim().max(1000).optional(),
   sourceUrl: z.string().trim().max(500).optional(),
   importedFromInstagram: z.union([z.boolean(), z.string()]).optional(),
+  isDraft: z.union([z.boolean(), z.string()]).optional(),
+  venueProfileId: z.string().optional(),
   existingImage: z.string().optional(),
   tiers: z.string().optional(), // JSON-encoded array at the wire level
 }).passthrough(); // multipart form fields the server doesn't care about (e.g. multer's own keys) shouldn't 400 the request

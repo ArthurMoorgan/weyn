@@ -359,7 +359,7 @@ export function createApp(storage) {
     // appear in any listing/browse/search context — only reachable via a
     // direct link the organizer shares, which hits GET /api/events/:id
     // instead of this route.
-    events = events.filter((e) => !e.cancelled && e.discoveryStatus === "APPROVED" && !e.inviteOnly && !isOver(e));
+    events = events.filter((e) => !e.cancelled && !e.isDraft && !e.isTemplate && e.discoveryStatus === "APPROVED" && !e.inviteOnly && !isOver(e));
     if (cat && cat !== "all") events = events.filter((e) => e.cat === cat);
     if (organizer) events = events.filter((e) => e.organizer === organizer);
     if (q) {
@@ -398,6 +398,9 @@ export function createApp(storage) {
     // rather than a silent 404 that looks like a bug. See moderation.js.
     const isOwner = req.user?.id && e.ownerId === req.user.id;
     if (e.discoveryStatus === "DISCOVERY_BLOCKED" && !isOwner) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    if ((e.isDraft || e.isTemplate) && !isOwner) {
       return res.status(404).json({ error: "Event not found" });
     }
     db.track("event_view", { userId: req.user?.id, entityId: e.id }).catch(() => {});
@@ -520,7 +523,18 @@ export function createApp(storage) {
         transferDetails: ticketingType === "organizer_payment" ? (b.transferDetails || "").trim() || null : null,
         sourceUrl: b.sourceUrl || null,
         importedFromInstagram: b.importedFromInstagram === "true" || b.importedFromInstagram === true,
+        venueProfileId: typeof b.venueProfileId === "string" && b.venueProfileId ? b.venueProfileId : null,
       };
+
+      // Event Builder 2.0: a draft skips moderation entirely (it's never
+      // publicly visible either way — see the isDraft/isTemplate exclusion
+      // in GET /api/events above) and runs it again for real at publish
+      // time (POST /api/events/:id/publish), when it's actually going live.
+      const isDraft = b.isDraft === "true" || b.isDraft === true;
+      if (isDraft) {
+        const inserted = await db.insert({ ...ev, isDraft: true, discoveryStatus: "PENDING_REVIEW" });
+        return res.status(201).json({ ...inserted, discoveryStatus: "PENDING_REVIEW" });
+      }
 
       // Trust & safety: hard-fail rules reject before the event ever exists;
       // everything else (AI review) runs after creation so the organizer
@@ -539,6 +553,117 @@ export function createApp(storage) {
       captureError(err, { route: "POST /api/events" });
       res.status(500).json({ error: err.message });
     }
+  });
+
+  // ---- Event Builder 2.0: drafts, autosave, templates ----
+  // Lightweight autosave — a partial-field PATCH plus the raw wizard state
+  // (draftData), only ever allowed on a row still marked isDraft. Doesn't
+  // run refine.js/moderation — those are real "publish" concerns, and this
+  // fires every few seconds while the organizer is still mid-form.
+  app.patch("/api/events/:id/draft", requireEventOwner(), async (req, res) => {
+    if (!req.event.isDraft) return res.status(409).json({ error: { code: "NOT_A_DRAFT", message: "This event is already published." } });
+    const patch = { draftData: req.body?.draftData ?? undefined };
+    for (const key of ["title", "venue", "area", "blurb", "cat", "price", "capacity"]) {
+      if (req.body?.[key] !== undefined) patch[key] = req.body[key];
+    }
+    const updated = await db.update(req.event.id, patch);
+    res.json(updated);
+  });
+
+  // Publishing runs the real moderation pipeline for the first time — a
+  // draft never went through it, since it was never visible to anyone
+  // anyway (see the isDraft exclusion in GET /api/events above).
+  app.post("/api/events/:id/publish", requireEventOwner(), async (req, res) => {
+    if (!req.event.isDraft) return res.json(req.event);
+    const moderation = await runModerationPipeline(req.event, { triggeredBy: "publish" });
+    if (moderation.hardFail) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `Couldn't publish: ${moderation.hardFail.join(", ")}` } });
+    }
+    const updated = await db.update(req.event.id, { isDraft: false, discoveryStatus: moderation.discoveryStatus, draftData: null });
+    await db.recordModeration(updated.id, moderation.moderationResult);
+    trackEvent(req.user.id, "event_publish", { eventId: updated.id });
+    res.json(updated);
+  });
+
+  // Templates are just Event rows flagged isTemplate — "create from
+  // template" reuses the exact same POST /api/events/:id/duplicate any
+  // other event already uses (see below), no separate clone logic needed.
+  app.post("/api/events/:id/save-template", requireEventOwner(), async (req, res) => {
+    const updated = await db.update(req.event.id, { isTemplate: true, isDraft: false });
+    res.json(updated);
+  });
+  app.get("/api/organizer/templates", requireAuth, async (req, res) => {
+    const templates = await prisma.event.findMany({
+      where: { ownerId: req.user.id, isTemplate: true, deletedAt: null },
+      include: { tiers: true },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(templates.map((t) => { const { createdAt, deletedAt, ...rest } = t; return rest; }));
+  });
+
+  // ---- Venue Management: an organizer's own reusable venue library ----
+  app.get("/api/organizer/venues", requireAuth, async (req, res) => {
+    res.json(await prisma.eventVenue.findMany({ where: { organizerId: req.user.id }, orderBy: { createdAt: "desc" } }));
+  });
+  app.post("/api/organizer/venues", requireAuth, async (req, res) => {
+    const b = req.body || {};
+    if (!b.name || !String(b.name).trim()) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Give this venue a name." } });
+    const venue = await prisma.eventVenue.create({
+      data: {
+        organizerId: req.user.id, name: String(b.name).trim(), address: b.address || null,
+        lat: b.lat != null ? Number(b.lat) : null, lng: b.lng != null ? Number(b.lng) : null,
+        capacity: b.capacity != null ? Number(b.capacity) : null, parkingAvailable: !!b.parkingAvailable,
+        accessibilityNotes: b.accessibilityNotes || null, indoorOutdoor: b.indoorOutdoor || null,
+        images: Array.isArray(b.images) ? b.images : [], notes: b.notes || null,
+        contacts: b.contacts || null, supplierContacts: b.supplierContacts || null,
+      },
+    });
+    res.status(201).json(venue);
+  });
+  app.patch("/api/organizer/venues/:id", requireAuth, async (req, res) => {
+    const existing = await prisma.eventVenue.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.organizerId !== req.user.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+    const b = req.body || {};
+    const patch = {};
+    for (const key of ["name", "address", "accessibilityNotes", "indoorOutdoor", "notes"]) {
+      if (b[key] !== undefined) patch[key] = b[key];
+    }
+    if (b.lat !== undefined) patch.lat = b.lat != null ? Number(b.lat) : null;
+    if (b.lng !== undefined) patch.lng = b.lng != null ? Number(b.lng) : null;
+    if (b.capacity !== undefined) patch.capacity = b.capacity != null ? Number(b.capacity) : null;
+    if (b.parkingAvailable !== undefined) patch.parkingAvailable = !!b.parkingAvailable;
+    if (b.images !== undefined) patch.images = Array.isArray(b.images) ? b.images : [];
+    if (b.contacts !== undefined) patch.contacts = b.contacts;
+    if (b.supplierContacts !== undefined) patch.supplierContacts = b.supplierContacts;
+    const updated = await prisma.eventVenue.update({ where: { id: req.params.id }, data: patch });
+    res.json(updated);
+  });
+  app.delete("/api/organizer/venues/:id", requireAuth, async (req, res) => {
+    const existing = await prisma.eventVenue.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.organizerId !== req.user.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+    // A live event referencing this venue keeps its own venue/area/lat/lng
+    // strings regardless (they're copied at creation, not a live FK read) —
+    // only the shortcut-picker link is cleared, via the FK's ON DELETE SET NULL.
+    await prisma.eventVenue.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  });
+  // Simple heuristic "AI recommendation" — real comparable-event data (same
+  // pattern as the AI Studio pricing suggestion), not a fabricated claim.
+  app.get("/api/organizer/venues/:id/recommendation", requireAuth, async (req, res) => {
+    const venue = await prisma.eventVenue.findUnique({ where: { id: req.params.id } });
+    if (!venue || venue.organizerId !== req.user.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+    const pastEvents = await prisma.event.findMany({
+      where: { venueProfileId: venue.id, cancelled: false, deletedAt: null, sold: { gt: 0 } },
+      select: { cat: true, sold: true, capacity: true },
+    });
+    if (pastEvents.length < 2) return res.json({ recommendation: "Not enough past events at this venue yet for a real recommendation." });
+    const byCat = {};
+    for (const e of pastEvents) {
+      const rate = e.capacity > 0 ? e.sold / e.capacity : 0;
+      (byCat[e.cat] ||= []).push(rate);
+    }
+    const best = Object.entries(byCat).map(([cat, rates]) => ({ cat, avg: rates.reduce((s, r) => s + r, 0) / rates.length })).sort((a, b) => b.avg - a.avg)[0];
+    res.json({ recommendation: `This venue performed best for ${best.cat} events (${Math.round(best.avg * 100)}% average sell-through across ${byCat[best.cat].length} event${byCat[best.cat].length === 1 ? "" : "s"}).` });
   });
 
   // Constant-time invite-code check — same reasoning as the DEV_BASIC_AUTH
