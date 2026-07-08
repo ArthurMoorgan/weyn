@@ -169,8 +169,18 @@ export default function EventDetail() {
     setActiveSlide(idx);
   }
 
+  // "customEventThemes" — overrides the app's default purple accent (CTA
+  // button, active states, buy bar) on this one event's page only, via a
+  // scoped CSS custom-property override rather than touching the global
+  // theme. React's CSSProperties type doesn't know about custom properties,
+  // hence the cast.
+  const themeStyle = ev.accentColor ? ({
+    "--accent": ev.accentColor, "--primary": ev.accentColor,
+    "--primary-hover": ev.accentColor, "--primary-pressed": ev.accentColor,
+  } as React.CSSProperties) : undefined;
+
   return (
-    <div className="detail">
+    <div className="detail" style={themeStyle}>
       <div className="detail-grid">
       <div className={"cover" + (hasCarousel ? " has-carousel" : "")} style={hasCarousel ? undefined : coverStyle}>
         {hasCarousel && (
@@ -296,6 +306,14 @@ export default function EventDetail() {
           </div>
         )}
         {bookErr && <p className="errline" style={{ marginTop: 14 }}>{bookErr}</p>}
+        {/* "reducedWeynBranding" Pro feature hides this — see GET
+            /api/events/:id's hideWeynBranding, derived server-side from the
+            owner's plan so a free-tier organizer can't just omit it client-side. */}
+        {!ev.hideWeynBranding && (
+          <p style={{ textAlign: "center", fontSize: 11.5, color: "var(--text-3)", marginTop: 20 }}>
+            Powered by <a href="https://weynevents.com" style={{ color: "inherit" }}>Weyn</a>
+          </p>
+        )}
       </div>
       </div>
 

@@ -30,4 +30,5 @@ export const FEATURE_LABELS: Record<string, string> = {
   customUrls: "Custom URLs",
   customBranding: "Custom branding",
   reducedWeynBranding: "Reduced Weyn branding",
+  aiStudio: "AI Studio",
 };

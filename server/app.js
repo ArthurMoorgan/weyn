@@ -19,14 +19,14 @@ import { sendWebPush, webPushConfigured } from "./webpush.js";
 import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./instagram-import.js";
 import { generateMarketingCopy } from "./marketing.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
-import { suggestImageFocalPoint } from "./ai.js";
+import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured } from "./ai.js";
 import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
 import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, authConfigured } from "./auth.js";
 import { createEventSchema, updateEventSchema, validateBody } from "./validators.js";
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature } from "./features.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
-import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail } from "./email.js";
+import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail, organizerTeamInviteEmail, reminderEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
 
 // Normalise a user-typed ticket URL so it always redirects OUT of the app.
@@ -92,6 +92,25 @@ export async function runReminderScan() {
       await sendPush(token, { title: "Starting soon ⏰", body: `${e.title} starts in about 2 hours at ${e.venue}.` });
     }
     await db.markReminded(b.deviceId, b.eventId);
+  }
+
+  // Organizer-configured T-N reminders (Event.reminderSchedule) — see
+  // db.dueAutomatedReminders's comment on the due-window math.
+  const autoDue = await db.dueAutomatedReminders(now, SCAN_EVERY_MS);
+  for (const { event, offset, bookings } of autoDue) {
+    const whenLabel = offset % 24 === 0 ? `${offset / 24} day${offset / 24 === 1 ? "" : "s"}` : `${offset} hour${offset === 1 ? "" : "s"}`;
+    for (const b of bookings) {
+      const ticketUrl = `${(process.env.PUBLIC_APP_URL || "https://weynevents.com").replace(/\/$/, "")}/e/${event.id}`;
+      if (b.email && emailConfigured()) {
+        sendEmail({ to: b.email, ...reminderEmail({ eventTitle: event.title, whenLabel, venue: `${event.venue}, ${event.area}`, ticketUrl }) })
+          .catch((err) => captureError(err, { route: "runReminderScan (auto reminder email)", eventId: event.id, bookingId: b.id }));
+      }
+      if (b.deviceId) {
+        const token = await db.tokenForDevice(b.deviceId);
+        if (token) sendPush(token, { title: "Coming up ⏰", body: `${event.title} is in ${whenLabel}.` }).catch(() => {});
+      }
+    }
+    await db.markAutoRemindersSent(bookings.map((b) => b.id), offset);
   }
 }
 export { SCAN_EVERY_MS };
@@ -389,7 +408,11 @@ export function createApp(storage) {
     // owner. The frontend already has it from the URL (?invite=CODE) if
     // it's unlocking the buy bar, so it never needs it echoed back here.
     const { inviteCode, ...safe } = e;
-    res.json(isOwner ? e : safe);
+    // A single derived boolean, not the owner's whole feature set — the
+    // public event page only needs to know whether to hide its own "Powered
+    // by Weyn" badge, not anything else about the organizer's plan.
+    const hideWeynBranding = e.ownerId ? await hasFeature(e.ownerId, "reducedWeynBranding") : false;
+    res.json({ ...(isOwner ? e : safe), hideWeynBranding });
   });
 
   app.post("/api/events", createEventLimiter, requireAuth, upload.fields([{ name: "image", maxCount: 1 }, { name: "gallery", maxCount: 8 }]), validateBody(createEventSchema), async (req, res) => {
@@ -801,6 +824,79 @@ export function createApp(storage) {
     res.json(await db.getBooking(booking.id));
   });
 
+  // ---- AI Studio ("aiStudio" feature — Gemini/Claude/Groq, whichever key
+  // is configured, see server/ai.js). Every route here is a thin prompt
+  // wrapper over real event/platform data — never auto-published anywhere,
+  // the organizer always sees the output here first and copies it in
+  // themselves (see HANDOFF's "AI outputs stay editable" note). ----
+  app.post("/api/events/:id/ai/description", requireEventOwner(), requireFeature("aiStudio"), async (req, res) => {
+    if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
+    const notes = String(req.body?.notes || "").trim().slice(0, 1000);
+    if (!notes) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Give it a few bullet points or notes to work from." } });
+    const prompt = `Write a polished, inviting event description (2-3 short paragraphs, no headings, no markdown) for an event called "${req.event.title}" in Muscat, Oman. Use these organizer notes as the source of truth — don't invent details not implied by them:\n\n${notes}`;
+    try {
+      const output = await askClaude(prompt, { maxTokens: 400 });
+      await db.logAiGeneration({ organizerId: req.user.id, eventId: req.event.id, feature: "description", prompt, output });
+      res.json({ description: output.trim() });
+    } catch (err) {
+      captureError(err, { route: "POST /api/events/:id/ai/description", eventId: req.event.id });
+      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't generate a description right now — try again shortly." } });
+    }
+  });
+
+  app.post("/api/events/:id/ai/cover-concept", requireEventOwner(), requireFeature("aiStudio"), async (req, res) => {
+    if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
+    // Text concepts, not a generated image — no image-generation API is
+    // wired up here (Gemini's generateContent is text/vision-in, not
+    // image-out). Gives an organizer/designer a real brief to work from
+    // instead, rather than faking image generation.
+    const prompt = `Suggest 3 distinct visual directions for a cover image/poster for "${req.event.title}" (category: ${req.event.cat}, venue: ${req.event.area}). For each: a short name, a 1-sentence mood/composition description, and a 3-color palette (hex codes). Respond as strict JSON: {"concepts": [{"name": "...", "description": "...", "palette": ["#hex","#hex","#hex"]}]}`;
+    try {
+      const parsed = await askClaudeJson(prompt, { maxTokens: 500 });
+      await db.logAiGeneration({ organizerId: req.user.id, eventId: req.event.id, feature: "cover-concept", prompt, output: JSON.stringify(parsed) });
+      res.json(parsed);
+    } catch (err) {
+      captureError(err, { route: "POST /api/events/:id/ai/cover-concept", eventId: req.event.id });
+      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't generate concepts right now — try again shortly." } });
+    }
+  });
+
+  app.post("/api/events/:id/ai/pricing-suggestion", requireEventOwner(), requireFeature("aiStudio"), async (req, res) => {
+    if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
+    const comparables = await db.similarEventPricing(req.event.cat, req.event.capacity);
+    if (comparables.length < 3) {
+      return res.json({ suggestedPrice: null, reasoning: "Not enough similar past events on Weyn yet to base a suggestion on.", sampleSize: comparables.length });
+    }
+    const soldOutRate = comparables.filter((e) => e.sold >= e.capacity).length / comparables.length;
+    const avgPrice = comparables.reduce((s, e) => s + e.price, 0) / comparables.length;
+    const prompt = `An organizer is pricing a ${req.event.cat} event in Muscat with capacity ${req.event.capacity}. Similar past events on this platform (n=${comparables.length}) averaged ${avgPrice.toFixed(2)} OMR, with a ${(soldOutRate * 100).toFixed(0)}% sell-out rate. Suggest a single ticket price in OMR and explain your reasoning in 2 short sentences. Respond as strict JSON: {"suggestedPrice": <number>, "reasoning": "..."}`;
+    try {
+      const parsed = await askClaudeJson(prompt, { maxTokens: 200 });
+      await db.logAiGeneration({ organizerId: req.user.id, eventId: req.event.id, feature: "pricing", prompt, output: JSON.stringify(parsed) });
+      res.json({ ...parsed, sampleSize: comparables.length });
+    } catch (err) {
+      captureError(err, { route: "POST /api/events/:id/ai/pricing-suggestion", eventId: req.event.id });
+      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't generate a suggestion right now — try again shortly." } });
+    }
+  });
+
+  app.post("/api/events/:id/ai/summary", requireEventOwner(), requireFeature("aiStudio"), async (req, res) => {
+    if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
+    if (new Date(req.event.startsAt).getTime() > Date.now()) {
+      return res.status(400).json({ error: { code: "NOT_OVER_YET", message: "This event hasn't happened yet — check back after it's done." } });
+    }
+    const analytics = await db.eventAnalytics(req.event.id, { advanced: false });
+    const prompt = `Write a short (3-4 sentence) post-event summary for the organizer of "${req.event.title}". Real numbers: ${analytics.ticketsSold} tickets sold out of ${analytics.capacity >= 9000 ? "unlimited" : analytics.capacity} capacity, ${analytics.revenue.toFixed(2)} OMR revenue. Be honest and specific — note whether it sold well or not, don't just say generic positive things. End with one concrete suggestion for their next event.`;
+    try {
+      const output = await askClaude(prompt, { maxTokens: 250 });
+      await db.logAiGeneration({ organizerId: req.user.id, eventId: req.event.id, feature: "summary", prompt, output });
+      res.json({ summary: output.trim(), stats: { ticketsSold: analytics.ticketsSold, capacity: analytics.capacity, revenue: analytics.revenue } });
+    } catch (err) {
+      captureError(err, { route: "POST /api/events/:id/ai/summary", eventId: req.event.id });
+      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't generate a summary right now — try again shortly." } });
+    }
+  });
+
   app.post("/api/payments/webhook", async (req, res) => {
     const signature = req.header("Signature") || req.header("signature");
     if (!verifyIpnSignature(req.rawBody, signature)) {
@@ -922,7 +1018,7 @@ export function createApp(storage) {
     res.json({ ok: true, checkedInAt: result.checkedInAt });
   });
 
-  const EDITABLE_FIELDS = ["title", "blurb", "price", "capacity", "startsAt", "refundPolicy", "venue", "area", "minAge", "tags", "ticketingType", "externalTicketUrl", "organizerContact", "paymentLinkUrl", "transferDetails"];
+  const EDITABLE_FIELDS = ["title", "blurb", "price", "capacity", "startsAt", "refundPolicy", "venue", "area", "minAge", "tags", "ticketingType", "externalTicketUrl", "organizerContact", "paymentLinkUrl", "transferDetails", "reminderSchedule", "accentColor"];
   app.patch("/api/events/:id", requireEventOwner(), validateBody(updateEventSchema), async (req, res) => {
     const e = req.event;
     const patch = {};
@@ -939,6 +1035,20 @@ export function createApp(storage) {
       else if (key === "externalTicketUrl") patch.externalTicketUrl = normalizeUrl(req.body.externalTicketUrl);
       else if (key === "paymentLinkUrl") patch.paymentLinkUrl = req.body.paymentLinkUrl ? normalizeUrl(req.body.paymentLinkUrl) : null;
       else if (key === "title") patch.title = cleanEventTitle(req.body.title) || e.title;
+      else if (key === "reminderSchedule") {
+        const schedule = Array.isArray(req.body.reminderSchedule) ? req.body.reminderSchedule.map(Number).filter((n) => Number.isFinite(n) && n > 0) : [];
+        // Feature-gated here rather than a dedicated route (like promo
+        // codes/featured) since it's one field on an otherwise-generic
+        // update — silently keeps the event's existing schedule instead of
+        // erroring, same treatment as the "weyn" ticketingType guard above.
+        if (schedule.length > 0 && !(await hasFeature(req.user.id, "scheduledAnnouncements"))) continue;
+        patch.reminderSchedule = schedule;
+      }
+      else if (key === "accentColor") {
+        const color = /^#[0-9a-fA-F]{6}$/.test(req.body.accentColor || "") ? req.body.accentColor : null;
+        if (color && !(await hasFeature(req.user.id, "customEventThemes"))) continue;
+        patch.accentColor = color;
+      }
       else patch[key] = req.body[key];
     }
     const updated = await db.update(e.id, patch);
@@ -1782,6 +1892,38 @@ export function createApp(storage) {
     const accepted = await db.acceptInvite(req.params.token, req.user.id);
     await db.audit("event.team.accept", { actorId: req.user.id, entityType: "event", entityId: invite.eventId, metadata: { role: invite.role } });
     res.json({ ok: true, eventId: accepted.eventId, eventTitle: invite.event.title, role: accepted.role });
+  });
+
+  // ---- organizer-wide team (see db.organizerTeamMembers's comment — not a
+  // new access-control concept, just a bulk per-event invite/revoke) ----
+  app.get("/api/organizer/team", requireAuth, async (req, res) => {
+    res.json(await db.organizerTeamMembers(req.user.id));
+  });
+  app.post("/api/organizer/team/invite", teamInviteLimiter, requireAuth, async (req, res) => {
+    const { email, role } = req.body || {};
+    if (!email || !["MANAGER", "STAFF"].includes(role)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "email and role (MANAGER or STAFF) are required" } });
+    }
+    const invites = await db.organizerTeamInvite({ userId: req.user.id, email, role, invitedBy: req.user.id });
+    if (!invites.length) return res.status(400).json({ error: { code: "NO_EVENTS", message: "You don't have any active events to invite them to yet." } });
+    await db.audit("organizer.team.invite", { actorId: req.user.id, entityType: "user", entityId: req.user.id, metadata: { email, role, eventCount: invites.length } });
+    const origin = publicOrigin(req);
+    if (emailConfigured()) {
+      const events = await Promise.all(invites.map((inv) => db.get(inv.eventId)));
+      sendEmail({
+        to: email,
+        ...organizerTeamInviteEmail({
+          organizerName: req.user.name, role,
+          events: invites.map((inv, i) => ({ title: events[i]?.title || "an event", inviteLink: `${origin}/invite/${inv.inviteToken}` })),
+        }),
+      }).catch((err) => console.error("organizer team invite email failed:", err.message));
+    }
+    res.status(201).json({ ok: true, eventCount: invites.length });
+  });
+  app.delete("/api/organizer/team/:email", requireAuth, async (req, res) => {
+    await db.organizerTeamRevoke(req.user.id, req.params.email);
+    await db.audit("organizer.team.revoke", { actorId: req.user.id, entityType: "user", entityId: req.user.id, metadata: { email: req.params.email } });
+    res.json({ ok: true });
   });
 
   // ---- following organizers (see schema.prisma's Follow comment) ----

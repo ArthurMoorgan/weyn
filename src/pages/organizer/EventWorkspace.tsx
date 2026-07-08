@@ -71,7 +71,7 @@ export default function EventWorkspace() {
       {tab === "marketing" && <MarketingTab event={event} features={features} />}
       {tab === "team" && <TeamTab event={event} />}
       {tab === "checkin" && <CheckInTab event={event} />}
-      {tab === "settings" && <SettingsTab event={event} reload={events.reload} />}
+      {tab === "settings" && <SettingsTab event={event} features={features} reload={events.reload} />}
     </>
   );
 }
@@ -649,21 +649,34 @@ function CheckInTab({ event }: { event: Weyn }) {
 }
 
 /* ---------- Settings: edit fields + invite-only ---------- */
-function SettingsTab({ event, reload }: { event: Weyn; reload: () => void }) {
+const REMINDER_OPTIONS = [
+  { hours: 72, label: "3 days before" },
+  { hours: 24, label: "1 day before" },
+  { hours: 2, label: "2 hours before" },
+];
+
+function SettingsTab({ event, features, reload }: { event: Weyn; features: Record<string, boolean>; reload: () => void }) {
   const [price, setPrice] = useState(String(event.price));
   const [capacity, setCapacity] = useState(String(event.capacity));
   const [blurb, setBlurb] = useState(event.blurb);
   const [paymentMethod, setPaymentMethod] = useState<"link" | "transfer">(event.transferDetails ? "transfer" : "link");
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(event.paymentLinkUrl || "");
   const [transferDetails, setTransferDetails] = useState(event.transferDetails || "");
+  const [reminderSchedule, setReminderSchedule] = useState<number[]>(event.reminderSchedule || []);
+  const [accentColor, setAccentColor] = useState(event.accentColor || "#6F5BFF");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [saved, setSaved] = useState(false);
 
+  function toggleReminder(hours: number) {
+    setReminderSchedule((prev) => (prev.includes(hours) ? prev.filter((h) => h !== hours) : [...prev, hours]));
+  }
+
   async function save() {
     setBusy(true); setErr(""); setSaved(false);
     try {
-      const patch: Partial<Weyn> = { price: Number(price) || 0, capacity: Number(capacity) || event.capacity, blurb };
+      const patch: Partial<Weyn> = { price: Number(price) || 0, capacity: Number(capacity) || event.capacity, blurb, reminderSchedule };
+      if (features.customEventThemes) patch.accentColor = accentColor;
       if (event.ticketingType === "organizer_payment") {
         patch.paymentLinkUrl = paymentMethod === "link" ? paymentLinkUrl : "";
         patch.transferDetails = paymentMethod === "transfer" ? transferDetails : "";
@@ -698,6 +711,34 @@ function SettingsTab({ event, reload }: { event: Weyn; reload: () => void }) {
           )}
         </div>
       )}
+
+      <div className="field">
+        <label>Automated reminders</label>
+        <FeatureLock feature="scheduledAnnouncements" enabled={!!features.scheduledAnnouncements}>
+          <p className="hint" style={{ margin: "0 0 8px" }}>Emails/pushes ticket holders automatically — no need to remember to send them yourself.</p>
+          <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {REMINDER_OPTIONS.map((o) => (
+              <button key={o.hours} type="button" className={"chip" + (reminderSchedule.includes(o.hours) ? " on" : "")} onClick={() => toggleReminder(o.hours)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </FeatureLock>
+      </div>
+
+      <div className="field">
+        <label>Custom accent color</label>
+        <FeatureLock feature="customEventThemes" enabled={!!features.customEventThemes}>
+          <p className="hint" style={{ margin: "0 0 8px" }}>Replaces the default purple on this event's page — buttons, active states, the buy bar.</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} style={{ width: 44, height: 36, padding: 2 }} />
+            <input value={accentColor} onChange={(e) => setAccentColor(e.target.value)} style={{ flex: 1 }} />
+            {event.accentColor && (
+              <button type="button" className="copy-btn" onClick={() => setAccentColor("")}>Reset</button>
+            )}
+          </div>
+        </FeatureLock>
+      </div>
 
       {err && <p className="errline">{err}</p>}
       <button className="btn" onClick={save} disabled={busy}>{busy ? "Saving…" : saved ? "Saved ✓" : "Save changes"}</button>

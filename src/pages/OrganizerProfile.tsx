@@ -55,6 +55,24 @@ export default function OrganizerProfile() {
         {account && <FollowButton organizerId={p.id} />}
       </div>
 
+      {(p.bio || p.instagram || p.website) && (
+        <div style={{ padding: "0 16px 16px" }}>
+          {p.bio && <p style={{ color: "var(--text-2)", fontSize: 14, lineHeight: 1.5, marginBottom: p.instagram || p.website ? 8 : 0 }}>{p.bio}</p>}
+          <div style={{ display: "flex", gap: 14 }}>
+            {p.instagram && (
+              <a href={`https://instagram.com/${p.instagram.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="copy-btn">
+                <i className="icon-camera" /> @{p.instagram.replace(/^@/, "")}
+              </a>
+            )}
+            {p.website && (
+              <a href={/^https?:\/\//.test(p.website) ? p.website : `https://${p.website}`} target="_blank" rel="noreferrer" className="copy-btn">
+                <i className="icon-globe" /> Website
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       {p.events.length > 0 ? (
         <div className="feed" style={{ paddingTop: 8 }}>{p.events.map((e) => <Stub key={e.id} e={e} />)}</div>
       ) : (

@@ -81,6 +81,9 @@ export default function Organizer() {
         cat: settings.cat || prev.cat,
         capacity: settings.capacity || prev.capacity,
         refundPolicy: settings.refundPolicy || prev.refundPolicy,
+        paymentMethod: settings.defaultTransferDetails ? "transfer" : prev.paymentMethod,
+        paymentLinkUrl: settings.defaultPaymentLinkUrl || prev.paymentLinkUrl,
+        transferDetails: settings.defaultTransferDetails || prev.transferDetails,
       }));
     }).catch(() => {});
     return () => { cancelled = true; };

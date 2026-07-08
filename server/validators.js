@@ -56,6 +56,8 @@ export const updateEventSchema = z.object({
   organizerContact: z.string().trim().max(200).optional(),
   paymentLinkUrl: z.string().trim().max(500).optional(),
   transferDetails: z.string().trim().max(1000).optional(),
+  reminderSchedule: z.array(z.coerce.number().int().min(1).max(720)).max(5).optional(),
+  accentColor: z.string().trim().max(7).nullable().optional(),
 });
 
 // Express middleware factory: validates `req.body` against `schema`, replaces

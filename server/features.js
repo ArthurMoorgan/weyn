@@ -19,6 +19,8 @@ export const FEATURES = [
   "waitlists", "advancedAttendanceReports", "csvExports", "advancedCheckInAnalytics",
   // Branding
   "customOrganizerThemes", "customEventThemes", "customUrls", "customBranding", "reducedWeynBranding",
+  // AI Studio (Gemini-powered — see server/ai.js)
+  "aiStudio",
 ];
 const FEATURE_SET = new Set(FEATURES);
 

@@ -12,17 +12,18 @@ import { useAccount } from "../../store";
 // every tab switch the way Explore/Reservations/HostHub/You do.
 export type OrganizerCtx = { isHost: boolean; reloadEvents: () => void; eventsLoading: boolean };
 
-// Kept deliberately short — 4 sections, not 6. Finance's numbers now live on
-// Overview (a small "Revenue by event" list, alongside the trend chart
-// that was already there) and the Marketing hub's one genuinely unique
-// feature (the organizer-profile QR poster) moved into Settings; per-event
-// marketing copy is still reachable from each event's own workspace. Fewer
-// top-level destinations, not fewer features — this was a direct response
-// to "the dashboard is very complicated."
+// Kept deliberately short — Finance's numbers live on Overview (a small
+// "Revenue by event" list, alongside the trend chart that was already
+// there) and the old Marketing hub's one genuinely unique feature (the
+// organizer-profile QR poster) moved into Settings; per-event marketing
+// copy is still reachable from each event's own workspace. AI Studio is the
+// one new top-level addition — a real distinct destination, not something
+// that folds naturally into an existing tab.
 const NAV = [
   { to: "/organizer", end: true, icon: "layout-dashboard", label: "Overview" },
   { to: "/organizer/events", icon: "calendar", label: "Events" },
   { to: "/organizer/attendees", icon: "users", label: "Attendees" },
+  { to: "/organizer/ai-studio", icon: "sparkles", label: "AI Studio" },
   { to: "/organizer/settings", icon: "settings", label: "Settings" },
 ];
 

@@ -88,6 +88,51 @@ export function organizerPaymentClaimEmail({ eventTitle, buyerName, buyerEmail, 
   };
 }
 
+// Organizer-wide team invite — one email, one link per event (each still a
+// real per-event EventTeamMember accept flow under the hood, see
+// db.organizerTeamInvite's comment on why this isn't a new access model).
+export function organizerTeamInviteEmail({ organizerName, role, events }) {
+  const roleLabel = role === "MANAGER" ? "manager" : "staff";
+  const rows = events.map((e) => `
+    <li style="margin-bottom:10px">
+      <a href="${e.inviteLink}" style="color:#1C6DD0;font-weight:600">${escapeHtml(e.title)}</a>
+    </li>
+  `).join("");
+  return {
+    subject: `${organizerName} invited you to help run their events on Weyn`,
+    html: `
+      <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 12px">You're invited to the team</h2>
+        <p style="color:#444;line-height:1.5">
+          ${escapeHtml(organizerName)} added you as <strong>${roleLabel}</strong> across
+          ${events.length} event${events.length === 1 ? "" : "s"}. Accept each one below:
+        </p>
+        <ul style="padding-left:18px;margin:18px 0">${rows}</ul>
+      </div>
+    `,
+  };
+}
+
+// Automated T-N reminder (Event.reminderSchedule, "scheduledAnnouncements"
+// feature) — distinct from bookingConfirmationEmail, sent once per
+// configured offset per booking, not on booking itself.
+export function reminderEmail({ eventTitle, whenLabel, venue, ticketUrl }) {
+  return {
+    subject: `Reminder: ${eventTitle} is in ${whenLabel}`,
+    html: `
+      <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 12px">Coming up: ${escapeHtml(eventTitle)}</h2>
+        <p style="color:#444;line-height:1.5">This is a reminder that it's happening in <strong>${whenLabel}</strong>${venue ? ` at ${escapeHtml(venue)}` : ""}.</p>
+        <p style="margin:22px 0">
+          <a href="${ticketUrl}" style="background:#1C6DD0;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">
+            View your ticket
+          </a>
+        </p>
+      </div>
+    `,
+  };
+}
+
 export function teamInviteEmail({ eventTitle, role, inviteLink }) {
   const roleLabel = role === "MANAGER" ? "manager" : "staff";
   return {

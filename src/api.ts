@@ -43,6 +43,15 @@ export interface Weyn {
   // "organizer_payment" ticketing only — see prisma schema's comment.
   paymentLinkUrl?: string | null;
   transferDetails?: string | null;
+  // Automated reminders, hours-before-start (e.g. [72, 24]) — empty = none.
+  // "scheduledAnnouncements" Pro feature, see server's PATCH /api/events/:id.
+  reminderSchedule?: number[];
+  // "customEventThemes" Pro feature — overrides the default purple accent
+  // on this event's own detail page. null = app default.
+  accentColor?: string | null;
+  // Derived server-side from the owner's "reducedWeynBranding" feature —
+  // not part of the Event row itself, see GET /api/events/:id.
+  hideWeynBranding?: boolean;
   tiers?: Tier[];         // multiple ticket types (weyn ticketing only)
   sourceUrl?: string | null;
   importedFromInstagram?: boolean;
@@ -144,6 +153,9 @@ export interface OrganizerProfile {
   id: string;
   name: string;
   avatarUrl: string | null;
+  bio?: string | null;
+  instagram?: string | null;
+  website?: string | null;
   followerCount: number;
   isFollowing: boolean;
   events: Weyn[];
@@ -466,6 +478,36 @@ export const api = {
     return fetch(`${API_BASE}/api/events/${eventId}/bookings/${bookingId}/confirm-payment`, {
       method: "POST", headers: await authHeaders(),
     }).then((r) => json(r));
+  },
+  // ---- organizer-wide team (bulk per-event invites, see server db comment) ----
+  async listOrganizerTeam(): Promise<{ email: string; name: string | null; role: TeamRole; hasPending: boolean; eventCount: number }[]> {
+    return fetch(`${API_BASE}/api/organizer/team`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async inviteOrganizerTeam(email: string, role: TeamRole): Promise<{ ok: boolean; eventCount: number }> {
+    return fetch(`${API_BASE}/api/organizer/team/invite`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ email, role }),
+    }).then((r) => json(r));
+  },
+  async revokeOrganizerTeam(email: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/organizer/team/${encodeURIComponent(email)}`, {
+      method: "DELETE", headers: await authHeaders(),
+    }).then((r) => json(r));
+  },
+  // ---- AI Studio ----
+  async aiDescription(eventId: string, notes: string): Promise<{ description: string }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/ai/description`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ notes }),
+    }).then((r) => json(r));
+  },
+  async aiCoverConcept(eventId: string): Promise<{ concepts: { name: string; description: string; palette: string[] }[] }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/ai/cover-concept`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
+  },
+  async aiPricingSuggestion(eventId: string): Promise<{ suggestedPrice: number | null; reasoning: string; sampleSize: number }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/ai/pricing-suggestion`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
+  },
+  async aiEventSummary(eventId: string): Promise<{ summary: string; stats: { ticketsSold: number; capacity: number; revenue: number } }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/ai/summary`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
   },
   registerPush(deviceId: string, deviceSecret: string, token: string, platform: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/push/register`, {

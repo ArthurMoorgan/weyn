@@ -356,6 +356,40 @@ export const db = {
     await prisma.booking.updateMany({ where: { deviceId, eventId }, data: { reminded: true } });
   },
 
+  // ---- automated multi-touch reminders (scheduledAnnouncements feature) ----
+  // Distinct from duePendingReminders above (a fixed, always-on 2h-before
+  // push every event gets) — this is the organizer-configured
+  // Event.reminderSchedule (hours-before-start, e.g. [72, 24]). `scanWindowMs`
+  // should match the caller's actual scan interval — an offset is "due" the
+  // one tick where hoursUntilStart first drops to/below it, and
+  // autoRemindersSent (checked per booking, not per event) stops it firing
+  // again on the next tick.
+  async dueAutomatedReminders(nowMs, scanWindowMs) {
+    const now = new Date(nowMs);
+    const events = await prisma.event.findMany({
+      where: { cancelled: false, deletedAt: null, startsAt: { gt: now }, reminderSchedule: { isEmpty: false } },
+      select: { id: true, title: true, venue: true, area: true, startsAt: true, reminderSchedule: true },
+    });
+    const windowHours = scanWindowMs / 3600000;
+    const due = [];
+    for (const e of events) {
+      const hoursUntil = (e.startsAt.getTime() - nowMs) / 3600000;
+      for (const offset of e.reminderSchedule) {
+        if (hoursUntil > offset || hoursUntil <= offset - windowHours) continue;
+        const bookings = await prisma.booking.findMany({
+          where: { eventId: e.id, status: "paid", email: { not: null }, NOT: { autoRemindersSent: { has: offset } } },
+          select: { id: true, email: true, name: true, deviceId: true },
+        });
+        if (bookings.length) due.push({ event: e, offset, bookings });
+      }
+    }
+    return due;
+  },
+  async markAutoRemindersSent(bookingIds, offset) {
+    if (!bookingIds.length) return;
+    await prisma.booking.updateMany({ where: { id: { in: bookingIds } }, data: { autoRemindersSent: { push: offset } } });
+  },
+
   // ---- capacity: atomic, conditional increments (no read-then-write race) ----
   // Plain `sold += qty` after a separate read (the old approach) is a classic
   // TOCTOU bug — two concurrent requests can both read `sold=capacity-1` and
@@ -518,6 +552,60 @@ export const db = {
   },
   async getTeamMemberById(id) {
     return prisma.eventTeamMember.findUnique({ where: { id } });
+  },
+
+  // ---- organizer-wide team (aggregated view over per-event memberships) ----
+  // Deliberately NOT a new table/model — "org-wide roles" here means
+  // inviting someone to every one of the organizer's current events at once
+  // (still real EventTeamMember rows, still checked by the exact same
+  // requireEventAccess middleware every per-event route already uses), not
+  // a new access-control concept layered on top. Doesn't cover events
+  // created AFTER the invite — a real limitation, flagged in the UI, traded
+  // for not touching the auth core to ship this.
+  async organizerActiveEventIds(userId) {
+    const events = await prisma.event.findMany({ where: { ownerId: userId, deletedAt: null, cancelled: false }, select: { id: true } });
+    return events.map((e) => e.id);
+  },
+  async organizerTeamMembers(userId) {
+    const eventIds = await db.organizerActiveEventIds(userId);
+    if (!eventIds.length) return [];
+    const rows = await prisma.eventTeamMember.findMany({
+      where: { eventId: { in: eventIds }, status: { not: "REVOKED" } },
+      include: { user: { select: { name: true, avatarUrl: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+    const byEmail = new Map();
+    for (const r of rows) {
+      const key = r.invitedEmail.toLowerCase();
+      const existing = byEmail.get(key);
+      if (existing) {
+        existing.eventCount += 1;
+        existing.memberIds.push(r.id);
+        if (r.status === "PENDING") existing.hasPending = true;
+      } else {
+        byEmail.set(key, {
+          email: r.invitedEmail, name: r.user?.name || null, role: r.role,
+          hasPending: r.status === "PENDING", eventCount: 1, memberIds: [r.id],
+        });
+      }
+    }
+    return [...byEmail.values()];
+  },
+  async organizerTeamInvite({ userId, email, role, invitedBy }) {
+    const eventIds = await db.organizerActiveEventIds(userId);
+    const invites = [];
+    for (const eventId of eventIds) {
+      invites.push(await db.createTeamInvite({ eventId, invitedEmail: email, role, invitedBy }));
+    }
+    return invites;
+  },
+  async organizerTeamRevoke(userId, email) {
+    const eventIds = await db.organizerActiveEventIds(userId);
+    const normalized = email.toLowerCase().trim();
+    await prisma.eventTeamMember.updateMany({
+      where: { eventId: { in: eventIds }, invitedEmail: normalized, status: { not: "REVOKED" } },
+      data: { status: "REVOKED", inviteToken: null },
+    });
   },
   // events this user can manage: owns, or holds an accepted MANAGER/STAFF
   // membership on — used by the dashboard's "your events" list and summary
@@ -755,6 +843,27 @@ export const db = {
     };
   },
 
+  // ---- AI Studio ----
+  async logAiGeneration({ organizerId, eventId, feature, prompt, output }) {
+    await prisma.aiGenerationLog.create({ data: { organizerId, eventId: eventId || null, feature, prompt, output } });
+  },
+  // Pricing-suggestion comparables: other organizers' events, same category,
+  // roughly similar capacity, that actually sold real tickets — deliberately
+  // cross-organizer (this is the one AI Studio feature that needs platform-
+  // wide data, not just the asking organizer's own events) but only ever
+  // returns aggregates, never other organizers' identities/contact info.
+  async similarEventPricing(cat, capacity) {
+    const lo = Math.max(1, Math.round(capacity * 0.4));
+    const hi = Math.round(capacity * 2.5);
+    const events = await prisma.event.findMany({
+      where: { cat, cancelled: false, deletedAt: null, capacity: { gte: lo, lte: hi }, sold: { gt: 0 } },
+      select: { price: true, capacity: true, sold: true },
+      take: 50,
+      orderBy: { createdAt: "desc" },
+    });
+    return events;
+  },
+
   async getOrganizerSettings(userId) {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { defaultEventSettings: true } });
     return user?.defaultEventSettings || null;
@@ -841,10 +950,14 @@ export const db = {
       include: { tiers: true },
       orderBy: { startsAt: "asc" },
     });
+    const settings = user.defaultEventSettings || {};
     return {
       id: user.id,
       name: user.name,
       avatarUrl: user.avatarUrl,
+      bio: settings.bio || null,
+      instagram: settings.instagram || null,
+      website: settings.website || null,
       followerCount: await db.followerCount(userId),
       events: events.map(shape),
     };
