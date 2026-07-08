@@ -481,13 +481,14 @@ export const db = {
   },
 
   // ---- checkout / payments ----
-  async createPendingBooking({ eventId, tierId, deviceId, account, qty }) {
+  async createPendingBooking({ eventId, tierId, deviceId, account, qty, utm }) {
     return prisma.booking.create({
       data: {
         eventId, tierId: tierId || null, deviceId: deviceId || null, qty: qty || 1,
         status: "pending",
         accessToken: crypto.randomBytes(24).toString("base64url"),
         email: account?.email || null, name: account?.name || null,
+        utmSource: utm?.source || null, utmMedium: utm?.medium || null, utmCampaign: utm?.campaign || null,
       },
     });
   },
@@ -896,6 +897,27 @@ export const db = {
       revenueByMonth,
       payoutsLive: false,
     };
+  },
+
+  // ---- Promotion Center: which UTM-tagged links actually drove bookings
+  // for one event — "direct" buckets anything with no utm_source at all. ----
+  async promotionSources(eventId) {
+    const bookings = await prisma.booking.findMany({
+      where: { eventId, status: { in: ["paid", "pending"] } },
+      select: { qty: true, utmSource: true, utmMedium: true, utmCampaign: true, tier: { select: { price: true } } },
+    });
+    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { price: true } });
+    const bySource = new Map();
+    for (const b of bookings) {
+      const key = b.utmSource || "direct";
+      const price = b.tier ? b.tier.price : (event?.price || 0);
+      const existing = bySource.get(key) || { source: key, bookings: 0, tickets: 0, revenue: 0 };
+      existing.bookings += 1;
+      existing.tickets += b.qty;
+      existing.revenue += b.qty * price;
+      bySource.set(key, existing);
+    }
+    return [...bySource.values()].map((s) => ({ ...s, revenue: +s.revenue.toFixed(2) })).sort((a, b) => b.tickets - a.tickets);
   },
 
   // ---- AI Studio ----

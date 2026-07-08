@@ -378,6 +378,29 @@ export const CATS: { key: Cat | "all"; label: string }[] = [
 // backend URL at build time, e.g. VITE_API_BASE=https://api.weyn.app
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "";
 
+// Promotion Center: capture ?utm_source/medium/campaign the first time an
+// event page loads with them, stash per-eventId in sessionStorage (survives
+// the sign-in redirect a first-time visitor goes through before booking),
+// and echo them back on whichever booking route the attendee ends up using.
+export function captureUtmFromUrl(eventId: string) {
+  const params = new URLSearchParams(window.location.search);
+  const source = params.get("utm_source");
+  const medium = params.get("utm_medium");
+  const campaign = params.get("utm_campaign");
+  if (!source && !medium && !campaign) return;
+  try {
+    sessionStorage.setItem(`weyn.utm.${eventId}`, JSON.stringify({ utmSource: source, utmMedium: medium, utmCampaign: campaign }));
+  } catch { /* private browsing / storage disabled — attribution is best-effort */ }
+}
+function getStoredUtm(eventId: string): { utmSource?: string; utmMedium?: string; utmCampaign?: string } {
+  try {
+    const raw = sessionStorage.getItem(`weyn.utm.${eventId}`);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 // Attached to every write/PII-reading request — server/auth.js's requireAuth
 // and requireEventOwner check this, not just "did Clerk verify you once."
 // Async because Clerk's getToken() refreshes short-lived session JWTs behind
@@ -479,7 +502,7 @@ export const api = {
     return fetch(`${API_BASE}/api/events/${id}/book`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, ...getStoredUtm(id) }),
     }).then((r) => json<Weyn & { bookingId: string; accessToken: string }>(r)).then(absMedia);
   },
   // paid tickets: returns a hosted Thawani checkout URL to redirect to — the
@@ -488,7 +511,7 @@ export const api = {
     return fetch(`${API_BASE}/api/events/${id}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, ...getStoredUtm(id) }),
     }).then((r) => json(r));
   },
   getBooking(bookingId: string): Promise<BookingStatus> {
@@ -502,7 +525,7 @@ export const api = {
     return fetch(`${API_BASE}/api/events/${id}/organizer-checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, ...getStoredUtm(id) }),
     }).then((r) => json(r));
   },
   getOrganizerPaymentBooking(bookingId: string, accessToken: string): Promise<{
@@ -676,6 +699,9 @@ export const api = {
   },
   async eventAnalytics(id: string): Promise<EventAnalytics> {
     return fetch(`${API_BASE}/api/events/${id}/analytics`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async promotionSources(id: string): Promise<{ source: string; bookings: number; tickets: number; revenue: number }[]> {
+    return fetch(`${API_BASE}/api/events/${id}/promotion`, { headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- team management ----

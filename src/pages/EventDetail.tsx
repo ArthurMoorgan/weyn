@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
-import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn } from "../api";
+import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, captureUtmFromUrl, type Weyn } from "../api";
 import { useAsync, useClosing } from "../hooks";
 import { isSaved, toggleSave, useSaved, addTicket, ticketFor, getDeviceId, useAccount } from "../store";
 import MiniMap from "../components/MiniMap";
@@ -41,6 +41,7 @@ export default function EventDetail() {
     const urlToken = searchParams.get("accessToken") || undefined;
     if (urlBooking && !ticketFor(e.id)) addTicket(e.id, urlBooking, urlToken);
     if (ticketFor(e.id)) setBooked(e);
+    captureUtmFromUrl(e.id);
   }, [e, searchParams]);
 
   // "organizer_payment" tickets don't exist yet the moment a booking is

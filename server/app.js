@@ -708,6 +708,16 @@ export function createApp(storage) {
     return e.price;
   }
 
+  // Promotion Center: the client captures ?utm_source/medium/campaign from
+  // the event page URL and echoes them back on whichever booking route the
+  // attendee ends up on (free RSVP, paid checkout, or organizer_payment) —
+  // trusted as attribution only, never as anything security-sensitive.
+  function utmFromBody(b) {
+    const clean = (v) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 100) : undefined);
+    const source = clean(b?.utmSource), medium = clean(b?.utmMedium), campaign = clean(b?.utmCampaign);
+    return source || medium || campaign ? { source, medium, campaign } : undefined;
+  }
+
   app.post("/api/events/:id/book", bookingLimiter, async (req, res) => {
     const e = await db.get(req.params.id);
     if (!e) return res.status(404).json({ error: "Event not found" });
@@ -768,7 +778,7 @@ export function createApp(storage) {
 
     const deviceId = req.body?.deviceId;
     const account = req.body?.email ? { email: req.body.email, name: req.body.name } : null;
-    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty });
+    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body) });
     await prisma.booking.update({ where: { id: booking.id }, data: { status: "paid" } });
     await db.issueTickets(booking.id, e.id, qty);
     if (deviceId) {
@@ -817,7 +827,7 @@ export function createApp(storage) {
 
     const deviceId = req.body?.deviceId;
     const account = req.body?.email ? { email: req.body.email, name: req.body.name } : null;
-    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty });
+    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body) });
 
     const origin = publicOrigin(req);
     try {
@@ -866,7 +876,7 @@ export function createApp(storage) {
 
     const deviceId = req.body?.deviceId;
     const account = { email: req.body.email, name: req.body.name };
-    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty });
+    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body) });
     await prisma.payment.create({ data: { bookingId: booking.id, amount: price * qty, status: "pending" } });
     trackEvent(req.user?.id || deviceId, "organizer_checkout_started", { eventId: e.id, qty, tierId, amount: price * qty });
 
@@ -2012,6 +2022,9 @@ export function createApp(storage) {
     // would, not a downgraded view based on their own personal account.
     const advanced = !!(req.event.ownerId && (await hasFeature(req.event.ownerId, "advancedAnalytics")));
     res.json(await db.eventAnalytics(req.event.id, { advanced }));
+  });
+  app.get("/api/events/:id/promotion", requireEventAccess("MANAGER"), async (req, res) => {
+    res.json(await db.promotionSources(req.event.id));
   });
 
   // ---- team management (see schema.prisma's EventTeamMember comment) ----

@@ -523,6 +523,61 @@ function MarketingTab({ event, features }: { event: Weyn; features: Record<strin
 
       <p className="hint" style={{ margin: "20px 0 8px" }}>Waitlist</p>
       <WaitlistSection event={event} enabled={!!features.waitlists} />
+
+      <p className="hint" style={{ margin: "20px 0 8px" }}>Promotion</p>
+      <PromotionSection event={event} />
+    </>
+  );
+}
+
+/* ---------- Promotion Center: UTM link builder + source breakdown ---------- */
+function PromotionSection({ event }: { event: Weyn }) {
+  const [source, setSource] = useState("");
+  const [medium, setMedium] = useState("");
+  const [campaign, setCampaign] = useState("");
+  const [copied, setCopied] = useState(false);
+  const { data, loading, error } = useAsync(() => api.promotionSources(event.id), [event.id]);
+
+  const baseUrl = `${window.location.origin}/e/${event.id}`;
+  const params = new URLSearchParams();
+  if (source.trim()) params.set("utm_source", source.trim());
+  if (medium.trim()) params.set("utm_medium", medium.trim());
+  if (campaign.trim()) params.set("utm_campaign", campaign.trim());
+  const builtUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+
+  function copyLink() {
+    navigator.clipboard?.writeText(builtUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 12px" }}>Build a tagged link for each place you share this event, then see which one actually drives bookings below.</p>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div className="field" style={{ flex: "1 1 140px" }}><label>Source</label><input value={source} onChange={(e) => setSource(e.target.value)} placeholder="instagram" /></div>
+        <div className="field" style={{ flex: "1 1 140px" }}><label>Medium</label><input value={medium} onChange={(e) => setMedium(e.target.value)} placeholder="bio_link" /></div>
+        <div className="field" style={{ flex: "1 1 140px" }}><label>Campaign <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label><input value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="launch" /></div>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        <input readOnly value={builtUrl} style={{ flex: 1 }} onFocus={(e) => e.target.select()} />
+        <button className="copy-btn" onClick={copyLink}><i className={copied ? "icon-check" : "icon-copy"} /> {copied ? "Copied" : "Copy"}</button>
+      </div>
+
+      {loading && <p className="hint">Loading…</p>}
+      {error && <p className="errline">{error}</p>}
+      {!loading && !error && (data || []).length > 0 && (
+        <ul className="steps">
+          {data!.map((s) => (
+            <li key={s.source}>
+              <i className="icon-link" />
+              <span>{s.source}<br /><small style={{ color: "var(--text-3)" }}>{s.bookings} booking{s.bookings === 1 ? "" : "s"} · {s.tickets} ticket{s.tickets === 1 ? "" : "s"}</small></span>
+              <b style={{ marginLeft: "auto" }}>{s.revenue.toFixed(2)} OMR</b>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!loading && !error && (data || []).length === 0 && (
+        <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No bookings yet — share a tagged link above to start tracking sources.</p>
+      )}
     </>
   );
 }

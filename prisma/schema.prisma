@@ -433,6 +433,11 @@ model Booking {
   // already been sent for this booking — prevents the scan from re-sending
   // the same T-3d reminder on every 5-minute tick once it's within window.
   autoRemindersSent Int[] @default([])
+  // Promotion Center: captured from ?utm_source=... on the event page at the
+  // moment of booking (see EventDetail.tsx) — null means direct/no campaign.
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
 
   event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tier    Tier?    @relation(fields: [tierId], references: [id])
