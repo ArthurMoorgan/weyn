@@ -134,6 +134,29 @@ export function requireEventAccess(minTeamRole = "MANAGER") {
 // Back-compat name — full event-management access (owner/ADMIN/MANAGER).
 export const requireEventOwner = () => requireEventAccess("MANAGER");
 
+// Same as requireEventAccess("MANAGER") but also lets in a STAFF member who
+// was granted this specific permission tag at invite time (see
+// server/app.js's TEAM_PERMISSIONS) — the one place today where a STAFF
+// member's granular permissions actually gate a route, rather than just
+// being stored/displayed.
+export function requireEventAccessOrPermission(permission) {
+  return async (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: { code: "UNAUTHENTICATED", message: "Sign in required" } });
+    const event = await db.get(req.params.id);
+    if (!event) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Event not found" } });
+    const isOwner = event.ownerId && event.ownerId === req.user.id;
+    const isAdmin = req.user.role === "ADMIN";
+    let allowed = isOwner || isAdmin;
+    if (!allowed) {
+      const membership = await db.getTeamMembership(event.id, req.user.id);
+      allowed = !!membership && (TEAM_ROLE_RANK[membership.role] >= TEAM_ROLE_RANK.MANAGER || (membership.permissions || []).includes(permission));
+    }
+    if (!allowed) return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't have access to this event" } });
+    req.event = event;
+    next();
+  };
+}
+
 // Strictly owner/ADMIN — deliberately excludes MANAGER team members, so a
 // MANAGER can run the event day-to-day but can't invite more team members,
 // remove someone else's access, or (via a separate check elsewhere)

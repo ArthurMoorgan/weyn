@@ -479,6 +479,17 @@ export const db = {
       data: { action, actorId: actorId || null, entityType, entityId, metadata },
     });
   },
+  // Team activity trail — direct "event" entries (cancel, feature, invite…)
+  // plus ticket check-ins, which are logged as entityType "ticket" with the
+  // event id tucked into metadata rather than entityId, so they need their
+  // own OR clause to show up here.
+  async eventAuditLog(eventId) {
+    const [direct, checkins] = await Promise.all([
+      prisma.auditLog.findMany({ where: { entityType: "event", entityId: eventId }, orderBy: { createdAt: "desc" }, take: 50, include: { actor: { select: { name: true, email: true } } } }),
+      prisma.auditLog.findMany({ where: { entityType: "ticket", action: "ticket.checkin", metadata: { path: ["eventId"], equals: eventId } }, orderBy: { createdAt: "desc" }, take: 50, include: { actor: { select: { name: true, email: true } } } }),
+    ]);
+    return [...direct, ...checkins].sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
+  },
 
   // ---- checkout / payments ----
   async createPendingBooking({ eventId, tierId, deviceId, account, qty, utm }) {
@@ -553,9 +564,9 @@ export const db = {
   async getTeamMembership(eventId, userId) {
     return prisma.eventTeamMember.findFirst({ where: { eventId, userId, status: "ACCEPTED" } });
   },
-  async createTeamInvite({ eventId, invitedEmail, role, invitedBy }) {
+  async createTeamInvite({ eventId, invitedEmail, role, invitedBy, permissions }) {
     return prisma.eventTeamMember.create({
-      data: { eventId, invitedEmail: invitedEmail.toLowerCase().trim(), role, invitedBy },
+      data: { eventId, invitedEmail: invitedEmail.toLowerCase().trim(), role, invitedBy, permissions: permissions || [] },
     });
   },
   async listTeamMembers(eventId) {
@@ -980,10 +991,48 @@ export const db = {
         prisma.ticket.findMany({ where: { eventId }, select: { checkedInAt: true } }),
       ]);
       const checkedIn = tickets.filter((t) => t.checkedInAt).length;
+
+      // Sales velocity + a naive sellout forecast: compare the last 3 days'
+      // run rate against the 3 days before that, then project the remaining
+      // capacity forward at the current rate. Only meaningful for a real
+      // (non-"unlimited", capacity < 9000) event that isn't already sold out
+      // or over.
+      const now = Date.now();
+      const DAY = 86400000;
+      const last3 = bookings.filter((b) => now - b.bookedAt.getTime() < 3 * DAY).reduce((s, b) => s + b.qty, 0);
+      const prev3 = bookings.filter((b) => { const age = now - b.bookedAt.getTime(); return age >= 3 * DAY && age < 6 * DAY; }).reduce((s, b) => s + b.qty, 0);
+      const dailyRate = last3 / 3;
+      const remaining = event.capacity - event.sold;
+      const salesVelocity = {
+        last3Days: last3, prev3Days: prev3,
+        trend: prev3 > 0 ? +(((last3 - prev3) / prev3) * 100).toFixed(1) : (last3 > 0 ? 100 : 0),
+      };
+      const forecast = (event.capacity < 9000 && dailyRate > 0 && remaining > 0 && !event.cancelled && new Date(event.startsAt).getTime() > now)
+        ? { daysToSellout: +(remaining / dailyRate).toFixed(1), projectedSelloutDate: new Date(now + (remaining / dailyRate) * DAY).toISOString() }
+        : null;
+
+      // Benchmark: this event's sell-through vs. the organizer's own average
+      // across their other past events — a "compared to your usual" number
+      // beats a meaningless platform-wide average with no shared context.
+      const otherEvents = await prisma.event.findMany({
+        where: { ownerId: event.ownerId, id: { not: eventId }, deletedAt: null, cancelled: false, capacity: { lt: 9000 } },
+        select: { sold: true, capacity: true },
+      });
+      const sellThrough = event.capacity > 0 ? (event.sold / event.capacity) * 100 : 0;
+      const avgSellThrough = otherEvents.length
+        ? otherEvents.reduce((s, e) => s + (e.capacity > 0 ? e.sold / e.capacity : 0), 0) / otherEvents.length * 100
+        : null;
+
       advancedFields = {
         views,
         conversionRate: views > 0 ? +((bookings.length / views) * 100).toFixed(1) : null,
         checkIn: { total: tickets.length, checkedIn, rate: tickets.length ? +((checkedIn / tickets.length) * 100).toFixed(1) : null },
+        salesVelocity,
+        forecast,
+        benchmark: {
+          sellThroughRate: +sellThrough.toFixed(1),
+          yourAverageSellThroughRate: avgSellThrough !== null ? +avgSellThrough.toFixed(1) : null,
+        },
       };
     }
     return {

@@ -21,7 +21,7 @@ import { generateMarketingCopy } from "./marketing.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
 import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured } from "./ai.js";
 import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
-import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, authConfigured } from "./auth.js";
+import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, requireEventAccessOrPermission, authConfigured } from "./auth.js";
 import { createEventSchema, updateEventSchema, validateBody } from "./validators.js";
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature } from "./features.js";
@@ -1242,7 +1242,7 @@ export function createApp(storage) {
     res.status(201).json(inserted);
   });
 
-  app.get("/api/events/:id/attendees", requireEventOwner(), async (req, res) => {
+  app.get("/api/events/:id/attendees", requireEventAccessOrPermission("viewAttendees"), async (req, res) => {
     res.json(await db.attendeesForEvent(req.event.id));
   });
 
@@ -1394,7 +1394,7 @@ export function createApp(storage) {
 
   // ---- Marketing: bulk notify attendees (send-now, or scheduled for later
   // via a Campaign row — see runCampaignScan below for the actual send) ----
-  app.post("/api/events/:id/notify", socialLimiter, requireEventOwner(), requireFeature("bulkNotifications"), async (req, res) => {
+  app.post("/api/events/:id/notify", socialLimiter, requireEventAccessOrPermission("sendNotifications"), requireFeature("bulkNotifications"), async (req, res) => {
     const subject = String(req.body?.subject || "").trim();
     const message = String(req.body?.message || "").trim();
     if (!subject || !message) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "subject and message are required" } });
@@ -2026,17 +2026,27 @@ export function createApp(storage) {
   app.get("/api/events/:id/promotion", requireEventAccess("MANAGER"), async (req, res) => {
     res.json(await db.promotionSources(req.event.id));
   });
+  app.get("/api/events/:id/audit-log", requireEventAccess("MANAGER"), async (req, res) => {
+    res.json(await db.eventAuditLog(req.event.id));
+  });
 
   // ---- team management (see schema.prisma's EventTeamMember comment) ----
   // Invite/revoke are owner-only (requireEventOwnerStrict) — a MANAGER runs
   // the event day-to-day but can't grant or remove other people's access.
+  // STAFF is check-in-only by default; these extra tags don't unlock new
+  // routes on their own yet (every route below still checks the coarse
+  // STAFF/MANAGER rank), but they're stored and surfaced in the Team tab so
+  // an organizer can note "this staffer can also see attendees" — the finer
+  // gate on each route is follow-up work, not a promise this already exists.
+  const TEAM_PERMISSIONS = ["viewAttendees", "viewFinance", "sendNotifications"];
   app.post("/api/events/:id/team/invite", teamInviteLimiter, requireEventOwnerStrict(), async (req, res) => {
     const { email, role } = req.body || {};
     if (!email || !["MANAGER", "STAFF"].includes(role)) {
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "email and role (MANAGER or STAFF) are required" } });
     }
-    const invite = await db.createTeamInvite({ eventId: req.event.id, invitedEmail: email, role, invitedBy: req.user.id });
-    await db.audit("event.team.invite", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { email, role } });
+    const permissions = Array.isArray(req.body?.permissions) ? req.body.permissions.filter((p) => TEAM_PERMISSIONS.includes(p)) : [];
+    const invite = await db.createTeamInvite({ eventId: req.event.id, invitedEmail: email, role, invitedBy: req.user.id, permissions });
+    await db.audit("event.team.invite", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { email, role, permissions } });
     const origin = publicOrigin(req);
     const inviteLink = `${origin}/invite/${invite.inviteToken}`;
     if (emailConfigured()) {
@@ -2049,7 +2059,7 @@ export function createApp(storage) {
   app.get("/api/events/:id/team", requireEventOwner(), async (req, res) => {
     const members = await db.listTeamMembers(req.event.id);
     res.json(members.map((m) => ({
-      id: m.id, email: m.invitedEmail, role: m.role, status: m.status,
+      id: m.id, email: m.invitedEmail, role: m.role, status: m.status, permissions: m.permissions || [],
       user: m.user ? { id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl } : null,
       createdAt: m.createdAt, acceptedAt: m.acceptedAt,
     })));

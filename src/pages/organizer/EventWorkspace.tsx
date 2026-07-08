@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
-import { api, API_BASE, type Weyn, type TeamRole, type PromoCode, type Campaign } from "../../api";
+import { api, API_BASE, TEAM_PERMISSIONS, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign } from "../../api";
 import { useAsync } from "../../hooks";
 import { getAuthToken } from "../../store";
 import FeatureLock from "../../components/FeatureLock";
@@ -124,9 +124,31 @@ function OverviewTab({ event, features, reload }: { event: Weyn; features: Recor
             </>
           )}
 
+          {data.conversionRate !== null && (
+            <p className="hint" style={{ margin: "16px 0 8px" }}>Views → bookings: {data.conversionRate}% conversion</p>
+          )}
+
+          {data.salesVelocity && (
+            <div className="stat-grid" style={{ marginTop: 4 }}>
+              <div className="stat">
+                <div className="k">Last 3 days</div>
+                <div className="v">{data.salesVelocity.last3Days} <small>{data.salesVelocity.trend > 0 ? `↑${data.salesVelocity.trend}%` : data.salesVelocity.trend < 0 ? `↓${Math.abs(data.salesVelocity.trend)}%` : ""}</small></div>
+              </div>
+              {data.forecast && (
+                <div className="stat"><div className="k">Sellout forecast</div><div className="v">{Math.ceil(data.forecast.daysToSellout)} <small>day{Math.ceil(data.forecast.daysToSellout) === 1 ? "" : "s"}</small></div></div>
+              )}
+              {data.benchmark?.yourAverageSellThroughRate !== null && data.benchmark && (
+                <div className="stat">
+                  <div className="k">vs. your average</div>
+                  <div className="v">{data.benchmark.sellThroughRate}% <small>avg {data.benchmark.yourAverageSellThroughRate}%</small></div>
+                </div>
+              )}
+            </div>
+          )}
+
           {data.conversionRate === null && data.views === undefined && (
             <p className="hint" style={{ marginTop: 14 }}>
-              Advanced analytics (page views, conversion rate) is a Pro feature.
+              Advanced analytics (page views, conversion rate, sales velocity, forecasts) is a Pro feature.
             </p>
           )}
         </>
@@ -585,22 +607,31 @@ function PromotionSection({ event }: { event: Weyn }) {
 /* ---------- Team ---------- */
 const ROLE_LABEL: Record<TeamRole, string> = { MANAGER: "Manager", STAFF: "Staff (check-in only)" };
 
+const PERMISSION_LABEL: Record<string, string> = {
+  viewAttendees: "View attendees", viewFinance: "View finance", sendNotifications: "Send bulk notifications",
+};
+
 function TeamTab({ event }: { event: Weyn }) {
   const { data, loading, error, reload } = useAsync(() => api.listTeam(event.id), [event.id]);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<TeamRole>("STAFF");
+  const [permissions, setPermissions] = useState<TeamPermission[]>([]);
   const [inviting, setInviting] = useState(false);
   const [inviteErr, setInviteErr] = useState("");
   const [lastLink, setLastLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  function togglePermission(p: TeamPermission) {
+    setPermissions((ps) => ps.includes(p) ? ps.filter((x) => x !== p) : [...ps, p]);
+  }
+
   async function invite() {
     if (!email.trim()) return;
     setInviting(true); setInviteErr(""); setLastLink(null);
     try {
-      const res = await api.inviteTeamMember(event.id, email.trim(), role);
+      const res = await api.inviteTeamMember(event.id, email.trim(), role, role === "STAFF" ? permissions : undefined);
       setLastLink(res.inviteLink);
-      setEmail("");
+      setEmail(""); setPermissions([]);
       reload();
     } catch (e: any) {
       setInviteErr(e.message || "Couldn't send invite");
@@ -629,6 +660,17 @@ function TeamTab({ event }: { event: Weyn }) {
           <option value="MANAGER">Manager (full access)</option>
         </select>
       </div>
+      {role === "STAFF" && (
+        <div className="field">
+          <label>Extra permissions for this staffer <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label>
+          {TEAM_PERMISSIONS.map((p) => (
+            <label key={p} className="tier-toggle">
+              <input type="checkbox" checked={permissions.includes(p)} onChange={() => togglePermission(p)} />
+              {PERMISSION_LABEL[p]}
+            </label>
+          ))}
+        </div>
+      )}
       {inviteErr && <p className="errline">{inviteErr}</p>}
       <button className="btn" onClick={invite} disabled={inviting || !email.trim()}>{inviting ? "Creating invite…" : "Create invite link"}</button>
 
@@ -651,12 +693,41 @@ function TeamTab({ event }: { event: Weyn }) {
             {data!.map((m) => (
               <li key={m.id}>
                 <i className={m.role === "MANAGER" ? "icon-shield" : "icon-scan"} />
-                <span>{m.user?.name || m.email} <small style={{ color: "var(--text-3)" }}>· {ROLE_LABEL[m.role]}{m.status === "PENDING" ? " · invite pending" : ""}</small></span>
+                <span>{m.user?.name || m.email} <small style={{ color: "var(--text-3)" }}>· {ROLE_LABEL[m.role]}{m.status === "PENDING" ? " · invite pending" : ""}{m.permissions.length > 0 ? ` · ${m.permissions.map((p) => PERMISSION_LABEL[p] || p).join(", ")}` : ""}</small></span>
                 <button className="copy-btn" onClick={() => revoke(m.id)} style={{ marginLeft: "auto" }}>Revoke</button>
               </li>
             ))}
           </ul>
         ) : <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No team members yet.</p>
+      )}
+
+      <p className="hint" style={{ margin: "18px 0 8px" }}>Activity log</p>
+      <AuditLogPanel event={event} />
+    </>
+  );
+}
+
+function AuditLogPanel({ event }: { event: Weyn }) {
+  const { data, loading, error } = useAsync(() => api.eventAuditLog(event.id), [event.id]);
+
+  return (
+    <>
+      {loading && <p className="hint">Loading…</p>}
+      {error && <p className="errline">{error}</p>}
+      {!loading && !error && (data || []).length > 0 ? (
+        <ul className="steps">
+          {data!.map((a) => (
+            <li key={a.id}>
+              <i className="icon-history" />
+              <span>
+                {a.action.replace(/[._]/g, " ")}
+                <br /><small style={{ color: "var(--text-3)" }}>{a.actor?.name || a.actor?.email || "System"} · {new Date(a.createdAt).toLocaleString()}</small>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : !loading && !error && (
+        <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No activity recorded yet.</p>
       )}
     </>
   );

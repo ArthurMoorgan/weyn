@@ -234,6 +234,9 @@ export interface EventAnalytics {
   // has that feature; absent (not just null) for free-tier events.
   views?: number;
   checkIn?: { total: number; checkedIn: number; rate: number | null };
+  salesVelocity?: { last3Days: number; prev3Days: number; trend: number };
+  forecast?: { daysToSellout: number; projectedSelloutDate: string } | null;
+  benchmark?: { sellThroughRate: number; yourAverageSellThroughRate: number | null };
 }
 
 export type TeamRole = "MANAGER" | "STAFF";
@@ -244,9 +247,23 @@ export interface TeamMember {
   email: string;
   role: TeamRole;
   status: TeamInviteStatus;
+  permissions: string[];
   user: { id: string; name: string; avatarUrl: string | null } | null;
   createdAt: string;
   acceptedAt: string | null;
+}
+
+export const TEAM_PERMISSIONS = ["viewAttendees", "viewFinance", "sendNotifications"] as const;
+export type TeamPermission = (typeof TEAM_PERMISSIONS)[number];
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  metadata: Record<string, any> | null;
+  createdAt: string;
+  actor: { name: string | null; email: string } | null;
 }
 
 export interface TeamInviteResult {
@@ -705,11 +722,11 @@ export const api = {
   },
 
   // ---- team management ----
-  async inviteTeamMember(eventId: string, email: string, role: TeamRole): Promise<TeamInviteResult> {
+  async inviteTeamMember(eventId: string, email: string, role: TeamRole, permissions?: TeamPermission[]): Promise<TeamInviteResult> {
     return fetch(`${API_BASE}/api/events/${eventId}/team/invite`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify({ email, role, permissions }),
     }).then((r) => json(r));
   },
   async listTeam(eventId: string): Promise<TeamMember[]> {
@@ -717,6 +734,9 @@ export const api = {
   },
   async revokeTeamMember(eventId: string, memberId: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/events/${eventId}/team/${memberId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+  async eventAuditLog(eventId: string): Promise<AuditLogEntry[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/audit-log`, { headers: await authHeaders() }).then((r) => json(r));
   },
   async acceptInvite(token: string): Promise<{ ok: boolean; eventId: string; eventTitle: string; role: TeamRole }> {
     return fetch(`${API_BASE}/api/team/invites/${token}/accept`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
