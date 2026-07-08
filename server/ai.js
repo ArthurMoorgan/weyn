@@ -94,55 +94,89 @@ export async function askClaudeJson(prompt, opts) {
   return JSON.parse(cleaned);
 }
 
-// ---- image focal-point suggestion (Groq vision only) ----
-// Deliberately Groq-specific, not routed through the generic multi-provider
-// `call()` table above — those only send plain-text prompts, and vision
-// needs a multimodal message body. Falls back to a plain center crop
-// (return null) if GROQ_API_KEY isn't set, the image is too large for a
-// single request, or the model call fails for any reason — this is a
-// cosmetic nicety, never something that should block publishing an event.
-const GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-const MAX_VISION_REQUEST_BYTES = 4 * 1024 * 1024; // Groq's base64 request cap
+// ---- image focal-point suggestion (vision) ----
+// Deliberately not routed through the generic multi-provider `call()` table
+// above — those only send plain-text prompts, and vision needs a multimodal
+// message body, which Gemini and Groq shape completely differently (inline
+// base64 data part vs. an OpenAI-style image_url content block). Falls back
+// to a plain center crop (return null) if no vision-capable key is set, the
+// image is too large for a single request, or the model call fails for any
+// reason — this is a cosmetic nicety, never something that should block
+// publishing an event.
+//
+// Gemini preferred over Groq when both are configured — per explicit
+// product direction (Gemini's multimodal quality is why it replaced Groq as
+// the intended default here), not just "whichever key happens to be set."
+const FOCAL_POINT_PROMPT = `This image will be cropped to fit a wide card thumbnail, which may cut off the top/bottom or sides. Identify the single most important focal point (the main subject — a face, the food, the stage, the crowd — not empty sky/wall/floor). Respond with ONLY a JSON object: {"x": <0-100, left-to-right percent>, "y": <0-100, top-to-bottom percent>}. No other text.`;
 
-export function visionConfigured() {
-  return !!process.env.GROQ_API_KEY;
+function parseFocalPointResponse(text) {
+  const match = (text || "").match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  const { x, y } = JSON.parse(match[0]);
+  if (typeof x !== "number" || typeof y !== "number") return null;
+  const clamp = (n) => Math.max(0, Math.min(100, Math.round(n)));
+  return `${clamp(x)}% ${clamp(y)}%`;
 }
 
-export async function suggestImageFocalPoint(imageBuffer, mimeType) {
-  if (!process.env.GROQ_API_KEY) return null;
+const GEMINI_VISION_MODEL = () => process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const MAX_GEMINI_INLINE_BYTES = 20 * 1024 * 1024; // Gemini's inline (non-Files-API) request cap
+
+async function suggestFocalPointGemini(imageBuffer, mimeType) {
+  const base64 = imageBuffer.toString("base64");
+  if (base64.length > MAX_GEMINI_INLINE_BYTES * 0.7) return null;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_VISION_MODEL()}:generateContent`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: FOCAL_POINT_PROMPT }, { inline_data: { mime_type: mimeType, data: base64 } }] }],
+      generationConfig: { maxOutputTokens: 50, temperature: 0 },
+    }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
+  return parseFocalPointResponse(text);
+}
+
+const GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const MAX_GROQ_VISION_REQUEST_BYTES = 4 * 1024 * 1024; // Groq's base64 request cap
+
+async function suggestFocalPointGroq(imageBuffer, mimeType) {
   const base64 = imageBuffer.toString("base64");
   // base64 inflates size ~33% — the request body (JSON + base64) needs to
   // stay under Groq's 4MB limit, so bail out early on large uploads rather
   // than firing a request we know will 413.
-  if (base64.length > MAX_VISION_REQUEST_BYTES * 0.7) return null;
+  if (base64.length > MAX_GROQ_VISION_REQUEST_BYTES * 0.7) return null;
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+    body: JSON.stringify({
+      model: GROQ_VISION_MODEL,
+      max_tokens: 50,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: FOCAL_POINT_PROMPT },
+          { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+        ],
+      }],
+    }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return parseFocalPointResponse(data.choices?.[0]?.message?.content || "");
+}
 
-  const prompt = `This image will be cropped to fit a wide card thumbnail, which may cut off the top/bottom or sides. Identify the single most important focal point (the main subject — a face, the food, the stage, the crowd — not empty sky/wall/floor). Respond with ONLY a JSON object: {"x": <0-100, left-to-right percent>, "y": <0-100, top-to-bottom percent>}. No other text.`;
+export function visionConfigured() {
+  return !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY);
+}
 
+export async function suggestImageFocalPoint(imageBuffer, mimeType) {
   try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-      body: JSON.stringify({
-        model: GROQ_VISION_MODEL,
-        max_tokens: 50,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
-          ],
-        }],
-      }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const text = data.choices?.[0]?.message?.content || "";
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return null;
-    const { x, y } = JSON.parse(match[0]);
-    if (typeof x !== "number" || typeof y !== "number") return null;
-    const clamp = (n) => Math.max(0, Math.min(100, Math.round(n)));
-    return `${clamp(x)}% ${clamp(y)}%`;
+    if (process.env.GEMINI_API_KEY) return await suggestFocalPointGemini(imageBuffer, mimeType);
+    if (process.env.GROQ_API_KEY) return await suggestFocalPointGroq(imageBuffer, mimeType);
+    return null;
   } catch {
     return null; // network hiccup, bad JSON, whatever — just use the default center crop
   }

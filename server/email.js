@@ -64,6 +64,30 @@ export function bookingConfirmationEmail({ eventTitle, dateLabel, venue, ticketU
   };
 }
 
+// Sent to the ORGANIZER when an attendee clicks "I've sent the payment" on
+// the organizer_payment checkout page — purely a nudge to go confirm it,
+// never proof of payment on its own (see Booking.claimedPaidAt's comment).
+export function organizerPaymentClaimEmail({ eventTitle, buyerName, buyerEmail, amount, manageUrl }) {
+  return {
+    subject: `Payment claim for "${eventTitle}" — confirm to issue the ticket`,
+    html: `
+      <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 12px">Someone says they've paid</h2>
+        <p style="color:#444;line-height:1.5">
+          ${escapeHtml(buyerName || buyerEmail || "A buyer")} says they've sent payment for
+          <strong>${escapeHtml(eventTitle)}</strong> (${amount.toFixed(2)} OMR). Their ticket won't be issued
+          until you confirm the payment actually arrived.
+        </p>
+        <p style="margin:22px 0">
+          <a href="${manageUrl}" style="background:#1C6DD0;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">
+            Review &amp; confirm payment
+          </a>
+        </p>
+      </div>
+    `,
+  };
+}
+
 export function teamInviteEmail({ eventTitle, role, inviteLink }) {
   const roleLabel = role === "MANAGER" ? "manager" : "staff";
   return {

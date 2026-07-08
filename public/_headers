@@ -1,0 +1,20 @@
+# Picked up automatically by Cloudflare Workers Static Assets (same _headers
+# convention as Cloudflare Pages) — mirrors vercel.json's headers block for
+# the Vercel deployment, so both production targets (weynevents.com on
+# Vercel, app.weynevents.com on Workers — see wrangler.jsonc) get the same
+# cache lifetimes instead of only one of them.
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/icons/*
+  Cache-Control: public, max-age=2592000
+
+/fonts/*
+  Cache-Control: public, max-age=2592000
+
+/og-image.png
+  Cache-Control: public, max-age=86400
+
+/sw.js
+  Cache-Control: no-cache

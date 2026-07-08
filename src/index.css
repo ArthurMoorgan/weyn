@@ -1480,6 +1480,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   }
   .admin-grid .stat-grid { padding: 0; grid-template-columns: 1fr 1fr; }
   .admin-grid .steps { padding: 0; }
+
+  /* organizer dashboard: sidebar sub-nav instead of a horizontal pill row —
+     same .profile-tabs/.profile-tab classes as mobile (see Layout.tsx), just
+     re-flowed to a sticky vertical list, mirroring how .tabs itself becomes
+     App.tsx's sidebar at this breakpoint. */
+  .organizer-shell {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
+    padding: 0 24px;
+  }
+  .organizer-nav.profile-tabs {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 2px;
+    position: sticky;
+    top: 24px;
+  }
+  .organizer-nav.profile-tabs .profile-tab { width: 100%; justify-content: flex-start; }
+  .organizer-content .stat-grid { grid-template-columns: repeat(4, 1fr); }
+  .organizer-events-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 }
 
 /* ============================================================

@@ -433,8 +433,17 @@ export const db = {
     return prisma.booking.findUnique({ where: { id }, include: { payment: true, event: true, tier: true } });
   },
   async expireStalePendingBookings(olderThanMs) {
+    // organizer_payment bookings deliberately excluded — an attendee paying
+    // by bank transfer or an external link can take far longer than a
+    // gateway checkout session to clear, and there's no capacity actually
+    // held against them until the organizer confirms (see
+    // POST /api/events/:id/organizer-checkout), so there's nothing this
+    // sweep would even be reclaiming for them.
     await prisma.booking.updateMany({
-      where: { status: "pending", bookedAt: { lt: new Date(Date.now() - olderThanMs) } },
+      where: {
+        status: "pending", bookedAt: { lt: new Date(Date.now() - olderThanMs) },
+        event: { ticketingType: { not: "organizer_payment" } },
+      },
       data: { status: "expired" },
     });
   },
@@ -576,6 +585,185 @@ export const db = {
     ].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, limit);
     return feed;
   },
+
+  // ---- organizer dashboard rebuild: cross-event aggregates ----
+  // These three back the /organizer dashboard's Overview/Attendees/Finance
+  // sections. None of them existed before — every prior organizer query was
+  // scoped to a single event. All three share the same "events this user
+  // owns or manages" base set as eventsAccessibleTo/dashboardSummary above.
+  async _organizerEventIds(userId) {
+    const events = await prisma.event.findMany({
+      where: { deletedAt: null, OR: [{ ownerId: userId }, { teamMembers: { some: { userId, status: "ACCEPTED" } } }] },
+      select: { id: true },
+    });
+    return events.map((e) => e.id);
+  },
+
+  async organizerOverview(userId) {
+    const events = await prisma.event.findMany({
+      where: { deletedAt: null, OR: [{ ownerId: userId }, { teamMembers: { some: { userId, status: "ACCEPTED" } } }] },
+      select: {
+        id: true, title: true, startsAt: true, sold: true, capacity: true, cancelled: true,
+        discoveryStatus: true, image: true, color: true, glyph: true,
+        waitlistEntries: { select: { notifiedAt: true } },
+      },
+      orderBy: { startsAt: "asc" },
+    });
+    const eventIds = events.map((e) => e.id);
+    const now = new Date();
+
+    const needsAttention = [];
+    for (const e of events) {
+      if (e.cancelled) continue;
+      if (e.discoveryStatus === "MANUAL_REVIEW") {
+        needsAttention.push({ type: "manual_review", eventId: e.id, eventTitle: e.title, message: "Stuck in manual review — contact support if this doesn't clear soon." });
+      }
+      if (new Date(e.startsAt) >= now && e.sold === 0) {
+        needsAttention.push({ type: "zero_sales", eventId: e.id, eventTitle: e.title, message: "Upcoming with zero tickets sold yet." });
+      }
+      const unnotified = e.waitlistEntries.filter((w) => !w.notifiedAt).length;
+      if (unnotified > 0) {
+        needsAttention.push({ type: "waitlist_pending", eventId: e.id, eventTitle: e.title, message: `${unnotified} waitlist ${unnotified === 1 ? "signup" : "signups"} not yet notified.` });
+      }
+    }
+    if (eventIds.length) {
+      const pendingInvites = await prisma.eventTeamMember.findMany({
+        where: { eventId: { in: eventIds }, status: "PENDING" },
+        select: { eventId: true, invitedEmail: true, event: { select: { title: true } } },
+      });
+      for (const inv of pendingInvites) {
+        needsAttention.push({ type: "pending_invite", eventId: inv.eventId, eventTitle: inv.event.title, message: `Team invite to ${inv.invitedEmail} still pending.` });
+      }
+    }
+
+    const nextUpcoming = events.filter((e) => !e.cancelled && new Date(e.startsAt) >= now).slice(0, 3)
+      .map((e) => ({ id: e.id, title: e.title, startsAt: e.startsAt, sold: e.sold, capacity: e.capacity, image: e.image, color: e.color, glyph: e.glyph }));
+
+    // Revenue trend — last 14 days, bucketed by day. Mirrors eventAnalytics's
+    // salesByDay shape but summed across every event this organizer manages.
+    // Bucket keys and `since` are both derived via pure UTC millisecond math
+    // (not setDate/setHours, which read the server process's LOCAL
+    // timezone) so they line up exactly with bookedAt's own
+    // toISOString().slice(0,10) key below — mixing local-time day
+    // boundaries with UTC-formatted keys silently dropped a day's bookings
+    // whenever the server's local timezone was ahead of UTC.
+    const DAY_MS = 86400000;
+    const since = new Date(Date.now() - 13 * DAY_MS);
+    const trendDays = [];
+    for (let i = 0; i < 14; i++) {
+      trendDays.push(new Date(since.getTime() + i * DAY_MS).toISOString().slice(0, 10));
+    }
+    const revenueByDay = Object.fromEntries(trendDays.map((d) => [d, 0]));
+    if (eventIds.length) {
+      const bookings = await prisma.booking.findMany({
+        where: { eventId: { in: eventIds }, status: "paid", bookedAt: { gte: since } },
+        select: { qty: true, bookedAt: true, tier: { select: { price: true } }, event: { select: { price: true } } },
+      });
+      for (const b of bookings) {
+        const day = new Date(b.bookedAt).toISOString().slice(0, 10);
+        if (!(day in revenueByDay)) continue;
+        const price = b.tier ? b.tier.price : b.event.price;
+        revenueByDay[day] += b.qty * price;
+      }
+    }
+    const revenueTrend = trendDays.map((date) => ({ date, revenue: +revenueByDay[date].toFixed(2) }));
+
+    return { needsAttention, nextUpcoming, revenueTrend };
+  },
+
+  // Deduped by email (Booking has no userId FK — see HANDOFF.md). Anonymous
+  // device-only bookers with no email are grouped under a synthetic
+  // `device:<deviceId>` key rather than dropped, so their spend still counts
+  // toward the organizer's totals even though they can't be identified by name.
+  async organizerAttendees(userId) {
+    const eventIds = await db._organizerEventIds(userId);
+    if (!eventIds.length) return [];
+    const bookings = await prisma.booking.findMany({
+      where: { eventId: { in: eventIds }, status: "paid" },
+      select: {
+        eventId: true, email: true, name: true, qty: true, bookedAt: true, deviceId: true,
+        tier: { select: { price: true } }, event: { select: { price: true, title: true } },
+      },
+      orderBy: { bookedAt: "desc" },
+    });
+    const byKey = new Map();
+    for (const b of bookings) {
+      const key = b.email ? b.email.toLowerCase() : b.deviceId ? `device:${b.deviceId}` : null;
+      if (!key) continue;
+      const price = b.tier ? b.tier.price : b.event.price;
+      const spend = b.qty * price;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.totalSpend += spend;
+        existing.ticketsBought += b.qty;
+        existing.events.add(b.eventId);
+        if (new Date(b.bookedAt) > new Date(existing.lastBookedAt)) existing.lastBookedAt = b.bookedAt;
+        if (!existing.name && b.name) existing.name = b.name;
+      } else {
+        byKey.set(key, {
+          key, email: b.email || null, name: b.name || null, totalSpend: spend,
+          ticketsBought: b.qty, events: new Set([b.eventId]), lastBookedAt: b.bookedAt,
+        });
+      }
+    }
+    return [...byKey.values()]
+      .map((a) => ({ ...a, totalSpend: +a.totalSpend.toFixed(2), eventsAttended: a.events.size, events: undefined }))
+      .sort((a, b) => b.totalSpend - a.totalSpend);
+  },
+
+  // Revenue is derived from Booking qty × Tier/Event price (same convention
+  // as dashboardSummary), not summed from Payment.amount — free events have
+  // no Payment row at all, and this needs to count every ticket, not just
+  // gateway-settled ones. "Fees"/"net" are the same illustrative 8%/92% split
+  // already used client-side in You.tsx — there's no real payout processor
+  // wired yet (see HANDOFF.md §4.5), so this is a reporting view, not a
+  // ledger of actual payouts.
+  async organizerFinance(userId) {
+    const events = await prisma.event.findMany({
+      where: { deletedAt: null, OR: [{ ownerId: userId }, { teamMembers: { some: { userId, status: "ACCEPTED" } } }] },
+      select: { id: true, title: true, sold: true, price: true, tiers: { select: { sold: true, price: true } } },
+    });
+    const byEvent = events.map((e) => {
+      const revenue = e.tiers.length ? e.tiers.reduce((s, t) => s + t.sold * t.price, 0) : e.sold * e.price;
+      return { eventId: e.id, title: e.title, revenue: +revenue.toFixed(2), ticketsSold: e.sold };
+    }).filter((e) => e.revenue > 0 || e.ticketsSold > 0);
+
+    const eventIds = events.map((e) => e.id);
+    const byMonth = {};
+    if (eventIds.length) {
+      const bookings = await prisma.booking.findMany({
+        where: { eventId: { in: eventIds }, status: "paid" },
+        select: { qty: true, bookedAt: true, tier: { select: { price: true } }, event: { select: { price: true } } },
+      });
+      for (const b of bookings) {
+        const month = new Date(b.bookedAt).toISOString().slice(0, 7);
+        const price = b.tier ? b.tier.price : b.event.price;
+        byMonth[month] = (byMonth[month] || 0) + b.qty * price;
+      }
+    }
+    const revenueByMonth = Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, revenue]) => ({ month, revenue: +revenue.toFixed(2) }));
+
+    const totalRevenue = byEvent.reduce((s, e) => s + e.revenue, 0);
+    return {
+      totalRevenue: +totalRevenue.toFixed(2),
+      netRevenue: +(totalRevenue * 0.92).toFixed(2),
+      feesPaid: +(totalRevenue * 0.08).toFixed(2),
+      byEvent: byEvent.sort((a, b) => b.revenue - a.revenue),
+      revenueByMonth,
+      payoutsLive: false,
+    };
+  },
+
+  async getOrganizerSettings(userId) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { defaultEventSettings: true } });
+    return user?.defaultEventSettings || null;
+  },
+  async setOrganizerSettings(userId, settings) {
+    const user = await prisma.user.update({ where: { id: userId }, data: { defaultEventSettings: settings }, select: { defaultEventSettings: true } });
+    return user.defaultEventSettings;
+  },
+
   // `advanced` (Organizer Pro's advancedAnalytics feature — see
   // server/features.js) adds views/conversionRate/check-in stats on top of
   // the same base fields every organizer already gets; free callers get

@@ -2,7 +2,7 @@
 import { getAuthToken, type Account } from "./store";
 
 export type Cat = "sports" | "music" | "food" | "culture" | "cars" | "workshop" | "community";
-export type TicketingType = "weyn" | "external" | "cash" | "registration";
+export type TicketingType = "weyn" | "external" | "cash" | "registration" | "organizer_payment";
 
 export interface Tier {
   id: string;
@@ -29,7 +29,7 @@ export interface Weyn {
   sold: number;
   image: string | null;   // /uploads/xxx or null
   gallery?: string[];      // extra carousel photos beyond the cover image
-  imageFocalPoint?: string | null; // "50% 30%" CSS background-position, from Groq vision — null = center crop
+  imageFocalPoint?: string | null; // "50% 30%" CSS background-position, from Gemini/Groq vision — null = center crop
   color: string;
   glyph: string;
   blurb: string;
@@ -40,6 +40,9 @@ export interface Weyn {
   ticketingType: TicketingType;
   externalTicketUrl: string | null;
   organizerContact: string | null;
+  // "organizer_payment" ticketing only — see prisma schema's comment.
+  paymentLinkUrl?: string | null;
+  transferDetails?: string | null;
   tiers?: Tier[];         // multiple ticket types (weyn ticketing only)
   sourceUrl?: string | null;
   importedFromInstagram?: boolean;
@@ -366,6 +369,36 @@ export type PromoCode = {
   maxUses: number | null; usedCount: number; startsAt: string | null; endsAt: string | null; active: boolean;
 };
 
+// ---- organizer dashboard: cross-event views ----
+export interface OrganizerNeedsAttentionItem {
+  type: "manual_review" | "zero_sales" | "waitlist_pending" | "pending_invite";
+  eventId: string;
+  eventTitle: string;
+  message: string;
+}
+export interface OrganizerOverview {
+  needsAttention: OrganizerNeedsAttentionItem[];
+  nextUpcoming: { id: string; title: string; startsAt: string; sold: number; capacity: number; image: string | null; color: string; glyph: string }[];
+  revenueTrend: { date: string; revenue: number }[];
+}
+export interface OrganizerAttendee {
+  key: string;
+  email: string | null;
+  name: string | null;
+  totalSpend: number;
+  ticketsBought: number;
+  eventsAttended: number;
+  lastBookedAt: string;
+}
+export interface OrganizerFinance {
+  totalRevenue: number;
+  netRevenue: number;
+  feesPaid: number;
+  byEvent: { eventId: string; title: string; revenue: number; ticketsSold: number }[];
+  revenueByMonth: { month: string; revenue: number }[];
+  payoutsLive: boolean;
+}
+
 export const api = {
   listEvents(params: { cat?: string; q?: string } = {}): Promise<Weyn[]> {
     const sp = new URLSearchParams();
@@ -402,6 +435,37 @@ export const api = {
   },
   getBooking(bookingId: string): Promise<BookingStatus> {
     return fetch(`${API_BASE}/api/bookings/${bookingId}`).then((r) => json<BookingStatus>(r));
+  },
+  // "organizer_payment" ticketing — returns either the organizer's own
+  // payment link or our hosted transfer-instructions page to redirect to.
+  // Requires an email (unlike free RSVP) since the ticket can only be
+  // delivered once the organizer manually confirms, sometime after this call.
+  organizerPaymentCheckout(id: string, qty = 1, deviceId: string | undefined, account: Account | null | undefined, tierId?: string, inviteCode?: string): Promise<{ bookingId: string; accessToken: string; redirectUrl: string }> {
+    return fetch(`${API_BASE}/api/events/${id}/organizer-checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode }),
+    }).then((r) => json(r));
+  },
+  getOrganizerPaymentBooking(bookingId: string, accessToken: string): Promise<{
+    eventTitle: string; amount: number; transferDetails: string | null; status: string; claimedPaidAt: string | null;
+  }> {
+    return fetch(`${API_BASE}/api/bookings/${bookingId}/organizer-payment?accessToken=${encodeURIComponent(accessToken)}`).then((r) => json(r));
+  },
+  claimPaymentSent(bookingId: string, accessToken: string): Promise<{ ok: boolean; alreadyPaid?: boolean }> {
+    return fetch(`${API_BASE}/api/bookings/${bookingId}/claim-paid`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken }),
+    }).then((r) => json(r));
+  },
+  async listPendingPayments(eventId: string): Promise<{ id: string; email: string | null; name: string | null; qty: number; tierName: string | null; amount: number; bookedAt: string; claimedPaidAt: string | null }[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/pending-payments`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async confirmBookingPayment(eventId: string, bookingId: string): Promise<{ id: string; status: string }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/bookings/${bookingId}/confirm-payment`, {
+      method: "POST", headers: await authHeaders(),
+    }).then((r) => json(r));
   },
   registerPush(deviceId: string, deviceSecret: string, token: string, platform: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/push/register`, {
@@ -650,6 +714,25 @@ export const api = {
     }).then((r) => json<{ id: string; status: string }>(r));
   },
 
+  // ---- organizer dashboard: cross-event views ----
+  async organizerOverview(): Promise<OrganizerOverview> {
+    return fetch(`${API_BASE}/api/organizer/overview`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async organizerAttendees(): Promise<OrganizerAttendee[]> {
+    return fetch(`${API_BASE}/api/organizer/attendees`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async organizerFinance(): Promise<OrganizerFinance> {
+    return fetch(`${API_BASE}/api/organizer/finance`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async getOrganizerSettings(): Promise<Record<string, any> | null> {
+    return fetch(`${API_BASE}/api/me/organizer-settings`, { headers: await authHeaders() }).then((r) => json(r)).then((d: any) => d.settings);
+  },
+  async setOrganizerSettings(settings: Record<string, any>): Promise<Record<string, any> | null> {
+    return fetch(`${API_BASE}/api/me/organizer-settings`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ settings }),
+    }).then((r) => json(r)).then((d: any) => d.settings);
+  },
+
   // ---- Organizer Pro ----
   async mySubscription(): Promise<{
     plan: { key: string; name: string; priceOmr: number; billingPeriod: string };
@@ -706,7 +789,7 @@ export const api = {
       body: JSON.stringify(input),
     }).then((r) => json(r));
   },
-  async listWaitlist(eventId: string): Promise<{ id: string; email: string; name: string | null; createdAt: string }[]> {
+  async listWaitlist(eventId: string): Promise<{ id: string; email: string; name: string | null; createdAt: string; notifiedAt: string | null }[]> {
     return fetch(`${API_BASE}/api/events/${eventId}/waitlist`, { headers: await authHeaders() }).then((r) => json(r));
   },
   async notifyAttendees(eventId: string, input: { subject: string; message: string }): Promise<{ ok: boolean; recipients: number; emailed: number; pushed: number }> {

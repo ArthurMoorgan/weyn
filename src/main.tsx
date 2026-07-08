@@ -29,6 +29,7 @@ const Saved = lazy(() => import("./pages/Saved"));
 const Organizer = lazy(() => import("./pages/Organizer"));
 const CheckoutSuccess = lazy(() => import("./pages/CheckoutSuccess"));
 const CheckoutCancel = lazy(() => import("./pages/CheckoutCancel"));
+const OrganizerPaymentCheckout = lazy(() => import("./pages/OrganizerPaymentCheckout"));
 const InviteAccept = lazy(() => import("./pages/InviteAccept"));
 const CollectionPage = lazy(() => import("./pages/Collection"));
 const Admin = lazy(() => import("./pages/Admin"));
@@ -37,6 +38,14 @@ const HostVenue = lazy(() => import("./pages/HostVenue"));
 const VenueDetail = lazy(() => import("./pages/VenueDetail"));
 const Support = lazy(() => import("./pages/Support"));
 const Account = lazy(() => import("./pages/Account"));
+const OrganizerLayout = lazy(() => import("./pages/organizer/Layout"));
+const OrganizerOverview = lazy(() => import("./pages/organizer/Overview"));
+const OrganizerEvents = lazy(() => import("./pages/organizer/Events"));
+const OrganizerEventWorkspace = lazy(() => import("./pages/organizer/EventWorkspace"));
+const OrganizerAttendees = lazy(() => import("./pages/organizer/Attendees"));
+const OrganizerFinance = lazy(() => import("./pages/organizer/Finance"));
+const OrganizerMarketing = lazy(() => import("./pages/organizer/Marketing"));
+const OrganizerSettings = lazy(() => import("./pages/organizer/Settings"));
 
 // as close to page-load as this module can get, so the splash's minimum
 // on-screen duration is measured from real first-paint, not from whenever
@@ -173,12 +182,31 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route path="/host/venue" element={<HostVenue />} />
                 <Route path="/you" />
                 <Route path="/admin" element={<Admin />} />
+                {/* /organizer/* — the real organizer dashboard (HANDOFF.md
+                    §17), rendered through App's shared shell same as /admin.
+                    Every sub-path here is a static segment ("events",
+                    "attendees", ...), which React Router ranks above the
+                    single dynamic /organizer/:id public-profile route below
+                    at the same depth — the two coexist safely unless an
+                    organizer's id is literally the string "events" etc,
+                    which cuid-style ids never are. */}
+                <Route path="/organizer" element={<OrganizerLayout />}>
+                  <Route index element={<OrganizerOverview />} />
+                  <Route path="events" element={<OrganizerEvents />} />
+                  <Route path="events/:id" element={<OrganizerEventWorkspace />} />
+                  <Route path="events/:id/:tab" element={<OrganizerEventWorkspace />} />
+                  <Route path="attendees" element={<OrganizerAttendees />} />
+                  <Route path="finance" element={<OrganizerFinance />} />
+                  <Route path="marketing" element={<OrganizerMarketing />} />
+                  <Route path="settings" element={<OrganizerSettings />} />
+                </Route>
               </Route>
               <Route path="/e/:id" element={<EventDetail />} />
               <Route path="/reservations/:id" element={<VenueDetail />} />
               <Route path="/organizer/:id" element={<OrganizerProfile />} />
               <Route path="/checkout/success" element={<CheckoutSuccess />} />
               <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+              <Route path="/checkout/organizer-payment" element={<OrganizerPaymentCheckout />} />
               <Route path="/invite/:token" element={<InviteAccept />} />
               <Route path="/collections/:id" element={<CollectionPage />} />
               <Route path="/support" element={<Support />} />

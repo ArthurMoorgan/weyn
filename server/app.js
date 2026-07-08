@@ -26,7 +26,7 @@ import { createEventSchema, updateEventSchema, validateBody } from "./validators
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature } from "./features.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
-import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail } from "./email.js";
+import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
 
 // Normalise a user-typed ticket URL so it always redirects OUT of the app.
@@ -412,7 +412,7 @@ export function createApp(storage) {
       // here (not just greyed out in the UI) so the API can't be used to
       // create a Weyn-ticketed event. Default also moved off "weyn" to "cash".
       // Re-enable by restoring "weyn" to the allowlist once PayTabs is set up.
-      const ALLOWED_TICKETING = ["external", "cash", "registration"];
+      const ALLOWED_TICKETING = ["external", "cash", "registration", "organizer_payment"];
       if (b.ticketingType === "weyn") {
         return res.status(400).json({ error: { code: "TICKETING_DISABLED", message: "Weyn Ticketing isn't available yet — use an external link, registration form, or cash at the door." } });
       }
@@ -479,7 +479,7 @@ export function createApp(storage) {
         sold: 0,
         tiers,
         image,
-        // best-guess focal point (Groq vision) so the same photo crops sensibly
+        // best-guess focal point (Gemini/Groq vision, see server/ai.js) so the same photo crops sensibly
         // across the card/detail/dashboard's different aspect ratios — cosmetic
         // only, silently null (plain center crop) if AI isn't configured/fails
         imageFocalPoint: await suggestFocalPointFor(image),
@@ -493,6 +493,8 @@ export function createApp(storage) {
         ticketingType,
         externalTicketUrl: (ticketingType === "external" || ticketingType === "registration") ? normalizeUrl(b.externalTicketUrl) : null,
         organizerContact: ticketingType === "cash" ? (b.organizerContact || "").trim() || null : null,
+        paymentLinkUrl: ticketingType === "organizer_payment" && b.paymentLinkUrl ? normalizeUrl(b.paymentLinkUrl) : null,
+        transferDetails: ticketingType === "organizer_payment" ? (b.transferDetails || "").trim() || null : null,
         sourceUrl: b.sourceUrl || null,
         importedFromInstagram: b.importedFromInstagram === "true" || b.importedFromInstagram === true,
       };
@@ -668,6 +670,137 @@ export function createApp(storage) {
     }
   });
 
+  // ---- "organizer_payment" ticketing — organizer's own payment link or
+  // bank-transfer details, confirmed manually rather than by a real
+  // payment-gateway webhook (see schema.prisma's paymentLinkUrl comment). ----
+  app.post("/api/events/:id/organizer-checkout", bookingLimiter, async (req, res) => {
+    const e = await db.get(req.params.id);
+    if (!e) return res.status(404).json({ error: "Event not found" });
+    if (e.cancelled) return res.status(410).json({ error: "This event was cancelled" });
+    if (e.inviteOnly && !inviteCodeMatches(req.body?.inviteCode, e.inviteCode)) {
+      return res.status(403).json({ error: { code: "INVITE_REQUIRED", message: "This event is invite-only — a valid invite code is required." } });
+    }
+    if (e.ticketingType !== "organizer_payment") {
+      return res.status(400).json({ error: "This event doesn't use organizer payment ticketing" });
+    }
+    const qty = Math.min(MAX_TICKETS_PER_BOOKING, Math.max(1, Number(req.body?.qty) || 1));
+    const tierId = req.body?.tierId || null;
+    const price = priceFor(e, tierId);
+    if (price === null) return res.status(400).json({ error: "Please choose a ticket type" });
+    if (price <= 0) return res.status(400).json({ error: "This ticket is free — use POST /api/events/:id/book instead" });
+
+    const tier = tierId ? e.tiers.find((t) => t.id === tierId) : null;
+    const remaining = tier ? tier.capacity - tier.sold : e.capacity - e.sold;
+    if (qty > remaining) return res.status(409).json({ error: tier ? `${tier.name} is sold out` : "Not enough tickets left" });
+    if (!req.body?.email) return res.status(400).json({ error: "An email is required so we can send the ticket once payment is confirmed." });
+
+    const deviceId = req.body?.deviceId;
+    const account = { email: req.body.email, name: req.body.name };
+    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty });
+    await prisma.payment.create({ data: { bookingId: booking.id, amount: price * qty, status: "pending" } });
+    trackEvent(req.user?.id || deviceId, "organizer_checkout_started", { eventId: e.id, qty, tierId, amount: price * qty });
+
+    const redirectUrl = e.paymentLinkUrl
+      ? e.paymentLinkUrl
+      : `${publicOrigin(req)}/checkout/organizer-payment?booking=${booking.id}&accessToken=${encodeURIComponent(booking.accessToken)}`;
+    res.json({ bookingId: booking.id, accessToken: booking.accessToken, redirectUrl });
+  });
+
+  // Public — the buyer's own "pay via transfer" page needs this to render
+  // amount/instructions. Gated on the unguessable accessToken, same trust
+  // model as GET /api/bookings/:id/tickets.
+  app.get("/api/bookings/:id/organizer-payment", async (req, res) => {
+    const booking = await prisma.booking.findUnique({ where: { id: req.params.id }, include: { payment: true, event: true } });
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (!booking.accessToken || req.query.accessToken !== booking.accessToken) {
+      return res.status(403).json({ error: "Access token is required" });
+    }
+    res.json({
+      eventTitle: booking.event.title,
+      amount: booking.payment?.amount ?? 0,
+      transferDetails: booking.event.transferDetails,
+      status: booking.status,
+      claimedPaidAt: booking.claimedPaidAt,
+    });
+  });
+
+  // The attendee's own "I've sent it" claim — never marks the booking paid
+  // by itself, just flags it for the organizer and emails them. Rate-limited
+  // the same as other public write endpoints to stop it being used to spam
+  // an organizer's inbox.
+  app.post("/api/bookings/:id/claim-paid", socialLimiter, async (req, res) => {
+    const booking = await prisma.booking.findUnique({ where: { id: req.params.id }, include: { payment: true, event: true } });
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (!booking.accessToken || req.body?.accessToken !== booking.accessToken) {
+      return res.status(403).json({ error: "Access token is required" });
+    }
+    if (booking.status === "paid") return res.json({ ok: true, alreadyPaid: true });
+    if (!booking.claimedPaidAt) {
+      await prisma.booking.update({ where: { id: booking.id }, data: { claimedPaidAt: new Date() } });
+      if (booking.event.ownerId && emailConfigured()) {
+        const owner = await prisma.user.findUnique({ where: { id: booking.event.ownerId }, select: { email: true } });
+        if (owner?.email) {
+          const manageUrl = `${publicOrigin(req)}/organizer/events/${booking.eventId}/attendees`;
+          sendEmail({
+            to: owner.email,
+            ...organizerPaymentClaimEmail({
+              eventTitle: booking.event.title, buyerName: booking.name, buyerEmail: booking.email,
+              amount: booking.payment?.amount ?? 0, manageUrl,
+            }),
+          }).catch((err) => captureError(err, { route: "POST /api/bookings/:id/claim-paid (email)", bookingId: booking.id }));
+        }
+      }
+    }
+    res.json({ ok: true });
+  });
+
+  // Owner-only — bookings waiting on manual payment confirmation for this event.
+  app.get("/api/events/:id/pending-payments", requireEventOwner(), async (req, res) => {
+    const bookings = await prisma.booking.findMany({
+      where: { eventId: req.event.id, status: "pending" },
+      include: { payment: true, tier: true },
+      orderBy: { bookedAt: "desc" },
+    });
+    res.json(bookings.map((b) => ({
+      id: b.id, email: b.email, name: b.name, qty: b.qty, tierName: b.tier?.name || null,
+      amount: b.payment?.amount ?? 0, bookedAt: b.bookedAt, claimedPaidAt: b.claimedPaidAt,
+    })));
+  });
+
+  // Owner confirms a transfer/payment-link booking actually arrived — the
+  // manual equivalent of confirmPaymentFromPayTabs below (same capacity-claim
+  // + ticket-issuing + confirmation-email steps), since there's no real
+  // gateway webhook to trust for this ticketing type.
+  app.post("/api/events/:id/bookings/:bookingId/confirm-payment", requireEventOwner(), async (req, res) => {
+    const booking = await prisma.booking.findUnique({ where: { id: req.params.bookingId }, include: { payment: true } });
+    if (!booking || booking.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking not found" } });
+    if (booking.status === "paid") return res.json(await db.getBooking(booking.id));
+    if (booking.status !== "pending") return res.status(409).json({ error: { code: "INVALID_STATE", message: `Booking is ${booking.status}, not pending` } });
+
+    const claimed = booking.tierId
+      ? await db.claimTierCapacity(booking.tierId, booking.qty)
+      : await db.claimEventCapacity(booking.eventId, booking.qty);
+    if (!claimed) return res.status(409).json({ error: { code: "SOLD_OUT", message: "No capacity left to confirm this booking" } });
+    if (booking.tierId) await prisma.event.update({ where: { id: booking.eventId }, data: { sold: { increment: booking.qty } } });
+
+    await prisma.booking.update({ where: { id: booking.id }, data: { status: "paid" } });
+    if (booking.payment) await prisma.payment.update({ where: { id: booking.payment.id }, data: { status: "paid" } });
+    await db.issueTickets(booking.id, booking.eventId, booking.qty);
+    await db.audit("booking.organizer_payment.confirm", { actorId: req.user.id, entityType: "booking", entityId: booking.id, metadata: { eventId: booking.eventId } });
+    trackEvent(req.user.id, "organizer_checkout_completed", { eventId: booking.eventId, qty: booking.qty });
+
+    if (booking.email) {
+      const dateStr = new Date(req.event.startsAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+      const { subject, html } = bookingConfirmationEmail({
+        eventTitle: req.event.title, dateLabel: dateStr, venue: `${req.event.venue}, ${req.event.area}`,
+        ticketUrl: `${publicOrigin(req)}/e/${req.event.id}?booking=${booking.id}&accessToken=${encodeURIComponent(booking.accessToken)}`,
+        free: false,
+      });
+      sendEmail({ to: booking.email, subject, html }).catch((err) => captureError(err, { route: "POST .../confirm-payment (email)", bookingId: booking.id }));
+    }
+    res.json(await db.getBooking(booking.id));
+  });
+
   app.post("/api/payments/webhook", async (req, res) => {
     const signature = req.header("Signature") || req.header("signature");
     if (!verifyIpnSignature(req.rawBody, signature)) {
@@ -789,7 +922,7 @@ export function createApp(storage) {
     res.json({ ok: true, checkedInAt: result.checkedInAt });
   });
 
-  const EDITABLE_FIELDS = ["title", "blurb", "price", "capacity", "startsAt", "refundPolicy", "venue", "area", "minAge", "tags", "ticketingType", "externalTicketUrl", "organizerContact"];
+  const EDITABLE_FIELDS = ["title", "blurb", "price", "capacity", "startsAt", "refundPolicy", "venue", "area", "minAge", "tags", "ticketingType", "externalTicketUrl", "organizerContact", "paymentLinkUrl", "transferDetails"];
   app.patch("/api/events/:id", requireEventOwner(), validateBody(updateEventSchema), async (req, res) => {
     const e = req.event;
     const patch = {};
@@ -802,8 +935,9 @@ export function createApp(storage) {
       // "weyn" excluded — can't switch an event to Weyn Ticketing while it's
       // disabled (mirrors the create-route block; keeps the API consistent
       // with the greyed-out UI). Existing weyn events keep their type on edit.
-      else if (key === "ticketingType") patch.ticketingType = ["external", "cash", "registration"].includes(req.body.ticketingType) ? req.body.ticketingType : e.ticketingType;
+      else if (key === "ticketingType") patch.ticketingType = ["external", "cash", "registration", "organizer_payment"].includes(req.body.ticketingType) ? req.body.ticketingType : e.ticketingType;
       else if (key === "externalTicketUrl") patch.externalTicketUrl = normalizeUrl(req.body.externalTicketUrl);
+      else if (key === "paymentLinkUrl") patch.paymentLinkUrl = req.body.paymentLinkUrl ? normalizeUrl(req.body.paymentLinkUrl) : null;
       else if (key === "title") patch.title = cleanEventTitle(req.body.title) || e.title;
       else patch[key] = req.body[key];
     }
@@ -1571,6 +1705,24 @@ export function createApp(storage) {
   // distinct from GET /api/events (the public listing)
   app.get("/api/dashboard/events", requireAuth, async (req, res) => {
     res.json(await db.eventsAccessibleTo(req.user.id));
+  });
+
+  // ---- organizer dashboard rebuild: cross-event views ----
+  app.get("/api/organizer/overview", requireAuth, async (req, res) => {
+    res.json(await db.organizerOverview(req.user.id));
+  });
+  app.get("/api/organizer/attendees", requireAuth, async (req, res) => {
+    res.json(await db.organizerAttendees(req.user.id));
+  });
+  app.get("/api/organizer/finance", requireAuth, async (req, res) => {
+    res.json(await db.organizerFinance(req.user.id));
+  });
+  app.get("/api/me/organizer-settings", requireAuth, async (req, res) => {
+    res.json({ settings: await db.getOrganizerSettings(req.user.id) });
+  });
+  app.put("/api/me/organizer-settings", requireAuth, async (req, res) => {
+    const settings = req.body?.settings && typeof req.body.settings === "object" ? req.body.settings : {};
+    res.json({ settings: await db.setOrganizerSettings(req.user.id, settings) });
   });
 
   app.get("/api/events/:id/analytics", requireEventAccess("MANAGER"), async (req, res) => {

@@ -1,27 +1,26 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Html5Qrcode } from "html5-qrcode";
-import { api, ticketsLeft, isSoldOut, dayLabel, timeLabel, type Weyn, type TeamRole, type Venue, type Reservation, type VenueAvailabilitySlot } from "../api";
-import { useAsync, useClosing } from "../hooks";
-import { getOrganizer, useAccount, useTickets, useSaved } from "../store";
+import { api, type Weyn, type Venue, type Reservation, type VenueAvailabilitySlot } from "../api";
+import { useAsync } from "../hooks";
+import { useAccount, useTickets, useSaved } from "../store";
 import Stub from "../components/Stub";
 import ThemeToggle from "../components/ThemeToggle";
 import InstallPrompt from "../components/InstallPrompt";
 import AccountWidget from "../components/AccountWidget";
 import { webPushStatus, webPushSupported, subscribeWebPush, unsubscribeWebPush } from "../webpush";
-import SubscriptionCard from "../components/SubscriptionCard";
-
-const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 
 // Profile architecture: dedicated views instead of one long stacked page.
-// Organizer/Settings only appear once relevant (signed in) so a first-time
-// visitor isn't shown empty tabs for features they haven't touched yet.
-type ProfileTab = "overview" | "tickets" | "saved" | "lists" | "organizer" | "venues" | "settings";
+// Settings only appears once relevant (signed in) so a first-time visitor
+// isn't shown empty tabs for features they haven't touched yet. Organizer
+// used to be a tab here — it's now the full /organizer dashboard (see
+// HANDOFF.md §17 and src/pages/organizer/*), promoted out for the same
+// reason Admin isn't a You.tsx tab either: it's a real product surface, not
+// a corner of the profile screen.
+type ProfileTab = "overview" | "tickets" | "saved" | "lists" | "venues" | "settings";
 
 type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
 
 export default function You() {
-  const name = getOrganizer();
   const tickets = useTickets();
   const saved = useSaved();
   const [tab, setTab] = useState<ProfileTab>("overview");
@@ -35,7 +34,12 @@ export default function You() {
   // signed-out visitors just get an empty dashboard (nothing to show yet).
   const dashEvents = useAsync(() => (account ? api.dashboardEvents() : Promise.resolve([])), [account]);
   const dashSummary = useAsync(() => (account ? api.dashboardSummary() : Promise.resolve(null)), [account]);
-  const allEvents = useAsync(() => api.listEvents(), []);
+  // cacheKey matches Explore.tsx's own listEvents() call — public, shared-
+  // across-users data (see hooks.ts's cacheKey doc comment), so navigating
+  // here from Discover (the overwhelmingly common path, since Explore is the
+  // home tab) hits Explore's already-warm 30s cache instead of re-fetching
+  // the entire public catalog from scratch every time.
+  const allEvents = useAsync(() => api.listEvents(), [], { cacheKey: "events:all" });
   const myVenues = useAsync<OwnedVenue[]>(() => (account ? api.myVenues() : Promise.resolve([])), [account]);
 
   const summary = {
@@ -54,39 +58,19 @@ export default function You() {
     } : null,
   };
 
-  if (summary.loading || allEvents.loading) {
-    return (<><Header tab={tab} setTab={setTab} isHost={false} hasVenues={false} account={!!account} /><div className="feed" style={{ paddingTop: 8 }}>
-      <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
-      <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
-      <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
-    </div></>);
-  }
-
-  // NEVER silently fall through on a failed fetch — show it, don't hide it as an empty state
-  if (summary.error || allEvents.error) {
-    return (
-      <>
-        <Header tab={tab} setTab={setTab} isHost={false} hasVenues={false} account={!!account} />
-        <div className="empty">
-          <div className="ic"><i className="icon-cloud-off" /></div>
-          <p>Couldn't reach the server. {summary.error || allEvents.error}</p>
-          <p style={{ fontSize: 12.5, color: "var(--text-3)", marginTop: -8 }}>
-            If you're testing a deployed build, make sure it was built with <code>VITE_API_BASE</code> pointing at your live backend URL.
-          </p>
-          <button className="btn glass" style={{ maxWidth: 220, margin: "0 auto" }} onClick={() => { summary.reload(); allEvents.reload(); }}>
-            Try again
-          </button>
-        </div>
-      </>
-    );
-  }
-
   const myTickets = (allEvents.data || []).filter((e) => tickets.some((t) => t.eventId === e.id));
   const savedEvents = (allEvents.data || []).filter((e) => saved.includes(e.id));
   const isHost = (summary.data?.events.length || 0) > 0;
   const venues = myVenues.data || [];
   const hasVenues = venues.length > 0;
   const summaryData = summary.data || { events: [], stats: { eventCount: 0, ticketsSold: 0, grossRevenue: 0, netRevenue: 0, feePaid: 0 } };
+
+  // Each tab below carries its own loading/error state instead of the whole
+  // page blocking on every fetch before rendering anything — Settings (no
+  // network dependency at all) or Venues (only needs myVenues) used to sit
+  // behind a full-page skeleton just because allEvents/dashSummary hadn't
+  // resolved yet, which is exactly why this page felt slow to open.
+  const eventsPending = allEvents.loading || allEvents.error;
 
   return (
     <>
@@ -99,24 +83,55 @@ export default function You() {
       )}
 
       {tab === "overview" && (
-        <OverviewTab
-          account={!!account}
-          tickets={myTickets}
-          saved={savedEvents}
-          isHost={isHost}
-          summary={summaryData}
-          onNavigate={setTab}
-        />
+        eventsPending ? (
+          <TabSkeletonOrError error={allEvents.error} onRetry={allEvents.reload} />
+        ) : (
+          <OverviewTab
+            account={!!account}
+            tickets={myTickets}
+            saved={savedEvents}
+            isHost={isHost}
+            summary={summaryData}
+            onNavigate={setTab}
+          />
+        )
       )}
-      {tab === "tickets" && <TicketsSection tickets={myTickets} />}
-      {tab === "saved" && <SavedTab events={savedEvents} />}
+      {tab === "tickets" && (
+        eventsPending ? <TabSkeletonOrError error={allEvents.error} onRetry={allEvents.reload} /> : <TicketsSection tickets={myTickets} />
+      )}
+      {tab === "saved" && (
+        eventsPending ? <TabSkeletonOrError error={allEvents.error} onRetry={allEvents.reload} /> : <SavedTab events={savedEvents} />
+      )}
       {tab === "lists" && account && <CollectionsSection />}
-      {tab === "organizer" && (
-        <OrganizerSection name={name} summary={summaryData} reload={summary.reload} />
+      {tab === "venues" && (
+        myVenues.loading || myVenues.error
+          ? <TabSkeletonOrError error={myVenues.error} onRetry={myVenues.reload} />
+          : <VenuesSection venues={venues} />
       )}
-      {tab === "venues" && <VenuesSection venues={venues} />}
       {tab === "settings" && <SettingsTab account={!!account} />}
     </>
+  );
+}
+
+// Shared per-tab loading/error placeholder — NEVER silently falls through on
+// a failed fetch (still shows it, with a retry), it just no longer blocks
+// the header/other tabs from rendering while doing so.
+function TabSkeletonOrError({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  if (error) {
+    return (
+      <div className="empty">
+        <div className="ic"><i className="icon-cloud-off" /></div>
+        <p>Couldn't reach the server. {error}</p>
+        <button className="btn glass" style={{ maxWidth: 220, margin: "0 auto" }} onClick={onRetry}>Try again</button>
+      </div>
+    );
+  }
+  return (
+    <div className="feed" style={{ paddingTop: 8 }}>
+      <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+      <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+      <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
+    </div>
   );
 }
 
@@ -139,9 +154,9 @@ function OverviewTab({ account, tickets, saved, isHost, summary, onNavigate }: {
           <i className="icon-heart" /><div className="ov-v">{saved.length}</div><div className="ov-k">Saved</div>
         </button>
         {isHost && (
-          <button className="ov-card" onClick={() => onNavigate("organizer")}>
+          <Link to="/organizer" className="ov-card">
             <i className="icon-chart-bar" /><div className="ov-v">{summary.stats.eventCount}</div><div className="ov-k">Live events</div>
-          </button>
+          </Link>
         )}
         {account && (
           <button className="ov-card" onClick={() => onNavigate("lists")}>
@@ -245,13 +260,6 @@ function SettingsTab({ account }: { account: boolean }) {
         {pushErr && <p className="errline">{pushErr}</p>}
 
         {account && (
-          <>
-            <div className="filter-sheet-label" style={{ marginTop: 16 }}>Subscription</div>
-            <SubscriptionCard />
-          </>
-        )}
-
-        {account && (
           <div className="account-row" style={{ marginTop: 12 }}>
             <AccountWidget />
           </div>
@@ -338,13 +346,8 @@ function CollectionsSection() {
   );
 }
 
-// Base order for non-hosts. When the user IS a host, Organizer is spliced in
-// right after Overview (see below) instead of sitting buried at the end —
-// it's the primary tool for hosts and shouldn't require scrolling the strip
-// to discover.
 const TAB_DEFS: { key: ProfileTab; label: string; icon: string; needsAuth?: boolean; needsHost?: boolean; needsVenues?: boolean }[] = [
   { key: "overview", label: "Overview", icon: "layout-grid" },
-  { key: "organizer", label: "Organizer", icon: "chart-bar", needsHost: true },
   { key: "venues", label: "Venues", icon: "store", needsVenues: true },
   { key: "tickets", label: "Tickets", icon: "ticket" },
   { key: "saved", label: "Saved", icon: "heart" },
@@ -389,125 +392,6 @@ function TicketsSection({ tickets }: { tickets: Weyn[] }) {
           <Link to="/" className="btn" style={{ maxWidth: 220, margin: "0 auto" }}>Find something to do</Link>
         </div>
       )}
-    </section>
-  );
-}
-
-/* ---------- Organizer (always shown — CTA or full dashboard) ---------- */
-// Surfaces the trust & safety pipeline's decision — see server/moderation.js.
-// Growth-priority tuning (2026-07-04): DISCOVERY_LIMITED is no longer shown
-// here (and no longer auto-assigned server-side) — quality/trust scores
-// don't restrict reach right now. Only genuinely fraud/spam-flagged events
-// still surface a badge; everything else (including PENDING_REVIEW/APPROVED)
-// shows nothing, since that's the common, unremarkable case.
-function DiscoveryBadge({ status }: { status?: Weyn["discoveryStatus"] }) {
-  const copy: Record<string, { label: string; cls: string }> = {
-    MANUAL_REVIEW: { label: "In review", cls: "warn" },
-    DISCOVERY_BLOCKED: { label: "Flagged — contact support", cls: "danger" },
-  };
-  const c = status ? copy[status] : undefined;
-  if (!c) return null;
-  return <span className={`discovery-tag ${c.cls}`}>{c.label}</span>;
-}
-
-function OrganizerSection({ name, summary, reload }: { name: string; summary: any; reload: () => void }) {
-  const isHost = summary.events.length > 0;
-  const [editing, setEditing] = useState<Weyn | null>(null);
-  const [attendeesFor, setAttendeesFor] = useState<Weyn | null>(null);
-  const [marketingFor, setMarketingFor] = useState<Weyn | null>(null);
-  const [analyticsFor, setAnalyticsFor] = useState<Weyn | null>(null);
-  const [teamFor, setTeamFor] = useState<Weyn | null>(null);
-  const [checkinFor, setCheckinFor] = useState<Weyn | null>(null);
-  const [inviteFor, setInviteFor] = useState<Weyn | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  if (!isHost) {
-    return (
-      <section>
-        <div className="date-head"><h2>Organizer</h2></div>
-        <div className="host-cta" style={{ margin: "0 16px" }}>
-          <div>
-            <b>Running an event?</b>
-            <span>Publish it free and track sales here.</span>
-          </div>
-          <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "11px 16px" }}><i className="icon-plus" /> Host</Link>
-        </div>
-      </section>
-    );
-  }
-
-  const s = summary.stats;
-
-  async function cancel(e: Weyn) {
-    if (!confirm(`Cancel "${e.title}"? It'll disappear from Explore immediately.`)) return;
-    setBusyId(e.id);
-    try { await api.cancelEvent(e.id); reload(); } finally { setBusyId(null); }
-  }
-  async function duplicate(e: Weyn) {
-    setBusyId(e.id);
-    try { await api.duplicateEvent(e.id); reload(); } finally { setBusyId(null); }
-  }
-
-  return (
-    <section className="dash">
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Organizer</h2><span>Performance for {name}</span></div>
-
-      <div className="stat-grid">
-        <div className="stat"><div className="k">Net revenue</div><div className="v">{omr(s.netRevenue)} <small>OMR</small></div></div>
-        <div className="stat"><div className="k">Tickets sold</div><div className="v">{s.ticketsSold.toLocaleString()}</div></div>
-        <div className="stat"><div className="k">Live events</div><div className="v">{s.eventCount}</div></div>
-        <div className="stat"><div className="k">Weyn fees paid</div><div className="v">{omr(s.feePaid)} <small>OMR</small></div></div>
-      </div>
-
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Your events</h2><span>{summary.events.length}</span></div>
-
-      {summary.events.map((e: Weyn) => {
-        const left = ticketsLeft(e);
-        const out = isSoldOut(e);
-        const pct = e.capacity >= 9000 ? 0 : Math.min(100, Math.round((e.sold / e.capacity) * 100));
-        const gross = e.sold * e.price;
-        return (
-          <div key={e.id} className="dash-card">
-            <Link to={`/e/${e.id}`} className="dash-row" style={{ marginBottom: 0 }}>
-              <div className="thumb" style={e.image ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" } : { background: e.color }}>
-                {!e.image && e.glyph}
-              </div>
-              <div className="info">
-                <b>{e.title}{e.cancelled && <span className="cancelled-tag">Cancelled</span>}{!e.cancelled && <DiscoveryBadge status={e.discoveryStatus} />}</b>
-                <span>{dayLabel(e)} · {timeLabel(e)} · {e.area}</span>
-                {e.capacity < 9000 && !e.cancelled && <div className="bar"><i className={pct >= 100 ? "full" : ""} style={{ width: `${pct}%` }} /></div>}
-              </div>
-              <div className="amt">
-                <b>{e.price === 0 ? "Free" : `${omr(+gross.toFixed(2))} OMR`}</b>
-                <span>{e.cancelled ? "—" : out ? "Sold out" : e.capacity >= 9000 ? `${e.sold} in` : `${left} left`}</span>
-              </div>
-            </Link>
-            {!e.cancelled && (
-              <div className="dash-actions">
-                <button onClick={() => setEditing(e)}><i className="icon-pencil" /> Edit</button>
-                <button onClick={() => setAnalyticsFor(e)}><i className="icon-chart-bar" /> Analytics</button>
-                <button onClick={() => setAttendeesFor(e)}><i className="icon-users" /> Attendees</button>
-                <button onClick={() => setCheckinFor(e)}><i className="icon-qr-code" /> Check-in</button>
-                <button onClick={() => setTeamFor(e)}><i className="icon-users-round" /> Team</button>
-                <button onClick={() => setMarketingFor(e)}><i className="icon-megaphone" /> Marketing</button>
-                <button onClick={() => setInviteFor(e)}><i className="icon-user-plus" /> Invite-only{e.inviteOnly ? " (on)" : ""}</button>
-                <button onClick={() => duplicate(e)} disabled={busyId === e.id}><i className="icon-copy" /> Duplicate</button>
-                <button onClick={() => cancel(e)} disabled={busyId === e.id} className="danger"><i className="icon-ban" /> Cancel</button>
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      <Link to="/host/events" className="btn glass" style={{ marginTop: 8 }}><i className="icon-plus" /> Host another event</Link>
-
-      {editing && <EditSheet event={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
-      {attendeesFor && <AttendeesSheet event={attendeesFor} onClose={() => setAttendeesFor(null)} />}
-      {marketingFor && <MarketingSheet event={marketingFor} onClose={() => setMarketingFor(null)} />}
-      {analyticsFor && <AnalyticsSheet event={analyticsFor} onClose={() => setAnalyticsFor(null)} />}
-      {teamFor && <TeamSheet event={teamFor} onClose={() => setTeamFor(null)} />}
-      {checkinFor && <CheckInSheet event={checkinFor} onClose={() => setCheckinFor(null)} />}
-      {inviteFor && <InviteOnlySheet event={inviteFor} onClose={() => setInviteFor(null)} onChanged={reload} />}
     </section>
   );
 }
@@ -710,488 +594,3 @@ function VenueAvailabilityEditor({ venue }: { venue: OwnedVenue }) {
   );
 }
 
-/* ---------- Edit sheet ---------- */
-function EditSheet({ event, onClose, onSaved }: { event: Weyn; onClose: () => void; onSaved: () => void }) {
-  const [price, setPrice] = useState(String(event.price));
-  const [capacity, setCapacity] = useState(String(event.capacity));
-  const [blurb, setBlurb] = useState(event.blurb);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const { closing, close } = useClosing(onClose);
-
-  async function save() {
-    setBusy(true); setErr("");
-    try {
-      await api.updateEvent(event.id, { price: Number(price) || 0, capacity: Number(capacity) || event.capacity, blurb });
-      onSaved();
-    } catch (e: any) {
-      setErr(e.message || "Couldn't save"); setBusy(false);
-    }
-  }
-
-  return (
-    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
-      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 14 }}>Edit "{event.title}"</h3>
-        <div className="field"><label>Price (OMR)</label><input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" /></div>
-        <div className="field"><label>Capacity</label><input value={capacity} onChange={(e) => setCapacity(e.target.value)} inputMode="numeric" /></div>
-        <div className="field"><label>Description</label><textarea rows={3} value={blurb} onChange={(e) => setBlurb(e.target.value)} /></div>
-        {err && <p className="errline">{err}</p>}
-        <button className="btn" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
-        <button className="btn glass" style={{ marginTop: 8 }} onClick={close}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- Attendees sheet ---------- */
-function AttendeesSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
-  const { data, loading, error } = useAsync(() => api.getAttendees(event.id), [event.id]);
-  const { closing, close } = useClosing(onClose);
-
-  function exportCsv() {
-    const rows = data || [];
-    const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
-    const csv = ["Name,Email,Booked At", ...rows.map((a) =>
-      [escape(a.name || ""), escape(a.email || ""), escape(a.bookedAt)].join(",")
-    )].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${event.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-attendees.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
-  return (
-    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
-      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 14 }}>Attendees — {event.title}</h3>
-        {loading && (
-          <div style={{ padding: "0 4px" }}>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-          </div>
-        )}
-        {error && <p className="errline">{error}</p>}
-        {!loading && !error && (
-          (data || []).length > 0 ? (
-            <>
-              <ul className="steps" style={{ maxHeight: 280, overflowY: "auto" }}>
-                {data!.map((a, i) => (
-                  <li key={i}>
-                    <i className="icon-user" />
-                    <span>{a.name || a.email || "Anonymous"}{a.email && a.name && <><br /><small style={{ color: "var(--text-3)" }}>{a.email}</small></>}</span>
-                  </li>
-                ))}
-              </ul>
-              <button className="btn glass" onClick={exportCsv} style={{ marginTop: 10 }}><i className="icon-download" /> Export CSV</button>
-            </>
-          ) : (
-            <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No named attendees yet — people who book while signed in will show up here.</p>
-          )
-        )}
-        <button className="btn glass" onClick={close} style={{ marginTop: 8 }}>Close</button>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- Marketing sheet (Feature 2: Create Once, Publish Everywhere) ---------- */
-function MarketingSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
-  const { data, loading, error, reload } = useAsync(() => api.getMarketing(event.id), [event.id]);
-  const [regenerating, setRegenerating] = useState(false);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const { closing, close } = useClosing(onClose);
-
-  async function regenerate() {
-    setRegenerating(true);
-    try { await api.regenerateMarketing(event.id); reload(); } finally { setRegenerating(false); }
-  }
-  function copy(key: string, text: string) {
-    navigator.clipboard?.writeText(text).then(() => {
-      setCopiedKey(key);
-      setTimeout(() => setCopiedKey(null), 1500);
-    });
-  }
-
-  const channels = data ? [
-    { key: "instagram", label: "Instagram caption", icon: "camera", text: data.instagram },
-    { key: "whatsapp", label: "WhatsApp message", icon: "message-circle", text: data.whatsapp },
-    { key: "telegram", label: "Telegram post", icon: "send", text: data.telegram },
-    { key: "twitter", label: "X / Twitter post", icon: "at-sign", text: data.twitter },
-  ] : [];
-
-  return (
-    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
-      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 4 }}>Marketing — {event.title}</h3>
-        <p className="hint" style={{ margin: "0 0 14px" }}>
-          {data?.aiGenerated ? "Generated with AI." : "Generated from your event details."} Copy and post anywhere.
-        </p>
-        {loading && (
-          <div style={{ padding: "0 4px" }}>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-          </div>
-        )}
-        {error && <p className="errline">{error}</p>}
-        {!loading && !error && channels.map((c) => (
-          <div key={c.key} className="marketing-card">
-            <div className="marketing-card-head">
-              <i className={"icon-" + c.icon} /> <b>{c.label}</b>
-              <button className="copy-btn" onClick={() => copy(c.key, c.text)}>
-                <i className={(copiedKey === c.key ? "icon-check" : "icon-copy")} /> {copiedKey === c.key ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <pre className="marketing-text">{c.text}</pre>
-          </div>
-        ))}
-        <button className="btn glass" onClick={regenerate} disabled={regenerating} style={{ marginTop: 4 }}>
-          <i className="icon-refresh-cw" /> {regenerating ? "Regenerating…" : "Regenerate"}
-        </button>
-        <button className="btn glass" style={{ marginTop: 8 }} onClick={close}>Close</button>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- Invite-only sheet — not a Pro feature, free for every
-   organizer. Toggling on generates a shareable link+code; the event drops
-   out of Discovery entirely and can only be booked via that link. ---------- */
-function InviteOnlySheet({ event, onClose, onChanged }: { event: Weyn; onClose: () => void; onChanged: () => void }) {
-  const { closing, close } = useClosing(onClose);
-  const [inviteOnly, setInviteOnly] = useState(!!event.inviteOnly);
-  // The dashboard's own event listing (unlike the public GET
-  // /api/events/:id) includes inviteCode for the owner, so this is
-  // already known on mount whenever the event was previously turned on —
-  // no need to wait on a request just to show it again.
-  const [inviteUrl, setInviteUrl] = useState<string | null>(
-    event.inviteOnly && event.inviteCode ? `${window.location.origin}/e/${event.id}?invite=${event.inviteCode}` : null
-  );
-  const [busy, setBusy] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [err, setErr] = useState("");
-
-  async function toggle() {
-    setBusy(true); setErr("");
-    try {
-      const next = !inviteOnly;
-      const res = await api.setEventInviteOnly(event.id, next);
-      setInviteOnly(res.inviteOnly);
-      setInviteUrl(res.inviteOnly ? res.inviteUrl : null);
-      onChanged();
-    } catch (e: any) {
-      setErr(e.message || "Couldn't update this event.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function regenerate() {
-    setRegenerating(true); setErr("");
-    try {
-      const res = await api.regenerateInviteCode(event.id);
-      setInviteUrl(res.inviteUrl);
-    } catch (e: any) {
-      setErr(e.message || "Couldn't regenerate the code.");
-    } finally {
-      setRegenerating(false);
-    }
-  }
-  function copy() {
-    if (!inviteUrl) return;
-    navigator.clipboard?.writeText(inviteUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
-  }
-
-  return (
-    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
-      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 4 }}>Invite-only — {event.title}</h3>
-        <p className="hint" style={{ margin: "0 0 14px" }}>
-          When on, this event never appears in Discovery or search — only people with the link below can view or book it.
-        </p>
-        <div className="settings-row">
-          <span>Invite-only</span>
-          <button className={"switch" + (inviteOnly ? " on" : "")} disabled={busy} onClick={toggle} aria-pressed={inviteOnly} aria-label="Toggle invite-only">
-            <span className="switch-thumb" />
-          </button>
-        </div>
-        {err && <p className="errline">{err}</p>}
-        {inviteOnly && (
-          <div style={{ marginTop: 14 }}>
-            <label>Invite link</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input readOnly value={inviteUrl || "Loading…"} style={{ flex: 1 }} onFocus={(e) => e.target.select()} />
-              <button className="copy-btn" onClick={copy} disabled={!inviteUrl}>
-                <i className={copied ? "icon-check" : "icon-copy"} /> {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <button className="btn glass" onClick={regenerate} disabled={regenerating} style={{ marginTop: 10 }}>
-              <i className="icon-refresh-cw" /> {regenerating ? "Regenerating…" : "Regenerate link (invalidates the old one)"}
-            </button>
-          </div>
-        )}
-        <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Close</button>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- Analytics sheet ---------- */
-function AnalyticsSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
-  const { data, loading, error } = useAsync(() => api.eventAnalytics(event.id), [event.id]);
-  const maxTier = data ? Math.max(1, ...data.tierBreakdown.map((t) => t.sold)) : 1;
-  const maxDay = data ? Math.max(1, ...data.salesByDay.map((d) => d.qty)) : 1;
-  const { closing, close } = useClosing(onClose);
-
-  return (
-    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
-      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 14 }}>Analytics — {event.title}</h3>
-        {loading && (
-          <div style={{ padding: "0 4px" }}>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-          </div>
-        )}
-        {error && <p className="errline">{error}</p>}
-        {!loading && !error && data && (
-          <>
-            <div className="stat-grid">
-              <div className="stat"><div className="k">Tickets sold</div><div className="v">{data.ticketsSold} <small>/ {data.capacity >= 9000 ? "∞" : data.capacity}</small></div></div>
-              <div className="stat"><div className="k">Revenue</div><div className="v">{data.revenue.toLocaleString()} <small>OMR</small></div></div>
-            </div>
-
-            {data.tierBreakdown.length > 0 && (
-              <>
-                <p className="hint" style={{ margin: "16px 0 8px" }}>Ticket type performance</p>
-                {data.tierBreakdown.map((t) => (
-                  <div key={t.id} style={{ marginBottom: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                      <span>{t.name}</span><span style={{ color: "var(--text-2)" }}>{t.sold}/{t.capacity} · {t.revenue.toLocaleString()} OMR</span>
-                    </div>
-                    <div className="bar"><i style={{ width: `${Math.round((t.sold / maxTier) * 100)}%` }} /></div>
-                  </div>
-                ))}
-              </>
-            )}
-
-            {data.salesByDay.length > 0 && (
-              <>
-                <p className="hint" style={{ margin: "16px 0 8px" }}>Sales over time</p>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
-                  {data.salesByDay.map((d) => (
-                    <div key={d.date} title={`${d.date}: ${d.qty}`} style={{
-                      flex: 1, minWidth: 4, borderRadius: 3,
-                      height: `${Math.max(6, Math.round((d.qty / maxDay) * 80))}px`,
-                      background: "var(--accent)",
-                    }} />
-                  ))}
-                </div>
-              </>
-            )}
-
-            {data.conversionRate === null && (
-              <p className="hint" style={{ marginTop: 14 }}>
-                Page-view/conversion tracking isn't wired up on the event page yet — this shows real ticket sales, not fabricated traffic numbers.
-              </p>
-            )}
-          </>
-        )}
-        <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Close</button>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- Team sheet ---------- */
-const ROLE_LABEL: Record<TeamRole, string> = { MANAGER: "Manager", STAFF: "Staff (check-in only)" };
-
-function TeamSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
-  const { data, loading, error, reload } = useAsync(() => api.listTeam(event.id), [event.id]);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<TeamRole>("STAFF");
-  const [inviting, setInviting] = useState(false);
-  const [inviteErr, setInviteErr] = useState("");
-  const [lastLink, setLastLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const { closing, close } = useClosing(onClose);
-
-  async function invite() {
-    if (!email.trim()) return;
-    setInviting(true); setInviteErr(""); setLastLink(null);
-    try {
-      const res = await api.inviteTeamMember(event.id, email.trim(), role);
-      setLastLink(res.inviteLink);
-      setEmail("");
-      reload();
-    } catch (e: any) {
-      setInviteErr(e.message || "Couldn't send invite");
-    } finally {
-      setInviting(false);
-    }
-  }
-  function copyLink() {
-    if (!lastLink) return;
-    navigator.clipboard?.writeText(lastLink).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
-  }
-  async function revoke(memberId: string) {
-    if (!confirm("Revoke this person's access to the event?")) return;
-    await api.revokeTeamMember(event.id, memberId);
-    reload();
-  }
-
-  return (
-    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
-      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 4 }}>Team — {event.title}</h3>
-        <p className="hint" style={{ margin: "0 0 14px" }}>
-          Managers get full event access. Staff can only check people in at the door.
-        </p>
-
-        <div className="field"><label>Invite by email</label><input type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="teammate@email.com" /></div>
-        <div className="field">
-          <label>Role</label>
-          <select value={role} onChange={(ev) => setRole(ev.target.value as TeamRole)}>
-            <option value="STAFF">Staff (check-in only)</option>
-            <option value="MANAGER">Manager (full access)</option>
-          </select>
-        </div>
-        {inviteErr && <p className="errline">{inviteErr}</p>}
-        <button className="btn" onClick={invite} disabled={inviting || !email.trim()}>
-          {inviting ? "Creating invite…" : "Create invite link"}
-        </button>
-
-        {lastLink && (
-          <div className="marketing-card" style={{ marginTop: 10 }}>
-            <div className="marketing-card-head">
-              <i className="icon-link" /> <b>Invite link — send it yourself</b>
-              <button className="copy-btn" onClick={copyLink}><i className={(copied ? "icon-check" : "icon-copy")} /> {copied ? "Copied" : "Copy"}</button>
-            </div>
-            <pre className="marketing-text" style={{ wordBreak: "break-all" }}>{lastLink}</pre>
-          </div>
-        )}
-
-        <p className="hint" style={{ margin: "18px 0 8px" }}>Team members</p>
-        {loading && (
-          <div style={{ padding: "0 4px" }}>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-            <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-          </div>
-        )}
-        {error && <p className="errline">{error}</p>}
-        {!loading && !error && (
-          (data || []).length > 0 ? (
-            <ul className="steps">
-              {data!.map((m) => (
-                <li key={m.id}>
-                  <i className={m.role === "MANAGER" ? "icon-shield" : "icon-scan"} />
-                  <span>
-                    {m.user?.name || m.email} <small style={{ color: "var(--text-3)" }}>· {ROLE_LABEL[m.role]}{m.status === "PENDING" ? " · invite pending" : ""}</small>
-                  </span>
-                  <button className="copy-btn" onClick={() => revoke(m.id)} style={{ marginLeft: "auto" }}>Revoke</button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No team members yet.</p>
-          )
-        )}
-        <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Close</button>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- Check-in sheet (QR scan + manual code entry) ---------- */
-function CheckInSheet({ event, onClose }: { event: Weyn; onClose: () => void }) {
-  const [code, setCode] = useState("");
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [checkedInCount, setCheckedInCount] = useState(0);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-
-  async function submitCode(raw: string) {
-    const value = raw.trim();
-    if (!value || busy) return;
-    setBusy(true); setResult(null);
-    try {
-      const res = await api.checkInTicket(value);
-      setResult({ ok: true, message: "Checked in ✓" });
-      setCheckedInCount((n) => n + 1);
-      void res;
-    } catch (e: any) {
-      setResult({ ok: false, message: e.message || "Couldn't check in that code" });
-    } finally {
-      setBusy(false);
-      setCode("");
-    }
-  }
-
-  async function startScanner() {
-    setScanning(true);
-    setTimeout(async () => {
-      try {
-        const el = document.getElementById("weyn-qr-region");
-        if (!el) return;
-        const scanner = new Html5Qrcode("weyn-qr-region");
-        scannerRef.current = scanner;
-        await scanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: 220 },
-          (decoded) => { submitCode(decoded); },
-          () => {}
-        );
-      } catch {
-        setResult({ ok: false, message: "Couldn't access the camera — use manual code entry instead." });
-        setScanning(false);
-      }
-    }, 50);
-  }
-  function stopScanner() {
-    scannerRef.current?.stop().catch(() => {});
-    setScanning(false);
-  }
-  const { closing, close } = useClosing(() => { stopScanner(); onClose(); });
-
-  return (
-    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
-      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 4 }}>Check-in — {event.title}</h3>
-        <p className="hint" style={{ margin: "0 0 14px" }}>{checkedInCount} checked in this session</p>
-
-        {!scanning ? (
-          <button className="btn" onClick={startScanner}><i className="icon-camera" /> Scan QR code</button>
-        ) : (
-          <>
-            <div id="weyn-qr-region" style={{ borderRadius: 12, overflow: "hidden", marginBottom: 10 }} />
-            <button className="btn glass" onClick={stopScanner}>Stop scanning</button>
-          </>
-        )}
-
-        <div className="field" style={{ marginTop: 14 }}>
-          <label>Or enter ticket code manually</label>
-          <input value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitCode(code)} placeholder="Ticket code" />
-        </div>
-        <button className="btn glass" onClick={() => submitCode(code)} disabled={busy || !code.trim()}>
-          {busy ? "Checking…" : "Check in"}
-        </button>
-
-        {result && (
-          <p className={result.ok ? "hint" : "errline"} style={{ marginTop: 10, color: result.ok ? "var(--accent)" : undefined }}>
-            {result.message}
-          </p>
-        )}
-
-        <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Close</button>
-      </div>
-    </div>
-  );
-}

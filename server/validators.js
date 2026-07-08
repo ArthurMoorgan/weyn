@@ -8,7 +8,7 @@ import { z } from "zod";
 
 // mirrors server/db.js's CATEGORY_SEED keys
 export const CATEGORY_KEYS = ["music", "sports", "food", "culture", "cars", "workshop", "community"];
-export const TICKETING_TYPES = ["weyn", "external", "cash", "registration"];
+export const TICKETING_TYPES = ["weyn", "external", "cash", "registration", "organizer_payment"];
 
 export const createEventSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(120),
@@ -32,6 +32,8 @@ export const createEventSchema = z.object({
   ticketingType: z.enum(TICKETING_TYPES).optional(),
   externalTicketUrl: z.string().trim().max(500).optional(),
   organizerContact: z.string().trim().max(200).optional(),
+  paymentLinkUrl: z.string().trim().max(500).optional(),
+  transferDetails: z.string().trim().max(1000).optional(),
   sourceUrl: z.string().trim().max(500).optional(),
   importedFromInstagram: z.union([z.boolean(), z.string()]).optional(),
   existingImage: z.string().optional(),
@@ -52,6 +54,8 @@ export const updateEventSchema = z.object({
   ticketingType: z.enum(TICKETING_TYPES).optional(),
   externalTicketUrl: z.string().trim().max(500).optional(),
   organizerContact: z.string().trim().max(200).optional(),
+  paymentLinkUrl: z.string().trim().max(500).optional(),
+  transferDetails: z.string().trim().max(1000).optional(),
 });
 
 // Express middleware factory: validates `req.body` against `schema`, replaces

@@ -43,6 +43,21 @@ export default function EventDetail() {
     if (ticketFor(e.id)) setBooked(e);
   }, [e, searchParams]);
 
+  // "organizer_payment" tickets don't exist yet the moment a booking is
+  // created — the organizer has to manually confirm the payment first (see
+  // PendingPaymentsPanel in the organizer dashboard). Without this check,
+  // `booked` alone would show a "View ticket" button that opens a real ticket
+  // sheet with nothing in it yet.
+  const [orgPayStatus, setOrgPayStatus] = useState<string | null>(null);
+  useEffect(() => {
+    if (!e || e.ticketingType !== "organizer_payment") return;
+    const rec = ticketFor(e.id);
+    if (!rec?.bookingId) return;
+    let cancelled = false;
+    api.getBooking(rec.bookingId).then((s) => { if (!cancelled) setOrgPayStatus(s.status); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [e?.id]);
+
   if (loading) return (
     <div className="detail">
       <div className="detail-skel-cover" />
@@ -104,6 +119,16 @@ export default function EventDetail() {
     if (hasTiers && !selectedTier) { setBookErr("Choose a ticket type first."); return; }
     setBooking(true); setBookErr("");
     try {
+      if (ev.ticketingType === "organizer_payment") {
+        // Buyer pays the organizer directly (their own payment link, or our
+        // hosted transfer-instructions page) — the ticket doesn't exist yet,
+        // the organizer has to manually confirm the payment first (see
+        // EventWorkspace's Attendees tab / PendingPaymentsPanel).
+        const { bookingId, accessToken, redirectUrl } = await api.organizerPaymentCheckout(ev.id, 1, getDeviceId(), account, selectedTier?.id, inviteCode);
+        addTicket(ev.id, bookingId, accessToken);
+        window.location.href = redirectUrl;
+        return;
+      }
       if (payPrice > 0) {
         // paid ticket: redirect to Thawani's hosted checkout — the booking is
         // only confirmed once payment succeeds (see /checkout/success), so
@@ -226,6 +251,9 @@ export default function EventDetail() {
           {ev.ticketingType === "cash" && (
             <div className="fact"><i className="icon-banknote" /><div><b>Pay at the door</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR, cash`}</span></div></div>
           )}
+          {ev.ticketingType === "organizer_payment" && (
+            <div className="fact"><i className="icon-wallet" /><div><b>Pay the organizer directly</b><span>{ev.price} OMR · ticket issued once they confirm</span></div></div>
+          )}
           {ev.minAge > 0 && <div className="fact"><i className="icon-shield" /><div><b>Ages {ev.minAge}+</b><span>{ev.refundPolicy}</span></div></div>}
         </div>
 
@@ -289,6 +317,10 @@ export default function EventDetail() {
         ) : ev.ticketingType === "cash" ? (
           <div className="btn dark" style={{ cursor: "default" }}>
             <i className="icon-banknote" /> {ev.organizerContact ? `Contact: ${ev.organizerContact}` : "Pay at the door"}
+          </div>
+        ) : booked && ev.ticketingType === "organizer_payment" && orgPayStatus && orgPayStatus !== "paid" ? (
+          <div className="btn dark" style={{ cursor: "default" }}>
+            <i className="icon-clock" /> Payment pending organizer confirmation
           </div>
         ) : booked ? (
           <>

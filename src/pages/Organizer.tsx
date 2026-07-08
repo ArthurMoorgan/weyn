@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, CATS, type Cat, type TicketingType } from "../api";
 import { getOrganizer, setOrganizer, useAccount } from "../store";
@@ -23,6 +23,7 @@ const TICKETING_OPTIONS: { key: TicketingType; label: string; icon: string; hint
   { key: "external", label: "External Ticket Link", icon: "external-link", hint: "Send people to your own ticketing site" },
   { key: "cash", label: "Cash at the Door", icon: "banknote", hint: "No pre-booking — just show up and pay" },
   { key: "registration", label: "Registration Form", icon: "clipboard-list", hint: "Send people to a signup/registration link" },
+  { key: "organizer_payment", label: "Your Own Payment Link or Bank Transfer", icon: "wallet", hint: "Buyers pay you directly — we issue the real ticket once you confirm it arrived" },
 ];
 
 export default function Organizer() {
@@ -61,8 +62,30 @@ export default function Organizer() {
     venue: "", area: "Muscat", price: "5", capacity: "60",
     minAge: "0", tags: "", refundPolicy: "Refund up to 48h before", blurb: "",
     ticketingType: "cash" as TicketingType, externalTicketUrl: "", organizerContact: "",
+    paymentMethod: "link" as "link" | "transfer", paymentLinkUrl: "", transferDetails: "",
   });
   const set = (k: keyof typeof f) => (e: any) => setF({ ...f, [k]: e.target.value });
+
+  // Prefill from Organizer → Settings' "default event settings" (see
+  // /organizer/settings) so hosting a 10th event doesn't mean retyping the
+  // same category/capacity/refund policy every time. Only overwrites the
+  // untouched defaults above — fires once, after mount, so it never clobbers
+  // anything the user has already started typing on a slow connection.
+  useEffect(() => {
+    if (!account) return;
+    let cancelled = false;
+    api.getOrganizerSettings().then((settings) => {
+      if (cancelled || !settings) return;
+      setF((prev) => ({
+        ...prev,
+        cat: settings.cat || prev.cat,
+        capacity: settings.capacity || prev.capacity,
+        refundPolicy: settings.refundPolicy || prev.refundPolicy,
+      }));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!account]);
 
   // multiple ticket tiers (weyn ticketing only)
   const [useTiers, setUseTiers] = useState(false);
@@ -138,6 +161,14 @@ export default function Organizer() {
       setTicketsOpen(true);
       setErr("Add the link where people get tickets/register."); return;
     }
+    if (f.ticketingType === "organizer_payment") {
+      if (f.paymentMethod === "link" && !f.paymentLinkUrl.trim()) {
+        setTicketsOpen(true); setErr("Add your payment link, or switch to bank transfer details."); return;
+      }
+      if (f.paymentMethod === "transfer" && !f.transferDetails.trim()) {
+        setTicketsOpen(true); setErr("Add your transfer/bank details for buyers to see."); return;
+      }
+    }
     const tierPayload = f.ticketingType === "weyn" && useTiers
       ? tiers.map((t) => ({ name: t.name.trim(), price: Number(t.price) || 0, capacity: Number(t.capacity) || 0 }))
              .filter((t) => t.name)
@@ -155,6 +186,8 @@ export default function Organizer() {
         price: f.price, capacity: f.capacity,
         minAge: f.minAge, tags: f.tags, refundPolicy: f.refundPolicy, blurb: f.blurb,
         ticketingType: f.ticketingType, externalTicketUrl: f.externalTicketUrl, organizerContact: f.organizerContact,
+        paymentLinkUrl: f.ticketingType === "organizer_payment" && f.paymentMethod === "link" ? f.paymentLinkUrl : "",
+        transferDetails: f.ticketingType === "organizer_payment" && f.paymentMethod === "transfer" ? f.transferDetails : "",
         sourceUrl: sourceUrl || "", importedFromInstagram: String(importedFromInstagram),
       }).forEach(([k, v]) => fd.append(k, String(v)));
       if (tierPayload) fd.append("tiers", JSON.stringify(tierPayload));
@@ -424,6 +457,29 @@ export default function Organizer() {
           <div className="field">
             <label>Contact for questions <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label>
             <input value={f.organizerContact} onChange={set("organizerContact")} placeholder="WhatsApp number or email" />
+          </div>
+        )}
+        {f.ticketingType === "organizer_payment" && (
+          <div className="field">
+            <label>How buyers pay you</label>
+            <div className="chips" style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <label className={"chip" + (f.paymentMethod === "link" ? " on" : "")} style={{ cursor: "pointer" }}>
+                <input type="radio" name="paymentMethod" value="link" checked={f.paymentMethod === "link"} onChange={set("paymentMethod")} style={{ display: "none" }} />
+                Payment link
+              </label>
+              <label className={"chip" + (f.paymentMethod === "transfer" ? " on" : "")} style={{ cursor: "pointer" }}>
+                <input type="radio" name="paymentMethod" value="transfer" checked={f.paymentMethod === "transfer"} onChange={set("paymentMethod")} style={{ display: "none" }} />
+                Bank transfer details
+              </label>
+            </div>
+            {f.paymentMethod === "link" ? (
+              <input value={f.paymentLinkUrl} onChange={set("paymentLinkUrl")} placeholder="https://buy.stripe.com/… or paypal.me/…" />
+            ) : (
+              <textarea rows={3} value={f.transferDetails} onChange={set("transferDetails")} placeholder={"Bank name, account name, account/IBAN number, reference to use…"} />
+            )}
+            <p className="hint" style={{ marginTop: 6 }}>
+              Buyers are redirected to pay, then we hold their ticket until you confirm the payment arrived — from the event's Attendees tab in your organizer dashboard.
+            </p>
           </div>
         )}
 

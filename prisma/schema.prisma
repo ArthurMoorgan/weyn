@@ -34,6 +34,12 @@ model User {
   tokenVersion Int       @default(0)
   createdAt    DateTime  @default(now())
   deletedAt    DateTime?
+  // Organizer dashboard: prefills for new events (refund policy, capacity,
+  // category, etc) so hosting a 10th event doesn't mean retyping the same
+  // values. Free-form JSON, not individual columns — this is a UX
+  // convenience with no schema-level validation needs, and the exact set of
+  // prefillable fields is expected to grow without needing a migration.
+  defaultEventSettings Json?
 
   events          Event[]
   analyticsEvents AnalyticsEvent[]
@@ -183,6 +189,14 @@ model Event {
   ticketingType         String    @default("weyn")
   externalTicketUrl     String?
   organizerContact      String?
+  // "organizer_payment" ticketing — organizer supplies EITHER an external
+  // payment link (Stripe Payment Link, PayPal.me, etc, buyer redirected
+  // straight there) OR free-text transfer/bank details (shown on our own
+  // hosted page instead). Both are plain public fields, same visibility
+  // level as externalTicketUrl above — neither is a secret the buyer
+  // shouldn't see, they need it to actually pay.
+  paymentLinkUrl        String?
+  transferDetails       String?
   sourceUrl             String?
   importedFromInstagram Boolean   @default(false)
   createdAt             DateTime  @default(now())
@@ -354,6 +368,12 @@ model Booking {
   accessToken String?    @unique
   bookedAt DateTime      @default(now())
   reminded Boolean       @default(false)
+  // "organizer_payment" flow only — the attendee's own claim that they sent
+  // the transfer/paid the link, BEFORE the organizer has actually confirmed
+  // it (status stays "pending" until they do). Purely informational, surfaced
+  // to the organizer so they know a claim is waiting — never trusted as proof
+  // of payment on its own.
+  claimedPaidAt DateTime?
 
   event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tier    Tier?    @relation(fields: [tierId], references: [id])
