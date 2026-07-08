@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
-import { api, API_BASE, type Weyn, type TeamRole, type PromoCode } from "../../api";
+import { api, API_BASE, type Weyn, type TeamRole, type PromoCode, type Campaign } from "../../api";
 import { useAsync } from "../../hooks";
 import { getAuthToken } from "../../store";
 import FeatureLock from "../../components/FeatureLock";
@@ -274,17 +274,23 @@ function PendingPaymentsPanel({ event }: { event: Weyn }) {
 function NotifyForm({ event, enabled }: { event: Weyn; enabled: boolean }) {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [scheduleAt, setScheduleAt] = useState("");
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ recipients: number; emailed: number; pushed: number } | null>(null);
+  const [result, setResult] = useState<{ recipients?: number; emailed?: number; pushed?: number; scheduled?: boolean } | null>(null);
   const [err, setErr] = useState("");
+  const campaigns = useAsync(() => (enabled ? api.listCampaigns(event.id) : Promise.resolve([])), [enabled]);
 
   async function send() {
     if (!subject.trim() || !message.trim()) return;
     setSending(true); setErr(""); setResult(null);
     try {
-      const res = await api.notifyAttendees(event.id, { subject: subject.trim(), message: message.trim() });
+      const res = await api.notifyAttendees(event.id, {
+        subject: subject.trim(), message: message.trim(),
+        scheduledFor: scheduleAt ? new Date(scheduleAt).toISOString() : undefined,
+      });
       setResult(res);
-      setSubject(""); setMessage("");
+      setSubject(""); setMessage(""); setScheduleAt("");
+      campaigns.reload();
     } catch (e: any) {
       setErr(e.message || "Couldn't send notification");
     } finally {
@@ -292,16 +298,41 @@ function NotifyForm({ event, enabled }: { event: Weyn; enabled: boolean }) {
     }
   }
 
+  async function cancelCampaign(id: string) {
+    try { await api.cancelCampaign(event.id, id); campaigns.reload(); } catch { /* already sent */ }
+  }
+
   return (
     <FeatureLock feature="bulkNotifications" enabled={enabled}>
       <div className="field"><label>Subject</label><input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="An update about your ticket" /></div>
       <div className="field"><label>Message</label><textarea rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="What's changed…" /></div>
+      <div className="field"><label>Send at <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· leave blank to send now</span></label><input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} /></div>
       {err && <p className="errline">{err}</p>}
-      {result && <p className="hint" style={{ color: "var(--accent)" }}>Sent to {result.recipients} attendees ({result.emailed} emailed, {result.pushed} pushed).</p>}
+      {result?.scheduled && <p className="hint" style={{ color: "var(--accent)" }}>Scheduled — it'll go out automatically.</p>}
+      {result && !result.scheduled && <p className="hint" style={{ color: "var(--accent)" }}>Sent to {result.recipients} attendees ({result.emailed} emailed, {result.pushed} pushed).</p>}
       <button className="btn" onClick={send} disabled={sending || !subject.trim() || !message.trim()}>
-        {sending ? "Sending…" : "Send now"}
+        {sending ? "Sending…" : scheduleAt ? "Schedule" : "Send now"}
       </button>
-      <p className="hint" style={{ marginTop: 6 }}>Sends immediately to every paid attendee — no future-dated scheduling yet.</p>
+
+      {(campaigns.data || []).length > 0 && (
+        <>
+          <p className="hint" style={{ margin: "18px 0 8px" }}>Campaign history</p>
+          <ul className="steps">
+            {(campaigns.data || []).map((c: Campaign) => (
+              <li key={c.id}>
+                <i className={c.status === "scheduled" ? "icon-clock" : c.status === "cancelled" ? "icon-x" : "icon-check"} />
+                <span>
+                  {c.subject || "(no subject)"}
+                  <br /><small style={{ color: "var(--text-3)" }}>
+                    {c.status === "scheduled" ? `Scheduled for ${new Date(c.scheduledFor!).toLocaleString()}` : c.status === "cancelled" ? "Cancelled" : `Sent ${new Date(c.sentAt!).toLocaleString()}`}
+                  </small>
+                </span>
+                {c.status === "scheduled" && <button className="copy-btn" style={{ marginLeft: "auto" }} onClick={() => cancelCampaign(c.id)}>Cancel</button>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </FeatureLock>
   );
 }

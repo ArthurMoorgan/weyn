@@ -390,6 +390,34 @@ export const db = {
     await prisma.booking.updateMany({ where: { id: { in: bookingIds } }, data: { autoRemindersSent: { push: offset } } });
   },
 
+  // ---- Messaging Center: scheduled campaigns ----
+  // Extends the existing "send now" bulk-notify (POST /api/events/:id/notify)
+  // with a future send date — a Campaign row sits in "scheduled" until
+  // runCampaignScan picks it up, same polling pattern as the reminder scan
+  // above rather than a separate job queue.
+  async createCampaign({ organizerId, eventId, subject, message, scheduledFor }) {
+    return prisma.campaign.create({
+      data: { organizerId, eventId, channel: "email", subject, message, scheduledFor: scheduledFor || null, status: scheduledFor ? "scheduled" : "sent", sentAt: scheduledFor ? null : new Date() },
+    });
+  },
+  async listCampaigns(eventId) {
+    return prisma.campaign.findMany({ where: { eventId }, orderBy: { createdAt: "desc" } });
+  },
+  async cancelCampaign(id, organizerId) {
+    const c = await prisma.campaign.findUnique({ where: { id } });
+    if (!c || c.organizerId !== organizerId || c.status !== "scheduled") return null;
+    return prisma.campaign.update({ where: { id }, data: { status: "cancelled" } });
+  },
+  async dueCampaigns(nowMs) {
+    return prisma.campaign.findMany({
+      where: { status: "scheduled", scheduledFor: { lte: new Date(nowMs) } },
+      include: { event: { select: { id: true, title: true } } },
+    });
+  },
+  async markCampaignSent(id) {
+    await prisma.campaign.update({ where: { id }, data: { status: "sent", sentAt: new Date() } });
+  },
+
   // ---- capacity: atomic, conditional increments (no read-then-write race) ----
   // Plain `sold += qty` after a separate read (the old approach) is a classic
   // TOCTOU bug — two concurrent requests can both read `sold=capacity-1` and
@@ -794,9 +822,36 @@ export const db = {
         });
       }
     }
+    const emails = [...byKey.values()].map((a) => a.email).filter(Boolean).map((e) => e.toLowerCase());
+    const profiles = emails.length
+      ? await prisma.attendeeProfile.findMany({ where: { organizerId: userId, email: { in: emails } } })
+      : [];
+    const profileByEmail = new Map(profiles.map((p) => [p.email.toLowerCase(), p]));
     return [...byKey.values()]
-      .map((a) => ({ ...a, totalSpend: +a.totalSpend.toFixed(2), eventsAttended: a.events.size, events: undefined }))
+      .map((a) => {
+        const p = a.email ? profileByEmail.get(a.email.toLowerCase()) : null;
+        return {
+          ...a, totalSpend: +a.totalSpend.toFixed(2), eventsAttended: a.events.size, events: undefined,
+          tags: p?.tags || [], notes: p?.notes || "", loyaltyPoints: p?.loyaltyPoints || 0,
+        };
+      })
       .sort((a, b) => b.totalSpend - a.totalSpend);
+  },
+
+  // Attendee CRM: tags/notes/loyalty are per-organizer per-email, independent
+  // of any single event — upserted on demand rather than requiring a
+  // separate "create profile" step, since every attendee already exists
+  // implicitly via their bookings (see organizerAttendees above).
+  async upsertAttendeeProfile(organizerId, email, patch) {
+    const data = {};
+    if (patch.tags !== undefined) data.tags = patch.tags;
+    if (patch.notes !== undefined) data.notes = patch.notes;
+    if (patch.loyaltyPoints !== undefined) data.loyaltyPoints = patch.loyaltyPoints;
+    return prisma.attendeeProfile.upsert({
+      where: { organizerId_email: { organizerId, email: email.toLowerCase() } },
+      create: { organizerId, email: email.toLowerCase(), ...data },
+      update: data,
+    });
   },
 
   // Revenue is derived from Booking qty × Tier/Event price (same convention

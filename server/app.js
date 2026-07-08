@@ -113,6 +113,28 @@ export async function runReminderScan() {
     await db.markAutoRemindersSent(bookings.map((b) => b.id), offset);
   }
 }
+
+// Scheduled Messaging Center campaigns — same polling pattern as
+// runReminderScan above (both fire from the same setInterval/Worker cron),
+// picks up anything whose scheduledFor has passed and sends it exactly once.
+export async function runCampaignScan() {
+  const due = await db.dueCampaigns(Date.now());
+  for (const c of due) {
+    if (!c.eventId || !c.event) { await db.markCampaignSent(c.id); continue; }
+    const bookings = await prisma.booking.findMany({ where: { eventId: c.eventId, status: "paid", email: { not: null } }, select: { email: true } });
+    const safeSubject = escapeHtml(c.subject || "");
+    const safeMessage = escapeHtml(c.message);
+    const safeTitle = escapeHtml(c.event.title);
+    await Promise.all(bookings.map((b) =>
+      sendEmail({
+        to: b.email,
+        subject: `${c.event.title}: ${c.subject || "An update"}`,
+        html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${safeSubject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${safeMessage}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you have a ticket to ${safeTitle}.</p></div>`,
+      }).catch((err) => captureError(err, { route: "runCampaignScan", campaignId: c.id }))
+    ));
+    await db.markCampaignSent(c.id);
+  }
+}
 export { SCAN_EVERY_MS };
 
 export function createApp(storage) {
@@ -1360,12 +1382,17 @@ export function createApp(storage) {
     res.json(await prisma.waitlistEntry.findMany({ where: { eventId: req.event.id }, orderBy: { createdAt: "asc" } }));
   });
 
-  // ---- Marketing: bulk notify attendees (send-now; true scheduled/future-
-  // dated sends aren't built yet, see handoff.md) ----
+  // ---- Marketing: bulk notify attendees (send-now, or scheduled for later
+  // via a Campaign row — see runCampaignScan below for the actual send) ----
   app.post("/api/events/:id/notify", socialLimiter, requireEventOwner(), requireFeature("bulkNotifications"), async (req, res) => {
     const subject = String(req.body?.subject || "").trim();
     const message = String(req.body?.message || "").trim();
     if (!subject || !message) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "subject and message are required" } });
+    const scheduledFor = req.body?.scheduledFor ? new Date(req.body.scheduledFor) : null;
+    if (scheduledFor && scheduledFor.getTime() > Date.now()) {
+      const campaign = await db.createCampaign({ organizerId: req.user.id, eventId: req.event.id, subject, message, scheduledFor });
+      return res.status(201).json({ ok: true, scheduled: true, campaign });
+    }
     const bookings = await prisma.booking.findMany({ where: { eventId: req.event.id, status: "paid" }, select: { email: true, deviceId: true } });
     let emailed = 0;
     const safeSubject = escapeHtml(subject);
@@ -1387,7 +1414,16 @@ export function createApp(storage) {
       if (result.sent) pushed++;
     }));
     await db.audit("event.notify", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { subject, emailed, pushed } });
+    await db.createCampaign({ organizerId: req.user.id, eventId: req.event.id, subject, message, scheduledFor: null });
     res.json({ ok: true, recipients: bookings.length, emailed, pushed });
+  });
+  app.get("/api/events/:id/campaigns", requireEventOwner(), requireFeature("bulkNotifications"), async (req, res) => {
+    res.json(await db.listCampaigns(req.event.id));
+  });
+  app.delete("/api/events/:id/campaigns/:campaignId", requireEventOwner(), requireFeature("bulkNotifications"), async (req, res) => {
+    const cancelled = await db.cancelCampaign(req.params.campaignId, req.user.id);
+    if (!cancelled) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Nothing to cancel — it may already have sent." } });
+    res.json(cancelled);
   });
 
   // ---- Team management: recurring events (lightweight — creates N future
@@ -1948,6 +1984,16 @@ export function createApp(storage) {
   });
   app.get("/api/organizer/attendees", requireAuth, async (req, res) => {
     res.json(await db.organizerAttendees(req.user.id));
+  });
+  app.patch("/api/organizer/attendees/profile", requireAuth, async (req, res) => {
+    const b = req.body || {};
+    if (!b.email || !String(b.email).trim()) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Missing email" } });
+    const patch = {};
+    if (Array.isArray(b.tags)) patch.tags = b.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 20);
+    if (typeof b.notes === "string") patch.notes = b.notes.slice(0, 2000);
+    if (b.loyaltyPoints !== undefined) patch.loyaltyPoints = Math.max(0, Number(b.loyaltyPoints) || 0);
+    const updated = await db.upsertAttendeeProfile(req.user.id, String(b.email).trim(), patch);
+    res.json(updated);
   });
   app.get("/api/organizer/finance", requireAuth, async (req, res) => {
     res.json(await db.organizerFinance(req.user.id));

@@ -37,6 +37,19 @@ export interface EventVenue {
   createdAt: string;
 }
 
+export interface Campaign {
+  id: string;
+  organizerId: string;
+  eventId: string | null;
+  channel: string;
+  subject: string | null;
+  message: string;
+  scheduledFor: string | null;
+  sentAt: string | null;
+  status: "scheduled" | "sent" | "cancelled";
+  createdAt: string;
+}
+
 export interface Weyn {
   id: string;
   title: string;
@@ -431,6 +444,9 @@ export interface OrganizerAttendee {
   ticketsBought: number;
   eventsAttended: number;
   lastBookedAt: string;
+  tags: string[];
+  notes: string;
+  loyaltyPoints: number;
 }
 export interface OrganizerFinance {
   totalRevenue: number;
@@ -828,6 +844,11 @@ export const api = {
   async organizerAttendees(): Promise<OrganizerAttendee[]> {
     return fetch(`${API_BASE}/api/organizer/attendees`, { headers: await authHeaders() }).then((r) => json(r));
   },
+  async updateAttendeeProfile(email: string, patch: { tags?: string[]; notes?: string; loyaltyPoints?: number }): Promise<{ tags: string[]; notes: string; loyaltyPoints: number }> {
+    return fetch(`${API_BASE}/api/organizer/attendees/profile`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ email, ...patch }),
+    }).then((r) => json(r));
+  },
   async organizerFinance(): Promise<OrganizerFinance> {
     return fetch(`${API_BASE}/api/organizer/finance`, { headers: await authHeaders() }).then((r) => json(r));
   },
@@ -899,11 +920,17 @@ export const api = {
   async listWaitlist(eventId: string): Promise<{ id: string; email: string; name: string | null; createdAt: string; notifiedAt: string | null }[]> {
     return fetch(`${API_BASE}/api/events/${eventId}/waitlist`, { headers: await authHeaders() }).then((r) => json(r));
   },
-  async notifyAttendees(eventId: string, input: { subject: string; message: string }): Promise<{ ok: boolean; recipients: number; emailed: number; pushed: number }> {
+  async notifyAttendees(eventId: string, input: { subject: string; message: string; scheduledFor?: string }): Promise<{ ok: boolean; scheduled?: boolean; recipients?: number; emailed?: number; pushed?: number }> {
     return fetch(`${API_BASE}/api/events/${eventId}/notify`, {
       method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify(input),
     }).then((r) => json(r));
+  },
+  async listCampaigns(eventId: string): Promise<Campaign[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/campaigns`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async cancelCampaign(eventId: string, campaignId: string): Promise<Campaign> {
+    return fetch(`${API_BASE}/api/events/${eventId}/campaigns/${campaignId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
   async createRecurringEvents(eventId: string, input: { count: number; intervalDays: number }): Promise<{ created: { id: string; startsAt: string }[] }> {
     return fetch(`${API_BASE}/api/events/${eventId}/recurring`, {
