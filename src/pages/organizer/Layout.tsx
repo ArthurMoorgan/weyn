@@ -12,12 +12,17 @@ import { useAccount } from "../../store";
 // every tab switch the way Explore/Reservations/HostHub/You do.
 export type OrganizerCtx = { isHost: boolean; reloadEvents: () => void; eventsLoading: boolean };
 
+// Kept deliberately short — 4 sections, not 6. Finance's numbers now live on
+// Overview (a small "Revenue by event" list, alongside the trend chart
+// that was already there) and the Marketing hub's one genuinely unique
+// feature (the organizer-profile QR poster) moved into Settings; per-event
+// marketing copy is still reachable from each event's own workspace. Fewer
+// top-level destinations, not fewer features — this was a direct response
+// to "the dashboard is very complicated."
 const NAV = [
   { to: "/organizer", end: true, icon: "layout-dashboard", label: "Overview" },
   { to: "/organizer/events", icon: "calendar", label: "Events" },
   { to: "/organizer/attendees", icon: "users", label: "Attendees" },
-  { to: "/organizer/finance", icon: "wallet", label: "Finance" },
-  { to: "/organizer/marketing", icon: "megaphone", label: "Marketing" },
   { to: "/organizer/settings", icon: "settings", label: "Settings" },
 ];
 

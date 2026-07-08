@@ -14,11 +14,13 @@ import FeatureLock from "../../components/FeatureLock";
 // exploration notes); those five are new UI for backend routes that
 // existed but had no frontend caller at all before this.
 
+// Promo codes/waitlist/recurring events used to each be their own tab —
+// folded into Marketing (alongside the AI copy generator) since they're all
+// "grow this event" tools an organizer reaches for together, not everyday
+// destinations that need their own place in the nav. 6 tabs, not 8.
 const TABS = [
   { key: "overview", label: "Overview", icon: "chart-bar" },
   { key: "attendees", label: "Attendees", icon: "users" },
-  { key: "promo", label: "Promo codes", icon: "ticket-percent" },
-  { key: "waitlist", label: "Waitlist", icon: "list" },
   { key: "marketing", label: "Marketing", icon: "megaphone" },
   { key: "team", label: "Team", icon: "users-round" },
   { key: "checkin", label: "Check-in", icon: "qr-code" },
@@ -66,8 +68,6 @@ export default function EventWorkspace() {
 
       {tab === "overview" && <OverviewTab event={event} features={features} reload={events.reload} />}
       {tab === "attendees" && <AttendeesTab event={event} features={features} />}
-      {tab === "promo" && <PromoCodesTab event={event} enabled={!!features.promoCodes} />}
-      {tab === "waitlist" && <WaitlistTab event={event} enabled={!!features.waitlists} />}
       {tab === "marketing" && <MarketingTab event={event} features={features} />}
       {tab === "team" && <TeamTab event={event} />}
       {tab === "checkin" && <CheckInTab event={event} />}
@@ -307,7 +307,7 @@ function NotifyForm({ event, enabled }: { event: Weyn; enabled: boolean }) {
 }
 
 /* ---------- Promo codes ---------- */
-function PromoCodesTab({ event, enabled }: { event: Weyn; enabled: boolean }) {
+function PromoCodesSection({ event, enabled }: { event: Weyn; enabled: boolean }) {
   const { data, loading, error, reload } = useAsync(() => api.listPromoCodes(event.id), [event.id]);
   const [code, setCode] = useState("");
   const [discountType, setDiscountType] = useState<"percent" | "flat">("percent");
@@ -380,7 +380,7 @@ function PromoCodesTab({ event, enabled }: { event: Weyn; enabled: boolean }) {
 }
 
 /* ---------- Waitlist ---------- */
-function WaitlistTab({ event, enabled }: { event: Weyn; enabled: boolean }) {
+function WaitlistSection({ event, enabled }: { event: Weyn; enabled: boolean }) {
   const { data, loading, error } = useAsync(() => api.listWaitlist(event.id), [event.id]);
   return (
     <FeatureLock feature="waitlists" enabled={enabled}>
@@ -447,7 +447,7 @@ function RecurringForm({ event, enabled }: { event: Weyn; enabled: boolean }) {
 }
 
 /* ---------- Marketing ---------- */
-function MarketingTab({ event }: { event: Weyn; features: Record<string, boolean> }) {
+function MarketingTab({ event, features }: { event: Weyn; features: Record<string, boolean> }) {
   const { data, loading, error, reload } = useAsync(() => api.getMarketing(event.id), [event.id]);
   const [regenerating, setRegenerating] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -486,6 +486,12 @@ function MarketingTab({ event }: { event: Weyn; features: Record<string, boolean
       <button className="btn glass" onClick={regenerate} disabled={regenerating} style={{ marginTop: 4 }}>
         <i className="icon-refresh-cw" /> {regenerating ? "Regenerating…" : "Regenerate"}
       </button>
+
+      <p className="hint" style={{ margin: "20px 0 8px" }}>Promo codes</p>
+      <PromoCodesSection event={event} enabled={!!features.promoCodes} />
+
+      <p className="hint" style={{ margin: "20px 0 8px" }}>Waitlist</p>
+      <WaitlistSection event={event} enabled={!!features.waitlists} />
     </>
   );
 }

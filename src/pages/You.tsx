@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type Weyn, type Venue, type Reservation, type VenueAvailabilitySlot } from "../api";
 import { useAsync } from "../hooks";
@@ -364,14 +364,25 @@ function Header({ tab, setTab, isHost, hasVenues, account }: { tab: ProfileTab; 
       </header>
       <nav className="profile-tabs">
         {visible.map((t) => (
-          <button
-            key={t.key}
-            className={"profile-tab" + (tab === t.key ? " on" : "")}
-            onClick={() => setTab(t.key)}
-            aria-current={tab === t.key ? "true" : undefined}
-          >
-            <i className={"icon-" + t.icon} />{t.label}
-          </button>
+          <Fragment key={t.key}>
+            <button
+              className={"profile-tab" + (tab === t.key ? " on" : "")}
+              onClick={() => setTab(t.key)}
+              aria-current={tab === t.key ? "true" : undefined}
+            >
+              <i className={"icon-" + t.icon} />{t.label}
+            </button>
+            {/* A real link, not another local tab — /organizer is its own
+                full page (see src/pages/organizer/*), same reasoning as
+                Admin not being a You.tsx tab. Placed right after Overview so
+                it's the first thing a host sees, not buried behind a stat
+                card — that's what made it hard to find after the rebuild. */}
+            {t.key === "overview" && isHost && (
+              <Link to="/organizer" className="profile-tab">
+                <i className="icon-layout-dashboard" />Organizer
+              </Link>
+            )}
+          </Fragment>
         ))}
       </nav>
     </>

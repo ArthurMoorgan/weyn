@@ -43,8 +43,6 @@ const OrganizerOverview = lazy(() => import("./pages/organizer/Overview"));
 const OrganizerEvents = lazy(() => import("./pages/organizer/Events"));
 const OrganizerEventWorkspace = lazy(() => import("./pages/organizer/EventWorkspace"));
 const OrganizerAttendees = lazy(() => import("./pages/organizer/Attendees"));
-const OrganizerFinance = lazy(() => import("./pages/organizer/Finance"));
-const OrganizerMarketing = lazy(() => import("./pages/organizer/Marketing"));
 const OrganizerSettings = lazy(() => import("./pages/organizer/Settings"));
 
 // as close to page-load as this module can get, so the splash's minimum
@@ -196,8 +194,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   <Route path="events/:id" element={<OrganizerEventWorkspace />} />
                   <Route path="events/:id/:tab" element={<OrganizerEventWorkspace />} />
                   <Route path="attendees" element={<OrganizerAttendees />} />
-                  <Route path="finance" element={<OrganizerFinance />} />
-                  <Route path="marketing" element={<OrganizerMarketing />} />
                   <Route path="settings" element={<OrganizerSettings />} />
                 </Route>
               </Route>
