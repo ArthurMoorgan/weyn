@@ -1054,6 +1054,50 @@ export function createApp(storage) {
     }
   });
 
+  // Org-wide AI Assistant — a general Q&A chat grounded in the organizer's
+  // own dashboard numbers (not a generic chatbot), so "how's my next event
+  // looking?" gets a real answer instead of a made-up one. History is kept
+  // client-side and replayed each turn — no server-side chat session state.
+  app.post("/api/organizer/ai/assistant", requireAuth, requireFeature("aiStudio"), async (req, res) => {
+    if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
+    const message = String(req.body?.message || "").trim().slice(0, 1000);
+    if (!message) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Say something first." } });
+    const history = Array.isArray(req.body?.history) ? req.body.history.slice(-6) : [];
+    const [overview, finance] = await Promise.all([db.organizerOverview(req.user.id), db.organizerFinance(req.user.id)]);
+    const context = `Organizer's current numbers on Weyn: ${overview.nextUpcoming?.length ?? 0} upcoming events shown on their dashboard, ${finance.totalRevenue} OMR total revenue across ${finance.byEvent.length} events with sales. Top events by revenue: ${finance.byEvent.slice(0, 3).map((e) => `${e.title} (${e.revenue} OMR, ${e.ticketsSold} tickets)`).join("; ") || "none yet"}.`;
+    const transcript = history.map((h) => `${h.role === "assistant" ? "Assistant" : "Organizer"}: ${h.content}`).join("\n");
+    const prompt = `You're a helpful assistant inside an event organizer's dashboard on Weyn (an Oman events platform). Answer concisely and specifically, grounded only in the real data given — never invent numbers.\n\n${context}\n\n${transcript ? transcript + "\n" : ""}Organizer: ${message}\nAssistant:`;
+    try {
+      const output = await askClaude(prompt, { maxTokens: 350 });
+      await db.logAiGeneration({ organizerId: req.user.id, eventId: null, feature: "assistant", prompt, output });
+      res.json({ reply: output.trim() });
+    } catch (err) {
+      captureError(err, { route: "POST /api/organizer/ai/assistant" });
+      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't reply right now — try again shortly." } });
+    }
+  });
+
+  // AI Insights report — a written narrative over the organizer's own
+  // cross-event numbers (same data Overview/Finance already show as charts),
+  // for someone who wants the "so what" in a paragraph instead of parsing
+  // graphs themselves.
+  app.post("/api/organizer/ai/insights", requireAuth, requireFeature("aiStudio"), async (req, res) => {
+    if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
+    const [overview, finance] = await Promise.all([db.organizerOverview(req.user.id), db.organizerFinance(req.user.id)]);
+    if (!finance.byEvent.length) {
+      return res.json({ insights: "Not enough sales history yet to generate insights — come back once you've had a few bookings." });
+    }
+    const prompt = `Write a short (4-5 sentence) insights report for an event organizer on Weyn. Real data: total revenue ${finance.totalRevenue} OMR across ${finance.byEvent.length} events, ${finance.feesPaid} OMR in platform fees. Revenue by event: ${finance.byEvent.map((e) => `${e.title}: ${e.revenue} OMR (${e.ticketsSold} tickets)`).join("; ")}. Monthly revenue trend: ${finance.revenueByMonth.map((m) => `${m.month}: ${m.revenue} OMR`).join(", ") || "no trend data yet"}. Identify what's working, what's not, and end with one concrete, specific recommendation. Don't invent numbers not given here.`;
+    try {
+      const output = await askClaude(prompt, { maxTokens: 350 });
+      await db.logAiGeneration({ organizerId: req.user.id, eventId: null, feature: "insights", prompt, output });
+      res.json({ insights: output.trim() });
+    } catch (err) {
+      captureError(err, { route: "POST /api/organizer/ai/insights" });
+      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't generate insights right now — try again shortly." } });
+    }
+  });
+
   app.post("/api/payments/webhook", async (req, res) => {
     const signature = req.header("Signature") || req.header("signature");
     if (!verifyIpnSignature(req.rawBody, signature)) {

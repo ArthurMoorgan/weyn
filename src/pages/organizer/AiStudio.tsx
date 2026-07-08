@@ -34,6 +34,11 @@ export default function AiStudio() {
         </div>
       )}
 
+      <FeatureLock feature="aiStudio" enabled={enabled}>
+        <InsightsTool />
+        <AssistantTool />
+      </FeatureLock>
+
       {selected && (
         <FeatureLock feature="aiStudio" enabled={enabled}>
           <DescriptionTool event={selected} />
@@ -43,6 +48,78 @@ export default function AiStudio() {
         </FeatureLock>
       )}
     </>
+  );
+}
+
+function InsightsTool() {
+  const [result, setResult] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function generate() {
+    setBusy(true); setErr("");
+    try {
+      setResult((await api.aiInsights()).insights);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't generate insights");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ToolCard title="Insights report" icon="lightbulb">
+      <p className="hint" style={{ margin: "0 0 10px" }}>A written summary of what's working across all your events, based on your real revenue and sales numbers.</p>
+      {err && <p className="errline">{err}</p>}
+      <button className="btn" onClick={generate} disabled={busy}>{busy ? "Analyzing…" : "Generate report"}</button>
+      {result && (
+        <div className="marketing-card" style={{ marginTop: 12 }}><pre className="marketing-text">{result}</pre></div>
+      )}
+    </ToolCard>
+  );
+}
+
+function AssistantTool() {
+  const [history, setHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function send() {
+    const message = input.trim();
+    if (!message || busy) return;
+    setInput(""); setErr("");
+    const nextHistory = [...history, { role: "user" as const, content: message }];
+    setHistory(nextHistory);
+    setBusy(true);
+    try {
+      const res = await api.aiAssistant(message, history);
+      setHistory([...nextHistory, { role: "assistant", content: res.reply }]);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't reply right now");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ToolCard title="AI Assistant" icon="message-circle">
+      <p className="hint" style={{ margin: "0 0 10px" }}>Ask about your events — grounded in your real dashboard numbers, not a generic chatbot.</p>
+      {history.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+          {history.map((h, i) => (
+            <div key={i} className="marketing-card" style={{ background: h.role === "user" ? "var(--card-alt, rgba(0,0,0,0.03))" : undefined }}>
+              <p style={{ fontSize: 13.5, margin: 0, whiteSpace: "pre-wrap" }}><b>{h.role === "user" ? "You" : "Assistant"}:</b> {h.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {err && <p className="errline">{err}</p>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="How's my next event looking?" style={{ flex: 1 }} />
+        <button className="btn" onClick={send} disabled={busy || !input.trim()}>{busy ? "…" : "Send"}</button>
+      </div>
+    </ToolCard>
   );
 }
 

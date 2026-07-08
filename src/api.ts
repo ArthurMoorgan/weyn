@@ -595,6 +595,15 @@ export const api = {
   async aiEventSummary(eventId: string): Promise<{ summary: string; stats: { ticketsSold: number; capacity: number; revenue: number } }> {
     return fetch(`${API_BASE}/api/events/${eventId}/ai/summary`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
   },
+  async aiAssistant(message: string, history: { role: "user" | "assistant"; content: string }[]): Promise<{ reply: string }> {
+    return fetch(`${API_BASE}/api/organizer/ai/assistant`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ message, history }),
+    }).then((r) => json(r));
+  },
+  async aiInsights(): Promise<{ insights: string }> {
+    return fetch(`${API_BASE}/api/organizer/ai/insights`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
+  },
   registerPush(deviceId: string, deviceSecret: string, token: string, platform: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/push/register`, {
       method: "POST",
