@@ -5,7 +5,8 @@ import ThemeToggle from "../components/ThemeToggle";
 import SplitText from "../components/landing/SplitText";
 import RotatingText from "../components/landing/RotatingText";
 import ScrollReveal from "../components/landing/ScrollReveal";
-import ScrollStack, { ScrollStackItem } from "../components/landing/ScrollStack";
+import CardSwap, { Card } from "../components/landing/CardSwap";
+import GlassSurface from "../components/landing/GlassSurface";
 
 // The public face of weynevents.com while the real app is admin-only (see
 // HANDOFF.md) — served standalone, no Clerk/Router/tab-shell, when the page
@@ -22,6 +23,11 @@ import ScrollStack, { ScrollStackItem } from "../components/landing/ScrollStack"
 // headline itself, so lazy-loading them would just trade a layout flash
 // for a network round-trip with no real benefit.
 const Ferrofluid = lazy(() => import("../components/landing/Ferrofluid"));
+// FloatingLines pulls in three.js (a genuinely heavy dependency) just for a
+// low-opacity decorative backdrop further down the page — same reasoning as
+// Ferrofluid above, so it doesn't block first paint on a page whose whole
+// point is loading fast for a cold, unconverted visitor.
+const FloatingLines = lazy(() => import("../components/landing/FloatingLines"));
 
 type Role = "attendee" | "organizer" | "venue";
 
@@ -177,52 +183,64 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
               <span>We'll email you the moment Weyn is ready.</span>
             </div>
           ) : (
-            <form className="wl-form" onSubmit={submit}>
-              <div className="wl-roles" role="radiogroup" aria-label="What are you interested in?">
-                {ROLES.map((r) => (
-                  <button
-                    type="button"
-                    key={r.key}
-                    role="radio"
-                    aria-checked={role === r.key}
-                    className={"wl-role" + (role === r.key ? " on" : "")}
-                    onClick={() => setRole(r.key)}
-                  >
-                    <i className={"icon-" + r.icon} />
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-              <div className="wl-fields">
-                <Field.Root className="field">
-                  <Field.Label className="wl-field-label">Name (optional)</Field.Label>
-                  <Field.Control
-                    type="text"
-                    className="wl-input"
-                    placeholder="Your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    autoComplete="name"
-                  />
-                </Field.Root>
-                <Field.Root className="field">
-                  <Field.Label className="wl-field-label">Email</Field.Label>
-                  <Field.Control
-                    type="email"
-                    className="wl-input"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                    required
-                  />
-                </Field.Root>
-                <button type="submit" className="btn" disabled={busy || !email.trim()}>
-                  {busy ? "Joining…" : "Join the waitlist"}
-                </button>
-              </div>
-              {err && <p className="errline">{err}</p>}
-            </form>
+            <div className="wl-glass-wrap">
+              <GlassSurface
+                width="100%"
+                height="auto"
+                borderRadius={24}
+                backgroundOpacity={0.14}
+                distortionScale={-120}
+                blur={9}
+                className="wl-glass-form"
+              >
+                <form className="wl-form" onSubmit={submit}>
+                  <div className="wl-roles" role="radiogroup" aria-label="What are you interested in?">
+                    {ROLES.map((r) => (
+                      <button
+                        type="button"
+                        key={r.key}
+                        role="radio"
+                        aria-checked={role === r.key}
+                        className={"wl-role" + (role === r.key ? " on" : "")}
+                        onClick={() => setRole(r.key)}
+                      >
+                        <i className={"icon-" + r.icon} />
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="wl-fields">
+                    <Field.Root className="field">
+                      <Field.Label className="wl-field-label">Name (optional)</Field.Label>
+                      <Field.Control
+                        type="text"
+                        className="wl-input"
+                        placeholder="Your name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        autoComplete="name"
+                      />
+                    </Field.Root>
+                    <Field.Root className="field">
+                      <Field.Label className="wl-field-label">Email</Field.Label>
+                      <Field.Control
+                        type="email"
+                        className="wl-input"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoComplete="email"
+                        required
+                      />
+                    </Field.Root>
+                    <button type="submit" className="btn" disabled={busy || !email.trim()}>
+                      {busy ? "Joining…" : "Join the waitlist"}
+                    </button>
+                  </div>
+                  {err && <p className="errline">{err}</p>}
+                </form>
+              </GlassSurface>
+            </div>
           )}
         </div>
       </section>
@@ -282,6 +300,20 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
       </section>
 
       <section className="wl-story wl-container">
+        <div className="wl-story-lines" aria-hidden="true">
+          <Suspense fallback={null}>
+            <FloatingLines
+              enabledWaves={["bottom", "middle"]}
+              lineCount={5}
+              lineDistance={11}
+              interactive={false}
+              parallax={false}
+              animationSpeed={1.3}
+              linesGradient={["#4F46E5", "#4A8DFF", "#8B7CF6"]}
+              mixBlendMode="screen"
+            />
+          </Suspense>
+        </div>
         <span className="wl-section-eyebrow">How Weyn was created</span>
         <ScrollReveal
           containerClassName="wl-reveal"
@@ -318,20 +350,20 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
           <h2>What you get</h2>
           <p>Four things Weyn does well, built for how Muscat actually goes out.</p>
         </div>
-        <ScrollStack useWindowScroll itemDistance={80} itemScale={0.04} baseScale={0.9} rotationAmount={0.5} blurAmount={0.6}>
-          {FEATURES.map((f, i) => (
-            <ScrollStackItem key={f.title}>
-              <div className="wl-feature-card">
+        <div className="wl-cardswap-wrap">
+          <CardSwap width={300} height={220} cardDistance={44} verticalDistance={50} delay={4200} pauseOnHover skewAmount={5}>
+            {FEATURES.map((f, i) => (
+              <Card key={f.title} customClass="wl-feature-card">
                 <span className="wl-feature-card-index" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
                 <div className="wl-feature-card-body">
                   <i className={"icon-" + f.icon} />
                   <b>{f.title}</b>
                   <span>{f.body}</span>
                 </div>
-              </div>
-            </ScrollStackItem>
-          ))}
-        </ScrollStack>
+              </Card>
+            ))}
+          </CardSwap>
+        </div>
       </section>
 
       <footer className="wl-foot wl-container">

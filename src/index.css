@@ -2071,6 +2071,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .wl-sub { font-size: 16px; line-height: 1.55; color: var(--text-2); max-width: 480px; margin: 0 0 32px; }
 .wl-rotating { color: var(--accent); font-weight: 700; }
 .wl-form { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 12px; }
+/* GlassSurface (React Bits) wrapping the form — width="100%" fills this,
+   height="auto" so it resizes as the success state swaps in/out. */
+.wl-glass-wrap { width: 100%; max-width: 420px; }
+.wl-glass-form .glass-surface__content { padding: 22px; }
+.wl-glass-form .wl-form { max-width: none; }
 .wl-roles { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .wl-role {
   display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
@@ -2162,16 +2167,26 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   display: inline-block; font-size: 12.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--accent); margin-bottom: 18px;
 }
-.wl-story, .wl-vision { padding-top: 72px; padding-bottom: 8px; }
+.wl-story, .wl-vision { padding-top: 72px; padding-bottom: 8px; position: relative; }
 .wl-reveal { margin-bottom: 28px; }
 .wl-reveal:last-child { margin-bottom: 0; }
 .wl-reveal .scroll-reveal-text { color: var(--text-2); }
 .wl-reveal-accent .scroll-reveal-text { color: var(--text); font-weight: 700; }
+/* FloatingLines (React Bits) — confined to a slim band above the copy
+   rather than spanning the whole section: full-height it kept sweeping a
+   bright beam directly across the paragraph text and made it unreadable
+   at various points in the loop, regardless of how low the opacity went. */
+.wl-story-lines { position: absolute; top: -60px; left: 0; right: 0; height: 160px; z-index: 0; opacity: 0.22; pointer-events: none; mask-image: linear-gradient(to bottom, transparent, black 55%, transparent); }
+.wl-story > *:not(.wl-story-lines) { position: relative; z-index: 1; }
 
-/* ---- features (ScrollStack cards) ---- */
+/* ---- features (CardSwap, React Bits) ---- */
 .wl-features { padding-top: 72px; padding-bottom: 40px; position: relative; }
-.wl-feature-card {
-  display: flex; align-items: center; gap: 24px; height: 100%; position: relative; overflow: hidden;
+.wl-cardswap-wrap { position: relative; height: 460px; max-width: 620px; margin: 40px auto 0; }
+/* .card (CardSwap.css) owns position/transform-style/backface-visibility —
+   only override the visual skin here so the drag/stack animation is untouched. */
+.card.wl-feature-card {
+  display: flex; align-items: center; padding: 24px; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg); color: var(--text);
 }
 .wl-feature-card-index {
   position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
