@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { type Weyn, ticketsLeft, isSoldOut, isTonight, dayLabel, timeLabel } from "../api";
 import { isSaved, toggleSave, useSaved } from "../store";
-import AvatarStack from "./AvatarStack";
 
 // Card variants — one component, three densities, so different Explore
 // sections get genuinely different visual treatments (per the design brief:
@@ -17,14 +16,6 @@ type Variant = "list" | "rail" | "feature";
 // so this reads correctly in light mode too.
 function fallbackGradient(color: string): string {
   return `linear-gradient(150deg, ${color}, ${color}B0 60%, var(--fallback-scrim))`;
-}
-
-// short "going" count — only shown when it's a real signal (>0), never a
-// fabricated number
-function attendance(e: Weyn): string | null {
-  if (!e.sold || e.sold <= 0) return null;
-  if (e.sold >= 1000) return `${(e.sold / 1000).toFixed(1).replace(/\.0$/, "")}k going`;
-  return `${e.sold} going`;
 }
 
 const catLabel = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
@@ -53,7 +44,6 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   const out = isSoldOut(e);
   const scarce = !out && left <= 12 && e.price > 0;
   const live = isTonight(e) && new Date(e.startsAt).getTime() <= Date.now() + 90 * 60e3;
-  const going = attendance(e);
   const priceText = e.price === 0 ? "Free" : `${e.price} OMR`;
 
   const coverStyle: React.CSSProperties = e.image
@@ -85,7 +75,6 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
             <span>{e.venue || e.area}</span>
             <span className="ec-dot">·</span>
             <span>{catLabel(e.cat)}</span>
-            {going && <><span className="ec-dot">·</span><span>{going}</span></>}
           </div>
         </div>
         <div className="ec-side">
@@ -137,11 +126,6 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
             <span>{e.venue || e.area}</span>
             <span className={"ec-price ec-price-pill" + (e.price === 0 ? " free" : "")}>{priceText}</span>
           </div>
-          {e.sold > 0 && (
-            <div className="ec-feature-social">
-              <AvatarStack seed={e.id} count={e.sold} />
-            </div>
-          )}
         </div>
       </div>
     </Link>

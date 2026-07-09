@@ -465,13 +465,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    heart; competing for the same corner looked cluttered). */
 .ec-feature-toprow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ec-feature-cat { flex: 0 0 auto; font: var(--t-caption); font-weight: 600; color: #fff; background: rgba(255,255,255,0.16); padding: 3px 10px; border-radius: var(--radius-pill); }
-/* "Who's going" row — see AvatarStack.tsx: abstract gradient-filled
-   circles + a real count, never a fabricated attendee photo. */
-.ec-feature-social { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-.avatar-stack { display: flex; align-items: center; gap: 6px; }
-.avatar-dot { display: inline-block; border-radius: 50%; border: 2px solid rgba(255,255,255,0.9); margin-left: -8px; }
-.avatar-dot:first-child { margin-left: 0; }
-.avatar-stack-label { font: var(--t-meta); color: rgba(255,255,255,0.85); margin-left: 2px; }
 
 /* ============================================================
    EXPLORE — discovery sections
