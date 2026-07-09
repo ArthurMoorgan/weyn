@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import QRCode from "qrcode";
-import { api, API_BASE, TEAM_PERMISSIONS, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor } from "../../api";
+import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor } from "../../api";
 import { useAsync } from "../../hooks";
 import { getAuthToken } from "../../store";
 import FeatureLock from "../../components/FeatureLock";
@@ -985,7 +985,7 @@ function TeamTab({ event }: { event: Weyn }) {
   }
 
   async function invite() {
-    if (!email.trim()) return;
+    if (!isValidEmail(email)) return;
     setInviting(true); setInviteErr(""); setLastLink(null);
     try {
       const res = await api.inviteTeamMember(event.id, email.trim(), role, role === "STAFF" ? permissions : undefined);
@@ -1031,7 +1031,7 @@ function TeamTab({ event }: { event: Weyn }) {
         </div>
       )}
       {inviteErr && <p className="errline">{inviteErr}</p>}
-      <button className="btn" onClick={invite} disabled={inviting || !email.trim()}>{inviting ? "Creating invite…" : "Create invite link"}</button>
+      <button className="btn" onClick={invite} disabled={inviting || !isValidEmail(email)}>{inviting ? "Creating invite…" : "Create invite link"}</button>
 
       {lastLink && (
         <div className="marketing-card" style={{ marginTop: 10 }}>

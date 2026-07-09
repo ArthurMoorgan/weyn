@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CATS, type Cat, type TeamRole, type EventVenue } from "../../api";
+import { CATS, isValidEmail, type Cat, type TeamRole, type EventVenue } from "../../api";
 import { api } from "../../api";
 import { useAsync } from "../../hooks";
 import SubscriptionCard from "../../components/SubscriptionCard";
@@ -312,7 +312,7 @@ function OrganizerTeamPanel() {
   const [busyEmail, setBusyEmail] = useState<string | null>(null);
 
   async function invite() {
-    if (!email.trim()) return;
+    if (!isValidEmail(email)) return;
     setInviting(true); setInviteMsg("");
     try {
       const res = await api.inviteOrganizerTeam(email.trim(), role);
@@ -351,7 +351,7 @@ function OrganizerTeamPanel() {
         </select>
       </div>
       {inviteMsg && <p className="hint" style={{ color: "var(--accent)" }}>{inviteMsg}</p>}
-      <button className="btn" onClick={invite} disabled={inviting || !email.trim()}>{inviting ? "Inviting…" : "Invite to all events"}</button>
+      <button className="btn" onClick={invite} disabled={inviting || !isValidEmail(email)}>{inviting ? "Inviting…" : "Invite to all events"}</button>
 
       <p className="hint" style={{ margin: "18px 0 8px" }}>Team members</p>
       {loading && <p className="hint">Loading…</p>}

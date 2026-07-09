@@ -395,6 +395,12 @@ export const CATS: { key: Cat | "all"; label: string }[] = [
 // backend URL at build time, e.g. VITE_API_BASE=https://api.weyn.app
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "";
 
+// Deliberately permissive (no full RFC 5322) — just enough to catch typos
+// like "bob@" or "bob.com" before they hit the invite endpoint and come
+// back as a server error a beat later.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const isValidEmail = (s: string) => EMAIL_RE.test(s.trim());
+
 // Promotion Center: capture ?utm_source/medium/campaign the first time an
 // event page loads with them, stash per-eventId in sessionStorage (survives
 // the sign-in redirect a first-time visitor goes through before booking),
