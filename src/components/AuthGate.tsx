@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { useUser, useClerk } from "@clerk/react";
 import { getAuthToken } from "../store";
+import LoadingMark from "./LoadingMark";
 
 // Lazy: SignIn/SignUp (see AuthWall.tsx) pull in a substantial chunk of
 // Clerk's UI internals. AuthGate wraps every route in the app, so an eager
@@ -95,12 +96,18 @@ export default function AuthGate() {
   }
 
   if (!isLoaded || adminStatus === "checking") {
+    // No LoadingMark here on purpose — this state's lifetime overlaps
+    // almost exactly with index.html's splash overlay (see splash.ts),
+    // which shows the same animated mark already. Rendering a second one
+    // underneath just showed a jarring duplicate for the ~0.5–1s handoff
+    // between the two before the splash finishes fading out.
     return <div className="route-loading" aria-busy="true" />;
   }
 
   if (adminStatus === "error") {
     return (
-      <div className="route-loading" aria-busy="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+      <div className="route-loading" aria-busy="true" style={{ flexDirection: "column", gap: 12 }}>
+        <LoadingMark size={40} />
         <p style={{ color: "var(--text-2)", fontSize: 14, textAlign: "center", padding: "0 24px" }}>
           Having trouble reaching Weyn — retrying automatically…
         </p>
@@ -114,7 +121,7 @@ export default function AuthGate() {
   if (adminStatus === "blocked") {
     if (!isSignedIn && showSignIn) {
       return (
-        <Suspense fallback={<div className="route-loading" aria-busy="true" />}>
+        <Suspense fallback={<div className="route-loading" aria-busy="true"><LoadingMark /></div>}>
           <div className="authwall-back-wrap">
             <button className="icon-btn authwall-back" onClick={() => setShowSignIn(false)} aria-label="Back">
               <i className="icon-arrow-left" />
@@ -125,7 +132,7 @@ export default function AuthGate() {
       );
     }
     return (
-      <Suspense fallback={<div className="route-loading" aria-busy="true" />}>
+      <Suspense fallback={<div className="route-loading" aria-busy="true"><LoadingMark /></div>}>
         <WaitlistLanding
           signedInAs={isSignedIn ? user?.primaryEmailAddress?.emailAddress || user?.username || undefined : undefined}
           onSignOut={() => signOut()}

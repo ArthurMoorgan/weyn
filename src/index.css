@@ -2075,8 +2075,43 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* Suspense fallback for lazily-loaded routes — a quiet full-height panel in
    the app's own background rather than a jarring white flash while the route
    chunk downloads. Chunks are small and usually already cached, so this is
-   rarely on screen for more than a frame. */
-.route-loading { min-height: 60vh; background: var(--bg); }
+   rarely on screen for more than a frame — but when it does show, it's the
+   same signature LoadingMark animation as everywhere else, not a blank box. */
+.route-loading { min-height: 60vh; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+
+/* ---------- LoadingMark — signature "flowing ink" loading animation ----------
+   The logo's two swoosh strokes draw themselves in and out on a loop (via
+   pathLength=1, so stroke-dasharray/offset work regardless of actual path
+   geometry) under a live indigo→violet→pink gradient, with the head dot
+   breathing in sync. One animated brand moment reused everywhere the app is
+   waiting on something, instead of a generic spinner or a blank box. */
+.loading-mark { overflow: visible; }
+.loading-mark-stroke {
+  stroke-dasharray: 1;
+  animation: loading-mark-draw 1.8s cubic-bezier(.65,0,.35,1) infinite;
+}
+.loading-mark-stroke-2 { animation-delay: .08s; }
+.loading-mark-dot {
+  transform-box: fill-box; transform-origin: center;
+  animation: loading-mark-pulse 1.8s cubic-bezier(.65,0,.35,1) infinite;
+}
+/* No opacity animation here on purpose — the two strokes are staggered,
+   and fading them independently made the trailing one read as a stray
+   "ghost" duplicate underneath the mark rather than a shimmer whenever
+   caught mid-cycle. Constant full opacity + the dash-draw motion alone
+   still reads clearly as "drawing itself in," without the artifact. */
+@keyframes loading-mark-draw {
+  0%   { stroke-dashoffset: 1; }
+  45%, 55% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -1; }
+}
+@keyframes loading-mark-pulse {
+  0%, 100% { transform: scale(0.82); opacity: .5; }
+  50% { transform: scale(1.12); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-mark-stroke, .loading-mark-dot { animation: none; opacity: 1; }
+}
 
 /* ---- Admin: venue-application review cards ---- */
 .venue-app-card {

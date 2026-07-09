@@ -21,6 +21,7 @@ import { setTokenGetter } from "./store";
 import Onboarding from "./pages/Onboarding";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AuthGate from "./components/AuthGate";
+import LoadingMark from "./components/LoadingMark";
 import { initPush } from "./push";
 import { markSplashShown, dismissSplash } from "./splash";
 import { initPostHog, identifyPostHog, resetPostHog } from "./posthog";
@@ -162,7 +163,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <ClerkAuthBridge />
         <SplashDismisser />
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <Suspense fallback={<div className="route-loading" aria-busy="true" />}>
+          <Suspense fallback={<div className="route-loading" aria-busy="true"><LoadingMark /></div>}>
           <Routes>
             {/* /onboarding is the one route reachable signed-out — everything
                 else sits behind AuthGate, see that file for why. */}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import Explore from "./pages/Explore";
+import LoadingMark from "./components/LoadingMark";
 
 // Lazy, same as every other non-critical-path route (see main.tsx) — these
 // just aren't *routed* through main.tsx anymore, App renders them directly.
@@ -84,7 +85,7 @@ export default function App() {
       {MAIN_TABS.map(({ path, Component }) =>
         visited.has(path) ? (
           <div key={path} style={location.pathname === path ? undefined : { display: "none" }}>
-            <Suspense fallback={<div className="route-loading" aria-busy="true" />}>
+            <Suspense fallback={<div className="route-loading" aria-busy="true"><LoadingMark /></div>}>
               <Component />
             </Suspense>
           </div>
