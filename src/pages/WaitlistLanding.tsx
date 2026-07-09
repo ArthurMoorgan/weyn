@@ -33,6 +33,15 @@ const ROLES: { key: Role; label: string; icon: string }[] = [
 
 const ROTATING_PHRASES = ["discover events", "host events", "reserve a table"];
 
+// Short, concrete claims to sit next to the screenshots — the kind of
+// specifics ("real photos", "dark mode that isn't an afterthought") that
+// read as "we actually built this" rather than a generic feature list.
+const PROOF_POINTS = [
+  { icon: "search", text: "Search by vibe, not just venue name — \"live music\" and \"tonight\" both work." },
+  { icon: "moon", text: "A dark mode that's a first-class design, not an inverted filter." },
+  { icon: "map-pin", text: "Real venues, real distances — every listing is pinned on an actual map." },
+];
+
 const FEATURES = [
   {
     icon: "sparkles",
@@ -77,6 +86,7 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
+  const [shotTheme, setShotTheme] = useState<"light" | "dark">("light");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -220,17 +230,55 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
       <section className="wl-shots">
         <div className="wl-shots-head">
           <h2>A first look</h2>
-          <p>Built for the way Muscat actually goes out.</p>
+          <p>Built for the way Muscat actually goes out — this is the real app, not a mockup.</p>
         </div>
+
         <div className="wl-shots-grid">
-          <div className="wl-shot-desktop">
-            <img src="/marketing/screenshot-desktop.webp" alt="Weyn's discovery feed on desktop, showing a featured event and trending events near you" loading="lazy" />
+          <div className="wl-browser-frame">
+            <div className="wl-browser-chrome">
+              <span className="wl-browser-dot" />
+              <span className="wl-browser-dot" />
+              <span className="wl-browser-dot" />
+              <span className="wl-browser-url"><i className="icon-lock" />weynevents.com</span>
+            </div>
+            <img src="/marketing/desktop-discover.webp" alt="Weyn's discovery feed on desktop, showing a featured event and a grid of trending events with real photos" loading="lazy" />
           </div>
-          <div className="wl-shot-phones">
-            <img src="/marketing/screenshot-discover.webp" alt="Weyn's discovery feed on mobile" loading="lazy" />
-            <img src="/marketing/screenshot-event.webp" alt="An event detail page with booking details" loading="lazy" />
+
+          <div className="wl-phones-col">
+            <button
+              type="button"
+              className="wl-theme-switch"
+              onClick={() => setShotTheme((t) => (t === "light" ? "dark" : "light"))}
+              aria-label="Preview the app in light or dark mode"
+            >
+              <span className={shotTheme === "light" ? "on" : ""}><i className="icon-sun" />Light</span>
+              <span className={shotTheme === "dark" ? "on" : ""}><i className="icon-moon" />Dark</span>
+            </button>
+            <div className="wl-phones-row">
+              <div className="wl-phone-frame">
+                <div className="wl-phone-notch" />
+                <img
+                  src={shotTheme === "light" ? "/marketing/mobile-discover-light.webp" : "/marketing/mobile-discover-dark.webp"}
+                  alt={`Weyn's discovery feed on mobile in ${shotTheme} mode`}
+                  loading="lazy"
+                />
+              </div>
+              <div className="wl-phone-frame wl-phone-frame-small">
+                <div className="wl-phone-notch" />
+                <img src="/marketing/mobile-event.webp" alt="An event detail page with photos, location, and ticket price" loading="lazy" />
+              </div>
+            </div>
           </div>
         </div>
+
+        <ul className="wl-proof-points">
+          {PROOF_POINTS.map((p) => (
+            <li key={p.text}>
+              <i className={"icon-" + p.icon} />
+              <span>{p.text}</span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="wl-story wl-container">

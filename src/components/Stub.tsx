@@ -123,11 +123,13 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
     <Link to={`/e/${e.id}`} className="ec-feature">
       <div className="ec-feature-cover" style={coverStyle}>
         {statusBadge}
-        <span className="ec-feature-cat">{catLabel(e.cat)}</span>
         <SaveHeart id={e.id} className="ec-save-lg" />
         {!e.image && <span className="ec-glyph big">{e.glyph}</span>}
         <div className="ec-feature-body">
-          <span className="ec-feature-organizer">{e.organizer}</span>
+          <div className="ec-feature-toprow">
+            <span className="ec-feature-organizer">{e.organizer}</span>
+            <span className="ec-feature-cat">{catLabel(e.cat)}</span>
+          </div>
           <h3 className="ec-feature-title">{e.title}</h3>
           <div className="ec-feature-meta">
             <span>{dayLabel(e)} · {timeLabel(e)}</span>

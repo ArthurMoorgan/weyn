@@ -442,7 +442,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* Category pill — sits in the card body under the meta row, not overlaid on
    the image (that top area already belongs to the status badge + save
    heart; competing for the same corner looked cluttered). */
-.ec-feature-cat { display: inline-block; margin-top: 8px; font: var(--t-caption); font-weight: 600; color: #fff; background: rgba(255,255,255,0.16); padding: 4px 10px; border-radius: var(--radius-pill); }
+.ec-feature-toprow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ec-feature-cat { flex: 0 0 auto; font: var(--t-caption); font-weight: 600; color: #fff; background: rgba(255,255,255,0.16); padding: 3px 10px; border-radius: var(--radius-pill); }
 /* "Who's going" row — see AvatarStack.tsx: abstract gradient-filled
    circles + a real count, never a fabricated attendee photo. */
 .ec-feature-social { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
@@ -2084,21 +2085,63 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .wl-shots-head { text-align: center; margin-bottom: 28px; }
 .wl-shots-head h2 { font-size: clamp(22px, 3.5vw, 30px); font-weight: 800; margin: 0 0 6px; }
 .wl-shots-head p { color: var(--text-2); font-size: 15px; margin: 0; }
-.wl-shots-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: center; justify-items: center; }
-.wl-shot-desktop, .wl-shot-phones { width: 100%; }
-.wl-shot-desktop img {
-  width: 100%; max-width: 720px; display: block; margin: 0 auto; border-radius: 14px;
-  border: 1px solid var(--border); box-shadow: var(--shadow-lg);
-}
-.wl-shot-phones { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-.wl-shot-phones img {
-  width: 100%; max-width: 220px; border-radius: 18px; border: 6px solid var(--surface);
-  outline: 1px solid var(--border); box-shadow: var(--shadow-md); display: block;
-}
+
+.wl-shots-grid { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: start; justify-items: center; }
 @media (min-width: 900px) {
-  .wl-shots-grid { grid-template-columns: 1.6fr 1fr; gap: 32px; }
-  .wl-shot-phones { flex-direction: column; align-items: center; }
+  .wl-shots-grid { grid-template-columns: 1.5fr 1fr; gap: 32px; }
 }
+
+/* browser-chrome frame around the desktop screenshot — a raw <img> floating
+   on the page is the single biggest "this was slapped together" tell, so
+   every screenshot gets real device chrome instead. */
+.wl-browser-frame {
+  width: 100%; max-width: 640px; border-radius: 14px; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+}
+.wl-browser-chrome {
+  display: flex; align-items: center; gap: 6px; padding: 10px 12px;
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+}
+.wl-browser-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); flex: 0 0 auto; }
+.wl-browser-url {
+  margin: 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-3); background: var(--surface); border-radius: var(--radius-pill);
+  padding: 4px 12px;
+}
+.wl-browser-url [class^="icon-"] { width: 11px; height: 11px; }
+.wl-browser-frame img { width: 100%; display: block; }
+
+.wl-phones-col { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
+.wl-phones-row { display: flex; gap: 16px; justify-content: center; align-items: flex-end; width: 100%; }
+.wl-theme-switch {
+  display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--radius-pill);
+  background: var(--glass-soft); border: 1px solid var(--glass-line);
+}
+.wl-theme-switch span {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600;
+  color: var(--text-2); padding: 6px 12px; border-radius: var(--radius-pill); transition: all .15s;
+}
+.wl-theme-switch span.on { background: var(--accent); color: #fff; }
+.wl-theme-switch span [class^="icon-"] { width: 13px; height: 13px; }
+
+.wl-phone-frame {
+  position: relative; width: 100%; max-width: 240px; border-radius: 28px;
+  background: var(--surface); border: 6px solid var(--surface); outline: 1px solid var(--border);
+  box-shadow: var(--shadow-md); overflow: hidden;
+}
+.wl-phone-notch {
+  position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+  width: 70px; height: 16px; border-radius: var(--radius-pill); background: var(--surface); z-index: 1;
+}
+.wl-phone-frame img { width: 100%; display: block; border-radius: 22px; }
+.wl-phone-frame-small { max-width: 130px; }
+
+.wl-proof-points {
+  max-width: 720px; margin: 44px auto 0; display: flex; flex-direction: column; gap: 14px;
+  padding: 0; list-style: none;
+}
+.wl-proof-points li { display: flex; align-items: flex-start; gap: 12px; font-size: 14.5px; color: var(--text-2); line-height: 1.5; }
+.wl-proof-points [class^="icon-"] { flex: 0 0 auto; width: 18px; height: 18px; color: var(--accent); margin-top: 2px; }
 
 /* ---- brand story / vision ---- */
 .wl-section-eyebrow {
