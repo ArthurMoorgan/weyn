@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, VENUE_CATS, type Venue, type VenueCategory } from "../api";
 import VenueCard from "../components/VenueCard";
-import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
 import CityPill from "../components/CityPill";
 
@@ -125,8 +124,7 @@ export default function Reservations() {
 
   return (
     <>
-      <header className="topbar">
-        <Logo wordmark size={26} />
+      <header className="topbar no-brand">
         <div className="tb-right">
           <ThemeToggle />
           <CityPill />

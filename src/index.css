@@ -214,7 +214,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   min-height: 100%;
   position: relative;
   padding-top: env(safe-area-inset-top);
-  padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  /* Must mirror .tabs's own height exactly (2px top pad + 48px tab content
+     + its own bottom pad formula) — using a flat estimate here left a real
+     gap below the tab bar on notched/PWA-installed devices, where
+     env(safe-area-inset-bottom) is non-zero and this padding was adding
+     the FULL inset on top of .tabs already trimming it down to
+     max(6px, inset - 12px). */
+  padding-bottom: calc(50px + max(6px, calc(env(safe-area-inset-bottom) - 12px)));
 }
 
 /* ---------- top bar ---------- flat, minimal-height, not a floating pill */
@@ -231,6 +237,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   -webkit-backdrop-filter: blur(14px) saturate(160%);
   border-bottom: 1px solid var(--hair);
 }
+/* No wordmark to balance against — the app's own name in its own title bar
+   is redundant once it's installed to a homescreen, so this just keeps the
+   essential controls (theme/city/profile) in a slimmer bar instead. */
+.topbar.no-brand { justify-content: flex-end; padding: 6px 16px; min-height: 40px; border-bottom: none; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .brand .en { font-size: 17px; font-weight: 700; letter-spacing: -0.4px; }
 .brand .ar { font-family: "Noto Naskh Arabic", serif; font-size: 16px; color: var(--accent); }
@@ -415,9 +425,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ec-rail .ec-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
 
 /* ---- large featured hero card ---- */
-.ec-feature { flex: 0 0 auto; width: 300px; }
+/* Sized to dominate the screen on mobile (min(85vw,...) instead of a fixed
+   300px) — the featured card is the app's one big "look at this" moment,
+   and a card that leaves 90px of a second card peeking read as timid next
+   to the reference design's near-full-bleed hero card. */
+.ec-feature { flex: 0 0 auto; width: min(85vw, 360px); }
 .ec-feature-cover {
-  aspect-ratio: 3/2; border-radius: 16px; overflow: hidden; position: relative;
+  aspect-ratio: 4/3; border-radius: 16px; overflow: hidden; position: relative;
   background-size: cover; background-position: center; background-color: var(--card-bg);
   display: grid; place-items: center;
 }

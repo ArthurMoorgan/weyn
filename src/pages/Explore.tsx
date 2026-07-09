@@ -4,7 +4,6 @@ import { api, CATS, type Cat, type Weyn, isTonight, isToday, isTomorrow, isThisW
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import Stub from "../components/Stub";
-import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
 import CityPill from "../components/CityPill";
 import { dismissSplash } from "../splash";
@@ -222,8 +221,7 @@ export default function Explore() {
 
   return (
     <>
-      <header className="topbar">
-        <Logo wordmark size={26} />
+      <header className="topbar no-brand">
         <div className="tb-right">
           <ThemeToggle />
           <CityPill />
