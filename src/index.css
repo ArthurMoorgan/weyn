@@ -1879,9 +1879,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* ---------- weynevents.com landing page (waitlist.weynevents.com, and
    what a signed-out/non-admin visitor sees on the main domain too) ---------- */
 .wl-page { min-height: 100dvh; display: flex; flex-direction: column; }
-.wl-top, .wl-foot {
-  max-width: 640px; margin: 0 auto; width: 100%; box-sizing: border-box; padding-left: 24px; padding-right: 24px;
+/* Every section on this page shares one max-width so the header, footer,
+   and content edges all line up — they used to be on three different
+   widths (640/1000/1100px), which is what read as "misaligned". */
+.wl-container {
+  max-width: 1100px; margin: 0 auto; width: 100%; box-sizing: border-box; padding-left: 24px; padding-right: 24px;
 }
+.wl-top, .wl-foot { padding-left: 24px; padding-right: 24px; }
 .wl-top { display: flex; align-items: center; justify-content: space-between; padding-top: 20px; padding-bottom: 20px; }
 
 .wl-hero {
@@ -1952,19 +1956,38 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .wl-shot-phones { flex-direction: column; align-items: center; }
 }
 
-/* ---- three-pillar feature strip ---- */
-.wl-pillars {
-  max-width: 1000px; margin: 48px auto 8px; width: 100%; box-sizing: border-box; padding: 0 24px;
-  display: grid; grid-template-columns: 1fr; gap: 16px;
+/* ---- brand story / vision ---- */
+.wl-section-eyebrow {
+  display: inline-block; font-size: 12.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 18px;
 }
-@media (min-width: 700px) { .wl-pillars { grid-template-columns: repeat(3, 1fr); } }
-.wl-pillar {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
-  padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface);
+.wl-story, .wl-vision { padding-top: 72px; padding-bottom: 8px; }
+.wl-reveal { margin-bottom: 28px; }
+.wl-reveal:last-child { margin-bottom: 0; }
+.wl-reveal .scroll-reveal-text { color: var(--text-2); }
+.wl-reveal-accent .scroll-reveal-text { color: var(--text); font-weight: 700; }
+
+/* ---- features (ScrollStack cards) ---- */
+.wl-features { padding-top: 72px; padding-bottom: 40px; position: relative; }
+.wl-feature-card {
+  display: flex; align-items: center; gap: 24px; height: 100%; position: relative; overflow: hidden;
 }
-.wl-pillar [class^="icon-"] { font-size: 22px; color: var(--accent); }
-.wl-pillar b { font-size: 15px; }
-.wl-pillar span { font-size: 13.5px; color: var(--text-2); line-height: 1.45; }
+.wl-feature-card-index {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  font-size: clamp(80px, 12vw, 140px); font-weight: 800; color: var(--border); opacity: 0.5;
+  line-height: 1; pointer-events: none; user-select: none;
+}
+.wl-feature-card-body { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; position: relative; z-index: 1; }
+.wl-feature-card [class^="icon-"] {
+  font-size: 26px; color: var(--accent); background: var(--accent-soft);
+  width: 52px; height: 52px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.wl-feature-card-body b { font-size: 19px; }
+.wl-feature-card-body span { font-size: 14.5px; color: var(--text-2); line-height: 1.55; max-width: 44ch; }
+@media (max-width: 640px) {
+  .wl-feature-card-index { display: none; }
+}
 
 .wl-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;

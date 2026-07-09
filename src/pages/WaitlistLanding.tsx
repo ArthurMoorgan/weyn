@@ -4,6 +4,8 @@ import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
 import SplitText from "../components/landing/SplitText";
 import RotatingText from "../components/landing/RotatingText";
+import ScrollReveal from "../components/landing/ScrollReveal";
+import ScrollStack, { ScrollStackItem } from "../components/landing/ScrollStack";
 
 // The public face of weynevents.com while the real app is admin-only (see
 // HANDOFF.md) — served standalone, no Clerk/Router/tab-shell, when the page
@@ -30,6 +32,29 @@ const ROLES: { key: Role; label: string; icon: string }[] = [
 ];
 
 const ROTATING_PHRASES = ["discover events", "host events", "reserve a table"];
+
+const FEATURES = [
+  {
+    icon: "sparkles",
+    title: "Discover what's actually good",
+    body: "One feed for Muscat — gigs, pop-ups, rooftop nights, and everything in between. No more piecing it together from a dozen Instagram stories.",
+  },
+  {
+    icon: "circle-plus",
+    title: "Host in minutes, not days",
+    body: "Publish an event free, sell tickets your way — a link, cash at the door, or your own payment link — and watch sales land in real time.",
+  },
+  {
+    icon: "utensils",
+    title: "Reserve a table, skip the back-and-forth",
+    body: "Book a spot at Muscat's cafes, restaurants, and lounges without a single WhatsApp message.",
+  },
+  {
+    icon: "chart-bar",
+    title: "Built for organizers, not just listings",
+    body: "Real dashboards — attendees, revenue, promotion, even AI-assisted event copy — so running an event feels less like guesswork.",
+  },
+] as const;
 
 interface WaitlistLandingProps {
   // Set by AuthGate when a signed-in-but-non-admin visitor lands here on
@@ -78,7 +103,7 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
 
   return (
     <div className="wl-page">
-      <header className="wl-top">
+      <header className="wl-top wl-container">
         <Logo size={28} />
         <ThemeToggle />
       </header>
@@ -208,25 +233,60 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
         </div>
       </section>
 
-      <section className="wl-pillars">
-        <div className="wl-pillar">
-          <i className="icon-sparkles" />
-          <b>Discover</b>
-          <span>Everything happening near you, sorted by what's actually good.</span>
-        </div>
-        <div className="wl-pillar">
-          <i className="icon-circle-plus" />
-          <b>Host</b>
-          <span>Publish an event free, track sales, and check people in at the door.</span>
-        </div>
-        <div className="wl-pillar">
-          <i className="icon-utensils" />
-          <b>Reserve</b>
-          <span>Book a table at Muscat's cafes, restaurants, and lounges.</span>
-        </div>
+      <section className="wl-story wl-container">
+        <span className="wl-section-eyebrow">How Weyn was created</span>
+        <ScrollReveal
+          containerClassName="wl-reveal"
+          baseOpacity={0.15}
+          baseRotation={4}
+          blurStrength={6}
+        >
+          Muscat's nightlife and events scene has always been alive — it just never had a home. A gig gets announced on one Instagram story, a pop-up on another, and the good stuff spreads through screenshots forwarded in WhatsApp groups. By the time you hear about it, half the tickets are gone or the event's already happened.
+        </ScrollReveal>
+        <ScrollReveal
+          containerClassName="wl-reveal"
+          baseOpacity={0.15}
+          baseRotation={4}
+          blurStrength={6}
+        >
+          Weyn started as a simple question: what if finding out what's happening tonight took one look, not ten apps? We built it for the organizers piecing together spreadsheets and door lists by hand, and for everyone else just trying to figure out where to go.
+        </ScrollReveal>
       </section>
 
-      <footer className="wl-foot">
+      <section className="wl-vision wl-container">
+        <span className="wl-section-eyebrow">The vision</span>
+        <ScrollReveal
+          containerClassName="wl-reveal wl-reveal-accent"
+          baseOpacity={0.15}
+          baseRotation={4}
+          blurStrength={6}
+        >
+          A city where every event worth going to is one search away — and every organizer, from a first-time host to a full venue, has real tools to run it. Not a listings board. A platform that actually works the night of.
+        </ScrollReveal>
+      </section>
+
+      <section className="wl-features wl-container">
+        <div className="wl-shots-head">
+          <h2>What you get</h2>
+          <p>Four things Weyn does well, built for how Muscat actually goes out.</p>
+        </div>
+        <ScrollStack useWindowScroll itemDistance={80} itemScale={0.04} baseScale={0.9} rotationAmount={0.5} blurAmount={0.6}>
+          {FEATURES.map((f, i) => (
+            <ScrollStackItem key={f.title}>
+              <div className="wl-feature-card">
+                <span className="wl-feature-card-index" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
+                <div className="wl-feature-card-body">
+                  <i className={"icon-" + f.icon} />
+                  <b>{f.title}</b>
+                  <span>{f.body}</span>
+                </div>
+              </div>
+            </ScrollStackItem>
+          ))}
+        </ScrollStack>
+      </section>
+
+      <footer className="wl-foot wl-container">
         <span>Weyn — Muscat, Oman</span>
         <div className="wl-foot-right">
           {signedInAs ? (
