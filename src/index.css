@@ -27,7 +27,13 @@
   --divider:        #32353A;
   --card-bg:        #1A1C1F;
   --card-border:    #32353A;
-  --card-shadow:    0 4px 14px rgba(0,0,0,0.28);
+  /* Claymorphism experiment (whole app) — every card/chip/button below
+     reads its shape from these six tokens, so the "puffy molded clay" look
+     is achieved by redefining the tokens themselves rather than touching
+     every individual rule. Two-tone shadow (soft light top-left + darker
+     shadow bottom-right) is the actual signature — a single flat shadow
+     reads as "elevated card", the dual one reads as "clay". */
+  --card-shadow:    -6px -6px 14px rgba(255,255,255,.04), 8px 8px 20px rgba(0,0,0,.4);
   --accent-soft:    rgba(74,141,255,0.16);
   --success-soft:   rgba(87,184,106,0.15);
   --scrim: rgba(8,9,10,0.5);
@@ -42,12 +48,16 @@
   --line:        var(--border);
   --chip-soft:   var(--surface-hover);
 
-  --radius: 16px; --radius-sm: 12px; --radius-pill: 999px; --maxw: 468px;
-  --shadow-sm: 0 2px 6px rgba(15,23,42,.05);
-  --shadow-md: 0 8px 20px rgba(15,23,42,.08);
-  --shadow-lg: 0 20px 40px rgba(15,23,42,.10);
+  --radius: 24px; --radius-sm: 16px; --radius-pill: 999px; --maxw: 468px;
+  --shadow-sm: -3px -3px 8px rgba(255,255,255,.03), 4px 4px 11px rgba(0,0,0,.35);
+  --shadow-md: -4px -4px 12px rgba(255,255,255,.04), 8px 8px 20px rgba(0,0,0,.4);
+  --shadow-lg: -6px -6px 16px rgba(255,255,255,.05), 14px 14px 32px rgba(0,0,0,.45);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
-  --glass-edge: transparent; --glass-line: var(--border); --glass-shadow: var(--shadow-sm);
+  /* --glass-line was the card/chip/input BORDER color everywhere (see the
+     ~20 "border: 1px solid var(--glass-line)" call sites) — clay relies on
+     the dual shadow above for edges, not a hard outline, so this goes
+     transparent instead of getting its own removal pass per call site. */
+  --glass-edge: transparent; --glass-line: transparent; --glass-shadow: var(--shadow-sm);
   --shadow-float: var(--shadow-md); --lens: none;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-8: 48px;
@@ -85,14 +95,21 @@
   --success: #2E7D32; --warning: #B7791F; --error: #C53030; --info: #1C6DD0;
   --text: #1D1D1F; --text-2: #666666; --text-3: #8A8A8A; --text-disabled: #ACACAC;
   --icon: #1D1D1F; --icon-2: #666666; --divider: #E6E3DD;
-  --card-bg: #FFFFFF; --card-border: #E6E3DD; --card-shadow: 0 4px 14px rgba(29,29,31,.06);
+  --card-bg: #FFFFFF; --card-border: #E6E3DD;
+  /* Same clay two-tone treatment as dark mode, tuned for the cream
+     background: a bright white highlight (brighter than --surface itself,
+     since --bg/--surface are close in value here) plus a warm dark shadow
+     for the "raised off the page" edge. */
+  --card-shadow: -6px -6px 14px rgba(255,255,255,.9), 8px 8px 20px rgba(29,29,31,.12);
   --accent-soft: rgba(28,109,208,0.10); --success-soft: rgba(46,125,50,0.10);
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
-  --shadow-sm: 0 2px 6px rgba(15,23,42,.05); --shadow-md: 0 8px 20px rgba(15,23,42,.08); --shadow-lg: 0 20px 40px rgba(15,23,42,.10);
+  --shadow-sm: -3px -3px 8px rgba(255,255,255,.85), 4px 4px 11px rgba(29,29,31,.10);
+  --shadow-md: -4px -4px 12px rgba(255,255,255,.9), 8px 8px 20px rgba(29,29,31,.12);
+  --shadow-lg: -6px -6px 16px rgba(255,255,255,.95), 14px 14px 32px rgba(29,29,31,.14);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
-  --glass-edge: transparent; --glass-line: var(--border); --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
+  --glass-edge: transparent; --glass-line: transparent; --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
   --fallback-scrim: rgba(0,0,0,0.15);
 
   --spark-color-1: var(--primary);
@@ -265,10 +282,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   flex: 0 0 auto; font-size: 13px; font-weight: 500; color: var(--text-2);
   padding: 10px 14px; border-radius: var(--radius-pill);
   background: var(--glass-soft); border: 1px solid var(--glass-line);
-  
+  box-shadow: var(--shadow-sm);
   white-space: nowrap; transition: all .15s;
 }
-.chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+/* Selected state reads as "pressed into the clay" — inset shadow instead
+   of the raised one every other chip gets — rather than just a color swap. */
+.chip.on { background: var(--text); color: var(--bg); border-color: var(--text); box-shadow: inset 3px 3px 8px rgba(0,0,0,.25); }
 
 /* ---------- date section header ---------- */
 .date-head {
@@ -670,7 +689,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   white-space: nowrap; transition: background-color .15s, color .15s;
 }
 .profile-tab [class^="icon-"] { font-size: 15px; }
-.profile-tab.on { color: var(--text); background: var(--surface-2); }
+.profile-tab.on { color: var(--text); background: var(--surface-2); box-shadow: inset 2px 2px 6px rgba(0,0,0,.15); }
 
 /* ---------- Overview quick-stat shortcuts ---------- */
 .ov-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; padding: 14px 16px 4px; }
@@ -942,7 +961,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-radius: var(--radius-sm); padding: 14px 20px;
   min-height: var(--btn-h);
   background: var(--accent); color: #fff;
-  box-shadow: 0 2px 8px var(--accent-soft);
+  /* Clay puff, tinted with the button's own color rather than a generic
+     black/white shadow — a colored accent glow reads as "molded from the
+     accent color", not just "raised". */
+  box-shadow: -3px -3px 8px color-mix(in srgb, var(--accent) 35%, white 15%), 4px 4px 12px color-mix(in srgb, var(--accent) 55%, black 35%);
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
   /* transition is set once, in the MOTION section further down (that
      declaration always wins the cascade since it comes later — this one
@@ -952,11 +974,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .btn.lg { min-height: var(--btn-h-lg); font-size: 16px; padding: 16px 24px; }
 .btn.sm { min-height: var(--btn-h-sm); padding: 8px 14px; font-size: 13px; width: auto; }
 .btn:hover { opacity: 0.92; }
-.btn:active { transform: scale(0.98); }
-.btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; }
+.btn:active { transform: scale(0.98); box-shadow: inset 3px 3px 8px color-mix(in srgb, var(--accent) 55%, black 35%); }
+.btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; box-shadow: var(--shadow-sm); }
 .btn.dark { background: var(--text); color: var(--bg); }
-.btn.glass { background: var(--surface-2); color: var(--text); }
-.btn.done { background: var(--success-soft); color: var(--success); }
+.btn.glass { background: var(--surface-2); color: var(--text); box-shadow: var(--shadow-sm); }
+.btn.done { background: var(--success-soft); color: var(--success); box-shadow: var(--shadow-sm); }
 .btn.sq { width: 50px; flex: 0 0 auto; padding: 0; height: 50px; }
 
 /* ---------- forms ---------- */
@@ -968,7 +990,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   width: 100%; font-family: inherit; font-size: 16px; padding: 12px 13px;
   border-radius: var(--radius-sm); color: var(--text);
   background: var(--glass-strong); border: 1px solid var(--glass-line);
-  
+  /* Carved-in rather than raised — inputs are the one place clay UIs
+     usually invert the shadow direction, so a field reads as a "slot" you
+     type into, distinct from the puffy buttons/cards around it. */
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,.18), inset -2px -2px 6px rgba(255,255,255,.03);
+}
+:root[data-theme="light"] .field input, :root[data-theme="light"] .field select, :root[data-theme="light"] .field textarea {
+  box-shadow: inset 2px 2px 6px rgba(29,29,31,.08), inset -2px -2px 6px rgba(255,255,255,.7);
 }
 .field input { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* checkboxes must NOT inherit the text-input treatment above (that padding +
@@ -991,7 +1019,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   transform: rotate(45deg);
 }
 .field input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: inset 2px 2px 6px rgba(0,0,0,.18), 0 0 0 3px var(--accent-soft); }
 .field textarea { resize: vertical; }
 /* form guidance text — users read this to fill fields correctly, not a
    passive caption, so it gets --text-2 for real 4.5:1 contrast */
