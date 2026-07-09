@@ -219,14 +219,6 @@ export default function Explore() {
 
   return (
     <>
-      <header className="topbar no-brand">
-        <div className="tb-right">
-          <Link to="/you" className="tb-avatar" aria-label="Your profile and settings">
-            {account?.picture ? <img src={account.picture} alt="" /> : <i className="icon-user" />}
-          </Link>
-        </div>
-      </header>
-
       {!searching && (
         <section className="ex-hero">
           <div>

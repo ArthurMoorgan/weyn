@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, VENUE_CATS, type Venue, type VenueCategory } from "../api";
-import { Link } from "react-router-dom";
 import VenueCard from "../components/VenueCard";
 
 // Reservations mirrors Explore's browse pattern (topbar → search → chips →
@@ -123,14 +122,6 @@ export default function Reservations() {
 
   return (
     <>
-      <header className="topbar no-brand">
-        <div className="tb-right">
-          <Link to="/you" className="tb-avatar" aria-label="Your profile and settings">
-            <i className="icon-user" />
-          </Link>
-        </div>
-      </header>
-
       <section className="ex-hero">
         <h1>Reserve a table</h1>
       </section>

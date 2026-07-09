@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet, Link } from "react-router-dom";
+import { NavLink, Outlet, Link, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
@@ -30,6 +30,7 @@ const NAV = [
 
 export default function OrganizerLayout() {
   const account = useAccount();
+  const nav = useNavigate();
   const dashEvents = useAsync(() => (account ? api.dashboardEvents() : Promise.resolve([])), [account]);
   const isHost = (dashEvents.data?.length || 0) > 0;
 
@@ -43,8 +44,14 @@ export default function OrganizerLayout() {
   if (!isHost) {
     return (
       <section>
-        <div className="page-head"><h1>Organizer</h1><p className="sub">Publish an event free and everything here lights up automatically.</p></div>
-        <div className="host-cta" style={{ margin: "0 16px" }}>
+        <header className="topbar">
+          <div className="brand">
+            <button className="icon-btn" onClick={() => nav("/you")} aria-label="Back"><i className="icon-arrow-left" /></button>
+            <span className="en">Organizer</span>
+          </div>
+        </header>
+        <p className="sub" style={{ padding: "10px 16px 0" }}>Publish an event free and everything here lights up automatically.</p>
+        <div className="host-cta" style={{ margin: "12px 16px 0" }}>
           <div>
             <b>Running an event?</b>
             <span>Publish it free and track sales, attendees, promo codes, and more here.</span>
@@ -58,7 +65,10 @@ export default function OrganizerLayout() {
   return (
     <section className="organizer-page">
       <header className="topbar">
-        <h1>Organizer</h1>
+        <div className="brand">
+          <button className="icon-btn" onClick={() => nav("/you")} aria-label="Back"><i className="icon-arrow-left" /></button>
+          <h1 style={{ font: "var(--t-section)", fontSize: 20 }}>Organizer</h1>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <NotificationBell />
           <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "9px 14px" }}><i className="icon-plus" /> New event</Link>

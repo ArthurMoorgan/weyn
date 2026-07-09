@@ -291,7 +291,10 @@ export default function Organizer() {
     return (
       <>
         <header className="topbar">
-          <div className="brand"><span className="en">Host an event</span></div>
+          <div className="brand">
+            <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button>
+            <span className="en">Host an event</span>
+          </div>
           <div className="tb-right"><ThemeToggle /></div>
         </header>
         <div className="page-head">
@@ -315,7 +318,10 @@ export default function Organizer() {
   return (
     <>
       <header className="topbar">
-        <div className="brand"><span className="en">Host an event</span></div>
+        <div className="brand">
+          <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button>
+          <span className="en">Host an event</span>
+        </div>
         <div className="tb-right">
           <ThemeToggle />
           <span className="pill"><i className="icon-radio-tower" /> Organizer</span>

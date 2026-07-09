@@ -473,7 +473,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    Uses only existing color tokens; sits between the topbar and search. */
 /* Trimmed hero: a short title + a small link, not a paragraph — a wall of
    marketing copy above the fold reads as friction, not welcome. */
-.ex-hero { padding: 18px 16px 4px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
+/* top padding carries the whole gap now that the browse screens have no
+   topbar — keeps the greeting/title clear of the status bar / notch */
+.ex-hero { padding: 28px 16px 4px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
 .ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; }
 .ex-greeting { display: block; font-size: 14px; font-weight: 500; color: var(--text-2); margin-bottom: 4px; }
 .ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 6px 0; white-space: nowrap; flex: 0 0 auto; }
@@ -921,7 +923,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ticket-qr-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; letter-spacing: 0.5px; color: var(--text-3); word-break: break-all; }
 
 /* ---------- search ---------- */
-.search { padding: 6px 16px 0; position: relative; }
+/* generous top pad so that when a search is active (the hero above is
+   hidden) the field still clears the status bar / notch on the topbar-less
+   browse screens */
+.search { padding: 16px 16px 0; position: relative; }
 /* The magnifier is INSIDE the input, not aligned to the page's content edge.
    The input itself starts at 16px (the .search padding) and has 42px of left
    text-padding; this centers the 18px icon within that left padding

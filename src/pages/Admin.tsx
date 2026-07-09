@@ -36,7 +36,10 @@ export default function Admin() {
   return (
     <>
       <header className="topbar">
-        <div className="brand"><span className="en">Admin</span></div>
+        <div className="brand">
+          <button className="icon-btn" onClick={() => nav("/you")} aria-label="Back"><i className="icon-arrow-left" /></button>
+          <span className="en">Admin</span>
+        </div>
         <div className="tb-right"><ThemeToggle /></div>
       </header>
 
