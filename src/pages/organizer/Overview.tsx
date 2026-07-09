@@ -44,6 +44,8 @@ export default function OrganizerOverview() {
         {o?.reputationScore && <div className="stat"><div className="k">Reputation score</div><div className="v">{o.reputationScore.score} <small>/ 100</small></div></div>}
       </div>
 
+      <QuickActions onShowMore={() => setShowMore(true)} />
+
       <div className="date-head" style={{ paddingLeft: 6 }}><h2>Needs attention</h2>{o && <span>{o.needsAttention.length}</span>}</div>
       {overview.loading && <p className="hint" style={{ padding: "0 6px" }}>Loading…</p>}
       {o && o.needsAttention.length === 0 && (
@@ -138,6 +140,38 @@ export default function OrganizerOverview() {
         </>
       )}
     </>
+  );
+}
+
+// A visible map of everything the dashboard can do — most of it (Files,
+// Sponsors, Vendors, Automation, Feedback, Promotion) lives inside each
+// event's own "More tools" section, and Venues/Team live in Settings, so
+// without this grid an organizer would only discover them by clicking
+// around. Nav itself stays at 5 tabs; this is the "feels feature-rich"
+// surface instead of a 12-tab nav bar.
+const QUICK_ACTIONS = [
+  { to: "/host/events", icon: "circle-plus", label: "New event" },
+  { to: "/organizer/events", icon: "calendar", label: "Events" },
+  { to: "/organizer/attendees", icon: "users", label: "Attendees" },
+  { to: "/organizer/ai-studio", icon: "sparkles", label: "AI Studio" },
+  { to: "/organizer/settings#venues", icon: "map-pin", label: "Venues" },
+  { to: "/organizer/settings#team", icon: "users-round", label: "Team" },
+] as const;
+
+function QuickActions({ onShowMore }: { onShowMore: () => void }) {
+  return (
+    <div className="quick-actions-grid">
+      {QUICK_ACTIONS.map((a) => (
+        <Link key={a.label} to={a.to} className="quick-action">
+          <i className={`icon-${a.icon}`} />
+          <span>{a.label}</span>
+        </Link>
+      ))}
+      <button type="button" className="quick-action" onClick={onShowMore}>
+        <i className="icon-wallet" />
+        <span>Finance & goals</span>
+      </button>
+    </div>
   );
 }
 

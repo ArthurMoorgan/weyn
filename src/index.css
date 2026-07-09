@@ -1189,6 +1189,23 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* ---------- dashboard ---------- */
 .dash { padding: 6px 16px 0; }
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 6px 0 6px; }
+
+/* ---------- Overview's "quick actions" tile grid ---------- */
+.quick-actions-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  padding: 4px 0 18px;
+}
+.quick-action {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 14px 6px; border-radius: var(--radius); text-align: center;
+  background: var(--glass-strong); box-shadow: var(--shadow-sm);
+  color: var(--text-2); font-size: 12px; font-weight: 600;
+  border: none; cursor: pointer; font-family: inherit;
+  transition: transform .15s cubic-bezier(.2,.9,.3,1.6);
+}
+.quick-action:active { transform: scale(.95); }
+.quick-action [class^="icon-"] { font-size: 20px; color: var(--accent); }
+@media (min-width: 640px) { .quick-actions-grid { grid-template-columns: repeat(7, 1fr); } }
 .stat {
   border-radius: var(--radius); padding: 15px 16px;
   background: var(--glass-strong); border: 1px solid var(--glass-line);

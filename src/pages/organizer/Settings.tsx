@@ -18,6 +18,17 @@ export default function OrganizerSettings() {
   const { data, loading } = useAsync(() => api.getOrganizerSettings(), []);
   const me = useAsync(() => api.me(), []);
   const [cat, setCat] = useState<Cat>("music");
+
+  // React Router doesn't auto-scroll to a URL hash on client-side
+  // navigation (only real page loads do that) — Overview's quick-action
+  // tiles link here with #team/#venues, so without this they'd land at the
+  // top of the page instead of the actual section.
+  useEffect(() => {
+    if (!window.location.hash) return;
+    const id = window.location.hash.slice(1);
+    const el = document.getElementById(id);
+    if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }, []);
   const [capacity, setCapacity] = useState("60");
   const [refundPolicy, setRefundPolicy] = useState("Refund up to 48h before");
   const [bio, setBio] = useState("");
@@ -143,10 +154,10 @@ export default function OrganizerSettings() {
 
       <button className="btn" onClick={save} disabled={saving} style={{ marginBottom: 24 }}>{saving ? "Saving…" : saved ? "Saved ✓" : "Save settings"}</button>
 
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Team</h2></div>
+      <div id="team" className="date-head" style={{ paddingLeft: 6 }}><h2>Team</h2></div>
       <OrganizerTeamPanel />
 
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Venue library</h2></div>
+      <div id="venues" className="date-head" style={{ paddingLeft: 6 }}><h2>Venue library</h2></div>
       <VenueLibraryPanel />
 
       <div className="date-head" style={{ paddingLeft: 6 }}><h2>Subscription</h2></div>
@@ -173,6 +184,18 @@ function VenueLibraryPanel() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<Record<string, string>>({});
+  const [recBusy, setRecBusy] = useState<string | null>(null);
+
+  async function getRecommendation(id: string) {
+    setRecBusy(id);
+    try {
+      const { recommendation } = await api.venueRecommendation(id);
+      setRecommendations((prev) => ({ ...prev, [id]: recommendation }));
+    } finally {
+      setRecBusy(null);
+    }
+  }
 
   function startAdd() {
     setEditing(null); setAdding(true);
@@ -221,13 +244,17 @@ function VenueLibraryPanel() {
       {!loading && (data || []).length > 0 && (
         <ul className="steps" style={{ marginBottom: 14 }}>
           {data!.map((v) => (
-            <li key={v.id}>
+            <li key={v.id} style={{ flexWrap: "wrap" }}>
               <i className="icon-map-pin" />
               <span>
                 {v.name} {v.capacity ? <small style={{ color: "var(--text-3)" }}>· cap {v.capacity}</small> : null}
                 {v.address && <><br /><small style={{ color: "var(--text-3)" }}>{v.address}</small></>}
+                {recommendations[v.id] && <><br /><small style={{ color: "var(--accent)" }}>{recommendations[v.id]}</small></>}
               </span>
-              <button className="copy-btn" onClick={() => startEdit(v)} style={{ marginLeft: "auto" }}>Edit</button>
+              <button className="copy-btn" onClick={() => getRecommendation(v.id)} disabled={recBusy === v.id} style={{ marginLeft: "auto" }}>
+                {recBusy === v.id ? "Thinking…" : "Insights"}
+              </button>
+              <button className="copy-btn" onClick={() => startEdit(v)}>Edit</button>
               <button className="copy-btn" onClick={() => remove(v)} disabled={busyId === v.id}>Delete</button>
             </li>
           ))}
