@@ -342,7 +342,7 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
           baseRotation={4}
           blurStrength={6}
         >
-          Muscat's nightlife and events scene has always been alive — it just never had a home. A gig gets announced on one Instagram story, a pop-up on another, and the good stuff spreads through screenshots forwarded in WhatsApp groups. By the time you hear about it, half the tickets are gone or the event's already happened.
+          Muscat has plenty going on — a gig gets announced on one Instagram story, a pop-up on another, and the rest spreads through screenshots forwarded in WhatsApp groups. By the time it reaches you, half the tickets are gone or the event's already happened.
         </ScrollReveal>
         <ScrollReveal
           containerClassName="wl-reveal"
@@ -350,7 +350,7 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
           baseRotation={4}
           blurStrength={6}
         >
-          Weyn started as a simple question: what if finding out what's happening tonight took one look, not ten apps? We built it for the organizers piecing together spreadsheets and door lists by hand, and for everyone else just trying to figure out where to go.
+          We built one feed instead of ten apps — for organizers currently running things off spreadsheets and door lists, and for everyone else just trying to find out where to go tonight.
         </ScrollReveal>
       </section>
 
@@ -362,7 +362,7 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
           baseRotation={4}
           blurStrength={6}
         >
-          A city where every event worth going to is one search away — and every organizer, from a first-time host to a full venue, has real tools to run it. Not a listings board. A platform that actually works the night of.
+          Every event worth going to, searchable in one place — and every organizer, from someone hosting their first night to an established venue, with real tools to run it instead of a folder of screenshots.
         </ScrollReveal>
       </section>
 

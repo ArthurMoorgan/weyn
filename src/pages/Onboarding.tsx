@@ -12,7 +12,6 @@ import Logo from "../components/Logo";
 
 const INTERESTS_KEY = "weyn.onboarding.interests";
 const SOCIAL_KEY = "weyn.onboarding.socialPrefs";
-const DISCOVERY_KEY = "weyn.onboarding.discoveryPrefs";
 
 const INTERESTS = [
   { key: "music", label: "Music", icon: "music" },
@@ -34,11 +33,6 @@ const SOCIAL_PREFS = [
   { key: "family", label: "Family outings", icon: "home" },
   { key: "date", label: "Date nights", icon: "heart" },
 ];
-
-// Discovery step reuses the same taste categories — asking again, but
-// framed around "what to see more of" rather than "what are you into",
-// is intentional (mirrors real onboarding flows that double-check signal).
-const DISCOVERY = INTERESTS;
 
 function readList(key: string): string[] {
   try { return JSON.parse(localStorage.getItem(key) || "") as string[]; }
@@ -82,13 +76,12 @@ function ProgressDots({ step, total }: { step: number; total: number }) {
   );
 }
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 6;
 
 export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
   const [step, setStep] = useState(0);
   const [interests, setInterests] = useState<string[]>(() => readList(INTERESTS_KEY));
   const [socialPrefs, setSocialPrefs] = useState<string[]>(() => readList(SOCIAL_KEY));
-  const [discoveryPrefs, setDiscoveryPrefs] = useState<string[]>(() => readList(DISCOVERY_KEY));
   const [locationState, setLocationState] = useState<"idle" | "asking" | "granted" | "denied">("idle");
   const [previewEvents, setPreviewEvents] = useState<Weyn[] | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -103,10 +96,6 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
   function persistSocial(list: string[]) {
     setSocialPrefs(list);
     localStorage.setItem(SOCIAL_KEY, JSON.stringify(list));
-  }
-  function persistDiscovery(list: string[]) {
-    setDiscoveryPrefs(list);
-    localStorage.setItem(DISCOVERY_KEY, JSON.stringify(list));
   }
 
   async function requestLocation() {
@@ -125,19 +114,18 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
     }
   }
 
-  // Fetch a small preview once step 6 (index 5) is reached.
+  // Fetch a small preview once the Preview step (index 4) is reached.
   useEffect(() => {
-    if (step !== 5) return;
+    if (step !== 4) return;
     let cancelled = false;
     setPreviewLoading(true);
     setPreviewError(null);
     api.listEvents()
       .then((all) => {
         if (cancelled) return;
-        const chosen = interests.length ? interests : discoveryPrefs;
         let list = all.filter((e) => !e.cancelled);
-        if (chosen.length) {
-          const matched = list.filter((e) => chosen.includes(e.cat as Cat));
+        if (interests.length) {
+          const matched = list.filter((e) => interests.includes(e.cat as Cat));
           list = matched.length ? matched : list;
         }
         list = [...list].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
@@ -146,16 +134,15 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
       .catch((err) => { if (!cancelled) setPreviewError(err?.message || "Couldn't load events."); })
       .finally(() => { if (!cancelled) setPreviewLoading(false); });
     return () => { cancelled = true; };
-  }, [step, interests, discoveryPrefs]);
+  }, [step, interests]);
 
   const stepMeta = useMemo(() => ({
     0: "Welcome",
     1: "Interests",
     2: "Social",
-    3: "Discovery",
-    4: "Location",
-    5: "Preview",
-    6: "Sign up",
+    3: "Location",
+    4: "Preview",
+    5: "Sign up",
   }[step]), [step]);
 
   return (
@@ -193,18 +180,8 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
           </div>
         )}
 
-        {/* ---- 4. Discovery preference ---- */}
+        {/* ---- 4. Location permission ---- */}
         {step === 3 && (
-          <div className="ob-step">
-            <h2 className="ob-title">What would you like to see more of?</h2>
-            <p className="ob-sub">Pick as many as you like.</p>
-            <CardGrid items={DISCOVERY} selected={discoveryPrefs} onToggle={(k) => persistDiscovery(toggle(discoveryPrefs, k))} />
-            <button className="btn lg ob-cta" onClick={next} disabled={discoveryPrefs.length === 0}>Continue</button>
-          </div>
-        )}
-
-        {/* ---- 5. Location permission ---- */}
-        {step === 4 && (
           <div className="ob-step ob-center">
             <div className="ob-icon-badge"><i className="icon-map-pin" /></div>
             <h2 className="ob-title">Enable location</h2>
@@ -216,8 +193,8 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
           </div>
         )}
 
-        {/* ---- 6. Personalized preview ---- */}
-        {step === 5 && (
+        {/* ---- 5. Personalized preview ---- */}
+        {step === 4 && (
           <div className="ob-step">
             <h2 className="ob-title">Here's what we found for you</h2>
             <p className="ob-sub">Based on what you picked.</p>
@@ -247,8 +224,8 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
           </div>
         )}
 
-        {/* ---- 7. Sign up ---- */}
-        {step === 6 && (
+        {/* ---- 6. Sign up ---- */}
+        {step === 5 && (
           <div className="ob-step ob-center">
             <Logo size={36} />
             <h2 className="ob-title">Create your account</h2>

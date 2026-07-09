@@ -934,7 +934,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    text-padding; this centers the 18px icon within that left padding
    (16 + (42-18)/2 ≈ 28px) so it sits comfortably between the input's rounded
    left edge and the placeholder text, rather than jammed against the border. */
-.search [class^="icon-"] { position: absolute; left: 28px; top: calc(50% + 3px); transform: translateY(-50%); font-size: 18px; color: var(--text-3); z-index: 1; }
+/* Direct-child combinator on purpose — this must only catch the leading
+   magnifier icon (a direct child of .search). It was matching every
+   [class^="icon-"] anywhere under .search, which also caught the clear-x
+   and filter icons nested inside their own buttons deeper in the tree:
+   each one has its own position:absolute button (for its own placement
+   along the input's right edge), and became this rule's actual containing
+   block, so its icon got wrenched out to left:28px *within that small
+   button's own box* — well outside the button's visible bounds. That's
+   the "filter icon is really broken" bug: it wasn't broken, it was just
+   being teleported by this selector being too broad. */
+.search > [class^="icon-"] { position: absolute; left: 28px; top: calc(50% + 3px); transform: translateY(-50%); font-size: 18px; color: var(--text-3); z-index: 1; }
 .search input {
   width: 100%; font-family: inherit; font-size: 16px; padding: 12px 84px 12px 42px;
   border-radius: var(--radius-sm); color: var(--text);
