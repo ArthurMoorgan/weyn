@@ -8,15 +8,11 @@ const Reservations = lazy(() => import("./pages/Reservations"));
 const HostHub = lazy(() => import("./pages/HostHub"));
 const You = lazy(() => import("./pages/You"));
 
-// Each tab carries its own accent (`color`) — the active tab lights up in
-// its own hue with a soft glow, so the bottom bar reads as colourful and
-// alive rather than one flat indigo. Colours are drawn from the same
-// category palette used across the feed.
 const TABS = [
-  { to: "/", icon: "sparkles", label: "Discover", color: "#7B6EF6" },
-  { to: "/reservations", icon: "utensils", label: "Reservations", color: "#F97316" },
-  { to: "/host", icon: "circle-plus", label: "Host", color: "#14B8A6" },
-  { to: "/you", icon: "user", label: "Profile", color: "#EC4899" },
+  { to: "/", icon: "sparkles", label: "Discover" },
+  { to: "/reservations", icon: "utensils", label: "Reservations" },
+  { to: "/host", icon: "circle-plus", label: "Host" },
+  { to: "/you", icon: "user", label: "Profile" },
 ];
 
 // The 4 bottom-tab pages, kept mounted once visited instead of unmounting
@@ -104,7 +100,6 @@ export default function App() {
             to={t.to}
             end={t.to === "/"}
             className={({ isActive }) => "tab" + (isActive ? " on" : "")}
-            style={{ "--tab-color": t.color } as React.CSSProperties}
             onClick={(e) => fireSpark(e, e.currentTarget.classList.contains("on"))}
           >
             <i className={"icon-" + t.icon} />

@@ -336,19 +336,17 @@ function MoreMenu({ account, isHost, hasVenues, isAdmin, counts, onOpen }: {
   // Each row is either a local section (drills in via onOpen) or a real
   // route (to). Only shown when relevant so the dock isn't padded with
   // dead-end rows for features the visitor hasn't touched.
-  // `color` gives each dock row its own icon-tile hue — the same
-  // colour-and-life treatment as the bottom bar and category chips.
-  type Row = { key: string; label: string; sub?: string; icon: string; color: string; tab?: ProfileTab; to?: string; show: boolean };
+  type Row = { key: string; label: string; sub?: string; icon: string; tab?: ProfileTab; to?: string; show: boolean };
   const allRows: Row[] = [
-    { key: "overview", label: "You", sub: "Tickets, saved & activity", icon: "layout-grid", color: "#7B6EF6", tab: "overview", show: true },
-    { key: "tickets", label: "Tickets", sub: counts.tickets > 0 ? `${counts.tickets} upcoming` : "Nothing booked yet", icon: "ticket", color: "#4A8DFF", tab: "tickets", show: true },
-    { key: "saved", label: "Saved", sub: counts.saved > 0 ? `${counts.saved} event${counts.saved === 1 ? "" : "s"}` : "Tap the heart on any event", icon: "heart", color: "#EC4899", tab: "saved", show: true },
-    { key: "lists", label: "Lists", sub: "Group events to remember or share", icon: "list", color: "#14B8A6", tab: "lists", show: account },
-    { key: "venues", label: "Your venues", sub: `${counts.venues} venue${counts.venues === 1 ? "" : "s"}`, icon: "store", color: "#F97316", tab: "venues", show: hasVenues },
-    { key: "organizer", label: "Organizer dashboard", sub: isHost ? `${counts.events} live event${counts.events === 1 ? "" : "s"}` : "Host an event, free", icon: "layout-dashboard", color: "#A855F7", to: isHost ? "/organizer" : "/host/events", show: true },
-    { key: "account", label: "Manage account", sub: "Profile & sign-out", icon: "user-cog", color: "#6366F1", to: "/account", show: account },
-    { key: "admin", label: "Admin dashboard", icon: "shield-check", color: "#57B86A", to: "/admin", show: isAdmin },
-    { key: "support", label: "Help & support", icon: "life-buoy", color: "#4A8DFF", to: "/support", show: true },
+    { key: "overview", label: "You", sub: "Tickets, saved & activity", icon: "layout-grid", tab: "overview", show: true },
+    { key: "tickets", label: "Tickets", sub: counts.tickets > 0 ? `${counts.tickets} upcoming` : "Nothing booked yet", icon: "ticket", tab: "tickets", show: true },
+    { key: "saved", label: "Saved", sub: counts.saved > 0 ? `${counts.saved} event${counts.saved === 1 ? "" : "s"}` : "Tap the heart on any event", icon: "heart", tab: "saved", show: true },
+    { key: "lists", label: "Lists", sub: "Group events to remember or share", icon: "list", tab: "lists", show: account },
+    { key: "venues", label: "Your venues", sub: `${counts.venues} venue${counts.venues === 1 ? "" : "s"}`, icon: "store", tab: "venues", show: hasVenues },
+    { key: "organizer", label: "Organizer dashboard", sub: isHost ? `${counts.events} live event${counts.events === 1 ? "" : "s"}` : "Host an event, free", icon: "layout-dashboard", to: isHost ? "/organizer" : "/host/events", show: true },
+    { key: "account", label: "Manage account", sub: "Profile & sign-out", icon: "user-cog", to: "/account", show: account },
+    { key: "admin", label: "Admin dashboard", icon: "shield-check", to: "/admin", show: isAdmin },
+    { key: "support", label: "Help & support", icon: "life-buoy", to: "/support", show: true },
   ];
   const rows = allRows.filter((r) => r.show);
 
@@ -390,7 +388,6 @@ function MoreMenu({ account, isHost, hasVenues, isAdmin, counts, onOpen }: {
       {/* the vertical dock */}
       <nav className="more-dock" aria-label="Sections">
         {rows.map((r) => {
-          const style = { "--row-color": r.color } as React.CSSProperties;
           const inner = (
             <>
               <span className="more-row-ic"><i className={"icon-" + r.icon} /></span>
@@ -402,9 +399,9 @@ function MoreMenu({ account, isHost, hasVenues, isAdmin, counts, onOpen }: {
             </>
           );
           return r.to ? (
-            <Link key={r.key} to={r.to} className="more-row" style={style}>{inner}</Link>
+            <Link key={r.key} to={r.to} className="more-row">{inner}</Link>
           ) : (
-            <button key={r.key} className="more-row" onClick={() => r.tab && onOpen(r.tab)} style={style}>{inner}</button>
+            <button key={r.key} className="more-row" onClick={() => r.tab && onOpen(r.tab)}>{inner}</button>
           );
         })}
       </nav>

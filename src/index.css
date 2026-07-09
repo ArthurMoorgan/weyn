@@ -328,9 +328,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 /* Selected state reads as "pressed into the clay" — inset shadow instead
    of the raised one every other chip gets — rather than just a color swap. */
-/* active chip fills with its category colour (--chip-color, set per chip)
-   — falls back to the brand indigo for "All" and the when-filter chips */
-.chip.on { background: var(--chip-color, var(--primary)); color: #fff; border-color: transparent; box-shadow: 0 4px 14px color-mix(in srgb, var(--chip-color, var(--primary)) 45%, transparent); }
+.chip.on { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: inset 3px 3px 8px rgba(0,0,0,.25); }
 
 /* ---------- date section header ---------- */
 .date-head {
@@ -387,13 +385,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ec-meta { display: flex; align-items: center; gap: 6px; font: var(--t-meta); color: var(--text-2); overflow: hidden; }
-/* coloured category tag on list rows — a small pill in the category's own
-   hue, so the feed reads as colourful at a glance */
-.ec-cat-tag {
-  flex: 0 0 auto; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-pill);
-  color: var(--cat-color, var(--text-2));
-  background: color-mix(in srgb, var(--cat-color, var(--text-3)) 16%, transparent);
-}
 .ec-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ec-dot { color: var(--text-3); flex: 0 0 auto; }
 .ec-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-start; padding-top: 2px; gap: 4px; padding-right: 4px; }
@@ -473,7 +464,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    the image (that top area already belongs to the status badge + save
    heart; competing for the same corner looked cluttered). */
 .ec-feature-toprow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.ec-feature-cat { flex: 0 0 auto; font: var(--t-caption); font-weight: 700; color: #fff; background: color-mix(in srgb, var(--cat-color, #fff) 78%, transparent); padding: 3px 10px; border-radius: var(--radius-pill); box-shadow: 0 2px 10px color-mix(in srgb, var(--cat-color, #000) 45%, transparent); }
+.ec-feature-cat { flex: 0 0 auto; font: var(--t-caption); font-weight: 600; color: #fff; background: rgba(255,255,255,0.16); padding: 3px 10px; border-radius: var(--radius-pill); }
 
 /* ============================================================
    EXPLORE — discovery sections
@@ -583,41 +574,35 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 
-/* ---------- tab bar ---------- glassy bottom bar with a colourful, glowing
-   active state. Each tab lights up in its own hue (--tab-color, set per
-   tab in App.tsx) so the bar reads as alive rather than one flat indigo.
-   Frosted glass via backdrop-blur works on iOS (unlike the SVG-filter
-   GlassSurface variant), so the look is consistent on the phone. */
+/* ---------- tab bar ---------- native iOS bottom bar: full-width, flat,
+   fixed to the edge. Not a floating pill, no glow. */
 .tabs {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
   margin: 0 auto; max-width: var(--maxw);
   display: flex; align-items: stretch;
-  /* Trim ~12px off the home-indicator inset (see git history): the full
-     inset floated the labels too high on a notched iPhone. */
-  padding: 8px 8px max(8px, calc(env(safe-area-inset-bottom) - 10px));
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  /* On a home-screen-installed PWA, env(safe-area-inset-bottom) is the real
+     home-indicator height (~34px). Using the FULL inset as bottom padding left
+     the labels visibly floating well above the screen edge ("really high up").
+     We only need to clear the home indicator, not reserve the whole inset, so
+     trim ~12px off it — this pulls the labels down toward the edge while still
+     keeping comfortable clearance (~22px on a notched iPhone). max() keeps a
+     small minimum on non-notch devices where the inset is 0. */
+  padding: 2px 4px max(6px, calc(env(safe-area-inset-bottom) - 12px));
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border-top: 1px solid var(--hair);
 }
 .tab {
   position: relative; z-index: 2; flex: 1 1 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  min-height: 46px; border-radius: 16px;
-  font-size: 10px; font-weight: 600; color: var(--text-3); padding: 7px 4px;
-  transition: color .2s ease, background .25s ease;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 48px;
+  font-size: 10px; font-weight: 600; color: var(--text-3); padding: 6px 4px;
+  transition: color .2s ease;
 }
-.tab [class^="icon-"] { font-size: 22px; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
-/* active tab: tinted pill in its own hue + coloured icon/label + soft glow */
-.tab.on {
-  color: var(--tab-color, var(--accent));
-  background: color-mix(in srgb, var(--tab-color, var(--accent)) 16%, transparent);
-}
-.tab.on [class^="icon-"] {
-  color: var(--tab-color, var(--accent));
-  transform: translateY(-1px) scale(1.06);
-  filter: drop-shadow(0 3px 8px color-mix(in srgb, var(--tab-color, var(--accent)) 55%, transparent));
-}
+.tab [class^="icon-"] { font-size: 21px; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
+.tab.on { color: var(--accent); }
+.tab.on [class^="icon-"] { color: var(--accent); }
 .sidebar-brand { display: none; }
 
 /* ---------- tab-switch spark burst ----------
@@ -810,8 +795,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .more-row:active { transform: scale(0.985); box-shadow: var(--shadow-sm); }
 .more-row-ic {
   flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
-  background: color-mix(in srgb, var(--row-color, var(--accent)) 18%, transparent);
-  color: var(--row-color, var(--accent)); font-size: 19px;
+  background: var(--accent-soft); color: var(--accent); font-size: 19px;
 }
 .more-row-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .more-row-text b { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
