@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, VENUE_CATS, type Venue, type VenueCategory } from "../api";
+import { Link } from "react-router-dom";
 import VenueCard from "../components/VenueCard";
-import ThemeToggle from "../components/ThemeToggle";
-import CityPill from "../components/CityPill";
 
 // Reservations mirrors Explore's browse pattern (topbar → search → chips →
 // grid/list → loading/empty states) but for venues instead of events, and
@@ -126,8 +125,9 @@ export default function Reservations() {
     <>
       <header className="topbar no-brand">
         <div className="tb-right">
-          <ThemeToggle />
-          <CityPill />
+          <Link to="/you" className="tb-avatar" aria-label="Your profile and settings">
+            <i className="icon-user" />
+          </Link>
         </div>
       </header>
 

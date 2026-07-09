@@ -1,29 +1,31 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type Weyn, type Venue, type Reservation, type VenueAvailabilitySlot } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount, useTickets, useSaved } from "../store";
 import Stub from "../components/Stub";
 import ThemeToggle from "../components/ThemeToggle";
+import CityPill from "../components/CityPill";
 import InstallPrompt from "../components/InstallPrompt";
 import AccountWidget from "../components/AccountWidget";
 import { webPushStatus, webPushSupported, subscribeWebPush, unsubscribeWebPush } from "../webpush";
 
-// Profile architecture: dedicated views instead of one long stacked page.
-// Settings only appears once relevant (signed in) so a first-time visitor
-// isn't shown empty tabs for features they haven't touched yet. Organizer
-// used to be a tab here — it's now the full /organizer dashboard (see
-// HANDOFF.md §17 and src/pages/organizer/*), promoted out for the same
-// reason Admin isn't a You.tsx tab either: it's a real product surface, not
-// a corner of the profile screen.
-type ProfileTab = "overview" | "tickets" | "saved" | "lists" | "venues" | "settings";
+// "More" hub: instead of a wrapping tab strip, this tab is now an
+// iOS-Settings-style vertical dock — one tappable row per destination, each
+// drilling into a full section (with a back arrow) rather than swapping
+// content under a fixed header. This is also where the theme toggle + city
+// (previously crammed into every browse screen's topbar) now live, since
+// those are per-user preferences, not per-screen chrome. Organizer/Admin/
+// account stay real routes (see HANDOFF.md §17), just surfaced as rows here.
+type ProfileTab = "overview" | "tickets" | "saved" | "lists" | "venues";
+type View = "menu" | ProfileTab;
 
 type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
 
 export default function You() {
   const tickets = useTickets();
   const saved = useSaved();
-  const [tab, setTab] = useState<ProfileTab>("overview");
+  const [view, setView] = useState<View>("menu");
   // hooks must all run before the loading/error early-returns below —
   // calling one conditionally crashes the whole tree on the render where
   // the condition flips (React counts hooks per render)
@@ -72,17 +74,30 @@ export default function You() {
   // resolved yet, which is exactly why this page felt slow to open.
   const eventsPending = allEvents.loading || allEvents.error;
 
+  // ---- menu hub ----
+  if (view === "menu") {
+    return (
+      <MoreMenu
+        account={!!account}
+        isHost={isHost}
+        hasVenues={hasVenues}
+        isAdmin={account?.role === "ADMIN"}
+        counts={{ tickets: myTickets.length, saved: savedEvents.length, venues: venues.length, events: summaryData.stats.eventCount }}
+        onOpen={setView}
+      />
+    );
+  }
+
+  // ---- drilled-in section ----
+  const SECTION_TITLES: Record<ProfileTab, string> = {
+    overview: "Your activity", tickets: "Tickets", saved: "Saved",
+    lists: "My lists", venues: "Your venues",
+  };
   return (
     <>
-      <Header tab={tab} setTab={setTab} isHost={isHost} hasVenues={hasVenues} account={!!account} />
+      <SectionHeader title={SECTION_TITLES[view]} onBack={() => setView("menu")} />
 
-      {!account && (
-        <div className="signin-card" style={{ margin: "16px 16px 0" }}>
-          <AccountWidget />
-        </div>
-      )}
-
-      {tab === "overview" && (
+      {view === "overview" && (
         eventsPending ? (
           <TabSkeletonOrError error={allEvents.error} onRetry={allEvents.reload} />
         ) : (
@@ -92,23 +107,22 @@ export default function You() {
             saved={savedEvents}
             isHost={isHost}
             summary={summaryData}
-            onNavigate={setTab}
+            onNavigate={setView}
           />
         )
       )}
-      {tab === "tickets" && (
+      {view === "tickets" && (
         eventsPending ? <TabSkeletonOrError error={allEvents.error} onRetry={allEvents.reload} /> : <TicketsSection tickets={myTickets} />
       )}
-      {tab === "saved" && (
+      {view === "saved" && (
         eventsPending ? <TabSkeletonOrError error={allEvents.error} onRetry={allEvents.reload} /> : <SavedTab events={savedEvents} />
       )}
-      {tab === "lists" && account && <CollectionsSection />}
-      {tab === "venues" && (
+      {view === "lists" && account && <CollectionsSection />}
+      {view === "venues" && (
         myVenues.loading || myVenues.error
           ? <TabSkeletonOrError error={myVenues.error} onRetry={myVenues.reload} />
           : <VenuesSection venues={venues} />
       )}
-      {tab === "settings" && <SettingsTab account={!!account} />}
     </>
   );
 }
@@ -141,12 +155,7 @@ function OverviewTab({ account, tickets, saved, isHost, summary, onNavigate }: {
 }) {
   return (
     <>
-      <div className="page-head">
-        <h1>You</h1>
-        <p className="sub">{tickets.length > 0 ? `${tickets.length} upcoming ${tickets.length === 1 ? "ticket" : "tickets"}` : "Your tickets and events"}</p>
-      </div>
-
-      <div className="ov-grid">
+      <div className="ov-grid" style={{ paddingTop: 4 }}>
         <button className="ov-card" onClick={() => onNavigate("tickets")}>
           <i className="icon-ticket" /><div className="ov-v">{tickets.length}</div><div className="ov-k">Tickets</div>
         </button>
@@ -204,9 +213,8 @@ function SavedTab({ events }: { events: Weyn[] }) {
   );
 }
 
-/* ---------- Settings — account, theme, notifications, support, admin ---------- */
-function SettingsTab({ account }: { account: boolean }) {
-  const acc = useAccount();
+/* ---------- Notifications preference (lives in the hub's prefs block) ---------- */
+function NotificationsPref() {
   const [pushState, setPushState] = useState<"unsupported" | "denied" | "subscribed" | "available" | "loading">("loading");
   const [pushBusy, setPushBusy] = useState(false);
   const [pushErr, setPushErr] = useState("");
@@ -234,53 +242,24 @@ function SettingsTab({ account }: { account: boolean }) {
     }
   }
 
+  if (pushState === "unsupported") return null;
+
   return (
-    <section>
-      <div className="date-head"><h2>Settings</h2></div>
-      <div style={{ padding: "0 16px" }}>
-        <div className="settings-row">
-          <span>Appearance</span>
-          <ThemeToggle />
-        </div>
-
-        {account && pushState !== "unsupported" && (
-          <div className="settings-row">
-            <span>Notifications</span>
-            {pushState === "denied" ? (
-              <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>Blocked in browser settings</span>
-            ) : pushState === "loading" ? (
-              <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>…</span>
-            ) : (
-              <button className={"switch" + (pushState === "subscribed" ? " on" : "")} disabled={pushBusy} onClick={togglePush} aria-pressed={pushState === "subscribed"} aria-label="Toggle push notifications">
-                <span className="switch-thumb" />
-              </button>
-            )}
-          </div>
+    <>
+      <div className="more-pref-row">
+        <span><i className="icon-bell" /> Notifications</span>
+        {pushState === "denied" ? (
+          <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>Blocked in browser</span>
+        ) : pushState === "loading" ? (
+          <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>…</span>
+        ) : (
+          <button className={"switch" + (pushState === "subscribed" ? " on" : "")} disabled={pushBusy} onClick={togglePush} aria-pressed={pushState === "subscribed"} aria-label="Toggle push notifications">
+            <span className="switch-thumb" />
+          </button>
         )}
-        {pushErr && <p className="errline">{pushErr}</p>}
-
-        {account && (
-          <div className="account-row" style={{ marginTop: 12 }}>
-            <AccountWidget />
-          </div>
-        )}
-
-        {account && (
-          <Link to="/account" className="copy-btn" style={{ marginTop: 12 }}>
-            <i className="icon-user-cog" /> Manage account
-          </Link>
-        )}
-        {acc?.role === "ADMIN" && (
-          <Link to="/admin" className="copy-btn" style={{ marginTop: 12 }}>
-            <i className="icon-shield-check" /> Admin dashboard
-          </Link>
-        )}
-
-        <Link to="/support" className="copy-btn" style={{ marginTop: 12 }}>
-          <i className="icon-life-buoy" /> Help &amp; support
-        </Link>
       </div>
-    </section>
+      {pushErr && <p className="errline" style={{ padding: "0 4px" }}>{pushErr}</p>}
+    </>
   );
 }
 
@@ -346,46 +325,102 @@ function CollectionsSection() {
   );
 }
 
-const TAB_DEFS: { key: ProfileTab; label: string; icon: string; needsAuth?: boolean; needsHost?: boolean; needsVenues?: boolean }[] = [
-  { key: "overview", label: "Overview", icon: "layout-grid" },
-  { key: "venues", label: "Venues", icon: "store", needsVenues: true },
-  { key: "tickets", label: "Tickets", icon: "ticket" },
-  { key: "saved", label: "Saved", icon: "heart" },
-  { key: "lists", label: "Lists", icon: "list", needsAuth: true },
-  { key: "settings", label: "Settings", icon: "settings" },
-];
+/* ---------- "More" hub: account + preferences + a vertical dock ---------- */
+function MoreMenu({ account, isHost, hasVenues, isAdmin, counts, onOpen }: {
+  account: boolean; isHost: boolean; hasVenues: boolean; isAdmin: boolean;
+  counts: { tickets: number; saved: number; venues: number; events: number };
+  onOpen: (v: ProfileTab) => void;
+}) {
+  const acc = useAccount();
 
-function Header({ tab, setTab, isHost, hasVenues, account }: { tab: ProfileTab; setTab: (t: ProfileTab) => void; isHost: boolean; hasVenues: boolean; account: boolean }) {
-  const visible = TAB_DEFS.filter((t) => (!t.needsAuth || account) && (!t.needsHost || isHost) && (!t.needsVenues || hasVenues));
+  // Each row is either a local section (drills in via onOpen) or a real
+  // route (to). Only shown when relevant so the dock isn't padded with
+  // dead-end rows for features the visitor hasn't touched.
+  type Row = { key: string; label: string; sub?: string; icon: string; tab?: ProfileTab; to?: string; show: boolean };
+  const allRows: Row[] = [
+    { key: "overview", label: "You", sub: "Tickets, saved & activity", icon: "layout-grid", tab: "overview", show: true },
+    { key: "tickets", label: "Tickets", sub: counts.tickets > 0 ? `${counts.tickets} upcoming` : "Nothing booked yet", icon: "ticket", tab: "tickets", show: true },
+    { key: "saved", label: "Saved", sub: counts.saved > 0 ? `${counts.saved} event${counts.saved === 1 ? "" : "s"}` : "Tap the heart on any event", icon: "heart", tab: "saved", show: true },
+    { key: "lists", label: "Lists", sub: "Group events to remember or share", icon: "list", tab: "lists", show: account },
+    { key: "venues", label: "Your venues", sub: `${counts.venues} venue${counts.venues === 1 ? "" : "s"}`, icon: "store", tab: "venues", show: hasVenues },
+    { key: "organizer", label: "Organizer dashboard", sub: isHost ? `${counts.events} live event${counts.events === 1 ? "" : "s"}` : "Host an event, free", icon: "layout-dashboard", to: isHost ? "/organizer" : "/host/events", show: true },
+    { key: "account", label: "Manage account", sub: "Profile & sign-out", icon: "user-cog", to: "/account", show: account },
+    { key: "admin", label: "Admin dashboard", icon: "shield-check", to: "/admin", show: isAdmin },
+    { key: "support", label: "Help & support", icon: "life-buoy", to: "/support", show: true },
+  ];
+  const rows = allRows.filter((r) => r.show);
+
   return (
-    <>
-      <header className="topbar">
-        <div className="brand"><span className="en">You</span></div>
-      </header>
-      <nav className="profile-tabs">
-        {visible.map((t) => (
-          <Fragment key={t.key}>
-            <button
-              className={"profile-tab" + (tab === t.key ? " on" : "")}
-              onClick={() => setTab(t.key)}
-              aria-current={tab === t.key ? "true" : undefined}
-            >
-              <i className={"icon-" + t.icon} />{t.label}
-            </button>
-            {/* A real link, not another local tab — /organizer is its own
-                full page (see src/pages/organizer/*), same reasoning as
-                Admin not being a You.tsx tab. Placed right after Overview so
-                it's the first thing a host sees, not buried behind a stat
-                card — that's what made it hard to find after the rebuild. */}
-            {t.key === "overview" && isHost && (
-              <Link to="/organizer" className="profile-tab">
-                <i className="icon-layout-dashboard" />Organizer
-              </Link>
-            )}
-          </Fragment>
-        ))}
+    <div className="more-page">
+      <div className="more-head"><h1>More</h1></div>
+
+      {/* account identity (or sign-in) */}
+      {account ? (
+        <div className="more-account">
+          {acc?.picture
+            ? <img className="more-account-pic" src={acc.picture} alt="" />
+            : <span className="more-account-pic more-account-pic-fallback"><i className="icon-user" /></span>}
+          <div className="more-account-info">
+            <b>{acc?.name || "You"}</b>
+            {acc?.email && <span>{acc.email}</span>}
+          </div>
+        </div>
+      ) : (
+        <div className="signin-card" style={{ margin: "0 16px 12px" }}>
+          <AccountWidget />
+        </div>
+      )}
+
+      {/* quick preferences — the theme toggle + city that used to sit in
+          every browse screen's topbar now live here */}
+      <div className="more-prefs">
+        <div className="more-pref-row">
+          <span><i className="icon-moon-star" /> Appearance</span>
+          <ThemeToggle />
+        </div>
+        <div className="more-pref-row">
+          <span><i className="icon-map-pin" /> Location</span>
+          <CityPill />
+        </div>
+        {account && <NotificationsPref />}
+      </div>
+
+      {/* the vertical dock */}
+      <nav className="more-dock" aria-label="Sections">
+        {rows.map((r) => {
+          const inner = (
+            <>
+              <span className="more-row-ic"><i className={"icon-" + r.icon} /></span>
+              <span className="more-row-text">
+                <b>{r.label}</b>
+                {r.sub && <span>{r.sub}</span>}
+              </span>
+              <i className="icon-chevron-right more-row-chevron" />
+            </>
+          );
+          return r.to ? (
+            <Link key={r.key} to={r.to} className="more-row">{inner}</Link>
+          ) : (
+            <button key={r.key} className="more-row" onClick={() => r.tab && onOpen(r.tab)}>{inner}</button>
+          );
+        })}
       </nav>
-    </>
+
+      <div style={{ padding: "4px 16px 0" }}><InstallPrompt /></div>
+    </div>
+  );
+}
+
+/* Back-header shown when a dock row is opened — turns the hub into a
+   two-level drill-down instead of a flat tab strip. */
+function SectionHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <header className="section-head">
+      <button className="section-back" onClick={onBack} aria-label="Back to More">
+        <i className="icon-arrow-left" />
+      </button>
+      <h1>{title}</h1>
+    </header>
   );
 }
 

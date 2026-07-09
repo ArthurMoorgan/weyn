@@ -4,8 +4,6 @@ import { api, CATS, type Cat, type Weyn, isTonight, isToday, isTomorrow, isThisW
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import Stub from "../components/Stub";
-import ThemeToggle from "../components/ThemeToggle";
-import CityPill from "../components/CityPill";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
 
@@ -223,9 +221,7 @@ export default function Explore() {
     <>
       <header className="topbar no-brand">
         <div className="tb-right">
-          <ThemeToggle />
-          <CityPill />
-          <Link to="/you" className="tb-avatar" aria-label="Your profile">
+          <Link to="/you" className="tb-avatar" aria-label="Your profile and settings">
             {account?.picture ? <img src={account.picture} alt="" /> : <i className="icon-user" />}
           </Link>
         </div>
