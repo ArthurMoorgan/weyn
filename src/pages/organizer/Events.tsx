@@ -25,6 +25,7 @@ export default function OrganizerEvents() {
   const [filter, setFilter] = useState<Filter>("upcoming");
   const [view, setView] = useState<"list" | "calendar">("list");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
@@ -42,30 +43,42 @@ export default function OrganizerEvents() {
   const draftCount = list.filter((e) => e.isDraft && !e.isTemplate && !e.cancelled).length;
 
   async function duplicate(e: Weyn) {
-    setBusyId(e.id);
-    try { await api.duplicateEvent(e.id); events.reload(); } finally { setBusyId(null); }
+    setBusyId(e.id); setActionError("");
+    try { await api.duplicateEvent(e.id); events.reload(); }
+    catch (err: any) { setActionError(err.message || "Couldn't duplicate that event"); }
+    finally { setBusyId(null); }
   }
   async function cancel(e: Weyn) {
     if (!confirm(`Cancel "${e.title}"? It'll disappear from Explore immediately.`)) return;
-    setBusyId(e.id);
-    try { await api.cancelEvent(e.id); events.reload(); } finally { setBusyId(null); }
+    setBusyId(e.id); setActionError("");
+    try { await api.cancelEvent(e.id); events.reload(); }
+    catch (err: any) { setActionError(err.message || "Couldn't cancel that event"); }
+    finally { setBusyId(null); }
   }
   async function publish(e: Weyn) {
-    setBusyId(e.id);
-    try { await api.publishEvent(e.id); events.reload(); } finally { setBusyId(null); }
+    setBusyId(e.id); setActionError("");
+    try { await api.publishEvent(e.id); events.reload(); }
+    catch (err: any) { setActionError(err.message || "Couldn't publish that draft"); }
+    finally { setBusyId(null); }
   }
   async function useTemplate(e: Weyn) {
-    setBusyId(e.id);
-    try { await api.duplicateEvent(e.id); events.reload(); } finally { setBusyId(null); }
+    setBusyId(e.id); setActionError("");
+    try { await api.duplicateEvent(e.id); events.reload(); }
+    catch (err: any) { setActionError(err.message || "Couldn't create an event from that template"); }
+    finally { setBusyId(null); }
   }
   async function saveAsTemplate(e: Weyn) {
-    setBusyId(e.id);
-    try { await api.saveAsTemplate(e.id); events.reload(); } finally { setBusyId(null); }
+    setBusyId(e.id); setActionError("");
+    try { await api.saveAsTemplate(e.id); events.reload(); }
+    catch (err: any) { setActionError(err.message || "Couldn't save that as a template"); }
+    finally { setBusyId(null); }
   }
   async function discardDraft(e: Weyn) {
     if (!confirm(`Discard the draft "${e.title || "Untitled draft"}"? This can't be undone.`)) return;
-    setBusyId(e.id);
-    try { await api.cancelEvent(e.id); events.reload(); } finally { setBusyId(null); }
+    setBusyId(e.id); setActionError("");
+    try { await api.cancelEvent(e.id); events.reload(); }
+    catch (err: any) { setActionError(err.message || "Couldn't discard that draft"); }
+    finally { setBusyId(null); }
   }
 
   function toggleSelect(id: string) {
@@ -152,6 +165,7 @@ export default function OrganizerEvents() {
         </div>
       )}
       {events.error && <p className="errline">{events.error}</p>}
+      {actionError && <p className="errline" style={{ margin: "0 6px 8px" }}>{actionError}</p>}
       {view === "list" && !events.loading && filtered.length === 0 && (
         <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "8px 6px" }}>No {filter === "all" ? "" : filter} events.</p>
       )}

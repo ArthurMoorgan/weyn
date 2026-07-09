@@ -437,6 +437,26 @@ function absMedia<T extends { image?: string | null; gallery?: string[] }>(e: T)
   return e;
 }
 
+// A plain `fetch()` with no AbortSignal waits forever if the server (or the
+// DB it talks to) hangs — QA found this exact failure mode on
+// duplicateEvent: the request never resolved or rejected, so the calling
+// component's busyId/finally never ran either, leaving the button
+// permanently disabled with no error shown. Used on the handful of
+// one-shot action buttons (duplicate/cancel/publish/save-as-template) most
+// exposed to this — not a blanket replacement for every fetch in this file.
+async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new Error("This is taking too long — the server may be having trouble. Please try again.");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function json<T>(res: Response): Promise<T> {
   const isJson = (res.headers.get("content-type") || "").includes("application/json");
   if (!res.ok) {
@@ -754,10 +774,10 @@ export const api = {
     }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   async cancelEvent(id: string): Promise<Weyn> {
-    return fetch(`${API_BASE}/api/events/${id}/cancel`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
+    return fetchWithTimeout(`${API_BASE}/api/events/${id}/cancel`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   async duplicateEvent(id: string): Promise<Weyn> {
-    return fetch(`${API_BASE}/api/events/${id}/duplicate`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
+    return fetchWithTimeout(`${API_BASE}/api/events/${id}/duplicate`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   // ---- Event Builder 2.0: drafts, autosave, templates ----
   async autosaveDraft(id: string, patch: Record<string, any>): Promise<Weyn> {
@@ -766,10 +786,10 @@ export const api = {
     }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   async publishEvent(id: string): Promise<Weyn> {
-    return fetch(`${API_BASE}/api/events/${id}/publish`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
+    return fetchWithTimeout(`${API_BASE}/api/events/${id}/publish`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   async saveAsTemplate(id: string): Promise<Weyn> {
-    return fetch(`${API_BASE}/api/events/${id}/save-template`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
+    return fetchWithTimeout(`${API_BASE}/api/events/${id}/save-template`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
   },
   async listTemplates(): Promise<Weyn[]> {
     return fetch(`${API_BASE}/api/organizer/templates`, { headers: await authHeaders() }).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));

@@ -17,7 +17,7 @@ const AuthWall = lazy(() => import("./AuthWall"));
 // an eventual real signed-in admin session should pay to download.
 const WaitlistLanding = lazy(() => import("../pages/WaitlistLanding"));
 
-type AdminStatus = "checking" | "admin" | "blocked";
+type AdminStatus = "checking" | "admin" | "blocked" | "error";
 
 // An account is now required to use Weyn at all. This is a layout route (see
 // main.tsx) wrapping every route EXCEPT /onboarding — a first-time visitor
@@ -48,6 +48,7 @@ export default function AuthGate() {
   const location = useLocation();
   const [showSignIn, setShowSignIn] = useState(false);
   const [adminStatus, setAdminStatus] = useState<AdminStatus>("checking");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -60,10 +61,29 @@ export default function AuthGate() {
     (async () => {
       const token = await getAuthToken();
       const res = await fetch("/api/me", { headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => null);
-      if (!cancelled) setAdminStatus(res && res.ok ? "admin" : "blocked");
+      if (cancelled) return;
+      if (res && res.ok) return setAdminStatus("admin");
+      // A rate limit, a 5xx, or the fetch itself failing (network hiccup)
+      // is NOT the same thing as "this account isn't on the allowlist" —
+      // QA found this was previously collapsed into one "blocked" state,
+      // which bounced an already-signed-in admin to the public waitlist
+      // landing page the moment they got rate-limited (e.g. from refreshing
+      // aggressively or having several tabs open). Only a real 401/403/404
+      // means "you don't belong here."
+      if (!res || res.status === 429 || res.status >= 500) return setAdminStatus("error");
+      setAdminStatus("blocked");
     })();
     return () => { cancelled = true; };
-  }, [isLoaded, isSignedIn, user?.id]);
+  }, [isLoaded, isSignedIn, user?.id, retryCount]);
+
+  // Auto-retry a transient error once after a few seconds — a rate limit
+  // window is usually short-lived, no need to make the user find and click
+  // a button for what's likely to resolve on its own.
+  useEffect(() => {
+    if (adminStatus !== "error") return;
+    const t = setTimeout(() => setRetryCount((n) => n + 1), 4000);
+    return () => clearTimeout(t);
+  }, [adminStatus]);
 
   // First-time visitors see the walkthrough before being asked to commit —
   // this moved here from Explore.tsx's own effect, since Explore now sits
@@ -76,6 +96,19 @@ export default function AuthGate() {
 
   if (!isLoaded || adminStatus === "checking") {
     return <div className="route-loading" aria-busy="true" />;
+  }
+
+  if (adminStatus === "error") {
+    return (
+      <div className="route-loading" aria-busy="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+        <p style={{ color: "var(--text-2)", fontSize: 14, textAlign: "center", padding: "0 24px" }}>
+          Having trouble reaching Weyn — retrying automatically…
+        </p>
+        <button className="btn glass sm" style={{ width: "auto" }} onClick={() => setRetryCount((n) => n + 1)}>
+          Retry now
+        </button>
+      </div>
+    );
   }
 
   if (adminStatus === "blocked") {
