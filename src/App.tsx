@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import Explore from "./pages/Explore";
+import GlassSurface from "./components/GlassSurface";
 
 // Lazy, same as every other non-critical-path route (see main.tsx) — these
 // just aren't *routed* through main.tsx anymore, App renders them directly.
@@ -45,7 +46,7 @@ let burstId = 0;
 // nothing persists in the DOM between switches. Respects
 // prefers-reduced-motion via the CSS (.tab-spark { display: none }).
 export default function App() {
-  const navRef = useRef<HTMLElement>(null);
+  const navRef = useRef<HTMLDivElement>(null);
   const [bursts, setBursts] = useState<Burst[]>([]);
   const location = useLocation();
   const activeMainTab = MAIN_TABS.find((t) => t.path === location.pathname);
@@ -91,37 +92,58 @@ export default function App() {
         ) : null
       )}
       {!activeMainTab && <Outlet />}
-      <nav className="tabs" ref={navRef as React.RefObject<HTMLElement>}>
-        <div className="sidebar-brand"><i className="icon-sparkles" /> Weyn</div>
-        {/* NavLink sets aria-current="page" on the active link automatically */}
-        {TABS.map((t) => (
-          <NavLink
-            key={t.to}
-            to={t.to}
-            end={t.to === "/"}
-            className={({ isActive }) => "tab" + (isActive ? " on" : "")}
-            onClick={(e) => fireSpark(e, e.currentTarget.classList.contains("on"))}
-          >
-            <i className={"icon-" + t.icon} />
-            <span>{t.label}</span>
-          </NavLink>
-        ))}
-        {bursts.map((burst) => (
-          <span key={burst.id} className="tab-sparks" style={{ left: burst.x, top: burst.y }}>
-            {burst.sparks.map((s, i) => (
-              <span
-                key={i}
-                className="tab-spark"
-                style={{
-                  "--spark-x": `${s.dx}px`,
-                  "--spark-y": `${s.dy}px`,
-                  "--spark-color": s.color,
-                  animationDelay: `${s.delay}ms`,
-                } as React.CSSProperties}
-              />
+      <nav className="tabs-wrap">
+        {/* Real frosted-glass panel (React Bits' GlassSurface, ported as-is
+            in components/GlassSurface.tsx) instead of a plain backdrop-blur
+            div — falls back to a plain blur automatically on Safari/Firefox,
+            which can't filter backdrop-filter itself. */}
+        <GlassSurface
+          width="100%"
+          height="auto"
+          borderRadius={0}
+          backgroundOpacity={0.55}
+          blur={20}
+          saturation={1.4}
+          distortionScale={-18}
+          redOffset={1}
+          greenOffset={3}
+          blueOffset={5}
+          mixBlendMode="screen"
+          className="tabs-glass"
+        >
+          <div className="tabs" ref={navRef}>
+            <div className="sidebar-brand"><i className="icon-sparkles" /> Weyn</div>
+            {/* NavLink sets aria-current="page" on the active link automatically */}
+            {TABS.map((t) => (
+              <NavLink
+                key={t.to}
+                to={t.to}
+                end={t.to === "/"}
+                className={({ isActive }) => "tab" + (isActive ? " on" : "")}
+                onClick={(e) => fireSpark(e, e.currentTarget.classList.contains("on"))}
+              >
+                <i className={"icon-" + t.icon} />
+                <span>{t.label}</span>
+              </NavLink>
             ))}
-          </span>
-        ))}
+            {bursts.map((burst) => (
+              <span key={burst.id} className="tab-sparks" style={{ left: burst.x, top: burst.y }}>
+                {burst.sparks.map((s, i) => (
+                  <span
+                    key={i}
+                    className="tab-spark"
+                    style={{
+                      "--spark-x": `${s.dx}px`,
+                      "--spark-y": `${s.dy}px`,
+                      "--spark-color": s.color,
+                      animationDelay: `${s.delay}ms`,
+                    } as React.CSSProperties}
+                  />
+                ))}
+              </span>
+            ))}
+          </div>
+        </GlassSurface>
       </nav>
     </div>
   );

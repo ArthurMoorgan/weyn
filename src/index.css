@@ -574,11 +574,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 
-/* ---------- tab bar ---------- native iOS bottom bar: full-width, flat,
-   fixed to the edge. Not a floating pill, no glow. */
-.tabs {
+/* ---------- tab bar ---------- glass panel via GlassSurface (React Bits,
+   see components/GlassSurface.tsx) instead of a plain backdrop-blur div.
+   .tabs-wrap does the fixed positioning; GlassSurface measures its own box
+   for the displacement map, so it can't also be the positioned element. */
+.tabs-wrap {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
   margin: 0 auto; max-width: var(--maxw);
+}
+.tabs-glass { width: 100%; }
+.tabs-glass .glass-surface__content { padding: 0; }
+.tabs {
   display: flex; align-items: stretch;
   /* On a home-screen-installed PWA, env(safe-area-inset-bottom) is the real
      home-indicator height (~34px). Using the FULL inset as bottom padding left
@@ -588,10 +594,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
      keeping comfortable clearance (~22px on a notched iPhone). max() keeps a
      small minimum on non-notch devices where the inset is 0. */
   padding: 2px 4px max(6px, calc(env(safe-area-inset-bottom) - 12px));
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  border-top: 1px solid var(--hair);
 }
 .tab {
   position: relative; z-index: 2; flex: 1 1 0;
