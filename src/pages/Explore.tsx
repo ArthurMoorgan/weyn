@@ -15,6 +15,13 @@ function greeting(): string {
   return "Good evening";
 }
 
+// Per-category accent: keys line up 1:1 with the --cat-* CSS vars, so an
+// active category chip fills with its own colour instead of one flat
+// indigo. "all" has no category colour → falls back to --primary.
+function catChipVar(key: string): React.CSSProperties {
+  return key === "all" ? {} : ({ "--chip-color": `var(--cat-${key})` } as React.CSSProperties);
+}
+
 // Explore is built around DISCOVERY, not a single vertical feed. Sections
 // get different visual treatments: a Featured hero rail, horizontal
 // scroll rails for time/category slices, and a dense list for the long
@@ -292,7 +299,7 @@ export default function Explore() {
       {!searching && (
         <div className="chips">
           {CATS.map((c) => (
-            <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")}>
+            <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")} style={catChipVar(c.key)}>
               {c.label}
             </button>
           ))}
@@ -330,7 +337,7 @@ export default function Explore() {
               <span className="filter-sheet-label">Category</span>
               <div className="chips">
                 {CATS.map((c) => (
-                  <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")}>
+                  <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")} style={catChipVar(c.key)}>
                     {c.label}
                   </button>
                 ))}

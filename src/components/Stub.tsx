@@ -50,6 +50,10 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
     ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
     : { background: fallbackGradient(e.color) };
 
+  // category accent — keys line up with the --cat-* CSS vars; drives the
+  // coloured category tag on each card so the feed isn't monochrome
+  const catStyle = { "--cat-color": `var(--cat-${e.cat})` } as React.CSSProperties;
+
   const statusBadge = ticket ? (
     <span className="ec-badge confirmed"><i className="icon-circle-check" />{e.cancelled ? "Cancelled" : "Confirmed"}</span>
   ) : out ? (
@@ -74,7 +78,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
           <div className="ec-meta">
             <span>{e.venue || e.area}</span>
             <span className="ec-dot">·</span>
-            <span>{catLabel(e.cat)}</span>
+            <span className="ec-cat-tag" style={catStyle}>{catLabel(e.cat)}</span>
           </div>
         </div>
         <div className="ec-side">
@@ -117,7 +121,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
         <div className="ec-feature-body">
           <div className="ec-feature-toprow">
             <span className="ec-feature-organizer">{e.organizer}</span>
-            <span className="ec-feature-cat">{catLabel(e.cat)}</span>
+            <span className="ec-feature-cat" style={catStyle}>{catLabel(e.cat)}</span>
           </div>
           <h3 className="ec-feature-title">{e.title}</h3>
           <div className="ec-feature-meta">
