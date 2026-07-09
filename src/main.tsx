@@ -50,7 +50,19 @@ const OrganizerSettings = lazy(() => import("./pages/organizer/Settings"));
 // on-screen duration is measured from real first-paint, not from whenever
 // Explore's data finishes loading.
 markSplashShown();
-initPostHog();
+
+// Deferred to after `load` (idle-callback if available) — calling this
+// synchronously here put posthog-js's dynamic import + its pageview request
+// in the browser's critical request chain for the FIRST paint, which
+// Lighthouse flagged (1.5s chain latency) for a request that has nothing to
+// do with rendering the page. Analytics can wait until the page is actually
+// usable.
+function deferInitPostHog() {
+  if (typeof requestIdleCallback === "function") requestIdleCallback(() => initPostHog(), { timeout: 4000 });
+  else setTimeout(initPostHog, 1000);
+}
+if (document.readyState === "complete") deferInitPostHog();
+else window.addEventListener("load", deferInitPostHog, { once: true });
 
 // BrowserRouter (real paths) on web — required for server-side OG/meta tags
 // on shared event links, which HashRouter makes structurally impossible

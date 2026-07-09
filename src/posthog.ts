@@ -26,6 +26,12 @@ function loadPostHog(): Promise<PostHogModule["default"]> | null {
         // route-change wiring needed.
         capture_pageview: true,
         person_profiles: "identified_only",
+        // Nothing in this app reads a feature flag — posthog-js otherwise
+        // fetches /flags on every init unconditionally, which Lighthouse
+        // flagged as part of the critical request chain on first load for
+        // zero benefit. Killing it removes that request outright rather
+        // than just delaying it.
+        advanced_disable_flags: true,
       });
       return posthog;
     });
