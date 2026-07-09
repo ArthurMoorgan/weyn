@@ -115,15 +115,20 @@ export default function OrganizerEvents() {
 
   return (
     <>
-      <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 6px 4px", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {/* .chips scrolls horizontally by default (overflow-x:auto) — the
+            old flexWrap:"wrap" override here defeated that and let 6 filter
+            chips + 2 view-toggle chips wrap unpredictably into each other
+            on a 375px screen. Filters scroll in their own row; the view
+            toggle is a fixed-width sibling that never competes for space. */}
+        <div className="chips" style={{ flex: 1, padding: "0 0 4px", margin: 0 }}>
           {(["upcoming", "past", "drafts", "templates", "cancelled", "all"] as Filter[]).map((f) => (
             <button key={f} className={"chip" + (filter === f ? " on" : "")} onClick={() => setFilter(f)}>
               {f === "upcoming" ? "Upcoming" : f === "past" ? "Past" : f === "drafts" ? `Drafts${draftCount ? ` (${draftCount})` : ""}` : f === "templates" ? "Templates" : f === "cancelled" ? "Cancelled" : "All"}
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", gap: 4, flex: "0 0 auto", paddingRight: 6 }}>
           <button className={"chip" + (view === "list" ? " on" : "")} onClick={() => setView("list")}><i className="icon-list" /></button>
           <button className={"chip" + (view === "calendar" ? " on" : "")} onClick={() => setView("calendar")}><i className="icon-calendar" /></button>
         </div>

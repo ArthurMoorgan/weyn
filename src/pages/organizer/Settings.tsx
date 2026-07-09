@@ -82,7 +82,7 @@ export default function OrganizerSettings() {
 
   return (
     <>
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Default event settings</h2></div>
+      <div className="date-head"><h2>Default event settings</h2></div>
       <div className="dash-card" style={{ padding: 16 }}>
         <p className="hint" style={{ margin: "0 0 14px" }}>Prefills these on the host form every time you create a new event.</p>
         {loading ? <p className="hint">Loading…</p> : (
@@ -107,7 +107,7 @@ export default function OrganizerSettings() {
         )}
       </div>
 
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Your organizer profile</h2></div>
+      <div className="date-head"><h2>Your organizer profile</h2></div>
       <div className="dash-card" style={{ padding: 16 }}>
         <div className="field"><label>Bio <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· shown on your public page</span></label><textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell people what you host…" /></div>
         <div className="field"><label>Instagram <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label><input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="@yourhandle" /></div>
@@ -135,7 +135,7 @@ export default function OrganizerSettings() {
         )}
       </div>
 
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Payouts</h2></div>
+      <div className="date-head"><h2>Payouts</h2></div>
       <div className="dash-card" style={{ padding: 16 }}>
         <p className="hint" style={{ margin: "0 0 12px" }}>
           Weyn doesn't process payments — buyers pay you directly. This is the default payment link or transfer details prefilled whenever you create a new "Your Own Payment Link or Bank Transfer" event; each event can still override it individually.
@@ -154,13 +154,13 @@ export default function OrganizerSettings() {
 
       <button className="btn" onClick={save} disabled={saving} style={{ marginBottom: 24 }}>{saving ? "Saving…" : saved ? "Saved ✓" : "Save settings"}</button>
 
-      <div id="team" className="date-head" style={{ paddingLeft: 6 }}><h2>Team</h2></div>
+      <div id="team" className="date-head"><h2>Team</h2></div>
       <OrganizerTeamPanel />
 
-      <div id="venues" className="date-head" style={{ paddingLeft: 6 }}><h2>Venue library</h2></div>
+      <div id="venues" className="date-head"><h2>Venue library</h2></div>
       <VenueLibraryPanel />
 
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Subscription</h2></div>
+      <div className="date-head"><h2>Subscription</h2></div>
       <SubscriptionCard />
     </>
   );

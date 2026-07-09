@@ -77,13 +77,13 @@ export default function OrganizerAttendees() {
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "0 6px 10px" }}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email" style={{ flex: "1 1 200px" }} />
-        <select value={sort} onChange={(e) => setSort(e.target.value as any)} style={{ flex: "0 0 auto" }}>
+        <input className="toolbar-field" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email" style={{ flex: "1 1 200px" }} />
+        <select className="toolbar-field" value={sort} onChange={(e) => setSort(e.target.value as any)} style={{ flex: "0 0 auto" }}>
           <option value="spend">Sort: Top spenders</option>
           <option value="tickets">Sort: Most tickets</option>
           <option value="recent">Sort: Most recent</option>
         </select>
-        <button className="btn glass" onClick={exportCsv} disabled={exporting} style={{ flex: "0 0 auto" }}>
+        <button className="btn glass" onClick={exportCsv} disabled={exporting} style={{ flex: "1 1 auto" }}>
           <i className="icon-download" /> {exporting ? "Exporting…" : "Export CSV"}
         </button>
       </div>

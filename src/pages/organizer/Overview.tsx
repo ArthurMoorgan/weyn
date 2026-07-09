@@ -46,7 +46,7 @@ export default function OrganizerOverview() {
 
       <QuickActions onShowMore={() => setShowMore(true)} />
 
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Needs attention</h2>{o && <span>{o.needsAttention.length}</span>}</div>
+      <div className="date-head"><h2>Needs attention</h2>{o && <span>{o.needsAttention.length}</span>}</div>
       {overview.loading && <p className="hint" style={{ padding: "0 6px" }}>Loading…</p>}
       {o && o.needsAttention.length === 0 && (
         <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 6px 8px" }}>Nothing needs your attention right now.</p>
@@ -65,7 +65,7 @@ export default function OrganizerOverview() {
         </ul>
       )}
 
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Coming up</h2></div>
+      <div className="date-head"><h2>Coming up</h2></div>
       {overview.loading && <p className="hint" style={{ padding: "0 6px" }}>Loading…</p>}
       {o && o.nextUpcoming.length === 0 && (
         <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 6px 8px" }}>Nothing scheduled yet.</p>
@@ -86,17 +86,15 @@ export default function OrganizerOverview() {
         </Link>
       ))}
 
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2>Revenue — last 14 days</h2></div>
+      <div className="date-head"><h2>Revenue — last 14 days</h2></div>
       <div className="dash-card" style={{ padding: "16px 18px" }}>
         {overview.loading ? (
           <p className="hint">Loading…</p>
         ) : o && o.revenueTrend.some((d) => d.revenue > 0) ? (
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 90 }}>
+          <div className="mini-bars" style={{ height: 90 }}>
             {o.revenueTrend.map((d) => (
-              <div key={d.date} title={`${d.date}: ${d.revenue.toLocaleString()} OMR`} style={{
-                flex: 1, minWidth: 4, borderRadius: 3,
+              <div key={d.date} className="mini-bar" title={`${d.date}: ${d.revenue.toLocaleString()} OMR`} style={{
                 height: `${Math.max(6, Math.round((d.revenue / maxTrend) * 90))}px`,
-                background: "var(--accent)",
               }} />
             ))}
           </div>
@@ -119,7 +117,7 @@ export default function OrganizerOverview() {
         <>
           {f && f.byEvent.length > 0 && (
             <>
-              <div className="date-head" style={{ paddingLeft: 6 }}><h2>Revenue by event</h2></div>
+              <div className="date-head"><h2>Revenue by event</h2></div>
               <ul className="steps">
                 {f.byEvent.map((e) => (
                   <li key={e.eventId}>
@@ -132,10 +130,10 @@ export default function OrganizerOverview() {
             </>
           )}
 
-          <div className="date-head" style={{ paddingLeft: 6 }}><h2>This month's goals</h2></div>
+          <div className="date-head"><h2>This month's goals</h2></div>
           <GoalsPanel />
 
-          <div className="date-head" style={{ paddingLeft: 6 }}><h2>Expenses & P&L</h2></div>
+          <div className="date-head"><h2>Expenses & P&L</h2></div>
           <FinancialDashboard finance={f} />
         </>
       )}

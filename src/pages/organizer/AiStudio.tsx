@@ -126,7 +126,7 @@ function AssistantTool() {
 function ToolCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
   return (
     <>
-      <div className="date-head" style={{ paddingLeft: 6 }}><h2><i className={`icon-${icon}`} style={{ marginRight: 6 }} />{title}</h2></div>
+      <div className="date-head"><h2><i className={`icon-${icon}`} style={{ marginRight: 6 }} />{title}</h2></div>
       <div className="dash-card" style={{ padding: 16, marginBottom: 16 }}>{children}</div>
     </>
   );
@@ -217,7 +217,7 @@ function CoverConceptTool({ event }: { event: Weyn }) {
           <p style={{ fontSize: 13.5, color: "var(--text-2)", margin: "4px 0 8px" }}>{c.description}</p>
           <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
             {c.palette.map((hex, j) => (
-              <div key={j} title={hex} style={{ width: 28, height: 28, borderRadius: 6, background: hex, border: "1px solid var(--card-border, rgba(0,0,0,0.1))" }} />
+              <div key={j} title={hex} style={{ width: 28, height: 28, borderRadius: 6, background: hex, border: "1px solid var(--border)" }} />
             ))}
           </div>
           {imageErr[i] && <p className="errline">{imageErr[i]}</p>}

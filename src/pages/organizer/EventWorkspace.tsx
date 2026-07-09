@@ -48,16 +48,20 @@ export default function EventWorkspace() {
 
   return (
     <>
-      <div className="date-head" style={{ paddingLeft: 0, alignItems: "center" }}>
+      {/* Was 4 differently-styled elements (icon link, h2, text link, pill
+          button) crammed into one row — overflowed on a 375px screen. Back
+          button + title on their own row, the two navigation actions below
+          on a second row so nothing has to fight for space or wrap mid-word. */}
+      <div className="date-head" style={{ paddingLeft: 0, alignItems: "center", paddingBottom: 4 }}>
         <Link to="/organizer/events" className="copy-btn" style={{ marginRight: 4 }}><i className="icon-arrow-left" /></Link>
-        <h2 style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</h2>
-        <Link to={`/e/${event.id}`} className="copy-btn"><i className="icon-external-link" /> View</Link>
+        <h2 className="page-title" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</h2>
+      </div>
+      <div style={{ display: "flex", gap: 8, padding: "0 6px 10px" }}>
+        <Link to={`/e/${event.id}`} className="btn glass sm"><i className="icon-external-link" /> View live</Link>
         {/* The full cross-event dashboard — Overview/Attendees/Finance/
             Marketing across every event, not just this one. A real
             destination (its own route, its own nav), not a modal. */}
-        <Link to="/organizer" className="btn glass sm" style={{ width: "auto" }}>
-          <i className="icon-layout-dashboard" /> Organizer Dashboard
-        </Link>
+        <Link to="/organizer" className="btn glass sm"><i className="icon-layout-dashboard" /> Organizer Dashboard</Link>
       </div>
       <nav className="profile-tabs" aria-label="Event workspace sections" style={{ padding: "0 6px 10px" }}>
         {TABS.map((t) => (
@@ -98,7 +102,7 @@ function OverviewTab({ event, features, reload }: { event: Weyn; features: Recor
 
           {data.tierBreakdown.length > 0 && (
             <>
-              <p className="hint" style={{ margin: "16px 0 8px" }}>Ticket type performance</p>
+              <p className="section-label" style={{ marginTop: 16 }}>Ticket type performance</p>
               {data.tierBreakdown.map((t) => (
                 <div key={t.id} style={{ marginBottom: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
@@ -112,13 +116,11 @@ function OverviewTab({ event, features, reload }: { event: Weyn; features: Recor
 
           {data.salesByDay.length > 0 && (
             <>
-              <p className="hint" style={{ margin: "16px 0 8px" }}>Sales over time</p>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
+              <p className="section-label" style={{ marginTop: 16 }}>Sales over time</p>
+              <div className="mini-bars" style={{ height: 80 }}>
                 {data.salesByDay.map((d) => (
-                  <div key={d.date} title={`${d.date}: ${d.qty}`} style={{
-                    flex: 1, minWidth: 4, borderRadius: 3,
+                  <div key={d.date} className="mini-bar" title={`${d.date}: ${d.qty}`} style={{
                     height: `${Math.max(6, Math.round((d.qty / maxDay) * 80))}px`,
-                    background: "var(--accent)",
                   }} />
                 ))}
               </div>
@@ -155,7 +157,7 @@ function OverviewTab({ event, features, reload }: { event: Weyn; features: Recor
         </>
       )}
 
-      <p className="hint" style={{ margin: "20px 0 8px" }}>Discovery</p>
+      <p className="section-label">Discovery</p>
       <FeaturedToggle event={event} enabled={!!features.featuredPlacement} reload={reload} />
     </>
   );
@@ -215,7 +217,7 @@ function AttendeesTab({ event, features }: { event: Weyn; features: Record<strin
         <>
           <p className="hint" style={{ margin: "0 0 8px" }}>Awaiting payment confirmation</p>
           <PendingPaymentsPanel event={event} />
-          <p className="hint" style={{ margin: "20px 0 8px" }}>Confirmed attendees</p>
+          <p className="section-label">Confirmed attendees</p>
         </>
       )}
       {loading && (
@@ -245,7 +247,7 @@ function AttendeesTab({ event, features }: { event: Weyn; features: Record<strin
         </button>
       </FeatureLock>
 
-      <p className="hint" style={{ margin: "20px 0 8px" }}>Bulk notify</p>
+      <p className="section-label">Bulk notify</p>
       <NotifyForm event={event} enabled={!!features.bulkNotifications} />
     </>
   );
@@ -389,7 +391,7 @@ function NotifyForm({ event, enabled }: { event: Weyn; enabled: boolean }) {
 
       {(campaigns.data || []).length > 0 && (
         <>
-          <p className="hint" style={{ margin: "18px 0 8px" }}>Campaign history</p>
+          <p className="section-label" style={{ marginTop: 18 }}>Campaign history</p>
           <ul className="steps">
             {(campaigns.data || []).map((c: Campaign) => (
               <li key={c.id}>
@@ -461,7 +463,7 @@ function PromoCodesSection({ event, enabled }: { event: Weyn; enabled: boolean }
       {err && <p className="errline">{err}</p>}
       <button className="btn" onClick={create} disabled={creating || !code.trim()}>{creating ? "Creating…" : "Create promo code"}</button>
 
-      <p className="hint" style={{ margin: "18px 0 8px" }}>Active codes</p>
+      <p className="section-label" style={{ marginTop: 18 }}>Active codes</p>
       {loading && <p className="hint">Loading…</p>}
       {error && <p className="errline">{error}</p>}
       {!loading && !error && (
@@ -505,7 +507,7 @@ function WaitlistSection({ event, enabled }: { event: Weyn; enabled: boolean }) 
         ) : <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No one on the waitlist yet.</p>
       )}
 
-      <p className="hint" style={{ margin: "18px 0 8px" }}>Recurring events</p>
+      <p className="section-label" style={{ marginTop: 18 }}>Recurring events</p>
       <RecurringForm event={event} enabled={enabled} />
     </FeatureLock>
   );
@@ -591,10 +593,10 @@ function MarketingTab({ event, features }: { event: Weyn; features: Record<strin
         <i className="icon-refresh-cw" /> {regenerating ? "Regenerating…" : "Regenerate"}
       </button>
 
-      <p className="hint" style={{ margin: "20px 0 8px" }}>Promo codes</p>
+      <p className="section-label">Promo codes</p>
       <PromoCodesSection event={event} enabled={!!features.promoCodes} />
 
-      <p className="hint" style={{ margin: "20px 0 8px" }}>Waitlist</p>
+      <p className="section-label">Waitlist</p>
       <WaitlistSection event={event} enabled={!!features.waitlists} />
 
       <MoreEventTools event={event} />
@@ -658,25 +660,25 @@ function MoreEventTools({ event }: { event: Weyn }) {
       </button>
       {open && (
         <>
-          <p className="hint" style={{ margin: "16px 0 8px" }}>Promotion</p>
+          <p className="section-label" style={{ marginTop: 16 }}>Promotion</p>
           <PromotionSection event={event} />
 
-          <p className="hint" style={{ margin: "20px 0 8px" }}>QR code / poster</p>
+          <p className="section-label">QR code / poster</p>
           <QrPosterSection event={event} />
 
-          <p className="hint" style={{ margin: "20px 0 8px" }}>Files</p>
+          <p className="section-label">Files</p>
           <FileLibrarySection event={event} />
 
-          <p className="hint" style={{ margin: "20px 0 8px" }}>Sponsors</p>
+          <p className="section-label">Sponsors</p>
           <SponsorsSection event={event} />
 
-          <p className="hint" style={{ margin: "20px 0 8px" }}>Vendors</p>
+          <p className="section-label">Vendors</p>
           <VendorsSection event={event} />
 
-          <p className="hint" style={{ margin: "20px 0 8px" }}>Feedback</p>
+          <p className="section-label">Feedback</p>
           <FeedbackSection event={event} />
 
-          <p className="hint" style={{ margin: "20px 0 8px" }}>Automation</p>
+          <p className="section-label">Automation</p>
           <AutomationSection event={event} />
         </>
       )}
@@ -1041,7 +1043,7 @@ function TeamTab({ event }: { event: Weyn }) {
         </div>
       )}
 
-      <p className="hint" style={{ margin: "18px 0 8px" }}>Team members</p>
+      <p className="section-label" style={{ marginTop: 18 }}>Team members</p>
       {loading && <p className="hint">Loading…</p>}
       {error && <p className="errline">{error}</p>}
       {!loading && !error && (
@@ -1058,7 +1060,7 @@ function TeamTab({ event }: { event: Weyn }) {
         ) : <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No team members yet.</p>
       )}
 
-      <p className="hint" style={{ margin: "18px 0 8px" }}>Activity log</p>
+      <p className="section-label" style={{ marginTop: 18 }}>Activity log</p>
       <AuditLogPanel event={event} />
     </>
   );
@@ -1257,7 +1259,7 @@ function SettingsTab({ event, features, reload }: { event: Weyn; features: Recor
       {err && <p className="errline">{err}</p>}
       <button className="btn" onClick={save} disabled={busy}>{busy ? "Saving…" : saved ? "Saved ✓" : "Save changes"}</button>
 
-      <p className="hint" style={{ margin: "22px 0 8px" }}>Invite-only</p>
+      <p className="section-label" style={{ marginTop: 22 }}>Invite-only</p>
       <InviteOnlyPanel event={event} onChanged={reload} />
     </>
   );

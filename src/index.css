@@ -5,38 +5,43 @@
 
 :root {
   color-scheme: dark;
-  --bg:             #121315;
-  --bg-elevated:    #23262B;
-  --surface:        #1A1C1F;
-  --surface-hover:  #23262B;
-  --border:         #32353A;
-  --border-strong:  #3D4147;
-  --primary:        #4A8DFF;
-  --primary-hover:  #6CA4FF;
-  --primary-pressed:#3A72D1;
+  /* Blue-slate dark palette (v2) — the flat neutral-gray original had --bg
+     and --surface only ~3% apart in lightness, so borderless clay cards
+     had nothing to separate them from the page. This gives three clearly
+     stepped tonal layers (bg < surface < surface-hover) plus a cooler,
+     more distinctive indigo-violet primary instead of a generic blue. */
+  --bg:             #0C0E13;
+  --bg-elevated:    #1E2330;
+  --surface:        #161A23;
+  --surface-hover:  #212734;
+  --border:         #2A303D;
+  --border-strong:  #3A4152;
+  --primary:        #7B6EF6;
+  --primary-hover:  #948BFF;
+  --primary-pressed:#5F51D8;
   --success:        #57B86A;
   --warning:        #D6A44B;
   --error:          #F26D6D;
-  --info:           #4A8DFF;
-  --text:           #F4F4F5;
-  --text-2:         #B5B8BD;
-  --text-3:         #8A8D93;
+  --info:           #7B6EF6;
+  --text:           #EDEFF3;
+  --text-2:         #A6ADBB;
+  --text-3:         #727A88;
   --text-disabled:  #63666C;
-  --icon:           #F4F4F5;
-  --icon-2:         #B5B8BD;
-  --divider:        #32353A;
-  --card-bg:        #1A1C1F;
-  --card-border:    #32353A;
+  --icon:           #EDEFF3;
+  --icon-2:         #A6ADBB;
+  --divider:        #2A303D;
+  --card-bg:        #161A23;
+  --card-border:    #2A303D;
   /* Claymorphism experiment (whole app) — every card/chip/button below
      reads its shape from these six tokens, so the "puffy molded clay" look
      is achieved by redefining the tokens themselves rather than touching
      every individual rule. Two-tone shadow (soft light top-left + darker
      shadow bottom-right) is the actual signature — a single flat shadow
      reads as "elevated card", the dual one reads as "clay". */
-  --card-shadow:    -6px -6px 14px rgba(255,255,255,.04), 8px 8px 20px rgba(0,0,0,.4);
-  --accent-soft:    rgba(74,141,255,0.16);
+  --card-shadow:    -6px -6px 14px rgba(255,255,255,.05), 8px 8px 20px rgba(0,0,0,.4);
+  --accent-soft:    rgba(123,110,246,0.16);
   --success-soft:   rgba(87,184,106,0.15);
-  --scrim: rgba(8,9,10,0.5);
+  --scrim: rgba(6,7,10,0.55);
 
   /* back-compat aliases so existing ~300 call sites keep working unchanged */
   --surface-2:   var(--surface-hover);
@@ -50,7 +55,7 @@
 
   --radius: 24px; --radius-sm: 16px; --radius-pill: 999px; --maxw: 468px;
   --shadow-sm: -3px -3px 8px rgba(255,255,255,.03), 4px 4px 11px rgba(0,0,0,.35);
-  --shadow-md: -4px -4px 12px rgba(255,255,255,.04), 8px 8px 20px rgba(0,0,0,.4);
+  --shadow-md: -4px -4px 12px rgba(255,255,255,.05), 8px 8px 20px rgba(0,0,0,.4);
   --shadow-lg: -6px -6px 16px rgba(255,255,255,.05), 14px 14px 32px rgba(0,0,0,.45);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
   /* --glass-line was the card/chip/input BORDER color everywhere (see the
@@ -59,6 +64,12 @@
      transparent instead of getting its own removal pass per call site. */
   --glass-edge: transparent; --glass-line: transparent; --glass-shadow: var(--shadow-sm);
   --shadow-float: var(--shadow-md); --lens: none;
+  /* Was only ever referenced as var(--card-alt, rgba(0,0,0,.03)) — an
+     undefined var with a near-invisible dark-mode fallback (AiStudio's
+     assistant bubble, Events' calendar day cells). Defining it properly
+     ties it to the same tonal step as everything else instead of a
+     hardcoded fallback that never matched either theme. */
+  --card-alt: var(--surface-hover);
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-8: 48px;
   --btn-h: 48px; --btn-h-lg: 56px; --btn-h-sm: 40px;
@@ -91,25 +102,31 @@
   color-scheme: light;
   --bg: #F7F6F3; --bg-elevated: #FFFFFF; --surface: #FFFFFF; --surface-hover: #F1EFEA;
   --border: #E6E3DD; --border-strong: #D8D3C8;
-  --primary: #1C6DD0; --primary-hover: #175BB0; --primary-pressed: #12488C;
-  --success: #2E7D32; --warning: #B7791F; --error: #C53030; --info: #1C6DD0;
-  --text: #1D1D1F; --text-2: #666666; --text-3: #8A8A8A; --text-disabled: #ACACAC;
-  --icon: #1D1D1F; --icon-2: #666666; --divider: #E6E3DD;
+  /* Primary shifted to the same indigo-violet family as the new dark
+     palette, so both themes read as one brand rather than two. */
+  --primary: #4B4ED6; --primary-hover: #3E40B8; --primary-pressed: #322F94;
+  --success: #2E7D32; --warning: #B7791F; --error: #C53030; --info: #4B4ED6;
+  /* "Too much contrast" == near-black text on a cream card. Softened to a
+     charcoal that's still comfortably AA (~9:1) instead of near-max. */
+  --text: #35363B; --text-2: #6C6D72; --text-3: #8A8A8A; --text-disabled: #ACACAC;
+  --icon: #35363B; --icon-2: #6C6D72; --divider: #E6E3DD;
   --card-bg: #FFFFFF; --card-border: #E6E3DD;
   /* Same clay two-tone treatment as dark mode, tuned for the cream
      background: a bright white highlight (brighter than --surface itself,
      since --bg/--surface are close in value here) plus a warm dark shadow
-     for the "raised off the page" edge. */
-  --card-shadow: -6px -6px 14px rgba(255,255,255,.9), 8px 8px 20px rgba(29,29,31,.12);
-  --accent-soft: rgba(28,109,208,0.10); --success-soft: rgba(46,125,50,0.10);
+     for the "raised off the page" edge — shadow strength softened along
+     with the text color above, the dark half was reading as a hard edge. */
+  --card-shadow: -6px -6px 14px rgba(255,255,255,.9), 8px 8px 20px rgba(29,29,31,.07);
+  --accent-soft: rgba(75,78,214,0.10); --success-soft: rgba(46,125,50,0.10);
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
-  --shadow-sm: -3px -3px 8px rgba(255,255,255,.85), 4px 4px 11px rgba(29,29,31,.10);
-  --shadow-md: -4px -4px 12px rgba(255,255,255,.9), 8px 8px 20px rgba(29,29,31,.12);
-  --shadow-lg: -6px -6px 16px rgba(255,255,255,.95), 14px 14px 32px rgba(29,29,31,.14);
+  --shadow-sm: -3px -3px 8px rgba(255,255,255,.85), 4px 4px 11px rgba(29,29,31,.06);
+  --shadow-md: -4px -4px 12px rgba(255,255,255,.9), 8px 8px 20px rgba(29,29,31,.07);
+  --shadow-lg: -6px -6px 16px rgba(255,255,255,.95), 14px 14px 32px rgba(29,29,31,.09);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
   --glass-edge: transparent; --glass-line: transparent; --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
+  --card-alt: var(--surface-hover);
   --fallback-scrim: rgba(0,0,0,0.15);
 
   --spark-color-1: var(--primary);
@@ -287,14 +304,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 /* Selected state reads as "pressed into the clay" — inset shadow instead
    of the raised one every other chip gets — rather than just a color swap. */
-.chip.on { background: var(--text); color: var(--bg); border-color: var(--text); box-shadow: inset 3px 3px 8px rgba(0,0,0,.25); }
+.chip.on { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: inset 3px 3px 8px rgba(0,0,0,.25); }
 
 /* ---------- date section header ---------- */
 .date-head {
   display: flex; align-items: baseline; gap: 10px;
   padding: 20px 16px 8px;
 }
+/* Every organizer page repeated the exact same inline style={{paddingLeft:6}}
+   override on every single .date-head (13 call sites) instead of it being a
+   real rule — moved here once. */
+.organizer-content .date-head { padding-left: 6px; }
 .date-head h2 { font-size: 17px; font-weight: 700; }
+/* EventWorkspace's event title was a plain .date-head h2 — same 17px/700
+   as every subsection label ("Team", "Settings"...) below it, so the page
+   title carried no more visual weight than its own children. */
+.date-head h2.page-title { font-size: 21px; }
 .date-head span { font-size: 13px; color: var(--text-2); }
 
 /* ---------- event card ---------- image-dominant (16:9, ~65% of the card),
@@ -696,8 +721,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ov-card {
   display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
   padding: 14px; border-radius: var(--radius-sm);
-  background: var(--surface); border: 1px solid var(--hair);
-  text-align: left; transition: border-color .15s, background-color .15s;
+  background: var(--surface); box-shadow: var(--shadow-sm);
+  text-align: left; transition: box-shadow .15s, background-color .15s;
 }
 .ov-card [class^="icon-"] { font-size: 18px; color: var(--accent); }
 .ov-card .ov-v { font: var(--t-section); font-size: 22px; }
@@ -769,8 +794,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .sheet-backdrop.closing .install-sheet { transform: translateY(24px); opacity: 0; }
 .install-sheet h3 { font-size: 20px; margin-bottom: 16px; }
-.steps { list-style: none; padding: 0; margin: 0 0 20px; text-align: left; display: flex; flex-direction: column; gap: 12px; }
-.steps li { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text); line-height: 1.4; }
+.steps { list-style: none; padding: 0; margin: 0 0 20px; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+/* Bare icon+text rows with nothing behind them read as an unfinished
+   bulleted list rather than a designed screen — most of the organizer
+   dashboard (Overview, Attendees, Settings, EventWorkspace) is built out
+   of these, so giving each row its own clay surface is the single biggest
+   "looks designed, not vibecoded" lever in the whole stylesheet. */
+.steps li {
+  display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text); line-height: 1.4;
+  padding: 12px 14px; border-radius: var(--radius-sm);
+  background: var(--glass-strong); box-shadow: var(--shadow-sm);
+}
 .steps li [class^="icon-"] { font-size: 20px; color: var(--accent); flex: 0 0 auto; }
 .steps b { font-weight: 600; }
 @keyframes fade { from { opacity: 0; } }
@@ -828,7 +862,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: flex; align-items: flex-start; justify-content: flex-end; padding: 60px 16px 0;
 }
 .city-popover {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); border-radius: var(--radius-sm);
   box-shadow: var(--shadow-lg); padding: 16px; width: min(280px, 90vw);
 }
 .city-popover-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -995,6 +1029,20 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
      type into, distinct from the puffy buttons/cards around it. */
   box-shadow: inset 2px 2px 6px rgba(0,0,0,.18), inset -2px -2px 6px rgba(255,255,255,.03);
 }
+/* Ad-hoc toolbar controls (Attendees' search/sort row) that aren't inside
+   a .field wrapper — were falling through to zero styling (bare native
+   input/select) since nothing outside .field touches a plain input/select
+   in this stylesheet. Same clay slot look, sized to match .btn's height so
+   a search box, a select, and an export button sit level in one row. */
+.toolbar-field {
+  font-family: inherit; font-size: 15px; padding: 0 13px; min-height: var(--btn-h);
+  border-radius: var(--radius-sm); color: var(--text);
+  background: var(--glass-strong); border: 1px solid var(--glass-line);
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,.18), inset -2px -2px 6px rgba(255,255,255,.03);
+}
+:root[data-theme="light"] .toolbar-field {
+  box-shadow: inset 2px 2px 6px rgba(29,29,31,.08), inset -2px -2px 6px rgba(255,255,255,.7);
+}
 :root[data-theme="light"] .field input, :root[data-theme="light"] .field select, :root[data-theme="light"] .field textarea {
   box-shadow: inset 2px 2px 6px rgba(29,29,31,.08), inset -2px -2px 6px rgba(255,255,255,.7);
 }
@@ -1006,7 +1054,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   all: revert;
   width: 19px; height: 19px; flex: 0 0 auto; margin: 0;
   appearance: none; -webkit-appearance: none;
-  border-radius: 6px; border: 1.5px solid var(--glass-line);
+  /* --glass-line is transparent (clay relies on shadow, not outline) — but
+     an unchecked checkbox needs a real visible edge to read as a checkbox
+     at all, so this is the one clay-derived control that keeps a hard
+     border instead. */
+  border-radius: 6px; border: 1.5px solid var(--border-strong);
   background: var(--glass-soft); cursor: pointer; position: relative;
   transition: background-color .15s, border-color .15s;
 }
@@ -1025,6 +1077,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    passive caption, so it gets --text-2 for real 4.5:1 contrast */
 .field .hint { font-size: 12px; color: var(--text-2); margin-top: 6px; }
 .hint { font-size: 12px; color: var(--text-2); }
+/* Section headings inside a tab/panel (Files, Sponsors, Vendors, Team
+   members, Activity log, etc.) were sharing the exact same class as plain
+   caption text below them — every subsection read at the same visual
+   weight as its own body copy, which is a big part of why these screens
+   felt flat/undifferentiated. Bolder, larger, real text color. */
+.section-label { font-size: 15px; font-weight: 700; color: var(--text); margin: 0 0 8px; }
 
 /* image dropzone */
 .dropzone {
@@ -1188,22 +1246,27 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- dashboard ---------- */
 .dash { padding: 6px 16px 0; }
-.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 6px 0 6px; }
+/* auto-fit instead of a fixed 2 columns — Overview has 5 stats, Attendees
+   has 3; a fixed 2-col grid leaves an orphaned half-width tile at the end
+   of an odd count. auto-fit fills the row cleanly at any count. */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; padding: 6px 0 6px; }
 
 /* ---------- Overview's "quick actions" tile grid ---------- */
+/* 7 tiles ÷ 3 cols orphaned one tile alone on its own row on mobile —
+   4 cols balances to 4+3, no orphan. */
 .quick-actions-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
   padding: 4px 0 18px;
 }
 .quick-action {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   padding: 14px 6px; border-radius: var(--radius); text-align: center;
   background: var(--glass-strong); box-shadow: var(--shadow-sm);
-  color: var(--text-2); font-size: 12px; font-weight: 600;
+  color: var(--text); font-size: 12px; font-weight: 600;
   border: none; cursor: pointer; font-family: inherit;
-  transition: transform .15s cubic-bezier(.2,.9,.3,1.6);
+  transition: transform .15s cubic-bezier(.2,.9,.3,1.6), box-shadow .15s;
 }
-.quick-action:active { transform: scale(.95); }
+.quick-action:active { transform: scale(.95); box-shadow: inset 3px 3px 8px rgba(0,0,0,.2); }
 .quick-action [class^="icon-"] { font-size: 20px; color: var(--accent); }
 @media (min-width: 640px) { .quick-actions-grid { grid-template-columns: repeat(7, 1fr); } }
 .stat {
@@ -1220,6 +1283,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin-bottom: 10px; border-radius: var(--radius); overflow: hidden;
   background: var(--glass-strong); border: 1px solid var(--glass-line);
   box-shadow: var(--glass-shadow);
+}
+
+/* Shared trend-bar chart — was duplicated inline (Overview's revenue trend,
+   EventWorkspace's sales-over-time) as flat var(--accent) rectangles.
+   Gradient fill + rounded tops so it reads as a designed chart. */
+.mini-bars { display: flex; align-items: flex-end; gap: 4px; }
+.mini-bar {
+  flex: 1; min-width: 4px; border-radius: 4px 4px 2px 2px;
+  background: linear-gradient(180deg, var(--primary-hover), var(--primary));
 }
 .dash-row {
   display: flex; align-items: center; gap: 12px; padding: 13px 14px;
@@ -1250,16 +1322,24 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    icon+label text mid-word on narrow phones. Grid gap + a matching background
    draws the divider lines instead of per-button borders, so an uneven last
    row (5 items = 3 + 2) doesn't leave a stray border hanging off the edge. */
+/* Was a CSS-grid table with 1px "divider" seams (background peeking through
+   the gaps) sitting inside an otherwise borderless clay card — read like a
+   leftover native table control. Flex-wrap row of individually-shaped pill
+   buttons instead, matching the .btn.glass.sm links already used in the
+   same row (see Events.tsx) so every action in the row looks like the same
+   kind of thing regardless of whether it's a Link or a <button>. */
 .dash-actions {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
-  background: var(--hair); border-top: 1px solid var(--hair);
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 10px 12px 12px;
 }
+.dash-actions > .btn { flex: 1 1 auto; }
 .dash-actions button {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-  font-size: 11.5px; font-weight: 600; color: var(--text-2); padding: 10px 4px;
-  background: var(--glass-strong);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-2); padding: 9px 12px;
+  background: var(--surface-hover); border-radius: var(--radius-sm); border: none; cursor: pointer;
+  flex: 1 1 auto; min-width: 0; box-shadow: var(--shadow-sm);
 }
-.dash-actions button [class^="icon-"] { font-size: 17px; }
+.dash-actions button [class^="icon-"] { font-size: 15px; }
 .dash-actions button.danger { color: var(--danger); }
 .dash-actions button:disabled { opacity: 0.5; }
 
@@ -1507,7 +1587,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
     display: flex;
     position: sticky; top: 24px;
     display: flex; flex-direction: column; gap: 14px;
-    border: 1px solid var(--hair); border-radius: var(--radius);
+    border-radius: var(--radius); box-shadow: var(--shadow-md);
     background: var(--surface); padding: 16px;
   }
   .form-preview .preview-cover {
