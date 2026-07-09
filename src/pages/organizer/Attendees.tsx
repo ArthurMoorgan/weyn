@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { api, type OrganizerAttendee } from "../../api";
+import { api, API_BASE, type OrganizerAttendee } from "../../api";
 import { useAsync } from "../../hooks";
+import { getAuthToken } from "../../store";
 
 const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 
@@ -17,6 +18,26 @@ export default function OrganizerAttendees() {
   const [sort, setSort] = useState<"spend" | "tickets" | "recent">("spend");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [editing, setEditing] = useState<OrganizerAttendee | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/api/organizer/attendees.csv`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "weyn-attendees.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch { /* button itself already implies Pro — server 403s free-tier accounts */ }
+    finally {
+      setExporting(false);
+    }
+  }
 
   const allTags = useMemo(() => {
     const s = new Set<string>();
@@ -62,6 +83,9 @@ export default function OrganizerAttendees() {
           <option value="tickets">Sort: Most tickets</option>
           <option value="recent">Sort: Most recent</option>
         </select>
+        <button className="btn glass" onClick={exportCsv} disabled={exporting} style={{ flex: "0 0 auto" }}>
+          <i className="icon-download" /> {exporting ? "Exporting…" : "Export CSV"}
+        </button>
       </div>
 
       {allTags.length > 0 && (

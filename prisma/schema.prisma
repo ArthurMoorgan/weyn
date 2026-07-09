@@ -54,6 +54,7 @@ model User {
   vendors         Vendor[]
   automationRules AutomationRule[]
   goals           OrganizerGoal[]
+  messageTemplates MessageTemplate[]
   teamMemberships EventTeamMember[] @relation("TeamMembership")
   teamInvitesSent EventTeamMember[] @relation("TeamInviter")
   following       Follow[]          @relation("Follower")
@@ -932,6 +933,22 @@ model Campaign {
   @@index([organizerId])
   @@index([eventId])
   @@index([status, scheduledFor])
+}
+
+// Reusable subject/message pairs for the bulk-notify form — saved on demand
+// from NotifyForm, org-wide (not per-event) since the same "sold out, see
+// you there" message is useful across many events.
+model MessageTemplate {
+  id          String   @id @default(cuid())
+  organizerId String
+  name        String
+  subject     String?
+  message     String
+  createdAt   DateTime @default(now())
+
+  organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@index([organizerId])
 }
 
 // ---- Financial Dashboard: manual expense tracking ----

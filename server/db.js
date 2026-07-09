@@ -1119,6 +1119,20 @@ export const db = {
     return true;
   },
 
+  // ---- Message templates (NotifyForm's "save as template") ----
+  async listMessageTemplates(organizerId) {
+    return prisma.messageTemplate.findMany({ where: { organizerId }, orderBy: { createdAt: "desc" } });
+  },
+  async createMessageTemplate({ organizerId, name, subject, message }) {
+    return prisma.messageTemplate.create({ data: { organizerId, name, subject: subject || null, message } });
+  },
+  async deleteMessageTemplate(id, organizerId) {
+    const existing = await prisma.messageTemplate.findUnique({ where: { id } });
+    if (!existing || existing.organizerId !== organizerId) return false;
+    await prisma.messageTemplate.delete({ where: { id } });
+    return true;
+  },
+
   // ---- AI Studio ----
   async logAiGeneration({ organizerId, eventId, feature, prompt, output }) {
     await prisma.aiGenerationLog.create({ data: { organizerId, eventId: eventId || null, feature, prompt, output } });

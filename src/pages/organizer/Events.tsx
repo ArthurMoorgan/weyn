@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, ticketsLeft, isSoldOut, isPast, dayLabel, timeLabel, type Weyn } from "../../api";
+import { api, API_BASE, ticketsLeft, isSoldOut, isPast, dayLabel, timeLabel, type Weyn } from "../../api";
 import { useAsync } from "../../hooks";
+import { getAuthToken } from "../../store";
 
 const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 
@@ -24,6 +25,8 @@ export default function OrganizerEvents() {
   const [filter, setFilter] = useState<Filter>("upcoming");
   const [view, setView] = useState<"list" | "calendar">("list");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const list = events.data || [];
   const filtered = useMemo(() => {
@@ -65,6 +68,51 @@ export default function OrganizerEvents() {
     try { await api.cancelEvent(e.id); events.reload(); } finally { setBusyId(null); }
   }
 
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function bulkCancel() {
+    if (!confirm(`Cancel ${selected.size} event${selected.size === 1 ? "" : "s"}? They'll disappear from Explore immediately.`)) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selected].map((id) => api.cancelEvent(id)));
+      setSelected(new Set());
+      events.reload();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkExportCsv() {
+    setBulkBusy(true);
+    try {
+      const token = await getAuthToken();
+      const rows: string[] = ["Event,Name,Email,Booked At,Qty,Ticket Code,Checked In"];
+      for (const id of selected) {
+        const ev = list.find((e) => e.id === id);
+        const res = await fetch(`${API_BASE}/api/events/${id}/attendees.csv`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (!res.ok) continue;
+        const text = await res.text();
+        const [, ...dataLines] = text.split("\n");
+        for (const line of dataLines) {
+          if (line.trim()) rows.push(`"${(ev?.title || id).replace(/"/g, '""')}",${line}`);
+        }
+      }
+      const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = "weyn-attendees-selected-events.csv"; link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   return (
     <>
       <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 6px 4px", justifyContent: "space-between" }}>
@@ -80,6 +128,15 @@ export default function OrganizerEvents() {
           <button className={"chip" + (view === "calendar" ? " on" : "")} onClick={() => setView("calendar")}><i className="icon-calendar" /></button>
         </div>
       </div>
+
+      {view === "list" && selected.size > 0 && (
+        <div className="dash-card" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 14px", margin: "0 6px 10px" }}>
+          <b style={{ fontSize: 13.5 }}>{selected.size} selected</b>
+          <button className="btn glass sm" onClick={bulkExportCsv} disabled={bulkBusy}><i className="icon-download" /> Export attendees CSV</button>
+          <button className="btn glass sm" onClick={bulkCancel} disabled={bulkBusy} style={{ color: "var(--danger)" }}><i className="icon-ban" /> Cancel selected</button>
+          <button className="copy-btn" style={{ marginLeft: "auto" }} onClick={() => setSelected(new Set())}>Clear</button>
+        </div>
+      )}
 
       {view === "calendar" && !events.loading && <CalendarView events={filtered} />}
 
@@ -101,8 +158,15 @@ export default function OrganizerEvents() {
           const pct = e.capacity >= 9000 ? 0 : Math.min(100, Math.round((e.sold / e.capacity) * 100));
           const gross = e.sold * e.price;
           const isDraftRow = e.isDraft && !e.isTemplate;
+          const selectable = !isDraftRow && !e.isTemplate;
           return (
             <div key={e.id} className="dash-card">
+              {selectable && (
+                <label style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 0 8px", fontSize: 12.5, color: "var(--text-3)", cursor: "pointer" }}>
+                  <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggleSelect(e.id)} />
+                  Select
+                </label>
+              )}
               <Link to={isDraftRow || e.isTemplate ? "#" : `/organizer/events/${e.id}`} onClick={(ev) => { if (isDraftRow || e.isTemplate) ev.preventDefault(); }} className="dash-row" style={{ marginBottom: 0 }}>
                 <div className="thumb" style={e.image ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" } : { background: e.color }}>
                   {!e.image && e.glyph}

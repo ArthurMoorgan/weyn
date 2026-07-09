@@ -586,6 +586,15 @@ export interface Vendor {
   createdAt: string;
 }
 
+export interface MessageTemplate {
+  id: string;
+  organizerId: string;
+  name: string;
+  subject: string | null;
+  message: string;
+  createdAt: string;
+}
+
 export const api = {
   listEvents(params: { cat?: string; q?: string } = {}): Promise<Weyn[]> {
     const sp = new URLSearchParams();
@@ -1060,6 +1069,19 @@ export const api = {
   },
   async deleteVendor(id: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/organizer/vendors/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Message templates ----
+  async listMessageTemplates(): Promise<MessageTemplate[]> {
+    return fetch(`${API_BASE}/api/organizer/message-templates`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async createMessageTemplate(input: { name: string; subject?: string; message: string }): Promise<MessageTemplate> {
+    return fetch(`${API_BASE}/api/organizer/message-templates`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async deleteMessageTemplate(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/organizer/message-templates/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- Feedback Center ----

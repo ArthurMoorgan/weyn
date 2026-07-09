@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, Outlet, Link } from "react-router-dom";
 import { api } from "../../api";
 import { useAsync } from "../../hooks";
@@ -58,7 +59,10 @@ export default function OrganizerLayout() {
     <section className="organizer-page">
       <header className="topbar">
         <h1>Organizer</h1>
-        <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "9px 14px" }}><i className="icon-plus" /> New event</Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <NotificationBell />
+          <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "9px 14px" }}><i className="icon-plus" /> New event</Link>
+        </div>
       </header>
       <div className="organizer-shell">
         <nav className="profile-tabs organizer-nav" aria-label="Organizer sections">
@@ -73,5 +77,49 @@ export default function OrganizerLayout() {
         </div>
       </div>
     </section>
+  );
+}
+
+// A persistent bell across every organizer page, surfacing the same
+// needsAttention feed Overview already computes (org-wide zero-sales/
+// manual-review/waitlist/selling-fast/pending-invite items) — previously
+// only visible if you happened to be on Overview itself.
+function NotificationBell() {
+  const overview = useAsync(() => api.organizerOverview(), []);
+  const [open, setOpen] = useState(false);
+  const items = overview.data?.needsAttention || [];
+
+  return (
+    <>
+      <button type="button" className="icon-btn" onClick={() => setOpen(true)} aria-label={`Notifications${items.length ? ` (${items.length})` : ""}`} style={{ position: "relative" }}>
+        <i className="icon-bell" />
+        {items.length > 0 && <span className="search-filter-count">{items.length > 9 ? "9+" : items.length}</span>}
+      </button>
+      {open && (
+        <div className="city-popover-backdrop" onClick={() => setOpen(false)}>
+          <div className="city-popover" style={{ width: "min(340px, 90vw)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="city-popover-head">
+              <i className="icon-bell" /> <b>Notifications</b>
+              <button type="button" className="icon-btn" onClick={() => setOpen(false)} aria-label="Close"><i className="icon-x" /></button>
+            </div>
+            {items.length === 0 ? (
+              <p>Nothing needs your attention right now.</p>
+            ) : (
+              <ul className="steps" style={{ margin: 0 }}>
+                {items.map((item, i) => (
+                  <li key={i}>
+                    <i className="icon-alert-circle" />
+                    <span>
+                      <Link to={`/organizer/events/${item.eventId}`} onClick={() => setOpen(false)}>{item.eventTitle}</Link>
+                      <br /><small style={{ color: "var(--text-3)" }}>{item.message}</small>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

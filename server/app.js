@@ -2083,6 +2083,26 @@ export function createApp(storage) {
   app.get("/api/organizer/attendees", requireAuth, async (req, res) => {
     res.json(await db.organizerAttendees(req.user.id));
   });
+  // Same CSV-injection guard as the per-event export above — this data
+  // includes attendee-supplied names/emails, still untrusted free text.
+  app.get("/api/organizer/attendees.csv", requireAuth, requireFeature("csvExports"), async (req, res) => {
+    const rows = await db.organizerAttendees(req.user.id);
+    const escape = (v) => {
+      let s = String(v ?? "");
+      if (/^[=+\-@]/.test(s)) s = "'" + s;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const lines = ["Name,Email,Total Spend,Tickets Bought,Events Attended,Last Booked,Tags,Loyalty Points,Notes"];
+    for (const a of rows) {
+      lines.push([
+        escape(a.name), escape(a.email), escape(a.totalSpend), escape(a.ticketsBought), escape(a.eventsAttended),
+        escape(a.lastBookedAt), escape(a.tags.join("; ")), escape(a.loyaltyPoints), escape(a.notes),
+      ].join(","));
+    }
+    res.set("Content-Type", "text/csv");
+    res.set("Content-Disposition", `attachment; filename="weyn-attendees-${req.user.id}.csv"`);
+    res.send(lines.join("\n"));
+  });
   app.patch("/api/organizer/attendees/profile", requireAuth, async (req, res) => {
     const b = req.body || {};
     if (!b.email || !String(b.email).trim()) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Missing email" } });
@@ -2210,6 +2230,28 @@ export function createApp(storage) {
   app.delete("/api/organizer/vendors/:id", requireAuth, async (req, res) => {
     const ok = await db.deleteVendor(req.params.id, req.user.id);
     if (!ok) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Vendor not found" } });
+    res.json({ ok: true });
+  });
+
+  // ---- Message templates ----
+  app.get("/api/organizer/message-templates", requireAuth, async (req, res) => {
+    res.json(await db.listMessageTemplates(req.user.id));
+  });
+  app.post("/api/organizer/message-templates", requireAuth, async (req, res) => {
+    const b = req.body || {};
+    if (!b.name || !String(b.name).trim() || !b.message || !String(b.message).trim()) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A name and message are required." } });
+    }
+    const template = await db.createMessageTemplate({
+      organizerId: req.user.id, name: String(b.name).trim().slice(0, 80),
+      subject: b.subject ? String(b.subject).trim().slice(0, 200) : null,
+      message: String(b.message).trim().slice(0, 2000),
+    });
+    res.status(201).json(template);
+  });
+  app.delete("/api/organizer/message-templates/:id", requireAuth, async (req, res) => {
+    const ok = await db.deleteMessageTemplate(req.params.id, req.user.id);
+    if (!ok) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Template not found" } });
     res.json({ ok: true });
   });
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
+import QRCode from "qrcode";
 import { api, API_BASE, TEAM_PERMISSIONS, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor } from "../../api";
 import { useAsync } from "../../hooks";
 import { getAuthToken } from "../../store";
@@ -300,7 +301,31 @@ function NotifyForm({ event, enabled }: { event: Weyn; enabled: boolean }) {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ recipients?: number; emailed?: number; pushed?: number; scheduled?: boolean } | null>(null);
   const [err, setErr] = useState("");
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const campaigns = useAsync(() => (enabled ? api.listCampaigns(event.id) : Promise.resolve([])), [enabled]);
+  const templates = useAsync(() => (enabled ? api.listMessageTemplates() : Promise.resolve([])), [enabled]);
+
+  function loadTemplate(id: string) {
+    const t = templates.data?.find((t) => t.id === id);
+    if (!t) return;
+    setSubject(t.subject || ""); setMessage(t.message);
+  }
+  async function saveAsTemplate() {
+    if (!templateName.trim() || !message.trim()) return;
+    setSavingTemplate(true);
+    try {
+      await api.createMessageTemplate({ name: templateName.trim(), subject: subject.trim() || undefined, message: message.trim() });
+      setTemplateName("");
+      templates.reload();
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+  async function removeTemplate(id: string) {
+    await api.deleteMessageTemplate(id);
+    templates.reload();
+  }
 
   async function send() {
     if (!subject.trim() || !message.trim()) return;
@@ -326,6 +351,15 @@ function NotifyForm({ event, enabled }: { event: Weyn; enabled: boolean }) {
 
   return (
     <FeatureLock feature="bulkNotifications" enabled={enabled}>
+      {(templates.data || []).length > 0 && (
+        <div className="field">
+          <label>Start from a template</label>
+          <select value="" onChange={(e) => e.target.value && loadTemplate(e.target.value)}>
+            <option value="">— Type your own below —</option>
+            {templates.data!.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+      )}
       <div className="field"><label>Subject</label><input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="An update about your ticket" /></div>
       <div className="field"><label>Message</label><textarea rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="What's changed…" /></div>
       <div className="field"><label>Send at <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· leave blank to send now</span></label><input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} /></div>
@@ -335,6 +369,23 @@ function NotifyForm({ event, enabled }: { event: Weyn; enabled: boolean }) {
       <button className="btn" onClick={send} disabled={sending || !subject.trim() || !message.trim()}>
         {sending ? "Sending…" : scheduleAt ? "Schedule" : "Send now"}
       </button>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Template name, e.g. Sold out reminder" style={{ flex: 1 }} />
+        <button className="btn glass sm" onClick={saveAsTemplate} disabled={savingTemplate || !templateName.trim() || !message.trim()}>
+          {savingTemplate ? "Saving…" : "Save as template"}
+        </button>
+      </div>
+      {(templates.data || []).length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+          {templates.data!.map((t) => (
+            <span key={t.id} className="chip" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              {t.name}
+              <button onClick={() => removeTemplate(t.id)} aria-label={`Delete template ${t.name}`} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--text-3)", fontSize: 12 }}>✕</button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {(campaigns.data || []).length > 0 && (
         <>
@@ -556,18 +607,62 @@ function MarketingTab({ event, features }: { event: Weyn; features: Record<strin
 // toggle rather than six always-open sections, per the standing feedback
 // that this dashboard gets complicated fast when everything is expanded by
 // default (see HANDOFF's Phase B note).
+// A per-event QR code/poster — same qrcode lib and generate-on-click pattern
+// as Settings.tsx's organizer-profile poster, just pointed at this event's
+// own public page instead of the profile.
+function QrPosterSection({ event }: { event: Weyn }) {
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const eventUrl = `${window.location.origin}/e/${event.id}`;
+
+  async function generate() {
+    setGenerating(true);
+    try {
+      setQrUrl(await QRCode.toDataURL(eventUrl, { margin: 1, width: 480 }));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 12px" }}>A QR code linking straight to this event — good for flyers, table tents, or a door sign.</p>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input readOnly value={eventUrl} style={{ flex: 1 }} onFocus={(e) => e.target.select()} />
+        <button className="copy-btn" onClick={() => navigator.clipboard?.writeText(eventUrl)}><i className="icon-copy" /> Copy</button>
+      </div>
+      <button className="btn glass" onClick={generate} disabled={generating}>
+        <i className="icon-qr-code" /> {generating ? "Generating…" : "Generate QR poster"}
+      </button>
+      {qrUrl && (
+        <div style={{ marginTop: 14, textAlign: "center" }}>
+          <img src={qrUrl} alt={`QR code for ${event.title}`} style={{ width: 200, height: 200, borderRadius: 12, background: "#fff", padding: 8 }} />
+          <div style={{ marginTop: 10 }}>
+            <a href={qrUrl} download={`weyn-${event.id}-qr.png`} className="btn glass" style={{ display: "inline-flex", width: "auto", padding: "9px 16px" }}>
+              <i className="icon-download" /> Download PNG
+            </a>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function MoreEventTools({ event }: { event: Weyn }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button type="button" className="ig-import-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open} style={{ marginTop: 16 }}>
-        <i className="icon-layout-list" /> More tools: promotion, files, sponsors, vendors, feedback, automation
+        <i className="icon-layout-list" /> More tools: promotion, QR poster, files, sponsors, vendors, feedback, automation
         <i className={open ? "icon-chevron-up" : "icon-chevron-down"} style={{ marginLeft: "auto" }} />
       </button>
       {open && (
         <>
           <p className="hint" style={{ margin: "16px 0 8px" }}>Promotion</p>
           <PromotionSection event={event} />
+
+          <p className="hint" style={{ margin: "20px 0 8px" }}>QR code / poster</p>
+          <QrPosterSection event={event} />
 
           <p className="hint" style={{ margin: "20px 0 8px" }}>Files</p>
           <FileLibrarySection event={event} />
