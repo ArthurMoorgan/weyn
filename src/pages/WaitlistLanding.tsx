@@ -6,7 +6,6 @@ import SplitText from "../components/landing/SplitText";
 import RotatingText from "../components/landing/RotatingText";
 import ScrollReveal from "../components/landing/ScrollReveal";
 import CardSwap, { Card } from "../components/landing/CardSwap";
-import GlassSurface from "../components/landing/GlassSurface";
 
 // The public face of weynevents.com while the real app is admin-only (see
 // HANDOFF.md) — served standalone, no Clerk/Router/tab-shell, when the page
@@ -39,13 +38,21 @@ const ROLES: { key: Role; label: string; icon: string }[] = [
 
 const ROTATING_PHRASES = ["discover events", "host events", "reserve a table"];
 
+// True, verifiable claims only — no invented user counts or fake ratings on
+// a product that hasn't launched.
+const HERO_FACTS = [
+  { icon: "check", text: "Free to list" },
+  { icon: "ticket", text: "Tickets, tables & discovery" },
+  { icon: "map-pin", text: "Built for Muscat" },
+];
+
 // Short, concrete claims to sit next to the screenshots — the kind of
 // specifics ("real photos", "dark mode that isn't an afterthought") that
 // read as "we actually built this" rather than a generic feature list.
 const PROOF_POINTS = [
-  { icon: "search", text: "Search by vibe, not just venue name — \"live music\" and \"tonight\" both work." },
-  { icon: "moon", text: "A dark mode that's a first-class design, not an inverted filter." },
-  { icon: "map-pin", text: "Real venues, real distances — every listing is pinned on an actual map." },
+  { icon: "search", title: "Search by vibe", text: "\"Live music\" and \"tonight\" both work — not just venue names." },
+  { icon: "moon", title: "Real dark mode", text: "A first-class design, not an inverted filter." },
+  { icon: "map-pin", title: "Real places", text: "Every listing is pinned on an actual map with real distances." },
 ];
 
 const FEATURES = [
@@ -94,6 +101,10 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
   const [done, setDone] = useState(false);
   const [shotTheme, setShotTheme] = useState<"light" | "dark">("light");
 
+  function scrollToJoin() {
+    document.getElementById("join")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) return;
@@ -119,9 +130,14 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
 
   return (
     <div className="wl-page">
-      <header className="wl-top wl-container">
-        <Logo size={28} />
-        <ThemeToggle />
+      <header className="wl-top">
+        <div className="wl-top-inner glass-panel">
+          <Logo size={26} />
+          <div className="wl-top-right">
+            <ThemeToggle />
+            <button type="button" className="wl-top-cta" onClick={scrollToJoin}>Join the waitlist</button>
+          </div>
+        </div>
       </header>
 
       <section className="wl-hero">
@@ -159,7 +175,10 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
             to={{ opacity: 1, y: 0 }}
             textAlign="center"
           />
-          <p className="wl-sub">
+          {/* The rotating phrase gets its own centered line — inline it kept
+              re-wrapping the sentence every time the phrase length changed,
+              which read as broken rather than animated. */}
+          <p className="wl-sub-line">
             The easiest way to{" "}
             <RotatingText
               texts={ROTATING_PHRASES}
@@ -172,76 +191,77 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
               transition={{ type: "spring", damping: 28, stiffness: 380 }}
               rotationInterval={2400}
             />{" "}
-            in Muscat. We're putting the finishing touches on it — join the waitlist to be
-            first in when we open the doors.
+            in Muscat.
+          </p>
+          <p className="wl-sub-note">
+            We're putting the finishing touches on it — join the waitlist to be first in when we open the doors.
           </p>
 
-          {done ? (
-            <div className="wl-success">
-              <i className="icon-check-circle" />
-              <b>You're on the list.</b>
-              <span>We'll email you the moment Weyn is ready.</span>
-            </div>
-          ) : (
-            <div className="wl-glass-wrap">
-              <GlassSurface
-                width="100%"
-                height="auto"
-                borderRadius={24}
-                backgroundOpacity={0.14}
-                distortionScale={-120}
-                blur={9}
-                className="wl-glass-form"
-              >
-                <form className="wl-form" onSubmit={submit}>
-                  <div className="wl-roles" role="radiogroup" aria-label="What are you interested in?">
-                    {ROLES.map((r) => (
-                      <button
-                        type="button"
-                        key={r.key}
-                        role="radio"
-                        aria-checked={role === r.key}
-                        className={"wl-role" + (role === r.key ? " on" : "")}
-                        onClick={() => setRole(r.key)}
-                      >
-                        <i className={"icon-" + r.icon} />
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="wl-fields">
-                    <Field.Root className="field">
-                      <Field.Label className="wl-field-label">Name (optional)</Field.Label>
-                      <Field.Control
-                        type="text"
-                        className="wl-input"
-                        placeholder="Your name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        autoComplete="name"
-                      />
-                    </Field.Root>
-                    <Field.Root className="field">
-                      <Field.Label className="wl-field-label">Email</Field.Label>
-                      <Field.Control
-                        type="email"
-                        className="wl-input"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        autoComplete="email"
-                        required
-                      />
-                    </Field.Root>
-                    <button type="submit" className="btn" disabled={busy || !email.trim()}>
-                      {busy ? "Joining…" : "Join the waitlist"}
+          <div className="wl-form-card glass-panel" id="join">
+            {done ? (
+              <div className="wl-success">
+                <i className="icon-check-circle" />
+                <b>You're on the list.</b>
+                <span>We'll email you the moment Weyn is ready.</span>
+              </div>
+            ) : (
+              <form className="wl-form" onSubmit={submit}>
+                <div className="wl-roles" role="radiogroup" aria-label="What are you interested in?">
+                  {ROLES.map((r) => (
+                    <button
+                      type="button"
+                      key={r.key}
+                      role="radio"
+                      aria-checked={role === r.key}
+                      className={"wl-role" + (role === r.key ? " on" : "")}
+                      onClick={() => setRole(r.key)}
+                    >
+                      <i className={"icon-" + r.icon} />
+                      {r.label}
                     </button>
-                  </div>
-                  {err && <p className="errline">{err}</p>}
-                </form>
-              </GlassSurface>
-            </div>
-          )}
+                  ))}
+                </div>
+                <div className="wl-fields">
+                  <Field.Root className="field">
+                    <Field.Label className="wl-field-label">Name (optional)</Field.Label>
+                    <Field.Control
+                      type="text"
+                      className="wl-input"
+                      placeholder="Your name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      autoComplete="name"
+                    />
+                  </Field.Root>
+                  <Field.Root className="field">
+                    <Field.Label className="wl-field-label">Email</Field.Label>
+                    <Field.Control
+                      type="email"
+                      className="wl-input"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      required
+                    />
+                  </Field.Root>
+                  <button type="submit" className="btn" disabled={busy || !email.trim()}>
+                    {busy ? "Joining…" : "Join the waitlist"}
+                  </button>
+                </div>
+                {err && <p className="errline">{err}</p>}
+              </form>
+            )}
+          </div>
+
+          <ul className="wl-hero-facts" aria-label="What Weyn offers">
+            {HERO_FACTS.map((f) => (
+              <li key={f.text} className="glass-panel">
+                <i className={"icon-" + f.icon} />
+                {f.text}
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -265,7 +285,7 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
           <div className="wl-phones-col">
             <button
               type="button"
-              className="wl-theme-switch"
+              className="wl-theme-switch glass-panel"
               onClick={() => setShotTheme((t) => (t === "light" ? "dark" : "light"))}
               aria-label="Preview the app in light or dark mode"
             >
@@ -291,8 +311,9 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
 
         <ul className="wl-proof-points">
           {PROOF_POINTS.map((p) => (
-            <li key={p.text}>
+            <li key={p.title} className="glass-panel">
               <i className={"icon-" + p.icon} />
+              <b>{p.title}</b>
               <span>{p.text}</span>
             </li>
           ))}
@@ -346,23 +367,43 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
       </section>
 
       <section className="wl-features wl-container">
-        <div className="wl-shots-head">
-          <h2>What you get</h2>
-          <p>Four things Weyn does well, built for how Muscat actually goes out.</p>
-        </div>
-        <div className="wl-cardswap-wrap">
-          <CardSwap width={300} height={220} cardDistance={44} verticalDistance={50} delay={4200} pauseOnHover skewAmount={5}>
-            {FEATURES.map((f, i) => (
-              <Card key={f.title} customClass="wl-feature-card">
-                <span className="wl-feature-card-index" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
-                <div className="wl-feature-card-body">
+        <div className="wl-features-grid">
+          <div className="wl-features-copy">
+            <span className="wl-section-eyebrow">What you get</span>
+            <h2>Four things Weyn does well.</h2>
+            <p>Built for how Muscat actually goes out — whether you're finding a plan, running the event, or filling tables.</p>
+            <ul className="wl-features-list">
+              {FEATURES.map((f, i) => (
+                <li key={f.title}>
+                  <span className="wl-features-list-num">{String(i + 1).padStart(2, "0")}</span>
                   <i className={"icon-" + f.icon} />
-                  <b>{f.title}</b>
-                  <span>{f.body}</span>
-                </div>
-              </Card>
-            ))}
-          </CardSwap>
+                  {f.title}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="wl-swap-stage">
+            <CardSwap width={420} height={300} cardDistance={55} verticalDistance={62} delay={4200} pauseOnHover skewAmount={5}>
+              {FEATURES.map((f, i) => (
+                <Card key={f.title} customClass="wl-feature-card glass-panel">
+                  <span className="wl-feature-card-index" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
+                  <div className="wl-feature-card-body">
+                    <i className={"icon-" + f.icon} />
+                    <b>{f.title}</b>
+                    <span>{f.body}</span>
+                  </div>
+                </Card>
+              ))}
+            </CardSwap>
+          </div>
+        </div>
+      </section>
+
+      <section className="wl-cta wl-container">
+        <div className="wl-cta-card glass-panel">
+          <h2>Be first in.</h2>
+          <p>Weyn opens to the waitlist first — early spots get their pick of launch events.</p>
+          <button type="button" className="btn lg" onClick={scrollToJoin}>Join the waitlist <i className="icon-arrow-right" /></button>
         </div>
       </section>
 

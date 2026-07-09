@@ -2045,7 +2045,37 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   max-width: 1100px; margin: 0 auto; width: 100%; box-sizing: border-box; padding-left: 24px; padding-right: 24px;
 }
 .wl-top, .wl-foot { padding-left: 24px; padding-right: 24px; }
-.wl-top { display: flex; align-items: center; justify-content: space-between; padding-top: 20px; padding-bottom: 20px; }
+
+/* ---- glassmorphism ----
+   One shared recipe (translucent surface + backdrop blur + hairline +
+   inner top highlight) instead of the SVG-displacement GlassSurface
+   experiment — plain CSS glass is theme-aware for free (it mixes from
+   --surface/--text tokens), works in every browser, and costs nothing
+   at runtime. */
+.glass-panel {
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--bg) 40%, transparent),
+              inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent);
+  border-radius: var(--radius);
+}
+
+/* sticky glass nav — floats over the hero, holds the one action that
+   matters (get to the form) plus the theme toggle */
+.wl-top { position: sticky; top: 12px; z-index: 40; padding-top: 12px; }
+.wl-top-inner {
+  max-width: 1052px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px 8px 18px; border-radius: var(--radius-pill);
+}
+.wl-top-right { display: flex; align-items: center; gap: 8px; }
+.wl-top-cta {
+  font-size: 13px; font-weight: 600; color: #fff; background: var(--accent);
+  padding: 9px 16px; border-radius: var(--radius-pill); white-space: nowrap;
+}
+.wl-top-cta:active { transform: scale(0.97); }
 
 .wl-hero {
   position: relative; overflow: hidden;
@@ -2068,32 +2098,51 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .wl-headline, .wl-headline.split-parent {
   font-size: clamp(28px, 5vw, 44px); line-height: 1.15; font-weight: 800; margin: 0 0 16px; max-width: 560px;
 }
-.wl-sub { font-size: 16px; line-height: 1.55; color: var(--text-2); max-width: 480px; margin: 0 0 32px; }
-.wl-rotating { color: var(--accent); font-weight: 700; }
-.wl-form { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 12px; }
-/* GlassSurface (React Bits) wrapping the form — width="100%" fills this,
-   height="auto" so it resizes as the success state swaps in/out. */
-.wl-glass-wrap { width: 100%; max-width: 420px; }
-.wl-glass-form .glass-surface__content { padding: 22px; }
-.wl-glass-form .wl-form { max-width: none; }
+/* rotating phrase sits on its own centered line — RotatingText's root is a
+   flex container (block-level), so inlining it mid-sentence broke the
+   sentence onto a left-aligned line of its own. Giving it a dedicated,
+   flex-centered line makes the changing width re-center symmetrically
+   instead of re-wrapping the paragraph. */
+.wl-sub-line {
+  display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 0.3em;
+  font-size: 18px; line-height: 1.5; color: var(--text-2); margin: 0 0 6px; font-weight: 500;
+}
+.wl-rotating { display: inline-flex; color: var(--accent); font-weight: 700; }
+.wl-sub-note { font-size: 14.5px; line-height: 1.55; color: var(--text-3); max-width: 440px; margin: 0 0 28px; }
+.wl-form { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+.wl-form-card { width: 100%; max-width: 440px; padding: 22px; box-sizing: border-box; }
 .wl-roles { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .wl-role {
   display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
-  padding: 9px 14px; border-radius: var(--radius-pill); border: 1px solid var(--border);
-  background: var(--surface); color: var(--text-2); transition: all .15s;
+  padding: 9px 14px; border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  color: var(--text-2); transition: all .15s;
 }
 .wl-role.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .wl-fields { display: flex; flex-direction: column; gap: 10px; }
 .wl-field-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; text-align: left; }
 .wl-input {
-  width: 100%; padding: 14px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border);
-  background: var(--surface); color: var(--text); font-size: 15px; box-sizing: border-box;
+  width: 100%; padding: 14px 16px; border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  color: var(--text); font-size: 15px; box-sizing: border-box;
 }
 .wl-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* small true-claim pills under the form */
+.wl-hero-facts {
+  display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+  list-style: none; padding: 0; margin: 22px 0 0;
+}
+.wl-hero-facts li {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 600; color: var(--text-2);
+  padding: 8px 14px; border-radius: var(--radius-pill);
+}
+.wl-hero-facts [class^="icon-"] { width: 14px; height: 14px; color: var(--accent); }
 .wl-success {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 32px 24px; border-radius: var(--radius); background: var(--success-soft);
-  max-width: 420px; width: 100%;
+  padding: 18px 8px; width: 100%; box-sizing: border-box;
 }
 .wl-success [class^="icon-"] { font-size: 28px; color: var(--success); margin-bottom: 4px; }
 .wl-success b { font-size: 16px; }
@@ -2132,10 +2181,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 .wl-phones-col { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
 .wl-phones-row { display: flex; gap: 16px; justify-content: center; align-items: flex-end; width: 100%; }
-.wl-theme-switch {
-  display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--radius-pill);
-  background: var(--glass-soft); border: 1px solid var(--glass-line);
-}
+.wl-theme-switch { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--radius-pill); }
 .wl-theme-switch span {
   display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600;
   color: var(--text-2); padding: 6px 12px; border-radius: var(--radius-pill); transition: all .15s;
@@ -2156,11 +2202,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .wl-phone-frame-small { max-width: 130px; }
 
 .wl-proof-points {
-  max-width: 720px; margin: 44px auto 0; display: flex; flex-direction: column; gap: 14px;
+  margin: 44px auto 0; display: grid; grid-template-columns: 1fr; gap: 14px;
   padding: 0; list-style: none;
 }
-.wl-proof-points li { display: flex; align-items: flex-start; gap: 12px; font-size: 14.5px; color: var(--text-2); line-height: 1.5; }
-.wl-proof-points [class^="icon-"] { flex: 0 0 auto; width: 18px; height: 18px; color: var(--accent); margin-top: 2px; }
+@media (min-width: 720px) { .wl-proof-points { grid-template-columns: repeat(3, 1fr); } }
+.wl-proof-points li { display: flex; flex-direction: column; gap: 6px; padding: 18px; font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+.wl-proof-points b { font-size: 14.5px; color: var(--text); }
+.wl-proof-points [class^="icon-"] { width: 20px; height: 20px; color: var(--accent); margin-bottom: 4px; }
 
 /* ---- brand story / vision ---- */
 .wl-section-eyebrow {
@@ -2179,18 +2227,47 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .wl-story-lines { position: absolute; top: -60px; left: 0; right: 0; height: 160px; z-index: 0; opacity: 0.22; pointer-events: none; mask-image: linear-gradient(to bottom, transparent, black 55%, transparent); }
 .wl-story > *:not(.wl-story-lines) { position: relative; z-index: 1; }
 
-/* ---- features (CardSwap, React Bits) ---- */
-.wl-features { padding-top: 72px; padding-bottom: 40px; position: relative; }
-.wl-cardswap-wrap { position: relative; height: 460px; max-width: 620px; margin: 40px auto 0; }
+/* ---- features (CardSwap, React Bits) ----
+   Two-column: section copy + numbered feature list on the left, the
+   animated card stack on the right inside a fixed-height "stage". The
+   stage exists because CardSwap positions itself against its nearest
+   positioned ancestor's bottom-right corner and animates cards well
+   outside its own box — without a dedicated overflow-hidden container it
+   either overlaps neighboring sections or forces page-level horizontal
+   scroll on mobile. */
+.wl-features { padding-top: 72px; padding-bottom: 24px; position: relative; }
+.wl-features-grid { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: center; }
+@media (min-width: 900px) { .wl-features-grid { grid-template-columns: 1fr 1.1fr; gap: 32px; } }
+.wl-features-copy h2 { font-size: clamp(22px, 3.5vw, 30px); font-weight: 800; margin: 0 0 10px; }
+.wl-features-copy > p { color: var(--text-2); font-size: 15px; line-height: 1.55; margin: 0 0 22px; max-width: 42ch; }
+.wl-features-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.wl-features-list li { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; color: var(--text); }
+.wl-features-list-num { font-size: 12px; font-weight: 700; color: var(--text-3); width: 22px; flex: 0 0 auto; }
+.wl-features-list [class^="icon-"] { width: 17px; height: 17px; color: var(--accent); flex: 0 0 auto; }
+.wl-swap-stage { position: relative; height: 480px; overflow: hidden; border-radius: var(--radius); }
+/* Desktop-only showpiece — CardSwap's own mobile scaling (55%, corner-
+   tucked) reads as a broken half-card on a phone, and the numbered list
+   above already carries the same content there. */
+@media (max-width: 899px) { .wl-swap-stage { display: none; } }
 /* .card (CardSwap.css) owns position/transform-style/backface-visibility —
-   only override the visual skin here so the drag/stack animation is untouched. */
-.card.wl-feature-card {
-  display: flex; align-items: center; padding: 24px; overflow: hidden;
-  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg); color: var(--text);
+   only override the visual skin so the stack animation itself is
+   untouched. Extra specificity (container + double class) is deliberate:
+   CardSwap.css ships a hardcoded black/white skin and, as lazily-loaded
+   chunk CSS, it lands in the cascade AFTER index.css — equal-specificity
+   overrides here silently lose. */
+.card-swap-container .card.wl-feature-card {
+  display: flex; align-items: center; padding: 26px; overflow: hidden; color: var(--text);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--bg) 45%, transparent),
+              inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent);
 }
 .wl-feature-card-index {
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-  font-size: clamp(80px, 12vw, 140px); font-weight: 800; color: var(--border); opacity: 0.5;
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 110px; font-weight: 800; color: var(--text-3); opacity: 0.18;
   line-height: 1; pointer-events: none; user-select: none;
 }
 .wl-feature-card-body { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; position: relative; z-index: 1; }
@@ -2200,10 +2277,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   flex-shrink: 0;
 }
 .wl-feature-card-body b { font-size: 19px; }
-.wl-feature-card-body span { font-size: 14.5px; color: var(--text-2); line-height: 1.55; max-width: 44ch; }
-@media (max-width: 640px) {
-  .wl-feature-card-index { display: none; }
+.wl-feature-card-body span { font-size: 14px; color: var(--text-2); line-height: 1.5; max-width: 42ch; }
+
+/* ---- closing CTA band ---- */
+.wl-cta { padding-top: 56px; }
+.wl-cta-card {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 40px 24px; text-align: center;
 }
+.wl-cta-card h2 { font-size: clamp(22px, 3.5vw, 30px); font-weight: 800; margin: 0; }
+.wl-cta-card p { color: var(--text-2); font-size: 15px; margin: 0 0 10px; max-width: 46ch; }
+.wl-cta-card .btn { max-width: 260px; }
 
 .wl-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
