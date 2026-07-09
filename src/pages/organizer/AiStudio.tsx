@@ -5,11 +5,11 @@ import FeatureLock from "../../components/FeatureLock";
 
 // Gemini-powered tools (server/ai.js auto-picks whichever provider key is
 // configured — Gemini preferred). Every output lands here for the organizer
-// to review/edit/copy — nothing generated here ever gets auto-published
-// anywhere else in the app. Cover art is a text concept brief, not an
-// actual generated image (no image-gen API is wired up); an auto-FAQ
-// chatbot and predictive attendance forecasting from the original plan are
-// deliberately not built yet — flagged honestly rather than faked.
+// to review/edit/copy/download — nothing generated here ever gets
+// auto-published or auto-set as an event's live cover. Cover art concepts
+// generate a real image now (Gemini-only, see ai.js's generateImage); an
+// auto-FAQ chatbot and predictive attendance forecasting from the original
+// plan are deliberately not built yet — flagged honestly rather than faked.
 export default function AiStudio() {
   const events = useAsync(() => api.dashboardEvents(), []);
   const sub = useAsync(() => api.mySubscription(), []);
@@ -177,9 +177,12 @@ function CoverConceptTool({ event }: { event: Weyn }) {
   const [concepts, setConcepts] = useState<{ name: string; description: string; palette: string[] }[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [images, setImages] = useState<Record<number, string>>({});
+  const [imageBusy, setImageBusy] = useState<number | null>(null);
+  const [imageErr, setImageErr] = useState<Record<number, string>>({});
 
   async function generate() {
-    setBusy(true); setErr("");
+    setBusy(true); setErr(""); setImages({}); setImageErr({});
     try {
       const res = await api.aiCoverConcept(event.id);
       setConcepts(res.concepts);
@@ -190,20 +193,49 @@ function CoverConceptTool({ event }: { event: Weyn }) {
     }
   }
 
+  async function generateImage(i: number, description: string) {
+    setImageBusy(i);
+    setImageErr((prev) => ({ ...prev, [i]: "" }));
+    try {
+      const { url } = await api.aiCoverImage(event.id, description);
+      setImages((prev) => ({ ...prev, [i]: url }));
+    } catch (e: any) {
+      setImageErr((prev) => ({ ...prev, [i]: e.message || "Couldn't generate an image" }));
+    } finally {
+      setImageBusy(null);
+    }
+  }
+
   return (
     <ToolCard title="Cover art concepts" icon="palette">
-      <p className="hint" style={{ margin: "0 0 10px" }}>Visual directions and color palettes for a designer (or yourself) to work from — not a generated image.</p>
+      <p className="hint" style={{ margin: "0 0 10px" }}>Pick a visual direction, then generate a real cover image from it — always a preview to download, never auto-set as your event's live cover.</p>
       {err && <p className="errline">{err}</p>}
       <button className="btn" onClick={generate} disabled={busy}>{busy ? "Generating…" : "Generate concepts"}</button>
       {concepts && concepts.map((c, i) => (
         <div key={i} className="marketing-card" style={{ marginTop: 12 }}>
           <div className="marketing-card-head"><b>{c.name}</b></div>
           <p style={{ fontSize: 13.5, color: "var(--text-2)", margin: "4px 0 8px" }}>{c.description}</p>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
             {c.palette.map((hex, j) => (
               <div key={j} title={hex} style={{ width: 28, height: 28, borderRadius: 6, background: hex, border: "1px solid var(--card-border, rgba(0,0,0,0.1))" }} />
             ))}
           </div>
+          {imageErr[i] && <p className="errline">{imageErr[i]}</p>}
+          {images[i] ? (
+            <>
+              <img src={images[i]} alt={`Generated cover for "${c.name}"`} style={{ width: "100%", borderRadius: 10, marginBottom: 8, display: "block" }} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <a href={images[i]} download className="btn glass sm"><i className="icon-download" /> Download</a>
+                <button className="btn glass sm" onClick={() => generateImage(i, c.description)} disabled={imageBusy === i}>
+                  {imageBusy === i ? "Regenerating…" : "Regenerate"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <button className="btn glass sm" onClick={() => generateImage(i, c.description)} disabled={imageBusy === i}>
+              <i className="icon-image" /> {imageBusy === i ? "Generating image…" : "Generate image"}
+            </button>
+          )}
         </div>
       ))}
     </ToolCard>
