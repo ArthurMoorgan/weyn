@@ -221,13 +221,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   min-height: 100%;
   position: relative;
   padding-top: env(safe-area-inset-top);
-  /* Must mirror .tabs's own height exactly (2px top pad + 48px tab content
-     + its own bottom pad formula) — using a flat estimate here left a real
-     gap below the tab bar on notched/PWA-installed devices, where
-     env(safe-area-inset-bottom) is non-zero and this padding was adding
-     the FULL inset on top of .tabs already trimming it down to
-     max(6px, inset - 12px). */
-  padding-bottom: calc(50px + max(6px, calc(env(safe-area-inset-bottom) - 12px)));
+  /* Must mirror .tabs's own floating-pill footprint exactly: its bottom
+     offset (max(14px, safe-area+2px)) + its own height (6px+6px padding +
+     46px tab content = 58px) + a little clearance so page content doesn't
+     touch the pill — using a flat estimate here left a real gap (or an
+     overlap) on notched/PWA-installed devices where the safe-area inset is
+     non-zero. */
+  padding-bottom: calc(max(14px, calc(env(safe-area-inset-bottom) + 2px)) + 58px + 12px);
 }
 
 /* ---------- top bar ---------- flat, minimal-height, not a floating pill */
@@ -574,35 +574,37 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 
-/* ---------- tab bar ---------- native iOS bottom bar: full-width, flat,
-   fixed to the edge. Not a floating pill, no glow. */
+/* ---------- tab bar ---------- floating glass pill, inset from the screen
+   edge rather than a flat full-width strip — one accent (--accent) picks
+   out the active tab via its own rounded highlight, everything else stays
+   neutral grayscale. */
 .tabs {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
-  margin: 0 auto; max-width: var(--maxw);
-  display: flex; align-items: stretch;
-  /* On a home-screen-installed PWA, env(safe-area-inset-bottom) is the real
-     home-indicator height (~34px). Using the FULL inset as bottom padding left
-     the labels visibly floating well above the screen edge ("really high up").
-     We only need to clear the home indicator, not reserve the whole inset, so
-     trim ~12px off it — this pulls the labels down toward the edge while still
-     keeping comfortable clearance (~22px on a notched iPhone). max() keeps a
-     small minimum on non-notch devices where the inset is 0. */
-  padding: 2px 4px max(6px, calc(env(safe-area-inset-bottom) - 12px));
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  border-top: 1px solid var(--hair);
+  position: fixed; bottom: max(14px, calc(env(safe-area-inset-bottom) + 2px)); left: 14px; right: 14px; z-index: 40;
+  margin: 0 auto; max-width: calc(var(--maxw) - 28px);
+  display: flex; align-items: stretch; gap: 2px;
+  padding: 6px;
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--bg) 55%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 6%, transparent);
 }
 .tab {
   position: relative; z-index: 2; flex: 1 1 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  min-height: 48px;
+  min-height: 46px;
   font-size: 10px; font-weight: 600; color: var(--text-3); padding: 6px 4px;
-  transition: color .2s ease;
+  border-radius: 20px;
+  transition: color .2s ease, background-color .2s ease;
 }
-.tab [class^="icon-"] { font-size: 21px; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
-.tab.on { color: var(--accent); }
-.tab.on [class^="icon-"] { color: var(--accent); }
+.tab [class^="icon-"] { font-size: 20px; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
+.tab.on {
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.tab.on [class^="icon-"] { color: #fff; }
 .sidebar-brand { display: none; }
 
 /* ---------- tab-switch spark burst ----------
