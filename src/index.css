@@ -254,6 +254,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   padding: 6px 10px; border-radius: var(--radius-pill);
 }
 .pill [class^="icon-"] { font-size: 15px; color: var(--text-2); }
+.tb-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex: 0 0 auto;
+  display: grid; place-items: center; overflow: hidden;
+  background: var(--surface-2); color: var(--text-2); font-size: 16px;
+  border: 1px solid var(--hair);
+}
+.tb-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ---------- page header ---------- */
 .page-head { padding: 18px 16px 6px; }
@@ -432,6 +439,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ec-feature-meta .ec-dot { color: rgba(255,255,255,0.5); }
 .ec-price-pill { margin-left: auto; background: rgba(255,255,255,0.16); color: #fff; padding: 3px 9px; border-radius: var(--radius-pill); }
 .ec-price-pill.free { background: var(--success); }
+/* Category pill — sits in the card body under the meta row, not overlaid on
+   the image (that top area already belongs to the status badge + save
+   heart; competing for the same corner looked cluttered). */
+.ec-feature-cat { display: inline-block; margin-top: 8px; font: var(--t-caption); font-weight: 600; color: #fff; background: rgba(255,255,255,0.16); padding: 4px 10px; border-radius: var(--radius-pill); }
+/* "Who's going" row — see AvatarStack.tsx: abstract gradient-filled
+   circles + a real count, never a fabricated attendee photo. */
+.ec-feature-social { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.avatar-stack { display: flex; align-items: center; gap: 6px; }
+.avatar-dot { display: inline-block; border-radius: 50%; border: 2px solid rgba(255,255,255,0.9); margin-left: -8px; }
+.avatar-dot:first-child { margin-left: 0; }
+.avatar-stack-label { font: var(--t-meta); color: rgba(255,255,255,0.85); margin-left: 2px; }
 
 /* ============================================================
    EXPLORE — discovery sections
@@ -440,8 +458,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    Uses only existing color tokens; sits between the topbar and search. */
 /* Trimmed hero: a short title + a small link, not a paragraph — a wall of
    marketing copy above the fold reads as friction, not welcome. */
-.ex-hero { padding: 18px 16px 4px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
+.ex-hero { padding: 18px 16px 4px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
 .ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; }
+.ex-greeting { display: block; font-size: 14px; font-weight: 500; color: var(--text-2); margin-bottom: 4px; }
 .ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 6px 0; white-space: nowrap; flex: 0 0 auto; }
 .ex-hero-host [class^="icon-"] { font-size: 14px; }
 

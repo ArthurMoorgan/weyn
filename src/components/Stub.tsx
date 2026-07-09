@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { type Weyn, ticketsLeft, isSoldOut, isTonight, dayLabel, timeLabel } from "../api";
 import { isSaved, toggleSave, useSaved } from "../store";
+import AvatarStack from "./AvatarStack";
 
 // Card variants — one component, three densities, so different Explore
 // sections get genuinely different visual treatments (per the design brief:
@@ -122,6 +123,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
     <Link to={`/e/${e.id}`} className="ec-feature">
       <div className="ec-feature-cover" style={coverStyle}>
         {statusBadge}
+        <span className="ec-feature-cat">{catLabel(e.cat)}</span>
         <SaveHeart id={e.id} className="ec-save-lg" />
         {!e.image && <span className="ec-glyph big">{e.glyph}</span>}
         <div className="ec-feature-body">
@@ -133,6 +135,11 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
             <span>{e.venue || e.area}</span>
             <span className={"ec-price ec-price-pill" + (e.price === 0 ? " free" : "")}>{priceText}</span>
           </div>
+          {e.sold > 0 && (
+            <div className="ec-feature-social">
+              <AvatarStack seed={e.id} count={e.sold} />
+            </div>
+          )}
         </div>
       </div>
     </Link>

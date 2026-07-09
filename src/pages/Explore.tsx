@@ -10,6 +10,14 @@ import CityPill from "../components/CityPill";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
 
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 5) return "Still up?";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 // Explore is built around DISCOVERY, not a single vertical feed. Sections
 // get different visual treatments: a Featured hero rail, horizontal
 // scroll rails for time/category slices, and a dense list for the long
@@ -219,12 +227,18 @@ export default function Explore() {
         <div className="tb-right">
           <ThemeToggle />
           <CityPill />
+          <Link to="/you" className="tb-avatar" aria-label="Your profile">
+            {account?.picture ? <img src={account.picture} alt="" /> : <i className="icon-user" />}
+          </Link>
         </div>
       </header>
 
       {!searching && (
         <section className="ex-hero">
-          <h1>What's on</h1>
+          <div>
+            <span className="ex-greeting">{greeting()}{account ? `, ${account.name.split(" ")[0]}` : ""} 👋</span>
+            <h1>Where to next?</h1>
+          </div>
           <Link to="/host/events" className="ex-hero-host">Host an event <i className="icon-arrow-right" /></Link>
         </section>
       )}
@@ -290,7 +304,7 @@ export default function Explore() {
       )}
 
       {!searching && (
-        <div className="chips chips-desktop-only">
+        <div className="chips">
           {CATS.map((c) => (
             <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")}>
               {c.label}
@@ -299,18 +313,11 @@ export default function Explore() {
         </div>
       )}
 
-      {!searching && activeFilterCount > 0 && (
+      {!searching && when !== "all" && (
         <div className="chips chips-mobile-only active-filter-summary">
-          {when !== "all" && (
-            <button className="chip on" onClick={() => setWhen("all")}>
-              {when === "today" ? "Today" : when === "tomorrow" ? "Tomorrow" : "This weekend"} <i className="icon-x" />
-            </button>
-          )}
-          {cat !== "all" && (
-            <button className="chip on" onClick={() => setCat("all")}>
-              {CATS.find((c) => c.key === cat)?.label} <i className="icon-x" />
-            </button>
-          )}
+          <button className="chip on" onClick={() => setWhen("all")}>
+            {when === "today" ? "Today" : when === "tomorrow" ? "Tomorrow" : "This weekend"} <i className="icon-x" />
+          </button>
         </div>
       )}
 
@@ -392,7 +399,15 @@ export default function Explore() {
           <>
             {S.featPool[0] && <MagazineHero e={S.featPool[0]} />}
             <Rail title="Featured" subtitle="Hand-picked" events={S.featPool} variant="feature" className="ex-featured-rail" />
-            <Rail title="Trending this week" subtitle="Filling up fast" events={S.trending} dense />
+            {S.trending.length > 0 && (
+              <section className="ex-section">
+                <div className="ex-head">
+                  <h2>Trending this week</h2>
+                  <span className="ex-sub">Filling up fast</span>
+                </div>
+                <div className="ex-list">{S.trending.map((e) => <Stub key={e.id} e={e} />)}</div>
+              </section>
+            )}
             <Rail title="Happening tonight" events={S.tonight} dense />
             <Rail title="This weekend" events={S.weekend} dense />
             <Rail title="Popular near you" events={S.popular} dense />
