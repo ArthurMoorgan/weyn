@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, Link, useLocation } from "react-router-dom";
 import Explore from "./pages/Explore";
 import LoadingMark from "./components/LoadingMark";
+import ThemeToggle from "./components/ThemeToggle";
+import CityPill from "./components/CityPill";
+import { useAccount } from "./store";
 
 // Lazy, same as every other non-critical-path route (see main.tsx) — these
 // just aren't *routed* through main.tsx anymore, App renders them directly.
@@ -49,6 +52,7 @@ export default function App() {
   const navRef = useRef<HTMLElement>(null);
   const [bursts, setBursts] = useState<Burst[]>([]);
   const location = useLocation();
+  const account = useAccount();
   const activeMainTab = MAIN_TABS.find((t) => t.path === location.pathname);
   const [visited, setVisited] = useState<Set<string>>(() => new Set(activeMainTab ? [activeMainTab.path] : []));
 
@@ -107,6 +111,18 @@ export default function App() {
             <span>{t.label}</span>
           </NavLink>
         ))}
+        {/* Desktop-only (see .tabs-right in index.css, hidden below 900px) —
+            the bottom tab bar has no room for this and doesn't need it;
+            once the bar moves to the top of the screen on wide layouts,
+            these are the chrome that top bar earns: city + theme + account,
+            each already a real working component elsewhere in the app. */}
+        <div className="tabs-right">
+          <CityPill />
+          <ThemeToggle />
+          <Link to="/you" className="tb-avatar" aria-label="Profile">
+            {account?.picture ? <img src={account.picture} alt="" /> : <i className="icon-circle-user" />}
+          </Link>
+        </div>
         {bursts.map((burst) => (
           <span key={burst.id} className="tab-sparks" style={{ left: burst.x, top: burst.y }}>
             {burst.sparks.map((s, i) => (

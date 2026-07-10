@@ -647,6 +647,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .tab.on [class^="icon-"] { color: #fff; }
 .sidebar-brand { display: none; }
+.tabs-right { display: none; }
 
 /* ---------- tab-switch spark burst ----------
    A handful of small flecks fire outward from an icon the instant it
@@ -1471,6 +1472,26 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .dash-row .amt { text-align: right; flex: 0 0 auto; }
 .dash-row .amt b { font-size: 15px; display: block; white-space: nowrap; }
 .dash-row .amt span { font-size: 11.5px; color: var(--text-2); display: block; margin-top: 2px; }
+
+/* Overview's greeting banner + "on sale now"-style sell-through rows —
+   layout borrowed from a reference dashboard (per direct request): a big
+   headline card with one prominent real metric, and event rows getting a
+   sold/capacity progress bar instead of a bare count. */
+.dash-banner {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+  padding: 18px 20px; margin: 4px 0 14px; border-radius: var(--radius);
+  background: var(--card-bg); box-shadow: var(--card-shadow);
+}
+.dash-banner-eyebrow { display: block; font-size: 13px; color: var(--text-2); margin-bottom: 4px; }
+.dash-banner h2 { font-size: 20px; letter-spacing: -0.4px; }
+.dash-banner-metric { text-align: right; flex: 0 0 auto; }
+.dash-banner-metric .k { display: block; font-size: 12px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.4px; }
+.dash-banner-metric .v { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+.dash-banner-metric .v small { font-size: 13px; font-weight: 500; color: var(--text-2); }
+
+.dash-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.dash-row-pct { flex: 0 0 auto; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.dash-row-progress .bar { margin-top: 6px; }
 .bar { height: 6px; border-radius: 99px; background: var(--hair); overflow: hidden; margin-top: 7px; }
 .bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
 .bar i.full { background: var(--danger); }
@@ -1631,37 +1652,46 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
     --t-hero: 700 40px/1.1 "Inter", sans-serif;
   }
 
-  body { display: flex; }
-
   .shell {
-    flex: 1;
-    padding-left: 232px;
+    padding-top: calc(64px + env(safe-area-inset-top));
     padding-bottom: 0;
     box-sizing: border-box;
   }
 
-  /* bottom tab bar -> left sidebar */
+  /* bottom tab bar -> top bar. Same nav element, same tab links, just
+     re-flowed to a horizontal row fixed to the top edge instead of a
+     floating pill at the bottom — this is the desktop reference layout's
+     chrome shape (logo + inline links + a right-aligned utility cluster),
+     not a sidebar. */
   .tabs {
-    position: fixed; top: 0; left: 0; bottom: 0; right: auto; z-index: 40;
-    width: 232px; max-width: 232px; margin: 0;
-    flex-direction: column; align-items: stretch; justify-content: flex-start;
-    gap: 2px;
-    padding: 0 12px;
-    padding-top: calc(20px + env(safe-area-inset-top));
-    border-top: none; border-right: 1px solid var(--hair);
+    position: fixed; top: 0; left: 0; right: 0; bottom: auto; z-index: 40;
+    width: 100%; max-width: none; margin: 0;
+    flex-direction: row; align-items: center; justify-content: flex-start;
+    gap: 4px;
+    height: 64px;
+    padding: 0 32px;
+    padding-top: 0;
+    border-radius: 0;
+    border-top: none; border-bottom: 1px solid var(--hair);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
   }
   .sidebar-brand {
     display: flex; align-items: center; gap: 9px;
-    padding: 0 10px 20px;
+    padding: 0 24px 0 0;
     font-size: 17px; font-weight: 700; letter-spacing: -0.4px;
+    flex: 0 0 auto;
   }
   .tab {
-    flex: none; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px;
-    padding: 11px 12px; border-radius: var(--radius-sm);
+    flex: 0 0 auto; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px;
+    min-height: auto;
+    padding: 9px 14px; border-radius: var(--radius-pill);
     font-size: 14.5px;
   }
-  .tab [class^="icon-"] { font-size: 19px; }
+  .tab [class^="icon-"] { font-size: 17px; }
   .tab.on { background: var(--accent-soft); }
+  .tabs-right { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: 0 0 auto; }
+  .tabs-right .pill { color: var(--text-2); }
 
   /* dense row lists become a 3-column grid on desktop — uses the width
      instead of one long centered column, without shrinking each row */
@@ -1698,12 +1728,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   /* let the featured rail breathe with larger cards on desktop */
   .ec-feature { width: 360px; }
   .ec-rail { width: 232px; }
-
-  /* fixed bars anchored to the full viewport need the same left offset
-     the sidebar introduces, so they stay centered under the content
-     column instead of under the whole (sidebar-included) viewport */
-  .buybar { left: 232px; }
-  .toast { left: calc(50% + 116px); }
 
   /* event page: image pinned left, details scroll on the right, instead of
      the mobile stacked cover-then-sheet layout */
@@ -1792,6 +1816,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .organizer-nav.profile-tabs .profile-tab { width: 100%; justify-content: flex-start; }
   .organizer-content .stat-grid { grid-template-columns: repeat(4, 1fr); }
   .organizer-events-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  /* Coming-up (list) + revenue trend (chart) sit stacked on mobile in that
+     DOM order; side by side on desktop with the chart visually first
+     (order: -1) to match the reference layout, without reordering the
+     underlying markup or mobile flow. */
+  .dash-2col { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; align-items: start; }
+  .dash-col-chart { order: -1; }
 }
 
 /* ============================================================

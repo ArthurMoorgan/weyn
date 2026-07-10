@@ -43,27 +43,33 @@ const SHOTS = "/tmp/weyn-shots";
 
   await page.goto("http://localhost:5173/", { waitUntil: "networkidle" });
 
-  // Sign in programmatically through Clerk's JS client — the test user
-  // (weynqa+clerk_test@example.com) was pre-created via the Backend API, so
-  // this is a plain password sign-in with no sign-up bot check in the way.
-  const signedIn = await page.evaluate(async () => {
+  // Password sign-in kept hitting Clerk's "needs_client_trust" device check
+  // even with a testing token (that bypass covers bot-detection on public
+  // forms, not this). A sign-in TOKEN minted server-side via the Backend API
+  // and redeemed with strategy:"ticket" is Clerk's first-party path for
+  // exactly this (magic-link-style redemption) and skips that check.
+  const ticketRes = await fetch("https://api.clerk.com/v1/sign_in_tokens", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${sk}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: "user_3GIKP38UK9Ywip4shvvdAkQwnSj", expires_in_seconds: 300 }),
+  });
+  const { token: ticket } = await ticketRes.json();
+
+  const signedIn = await page.evaluate(async (ticket) => {
     for (let i = 0; i < 50 && !(window.Clerk && window.Clerk.loaded); i++) {
       await new Promise((r) => setTimeout(r, 200));
     }
     if (!window.Clerk || !window.Clerk.loaded) return "clerk-not-loaded";
     if (window.Clerk.user) return "already";
     try {
-      const res = await window.Clerk.client.signIn.create({
-        identifier: "weynqa+clerk_test@example.com",
-        password: "weyn-qa-Pass-2026!",
-      });
+      const res = await window.Clerk.client.signIn.create({ strategy: "ticket", ticket });
       if (res.status !== "complete") return "status:" + res.status;
       await window.Clerk.setActive({ session: res.createdSessionId });
       return "ok";
     } catch (e) {
       return "err:" + (e.errors?.[0]?.message || e.message);
     }
-  });
+  }, ticket);
   console.log("clerk sign-in:", signedIn, "| routed FAPI requests:", routedCount);
   await ctx.storageState({ path: STATE });
 
@@ -99,6 +105,11 @@ const SHOTS = "/tmp/weyn-shots";
   await dpage.screenshot({ path: `${SHOTS}/explore-desktop-dark-scrolled.png` });
   const doverflow = await dpage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   console.log("desktop horizontal overflow px:", doverflow);
+
+  // organizer dashboard (desktop only — that's the layout being redesigned)
+  await dpage.goto("http://localhost:5173/organizer", { waitUntil: "networkidle" });
+  await dpage.waitForTimeout(2000);
+  await dpage.screenshot({ path: `${SHOTS}/organizer-desktop-dark.png` });
 
   console.log("console errors:", errors.length ? errors : "none");
   await browser.close();

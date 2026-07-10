@@ -2,9 +2,20 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, dayLabel, timeLabel, API_BASE, type Expense, type OrganizerFinance } from "../../api";
 import { useAsync } from "../../hooks";
-import { getAuthToken } from "../../store";
+import { getAuthToken, useAccount } from "../../store";
 
 const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
+
+// Same greeting logic as Explore's hero (src/pages/Explore.tsx) — duplicated
+// rather than shared since it's a 5-line pure function and the two pages
+// have no other reason to import from each other.
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 5) return "Still up?";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 const ATTENTION_ICON: Record<string, string> = {
   manual_review: "icon-shield-alert",
@@ -22,6 +33,7 @@ const thisMonth = () => new Date().toISOString().slice(0, 7);
 // event) now live here, right under the same revenue trend a Finance page
 // would have opened to anyway.
 export default function OrganizerOverview() {
+  const account = useAccount();
   const summary = useAsync(() => api.dashboardSummary(), []);
   const overview = useAsync(() => api.organizerOverview(), []);
   const finance = useAsync(() => api.organizerFinance(), []);
@@ -36,6 +48,18 @@ export default function OrganizerOverview() {
   return (
     <>
       {summary.error && <p className="errline">{summary.error}</p>}
+
+      <div className="dash-banner">
+        <div>
+          <span className="dash-banner-eyebrow">{greeting()}{account?.name ? `, ${account.name.split(" ")[0]}` : ""}</span>
+          <h2>Here's how your events are doing.</h2>
+        </div>
+        <div className="dash-banner-metric">
+          <span className="k">Net revenue</span>
+          <span className="v">{f ? omr(f.netRevenue) : "—"} <small>OMR</small></span>
+        </div>
+      </div>
+
       <div className="stat-grid">
         <div className="stat"><div className="k">Net revenue</div><div className="v">{f ? omr(f.netRevenue) : "—"} <small>OMR</small></div></div>
         <div className="stat"><div className="k">Tickets sold</div><div className="v">{s ? s.totalAttendees.toLocaleString() : "—"}</div></div>
@@ -65,47 +89,61 @@ export default function OrganizerOverview() {
         </ul>
       )}
 
-      <div className="date-head"><h2>Coming up</h2></div>
-      {overview.loading && <p className="hint" style={{ padding: "0 6px" }}>Loading…</p>}
-      {o && o.nextUpcoming.length === 0 && (
-        <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 6px 8px" }}>Nothing scheduled yet.</p>
-      )}
-      {o && o.nextUpcoming.map((e) => (
-        <Link key={e.id} to={`/organizer/events/${e.id}`} className="dash-row">
-          <div className="thumb" style={e.image ? { backgroundImage: `url(${e.image})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: e.color }}>
-            {!e.image && e.glyph}
-          </div>
-          <div className="info">
-            <b>{e.title}</b>
-            <span>{dayLabel({ startsAt: e.startsAt } as any)} · {timeLabel({ startsAt: e.startsAt } as any)}</span>
-          </div>
-          <div className="amt">
-            <b>{e.sold}</b>
-            <span>{e.capacity >= 9000 ? "in" : `/ ${e.capacity}`}</span>
-          </div>
-        </Link>
-      ))}
+      <div className="dash-2col">
+        <div className="dash-col dash-col-list">
+          <div className="date-head"><h2>Coming up</h2></div>
+          {overview.loading && <p className="hint" style={{ padding: "0 6px" }}>Loading…</p>}
+          {o && o.nextUpcoming.length === 0 && (
+            <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 6px 8px" }}>Nothing scheduled yet.</p>
+          )}
+          {o && o.nextUpcoming.map((e) => {
+            // Sell-through — sold/capacity as a percent. Capacity >= 9000 is
+            // the same "no meaningful cap" placeholder used elsewhere
+            // (registration-only events, huge venue placeholders), where a
+            // percent bar would be meaningless — falls back to a plain count.
+            const hasCapacity = e.capacity > 0 && e.capacity < 9000;
+            const pct = hasCapacity ? Math.min(100, Math.round((e.sold / e.capacity) * 100)) : null;
+            return (
+              <Link key={e.id} to={`/organizer/events/${e.id}`} className="dash-row dash-row-progress">
+                <div className="thumb" style={e.image ? { backgroundImage: `url(${e.image})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: e.color }}>
+                  {!e.image && e.glyph}
+                </div>
+                <div className="info">
+                  <div className="dash-row-top">
+                    <b>{e.title}</b>
+                    <span className="dash-row-pct">{pct != null ? `${pct}%` : `${e.sold} sold`}</span>
+                  </div>
+                  <span>{dayLabel({ startsAt: e.startsAt } as any)} · {timeLabel({ startsAt: e.startsAt } as any)}</span>
+                  {pct != null && <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${pct}%` }} /></div>}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
 
-      <div className="date-head"><h2>Revenue — last 14 days</h2></div>
-      <div className="dash-card" style={{ padding: "16px 18px" }}>
-        {overview.loading ? (
-          <p className="hint">Loading…</p>
-        ) : o && o.revenueTrend.some((d) => d.revenue > 0) ? (
-          <div className="mini-bars" style={{ height: 90 }}>
-            {o.revenueTrend.map((d) => (
-              <div key={d.date} className="mini-bar" title={`${d.date}: ${d.revenue.toLocaleString()} OMR`} style={{
-                height: `${Math.max(6, Math.round((d.revenue / maxTrend) * 90))}px`,
-              }} />
-            ))}
+        <div className="dash-col dash-col-chart">
+          <div className="date-head"><h2>Revenue — last 14 days</h2></div>
+          <div className="dash-card" style={{ padding: "16px 18px" }}>
+            {overview.loading ? (
+              <p className="hint">Loading…</p>
+            ) : o && o.revenueTrend.some((d) => d.revenue > 0) ? (
+              <div className="mini-bars" style={{ height: 90 }}>
+                {o.revenueTrend.map((d) => (
+                  <div key={d.date} className="mini-bar" title={`${d.date}: ${d.revenue.toLocaleString()} OMR`} style={{
+                    height: `${Math.max(6, Math.round((d.revenue / maxTrend) * 90))}px`,
+                  }} />
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No sales in the last 14 days yet.</p>
+            )}
+            {f && !f.payoutsLive && (
+              <p className="hint" style={{ margin: "12px 0 0" }}>
+                Payout tracking isn't real yet — these numbers reflect ticket sales, not money actually transferred to you.
+              </p>
+            )}
           </div>
-        ) : (
-          <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No sales in the last 14 days yet.</p>
-        )}
-        {f && !f.payoutsLive && (
-          <p className="hint" style={{ margin: "12px 0 0" }}>
-            Payout tracking isn't real yet — these numbers reflect ticket sales, not money actually transferred to you.
-          </p>
-        )}
+        </div>
       </div>
 
       <button type="button" className="ig-import-toggle" onClick={() => setShowMore((v) => !v)} aria-expanded={showMore} style={{ marginTop: 4 }}>
