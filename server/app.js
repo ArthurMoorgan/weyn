@@ -2596,6 +2596,32 @@ export function createApp(storage) {
     res.json(await db.platformMetrics());
   });
 
+  // ---- waitlist.weynevents.com signups (see LandingWaitlistSignup in
+  // schema.prisma — deliberately separate from the per-event WaitlistEntry
+  // model used for sold-out tickets) ----
+  app.get("/api/admin/waitlist-signups", requireAuth, requireRole("ADMIN"), async (_req, res) => {
+    const rows = await prisma.landingWaitlistSignup.findMany({ orderBy: { createdAt: "desc" } });
+    res.json(rows);
+  });
+
+  app.get("/api/admin/waitlist-signups.csv", requireAuth, requireRole("ADMIN"), async (_req, res) => {
+    const rows = await prisma.landingWaitlistSignup.findMany({ orderBy: { createdAt: "desc" } });
+    // Same CSV-injection guard as the attendee exports above — name/source
+    // are visitor-supplied free text.
+    const escape = (v) => {
+      let s = String(v ?? "");
+      if (/^[=+\-@]/.test(s)) s = "'" + s;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const lines = ["Email,Name,Role,Source,Signed Up At"];
+    for (const r of rows) {
+      lines.push([escape(r.email), escape(r.name), escape(r.role), escape(r.source), escape(r.createdAt.toISOString())].join(","));
+    }
+    res.set("Content-Type", "text/csv");
+    res.set("Content-Disposition", 'attachment; filename="weyn-waitlist-signups.csv"');
+    res.send(lines.join("\n"));
+  });
+
   // ---- trust & safety review queue (see server/moderation.js) ----
   app.get("/api/admin/review-queue", requireAuth, requireRole("ADMIN"), async (_req, res) => {
     res.json(await db.listReviewQueue());

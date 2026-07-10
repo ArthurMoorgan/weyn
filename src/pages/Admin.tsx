@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, API_BASE, type ReportReason, type VenueApplication } from "../api";
 import { useAsync } from "../hooks";
-import { useAccount } from "../store";
+import { useAccount, getAuthToken } from "../store";
 import ThemeToggle from "../components/ThemeToggle";
 
 const REASON_LABEL: Record<ReportReason, string> = {
@@ -106,8 +106,72 @@ export default function Admin() {
         </div>
 
         <VenueApplications />
+        <WaitlistSignups />
       </div>
     </>
+  );
+}
+
+/* ---------- waitlist.weynevents.com signups ---------- */
+function WaitlistSignups() {
+  const { data, loading, error } = useAsync(() => api.adminWaitlistSignups(), []);
+  const [exporting, setExporting] = useState(false);
+
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/api/admin/waitlist-signups.csv`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = "weyn-waitlist-signups.csv"; link.click();
+      URL.revokeObjectURL(url);
+    } catch { /* the export button itself is the only affordance — a failed download just leaves nothing to show */ }
+    finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="hint" style={{ margin: "20px 16px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span><i className="icon-mail" /> Waitlist signups {data ? `(${data.length})` : ""}</span>
+        {!!data?.length && (
+          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={exportCsv} disabled={exporting}>
+            <i className="icon-download" /> {exporting ? "Exporting…" : "Export CSV"}
+          </button>
+        )}
+      </p>
+
+      {loading && (
+        <div style={{ padding: "0 16px" }}>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+        </div>
+      )}
+      {error && <p className="errline" style={{ padding: "0 16px" }}>{error}</p>}
+      {!loading && !error && (
+        (data || []).length > 0 ? (
+          <ul className="steps" style={{ padding: "0 16px" }}>
+            {data!.map((s) => (
+              <li key={s.id}>
+                <i className="icon-mail" />
+                <span>
+                  <b>{s.email}</b>{s.name ? ` · ${s.name}` : ""}
+                  <br /><small style={{ color: "var(--text-3)" }}>
+                    {s.role ? `${s.role} · ` : ""}{s.source ? `${s.source} · ` : ""}{new Date(s.createdAt).toLocaleDateString()}
+                  </small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 16px" }}>No signups yet.</p>
+        )
+      )}
+    </div>
   );
 }
 

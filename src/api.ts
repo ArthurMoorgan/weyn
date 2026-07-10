@@ -171,6 +171,18 @@ export interface OpenReport {
   reporter: { name: string | null; email: string | null } | null;
 }
 
+// waitlist.weynevents.com signups — see LandingWaitlistSignup in
+// schema.prisma, deliberately separate from the per-event WaitlistEntry
+// model used for sold-out tickets.
+export interface WaitlistSignup {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string | null;
+  source: string | null;
+  createdAt: string;
+}
+
 export interface MarketingCopy {
   instagram: string;
   whatsapp: string;
@@ -955,6 +967,9 @@ export const api = {
   },
   async adminMetrics(): Promise<PlatformMetrics> {
     return fetch(`${API_BASE}/api/admin/metrics`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async adminWaitlistSignups(): Promise<WaitlistSignup[]> {
+    return fetch(`${API_BASE}/api/admin/waitlist-signups`, { headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- venue reservations ----
