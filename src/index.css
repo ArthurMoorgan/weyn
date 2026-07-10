@@ -421,6 +421,47 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ec-save-lg { top: 10px; right: 10px; width: 34px; height: 34px; font-size: 15px; }
 @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
+/* ---- full-width editorial card (Explore agenda) ----
+   Chromeless on purpose: a big rounded photo + text set directly on the
+   page, no card box around it — the magazine treatment (Dice/RA reference)
+   reads more expensive than another bordered container, and with a small
+   catalog every event can afford this much room. */
+.ec-card { display: block; }
+.ec-card-cover {
+  aspect-ratio: 16/9; border-radius: 18px; overflow: hidden; position: relative;
+  background-size: cover; background-position: center; background-color: var(--card-bg);
+  display: grid; place-items: center;
+  box-shadow: var(--shadow-sm);
+  transition: transform .18s ease;
+}
+.ec-card:active .ec-card-cover { transform: scale(0.985); }
+.ec-card-cover > .ec-badge { position: absolute; top: 10px; left: 10px; z-index: 1; backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
+.ec-card-scarce {
+  position: absolute; left: 10px; bottom: 10px; z-index: 1;
+  font: var(--t-caption); letter-spacing: 0.2px; color: #fff;
+  background: rgba(10,13,18,0.55); backdrop-filter: blur(6px);
+  padding: 3px 9px; border-radius: var(--radius-pill);
+}
+.ec-card-body { display: flex; flex-direction: column; gap: 3px; padding: 10px 4px 0; }
+.ec-card .ec-title {
+  font-size: 17px; letter-spacing: -0.3px;
+  white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  line-height: 1.3;
+}
+.ec-card .ec-meta { width: 100%; }
+.ec-card .ec-meta .ec-price { margin-left: auto; flex: 0 0 auto; }
+
+/* the agenda: one editorial card per event, stacked with real breathing room */
+.ex-agenda { display: flex; flex-direction: column; gap: 22px; padding: 0 16px; }
+
+/* mobile spotlight — the top featured event as one near-full-bleed cover
+   card (desktop gets .ex-magazine-hero instead; see the 900px block) */
+.ex-spotlight { padding: 4px 16px 0; animation: rise-in .5s cubic-bezier(.16,1,.3,1) both; }
+.ex-spotlight .ec-feature { width: 100%; }
+.ex-spotlight .ec-feature-cover { aspect-ratio: 5/6; border-radius: 22px; box-shadow: var(--shadow-md); }
+.ex-spotlight .ec-feature-body { padding: 18px; }
+.ex-spotlight .ec-feature-title { font-size: 26px; letter-spacing: -0.6px; line-height: 1.15; }
+
 /* ---- compact vertical rail card ---- */
 .ec-rail { flex: 0 0 auto; width: 200px; display: flex; flex-direction: column; gap: 8px; }
 .ec-rail-cover {
@@ -510,7 +551,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    ends up in the file */
 .ex-magazine-cta.btn.lg { display: inline-flex; width: auto; }
 
-.ex-section { margin-top: 22px; }
+.ex-section { margin-top: 28px; }
 .ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 10px; }
 .ex-head h2 { font: var(--t-section); letter-spacing: -0.4px; }
 .ex-sub { font: var(--t-meta); color: var(--text-3); flex: 0 0 auto; }
@@ -1644,12 +1685,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
      toward showing more events at once, not just a wider scrollbar. */
   .ex-magazine-hero { display: block; height: 380px; margin: 20px 24px 0; }
   .ex-featured-rail { display: none; }
-  .ex-rail.dense {
+  .ex-spotlight { display: none; }
+  /* agenda: one editorial card per event stacks on mobile; on desktop the
+     day group becomes a 3-up grid so the width shows more of the calendar */
+  .ex-agenda {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    overflow: visible;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px 20px;
+    padding: 0 24px;
   }
-  .ex-rail.dense .ec-rail { width: auto; }
   .ex-rail { padding-left: 24px; padding-right: 24px; }
   /* let the featured rail breathe with larger cards on desktop */
   .ec-feature { width: 360px; }

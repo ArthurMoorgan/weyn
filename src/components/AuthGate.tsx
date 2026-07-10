@@ -86,6 +86,16 @@ export default function AuthGate() {
     return () => clearTimeout(t);
   }, [adminStatus]);
 
+  // Local visual-QA escape hatch (see qa-explore.cjs): Clerk's dev-instance
+  // client-trust CAPTCHA can't be reliably automated headlessly (testing
+  // tokens don't bypass it as of clerk-js current), so Playwright runs set
+  // this env var to render the app shell without auth. import.meta.env.DEV
+  // is statically false in production builds — this branch is dead code on
+  // weynevents.com even if the env var were somehow set there.
+  if (import.meta.env.DEV && import.meta.env.VITE_QA_BYPASS_AUTHGATE === "1") {
+    return <Outlet />;
+  }
+
   // First-time visitors see the walkthrough before being asked to commit —
   // this moved here from Explore.tsx's own effect, since Explore now sits
   // behind this same gate and would never get a chance to redirect. /onboarding

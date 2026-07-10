@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, CATS, type Cat, type Weyn, isTonight, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
+import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import Stub from "../components/Stub";
@@ -15,38 +15,42 @@ function greeting(): string {
   return "Good evening";
 }
 
-// Explore is built around DISCOVERY, not a single vertical feed. Sections
-// get different visual treatments: a Featured hero rail, horizontal
-// scroll rails for time/category slices, and a dense list for the long
-// tail. Everything is derived client-side from one events fetch — no extra
-// endpoints — so it stays fast and there's a single source of truth.
+// Explore is one honest, chronological agenda — a featured spotlight up
+// top, then every upcoming event as a full-width editorial card grouped
+// under its day ("Today", "Tomorrow", "Sat 12 Jul"). The previous layout
+// (Trending + Tonight + Weekend + Popular + per-category rails + All
+// upcoming) recycled the same small catalog through six different section
+// framings, which read as template filler rather than a busy platform.
+// One complete calendar with big imagery is what a small catalog can
+// actually back up. Everything is still derived client-side from one
+// events fetch — no extra endpoints — so there's a single source of truth.
 
 const startTs = (e: Weyn) => new Date(e.startsAt).getTime();
 const bySoonest = (a: Weyn, b: Weyn) => startTs(a) - startTs(b);
 const byPopular = (a: Weyn, b: Weyn) => (b.sold || 0) - (a.sold || 0);
 
-// "Trending" combines how full an event is getting (sold/capacity — a real
-// fill-rate signal, not a fabricated one) with how soon it starts, so a
-// half-full event happening tonight ranks above a half-full event next
-// month. Events without a meaningful capacity (e.g. registration-only, huge
-// capacity placeholders) fall back to raw sold count via fillRate=0..1 clamp.
-function fillRate(e: Weyn): number {
-  if (!e.capacity || e.capacity <= 0 || e.capacity >= 9000) return 0;
-  return Math.min(1, (e.sold || 0) / e.capacity);
+// Day-bucket heading: relative names for the two days everyone thinks in
+// ("Today"/"Tomorrow"), explicit weekday+date beyond that — always
+// unambiguous even when two same-weekday dates are both in the list.
+function dayHeading(e: Weyn): string {
+  if (isToday(e)) return "Today";
+  if (isTomorrow(e)) return "Tomorrow";
+  const d = new Date(e.startsAt);
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 }
-function trendingScore(e: Weyn): number {
-  const hoursUntil = Math.max(1, (startTs(e) - Date.now()) / 36e5);
-  // soon-and-filling beats far-off-and-filling; recency of interest matters more than raw volume
-  return fillRate(e) * 100 + (e.sold || 0) / Math.sqrt(hoursUntil);
+function groupByDay(list: Weyn[]): { heading: string; list: Weyn[] }[] {
+  const groups: { heading: string; list: Weyn[] }[] = [];
+  for (const e of list) {
+    const heading = dayHeading(e);
+    const last = groups[groups.length - 1];
+    if (last && last.heading === heading) last.list.push(e);
+    else groups.push({ heading, list: [e] });
+  }
+  return groups;
 }
-const byTrending = (a: Weyn, b: Weyn) => trendingScore(b) - trendingScore(a);
 
 // horizontal-scroll rail of cards, with a header. Renders nothing if empty.
-// `dense` (desktop-only, see .ex-rail.dense in index.css) wraps the rail
-// into a grid instead of a horizontal scroller — the "denser grid" half of
-// the desktop magazine layout, so the extra width does something besides
-// stretching the same scrollbar wider.
-function Rail({ title, subtitle, events, variant = "rail", dense = false, className = "" }: { title: string; subtitle?: string; events: Weyn[]; variant?: "rail" | "feature"; dense?: boolean; className?: string }) {
+function Rail({ title, subtitle, events, variant = "rail", className = "" }: { title: string; subtitle?: string; events: Weyn[]; variant?: "rail" | "feature"; className?: string }) {
   if (!events.length) return null;
   return (
     <section className={"ex-section" + (className ? " " + className : "")}>
@@ -54,7 +58,7 @@ function Rail({ title, subtitle, events, variant = "rail", dense = false, classN
         <h2>{title}</h2>
         {subtitle && <span className="ex-sub">{subtitle}</span>}
       </div>
-      <div className={"ex-rail" + (variant === "feature" ? " feature" : "") + (dense ? " dense" : "")}>
+      <div className={"ex-rail" + (variant === "feature" ? " feature" : "")}>
         {events.map((e) => <Stub key={e.id} e={e} variant={variant} />)}
       </div>
     </section>
@@ -199,22 +203,10 @@ export default function Explore() {
 
     const featured = [...catFiltered].filter((e) => e.featured).slice(0, 6);
     const featPool = featured.length ? featured : [...catFiltered].sort(byPopular).slice(0, 5);
-    const tonight = catFiltered.filter(isTonight);
-    const weekend = catFiltered.filter(isThisWeekend);
-    const popular = [...catFiltered].sort(byPopular).slice(0, 10);
-    // "Trending this week" — fill-rate + recency-weighted, restricted to the
-    // next 7 days so it reads as "hot right now" rather than just "popular".
-    const trending = [...catFiltered]
-      .filter((e) => startTs(e) - Date.now() < 7 * 864e5)
-      .sort(byTrending)
-      .slice(0, 10);
-    // category rails only make sense when browsing "all"
-    const catRails = cat === "all"
-      ? CATS.filter((c) => c.key !== "all")
-          .map((c) => ({ c, list: all.filter((e) => e.cat === c.key).slice(0, 10) }))
-          .filter((x) => x.list.length >= 2)
-      : [];
-    return { mode: "browse" as const, all: catFiltered, featPool, tonight, weekend, popular, trending, catRails };
+    // The full chronological agenda, bucketed by day. catFiltered is already
+    // sorted soonest-first, so buckets come out in calendar order for free.
+    const agenda = groupByDay(catFiltered);
+    return { mode: "browse" as const, all: catFiltered, featPool, agenda };
   }, [data, cat, when, q, searching]);
 
   return (
@@ -368,40 +360,46 @@ export default function Explore() {
         )
       )}
 
-      {/* ---- "when" quick filter: dense list, same treatment as search ---- */}
+      {/* ---- "when" quick filter: same editorial cards as the agenda ---- */}
       {!loading && !error && S.mode === "when" && (
         S.results.length ? (
-          <div className="ex-list">{S.results.map((e) => <Stub key={e.id} e={e} />)}</div>
+          <div className="ex-agenda">{S.results.map((e) => <Stub key={e.id} e={e} variant="card" />)}</div>
         ) : (
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing found for that time.</p></div>
         )
       )}
 
-      {/* ---- discovery: differentiated sections ---- */}
+      {/* ---- discovery: spotlight + chronological day-grouped agenda ---- */}
       {!loading && !error && S.mode === "browse" && (
         S.all.length === 0 ? (
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
           <>
             {S.featPool[0] && <MagazineHero e={S.featPool[0]} />}
-            <Rail title="Featured" subtitle="Hand-picked" events={S.featPool} variant="feature" className="ex-featured-rail" />
-            {S.trending.length > 0 && (
-              <section className="ex-section">
-                <div className="ex-head">
-                  <h2>Trending this week</h2>
-                  <span className="ex-sub">Filling up fast</span>
-                </div>
-                <div className="ex-list">{S.trending.map((e) => <Stub key={e.id} e={e} />)}</div>
-              </section>
+            {/* Mobile spotlight — one big editorial cover card for the top
+                featured event (the desktop equivalent is MagazineHero above,
+                which is hidden below 900px just as this is hidden above it). */}
+            {S.featPool[0] && (
+              <div className="ex-spotlight">
+                <Stub e={S.featPool[0]} variant="feature" />
+              </div>
             )}
-            <Rail title="Happening tonight" events={S.tonight} dense />
-            <Rail title="This weekend" events={S.weekend} dense />
-            <Rail title="Popular near you" events={S.popular} dense />
-            {S.catRails.map(({ c, list }) => <Rail key={c.key} title={c.label} events={list} dense />)}
-            <section className="ex-section">
-              <div className="ex-head"><h2>All upcoming</h2><span className="ex-sub">{S.all.length} events</span></div>
-              <div className="ex-list">{S.all.map((e) => <Stub key={e.id} e={e} />)}</div>
-            </section>
+            {/* No "Hand-picked" subtitle — featPool falls back to
+                most-popular when nothing is actually flagged featured, and
+                claiming curation that isn't happening is exactly the kind of
+                fake-signal copy this redesign removes. */}
+            {S.featPool.length > 1 && (
+              <Rail title="Featured" events={S.featPool.slice(1)} variant="feature" className="ex-featured-rail" />
+            )}
+            {S.agenda.map(({ heading, list }) => (
+              <section className="ex-section" key={heading}>
+                <div className="ex-head">
+                  <h2>{heading}</h2>
+                  {list.length > 1 && <span className="ex-sub">{list.length} events</span>}
+                </div>
+                <div className="ex-agenda">{list.map((e) => <Stub key={e.id} e={e} variant="card" timeOnly />)}</div>
+              </section>
+            ))}
           </>
         )
       )}
