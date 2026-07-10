@@ -26,7 +26,7 @@ import { createEventSchema, updateEventSchema, validateBody } from "./validators
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature } from "./features.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
-import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail, organizerTeamInviteEmail, reminderEmail } from "./email.js";
+import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail, organizerTeamInviteEmail, reminderEmail, waitlistWelcomeEmail, waitlistOwnerNotifyEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
 
 // Normalise a user-typed ticket URL so it always redirects OUT of the app.
@@ -2620,15 +2620,36 @@ export function createApp(storage) {
     if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid email is required" } });
     }
+    const trimmedName = name ? String(name).trim().slice(0, 120) : null;
     try {
-      await prisma.landingWaitlistSignup.upsert({
-        where: { email: trimmedEmail },
-        create: { email: trimmedEmail, name: name ? String(name).trim().slice(0, 120) : null, role: role ? String(role).slice(0, 40) : null, source: source ? String(source).slice(0, 120) : null },
-        update: {},
+      // create (not upsert) + catch the unique violation below — an upsert's
+      // `update: {}` succeeds identically whether the email is brand new or
+      // already on the list, with no way to tell which happened from the
+      // result. That distinction matters here: welcome/notify emails must
+      // fire once per person, not once per re-submission (a double form
+      // click, or someone re-entering the same email a week later).
+      await prisma.landingWaitlistSignup.create({
+        data: { email: trimmedEmail, name: trimmedName, role: role ? String(role).slice(0, 40) : null, source: source ? String(source).slice(0, 120) : null },
       });
       trackEvent(null, "landing_waitlist_joined", { role: role || null, source: source || null });
+      // Best-effort, same pattern as every other email in this file — a
+      // Resend hiccup must never fail the signup itself.
+      sendEmail({ to: trimmedEmail, ...waitlistWelcomeEmail({ name: trimmedName }) })
+        .catch((err) => captureError(err, { route: "POST /api/waitlist", stage: "welcome-email" }));
+      if (process.env.WAITLIST_NOTIFY_EMAIL) {
+        prisma.landingWaitlistSignup.count()
+          .then((count) => sendEmail({
+            to: process.env.WAITLIST_NOTIFY_EMAIL,
+            ...waitlistOwnerNotifyEmail({ email: trimmedEmail, name: trimmedName, role, source, count }),
+          }))
+          .catch((err) => captureError(err, { route: "POST /api/waitlist", stage: "owner-notify-email" }));
+      }
       res.status(201).json({ ok: true });
     } catch (err) {
+      // Already on the list — same success response as a fresh signup
+      // (the form has no way to tell the visitor apart from a first-timer,
+      // and shouldn't), just no duplicate emails.
+      if (err.code === "P2002") return res.status(201).json({ ok: true });
       captureError(err, { route: "POST /api/waitlist" });
       res.status(500).json({ error: { code: "SERVER_ERROR", message: "Couldn't join the waitlist — please try again." } });
     }

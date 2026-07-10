@@ -4,7 +4,6 @@ import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
 import SplitText from "../components/landing/SplitText";
 import RotatingText from "../components/landing/RotatingText";
-import ScrollReveal from "../components/landing/ScrollReveal";
 import CardSwap, { Card } from "../components/landing/CardSwap";
 
 // The public face of weynevents.com while the real app is admin-only (see
@@ -47,11 +46,11 @@ const HERO_FACTS = [
 ];
 
 // Short, concrete claims to sit next to the screenshots — the kind of
-// specifics ("real photos", "dark mode that isn't an afterthought") that
-// read as "we actually built this" rather than a generic feature list.
+// specifics that read as "we actually built this" rather than a generic
+// feature list. All three are real selling points, not cosmetic ones.
 const PROOF_POINTS = [
   { icon: "search", title: "Search by vibe", text: "\"Live music\" and \"tonight\" both work — not just venue names." },
-  { icon: "moon", title: "Real dark mode", text: "A first-class design, not an inverted filter." },
+  { icon: "chart-bar", title: "A real organizer dashboard", text: "Attendees, revenue, and promotion tools — not just a listing page." },
   { icon: "map-pin", title: "Real places", text: "Every listing is pinned on an actual map with real distances." },
 ];
 
@@ -336,34 +335,19 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
           </Suspense>
         </div>
         <span className="wl-section-eyebrow">How Weyn was created</span>
-        <ScrollReveal
-          containerClassName="wl-reveal"
-          baseOpacity={0.15}
-          baseRotation={4}
-          blurStrength={6}
-        >
+        <p className="wl-reveal">
           Muscat has plenty going on — a gig gets announced on one Instagram story, a pop-up on another, and the rest spreads through screenshots forwarded in WhatsApp groups. By the time it reaches you, half the tickets are gone or the event's already happened.
-        </ScrollReveal>
-        <ScrollReveal
-          containerClassName="wl-reveal"
-          baseOpacity={0.15}
-          baseRotation={4}
-          blurStrength={6}
-        >
+        </p>
+        <p className="wl-reveal">
           We built one feed instead of ten apps — for organizers currently running things off spreadsheets and door lists, and for everyone else just trying to find out where to go tonight.
-        </ScrollReveal>
+        </p>
       </section>
 
       <section className="wl-vision wl-container">
         <span className="wl-section-eyebrow">The vision</span>
-        <ScrollReveal
-          containerClassName="wl-reveal wl-reveal-accent"
-          baseOpacity={0.15}
-          baseRotation={4}
-          blurStrength={6}
-        >
+        <p className="wl-reveal wl-reveal-accent">
           Every event worth going to, searchable in one place — and every organizer, from someone hosting their first night to an established venue, with real tools to run it instead of a folder of screenshots.
-        </ScrollReveal>
+        </p>
       </section>
 
       <section className="wl-features wl-container">

@@ -2423,10 +2423,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   color: var(--accent); margin-bottom: 18px;
 }
 .wl-story, .wl-vision { padding-top: 72px; padding-bottom: 8px; position: relative; }
-.wl-reveal { margin-bottom: 28px; }
+/* Plain static paragraphs — a scroll-triggered reveal used to live here,
+   removed for not working on mobile (the whole point of a scroll-linked
+   effect breaks down on touch scrolling/momentum, and it made this text
+   unreadable on a phone, the primary way this page gets visited). */
+.wl-reveal { margin: 0 0 28px; font-size: 19px; line-height: 1.55; max-width: 62ch; color: var(--text-2); }
 .wl-reveal:last-child { margin-bottom: 0; }
-.wl-reveal .scroll-reveal-text { color: var(--text-2); }
-.wl-reveal-accent .scroll-reveal-text { color: var(--text); font-weight: 700; }
+.wl-reveal-accent { color: var(--text); font-weight: 700; }
 /* FloatingLines (React Bits) — confined to a slim band above the copy
    rather than spanning the whole section: full-height it kept sweeping a
    bright beam directly across the paragraph text and made it unreadable

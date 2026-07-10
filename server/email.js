@@ -133,6 +133,53 @@ export function reminderEmail({ eventTitle, whenLabel, venue, ticketUrl }) {
   };
 }
 
+// Sent to the person who just joined the waitlist.weynevents.com list —
+// confirms it landed and sets expectations (no date promised, since none
+// is fixed yet). Kept short: a congratulations email that oversells reads
+// worse than one that just confirms and moves on.
+export function waitlistWelcomeEmail({ name }) {
+  const greeting = name ? `Hey ${escapeHtml(name)},` : "Hey,";
+  return {
+    subject: "You're on the Weyn waitlist 🎉",
+    html: `
+      <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 12px">${greeting}</h2>
+        <p style="color:#444;line-height:1.6">
+          Thanks for joining the Weyn waitlist — you're officially on the list.
+        </p>
+        <p style="color:#444;line-height:1.6">
+          We're putting the finishing touches on Weyn, the easiest way to discover events,
+          host your own, and reserve a table in Muscat. <strong>We'll email you the moment
+          it's ready</strong> — no spam in the meantime, just this one confirmation.
+        </p>
+        <p style="color:#888;font-size:13px;margin-top:28px">— The Weyn team</p>
+      </div>
+    `,
+  };
+}
+
+// Sent to WAITLIST_NOTIFY_EMAIL (the team) every time someone new joins —
+// a live count so growth is visible without anyone having to go check the
+// database. Best-effort like every other email here: never blocks or
+// fails the actual signup if delivery hiccups.
+export function waitlistOwnerNotifyEmail({ email, name, role, source, count }) {
+  return {
+    subject: `New waitlist signup${count ? ` (#${count})` : ""}: ${email}`,
+    html: `
+      <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 12px">New waitlist signup</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;color:#222;margin:16px 0">
+          <tr><td style="padding:6px 0;color:#888">Email</td><td style="padding:6px 0">${escapeHtml(email)}</td></tr>
+          ${name ? `<tr><td style="padding:6px 0;color:#888">Name</td><td style="padding:6px 0">${escapeHtml(name)}</td></tr>` : ""}
+          ${role ? `<tr><td style="padding:6px 0;color:#888">Interested in</td><td style="padding:6px 0">${escapeHtml(role)}</td></tr>` : ""}
+          ${source ? `<tr><td style="padding:6px 0;color:#888">Source</td><td style="padding:6px 0">${escapeHtml(source)}</td></tr>` : ""}
+          ${count ? `<tr><td style="padding:6px 0;color:#888">Total on list</td><td style="padding:6px 0"><strong>${count}</strong></td></tr>` : ""}
+        </table>
+      </div>
+    `,
+  };
+}
+
 export function teamInviteEmail({ eventTitle, role, inviteLink }) {
   const roleLabel = role === "MANAGER" ? "manager" : "staff";
   return {
