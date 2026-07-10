@@ -339,14 +339,17 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
           Muscat has plenty going on — a gig gets announced on one Instagram story, a pop-up on another, and the rest spreads through screenshots forwarded in WhatsApp groups. By the time it reaches you, half the tickets are gone or the event's already happened.
         </p>
         <p className="wl-reveal">
-          We built one feed instead of ten apps — for organizers currently running things off spreadsheets and door lists, and for everyone else just trying to find out where to go tonight.
+          Our founder kept running into the same thing from the other side of that problem: talking to people trying to actually host something in Muscat. A friend renting out a rooftop for a first-time gig. A home baker doing a weekend pop-up. A small crew running a community meetup with nothing but a WhatsApp group and a door list on someone's phone. All of them doing the same hard, unglamorous work a big venue does — just with none of the tools, because every platform out there was clearly built for the big venue, not for them.
+        </p>
+        <p className="wl-reveal">
+          That's the gap Weyn was built to close: a platform where the size of your event never decides whether you get real tools to run it. Whether it's your first night hosting or your hundredth, you get the same ticketing, the same attendee list, the same dashboard — everything you'd actually need to pull it off well, not just a form to fill in.
         </p>
       </section>
 
       <section className="wl-vision wl-container">
         <span className="wl-section-eyebrow">The vision</span>
         <p className="wl-reveal wl-reveal-accent">
-          Every event worth going to, searchable in one place — and every organizer, from someone hosting their first night to an established venue, with real tools to run it instead of a folder of screenshots.
+          To become the place event organizers and their audiences in Oman turn to first — the app an organizer opens before they've even finished planning, and the app someone opens when they're deciding what to do tonight. Not by shouting the loudest, but by being genuinely useful often enough that reaching for anything else starts to feel like more effort than it's worth.
         </p>
       </section>
 
