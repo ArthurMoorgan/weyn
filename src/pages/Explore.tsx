@@ -15,39 +15,20 @@ function greeting(): string {
   return "Good evening";
 }
 
-// Explore is one honest, chronological agenda — a featured spotlight up
-// top, then every upcoming event as a full-width editorial card grouped
-// under its day ("Today", "Tomorrow", "Sat 12 Jul"). The previous layout
-// (Trending + Tonight + Weekend + Popular + per-category rails + All
-// upcoming) recycled the same small catalog through six different section
-// framings, which read as template filler rather than a busy platform.
-// One complete calendar with big imagery is what a small catalog can
-// actually back up. Everything is still derived client-side from one
-// events fetch — no extra endpoints — so there's a single source of truth.
+// Explore is one honest list: a featured spotlight up top, then every
+// upcoming event as a full-width editorial card, all in one continuous
+// scroll — no day-by-day sectioning. An earlier version split the catalog
+// into a hero + a "this weekend" grid + day-bucketed sections, which meant
+// finding a given event required knowing which bucket it'd landed in; on
+// a phone that read as "I can't see everything," not as organized. One
+// flat, chronological list is what actually answers "can I see all the
+// events" — cleanly, immediately, no hunting through sections. Everything
+// is still derived client-side from one events fetch — no extra
+// endpoints — so there's a single source of truth.
 
 const startTs = (e: Weyn) => new Date(e.startsAt).getTime();
 const bySoonest = (a: Weyn, b: Weyn) => startTs(a) - startTs(b);
 const byPopular = (a: Weyn, b: Weyn) => (b.sold || 0) - (a.sold || 0);
-
-// Day-bucket heading: relative names for the two days everyone thinks in
-// ("Today"/"Tomorrow"), explicit weekday+date beyond that — always
-// unambiguous even when two same-weekday dates are both in the list.
-function dayHeading(e: Weyn): string {
-  if (isToday(e)) return "Today";
-  if (isTomorrow(e)) return "Tomorrow";
-  const d = new Date(e.startsAt);
-  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-}
-function groupByDay(list: Weyn[]): { heading: string; list: Weyn[] }[] {
-  const groups: { heading: string; list: Weyn[] }[] = [];
-  for (const e of list) {
-    const heading = dayHeading(e);
-    const last = groups[groups.length - 1];
-    if (last && last.heading === heading) last.list.push(e);
-    else groups.push({ heading, list: [e] });
-  }
-  return groups;
-}
 
 // One eyebrow line up top: category + a broad time framing ("This
 // weekend"/"This July") rather than the exact date — the hero is meant to
@@ -198,17 +179,11 @@ export default function Explore() {
 
     const featured = [...catFiltered].filter((e) => e.featured).slice(0, 6);
     const featPool = featured.length ? featured : [...catFiltered].sort(byPopular).slice(0, 5);
-    // "This weekend in Muscat" — falls back to the plain next-up events when
-    // nothing lands this weekend, so the section never reads as broken/empty
-    // for a catalog that doesn't always have weekend coverage.
-    const weekend = catFiltered.filter(isThisWeekend);
-    const weekendPool = weekend.length ? weekend : catFiltered.slice(0, 6);
-    const weekendHeading = weekend.length ? "This weekend in Muscat" : "Coming up in Muscat";
-    // Rest of the catalog, excluding whatever's already shown above so the
-    // same event isn't repeated in both the grid and the agenda below it.
-    const shown = new Set([featPool[0]?.id, ...weekendPool.map((e) => e.id)]);
-    const agenda = groupByDay(catFiltered.filter((e) => !shown.has(e.id)));
-    return { mode: "browse" as const, all: catFiltered, featPool, weekendPool, weekendHeading, agenda };
+    const hero = featPool[0];
+    // Every other event, one flat chronological list — see the comment
+    // above on why this replaced day/weekend sectioning.
+    const rest = catFiltered.filter((e) => e.id !== hero?.id);
+    return { mode: "browse" as const, all: catFiltered, hero, rest };
   }, [data, cat, when, q, searching]);
 
   return (
@@ -371,37 +346,22 @@ export default function Explore() {
         )
       )}
 
-      {/* ---- discovery: hero + "this weekend" grid + chronological agenda ---- */}
+      {/* ---- discovery: one hero + every other event, one flat list ---- */}
       {!loading && !error && S.mode === "browse" && (
         S.all.length === 0 ? (
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
           <>
-            {S.featPool[0] && <HeroCard e={S.featPool[0]} />}
-
-            {S.weekendPool.length > 0 && (
+            {S.hero && <HeroCard e={S.hero} />}
+            {S.rest.length > 0 && (
               <section className="ex-section">
                 <div className="ex-head">
-                  <h2>{S.weekendHeading}</h2>
-                  <button type="button" className="ex-see-all" onClick={() => setWhen("weekend")}>
-                    See all <i className="icon-chevron-right" />
-                  </button>
+                  <h2>All events</h2>
+                  <span className="ex-sub">{S.rest.length}</span>
                 </div>
-                <div className="ex-weekend-grid">
-                  {S.weekendPool.map((e) => <Stub key={e.id} e={e} variant="grid" />)}
-                </div>
+                <div className="ex-agenda">{S.rest.map((e) => <Stub key={e.id} e={e} variant="card" />)}</div>
               </section>
             )}
-
-            {S.agenda.map(({ heading, list }) => (
-              <section className="ex-section" key={heading}>
-                <div className="ex-head">
-                  <h2>{heading}</h2>
-                  {list.length > 1 && <span className="ex-sub">{list.length} events</span>}
-                </div>
-                <div className="ex-agenda">{list.map((e) => <Stub key={e.id} e={e} variant="card" timeOnly />)}</div>
-              </section>
-            ))}
           </>
         )
       )}

@@ -336,13 +336,13 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
         </div>
         <span className="wl-section-eyebrow">How Weyn was created</span>
         <p className="wl-reveal">
-          Muscat has plenty going on — a gig gets announced on one Instagram story, a pop-up on another, and the rest spreads through screenshots forwarded in WhatsApp groups. By the time it reaches you, half the tickets are gone or the event's already happened.
+          Muscat is bubbling with activity. One Instagram story announces a new gig, another shares a pop-up event, and someone else is already screenshotting the news into a WhatsApp group. By the time it reaches your screen, half the tickets are sold out, or the gig has already happened.
         </p>
         <p className="wl-reveal">
-          Our founder kept running into the same thing from the other side of that problem: talking to people trying to actually host something in Muscat. A friend renting out a rooftop for a first-time gig. A home baker doing a weekend pop-up. A small crew running a community meetup with nothing but a WhatsApp group and a door list on someone's phone. All of them doing the same hard, unglamorous work a big venue does — just with none of the tools, because every platform out there was clearly built for the big venue, not for them.
+          Our founder was facing the same pain from the other side. Having spent years organizing events in Muscat, he was often approached by people who wanted to throw something together but had no experience at all — from someone catering a rooftop opening for the first time, to home bakers setting up a weekend pop-up, to small groups of friends throwing a community mixer with nothing but a WhatsApp group and a guest list on someone's phone. Everyone was doing the same hard work as the big venues, just with a lot fewer tools at their disposal. Every platform out there was built around the big venue, not the grassroots organizer fighting for every customer.
         </p>
         <p className="wl-reveal">
-          That's the gap Weyn was built to close: a platform where the size of your event never decides whether you get real tools to run it. Whether it's your first night hosting or your hundredth, you get the same ticketing, the same attendee list, the same dashboard — everything you'd actually need to pull it off well, not just a form to fill in.
+          That's when Weyn was born — a platform where the size of your event doesn't dictate how much power you have to run it. You get the same tools whether it's your first gig ever or your hundredth: ticketing, guest lists, and dashboards that give you real control over your event, not just a form to fill out.
         </p>
       </section>
 

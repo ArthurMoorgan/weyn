@@ -454,28 +454,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* the agenda: one editorial card per event, stacked with real breathing room */
 .ex-agenda { display: flex; flex-direction: column; gap: 22px; padding: 0 16px; }
 
-/* ---- boxed grid card (Explore's "This weekend" section) ---- */
-.ex-weekend-grid { display: flex; flex-direction: column; gap: 16px; padding: 0 16px; }
-.ec-grid {
-  display: block; border-radius: 16px; overflow: hidden;
-  background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: var(--card-shadow);
-}
-.ec-grid-cover {
-  aspect-ratio: 4/3; position: relative;
-  background-size: cover; background-position: center; background-color: var(--surface-2);
-  display: grid; place-items: center;
-}
-.ec-grid-cat {
-  position: absolute; top: 10px; left: 10px; z-index: 1;
-  font: var(--t-caption); letter-spacing: 0.4px; text-transform: uppercase; color: #fff;
-  background: rgba(10,13,18,0.55); backdrop-filter: blur(6px);
-  padding: 4px 10px; border-radius: var(--radius-pill);
-}
-.ec-grid-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
-.ec-grid .ec-title { font-size: 16px; letter-spacing: -0.2px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
-.ec-grid .ec-meta [class^="icon-"] { font-size: 15px; color: var(--text-3); }
-.ec-grid-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--hair); }
-.ec-grid-foot [class^="icon-"] { font-size: 18px; color: var(--text-3); }
 
 /* ---- compact vertical rail card ---- */
 .ec-rail { flex: 0 0 auto; width: 200px; display: flex; flex-direction: column; gap: 8px; }
@@ -565,11 +543,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ex-hero-card-btn.btn.lg { display: inline-flex; width: auto; }
 .ex-hero-card-price { font: var(--t-body); font-size: 14px; color: rgba(255,255,255,0.85); }
 .ex-hero-card-price b { color: #fff; font-weight: 700; }
-
-/* "See all" — Explore section headers' optional right-aligned action link,
-   alongside the plain .ex-sub count text used elsewhere. */
-.ex-see-all { display: inline-flex; align-items: center; gap: 2px; font: var(--t-meta); font-weight: 600; color: var(--accent); flex: 0 0 auto; }
-.ex-see-all [class^="icon-"] { font-size: 17px; }
 
 .ex-section { margin-top: 28px; }
 .ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 10px; }
@@ -1732,9 +1705,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
      tall mobile card, same element throughout. */
   .ex-hero-card { aspect-ratio: auto; height: 420px; margin: 20px 24px 0; }
   .ex-hero-card-title { font-size: 42px; letter-spacing: -1px; }
-  /* weekend grid + agenda: one editorial/boxed card each on mobile; on
-     desktop both become 3-up grids so the width shows more of the catalog */
-  .ex-weekend-grid, .ex-agenda {
+  /* one editorial card per event on mobile; on desktop the whole list
+     becomes a 3-up grid so the width shows more of the catalog */
+  .ex-agenda {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 24px 20px;

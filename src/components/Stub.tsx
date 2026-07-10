@@ -7,17 +7,13 @@ import { isSaved, toggleSave, useSaved } from "../store";
 //   list    — dense horizontal row (thumbnail + text). Default. Airbnb-search
 //             density: search results, tickets, saved lists.
 //   card    — full-width editorial card (16:9 image on top, text below) —
-//             the Explore agenda's unit. Image-forward without overlaying
+//             the Explore list's unit. Image-forward without overlaying
 //             text on the photo, so every cover reads clean regardless of
 //             how busy the photo is.
-//   grid    — boxed card for a 3-up grid (Explore's "This weekend" section):
-//             a permanent category pill overlaid on the cover (not the
-//             list/card variants' status badge), a date+venue line, then a
-//             divider and a price+chevron footer row.
 //   rail    — compact vertical card for horizontal-scroll rails.
 //   feature — large hero card (text overlaid on a scrimmed cover) for the
 //             Featured rail / mobile spotlight.
-type Variant = "list" | "card" | "grid" | "rail" | "feature";
+type Variant = "list" | "card" | "rail" | "feature";
 
 // The trailing stop uses the theme-aware --fallback-scrim CSS var (defined in
 // src/index.css for both dark/light :root blocks) instead of a hardcoded hex,
@@ -47,10 +43,7 @@ function SaveHeart({ id, className = "" }: { id: string; className?: string }) {
   );
 }
 
-// `timeOnly` (card variant): drop the day from the eyebrow — used when the
-// card already sits under a day heading (Explore's agenda), where repeating
-// "Today" inside a section titled "Today" reads as template sloppiness.
-export default function Stub({ e, ticket = false, variant = "list", timeOnly = false }: { e: Weyn; ticket?: boolean; variant?: Variant; timeOnly?: boolean }) {
+export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn; ticket?: boolean; variant?: Variant }) {
   const left = ticketsLeft(e);
   const out = isSoldOut(e);
   const scarce = !out && left <= 12 && e.price > 0;
@@ -110,39 +103,13 @@ export default function Stub({ e, ticket = false, variant = "list", timeOnly = f
           {scarce && <span className="ec-card-scarce">{left} left</span>}
         </div>
         <div className="ec-card-body">
-          <span className="ec-when">{timeOnly ? timeLabel(e) : `${dayLabel(e)} · ${timeLabel(e)}`}</span>
+          <span className="ec-when">{dayLabel(e)} · {timeLabel(e)}</span>
           <h3 className="ec-title">{e.title}</h3>
           <div className="ec-meta">
             <span>{e.venue || e.area}</span>
             <span className="ec-dot">·</span>
             <span>{catLabel(e.cat)}</span>
             <span className={"ec-price" + (e.price === 0 ? " free" : "")}>{priceText}</span>
-          </div>
-        </div>
-      </Link>
-    );
-  }
-
-  // ---- boxed grid card (category pill overlay + divider + price footer) ----
-  if (variant === "grid") {
-    return (
-      <Link to={`/e/${e.id}`} className="ec-grid">
-        <div className="ec-grid-cover" style={coverStyle}>
-          <span className="ec-grid-cat">{catLabel(e.cat)}</span>
-          <SaveHeart id={e.id} />
-          {!e.image && <span className="ec-glyph big">{e.glyph}</span>}
-        </div>
-        <div className="ec-grid-body">
-          <h3 className="ec-title">{e.title}</h3>
-          <div className="ec-meta">
-            <i className="icon-calendar" />
-            <span>{dayLabel(e)} · {timeLabel(e)}</span>
-            <span className="ec-dot">·</span>
-            <span>{e.venue || e.area}</span>
-          </div>
-          <div className="ec-grid-foot">
-            <span className={"ec-price" + (e.price === 0 ? " free" : "")}>{e.price === 0 ? priceText : <>from <b>{priceText}</b></>}</span>
-            <i className="icon-chevron-right" />
           </div>
         </div>
       </Link>
