@@ -29,6 +29,18 @@ import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail, organizerTeamInviteEmail, reminderEmail, waitlistWelcomeEmail, waitlistOwnerNotifyEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
 
+// Module-scope (not inside createApp): runCampaignScan/runAutomationScan
+// below are top-level exports, called from a cron/interval outside any
+// request — they need this at the same scope they're declared in. This was
+// previously declared inside createApp() only, so those two functions threw
+// ReferenceError on every single invocation (caught nowhere upstream) —
+// Messaging Center's scheduled campaigns and the Automation Builder's
+// capacity-threshold alerts have never actually sent since either shipped.
+// Found during this session's security review, fixed alongside it.
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 // Normalise a user-typed ticket URL so it always redirects OUT of the app.
 function normalizeUrl(raw) {
   const s = (raw || "").trim();
@@ -296,13 +308,28 @@ export function createApp(storage) {
   // (upgrade the Clerk plan, or find another path) — set
   // ADMIN_ALLOWLIST_EMAILS (comma-separated) to activate; unset (the
   // default everywhere except the live prod deployment) is a complete
-  // no-op. waitlist.weynevents.com is exempt — that domain is the
-  // intentionally-public surface while this is active.
+  // no-op.
+  //
+  // waitlist.weynevents.com's own landing page only ever calls one route
+  // (POST /api/waitlist — see WaitlistLanding.tsx) — exempt exactly that,
+  // not the hostname wholesale. A previous version of this exemption was
+  // `if (req.hostname === "waitlist.weynevents.com") return next();`,
+  // which waived this check for every route on that hostname, not just the
+  // one the landing page needs — since Express routes by path only (Host
+  // header is irrelevant to which handler runs), any /api/* route, on
+  // EITHER domain, was reachable by anyone who simply requested
+  // waitlist.weynevents.com instead of weynevents.com (no spoofing needed —
+  // that hostname is already public DNS). That included both
+  // unauthenticated public routes AND ones with no auth by deliberate
+  // design (free ticket booking, paid checkout initiation) — the entire
+  // "not launched yet" gate this middleware exists for was bypassable with
+  // a single hostname swap. Confirmed live and fixed same-session; see
+  // HANDOFF.md's security review notes for the full writeup.
   const adminAllowlist = (process.env.ADMIN_ALLOWLIST_EMAILS || "")
     .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
   if (adminAllowlist.length) {
     app.use((req, res, next) => {
-      if (req.hostname === "waitlist.weynevents.com") return next();
+      if (req.hostname === "waitlist.weynevents.com" && req.method === "POST" && req.path === "/api/waitlist") return next();
       const email = req.user?.email?.toLowerCase();
       if (email && adminAllowlist.includes(email)) return next();
       res.status(403).json({ error: { code: "PRIVATE_BETA", message: "Weyn is in private preview right now — join the waitlist at waitlist.weynevents.com." } });
@@ -2854,9 +2881,6 @@ export function createApp(storage) {
   // (main.tsx) — with the old HashRouter, the id after "#" never reached
   // the server at all, making this structurally impossible.
   const DIST_DIR = __dirname && path.join(__dirname, "..", "dist");
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
   app.get("/e/:id", async (req, res, next) => {
     try {
       // local dev / any environment where dist/ is on disk — read directly.
