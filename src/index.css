@@ -454,13 +454,28 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* the agenda: one editorial card per event, stacked with real breathing room */
 .ex-agenda { display: flex; flex-direction: column; gap: 22px; padding: 0 16px; }
 
-/* mobile spotlight — the top featured event as one near-full-bleed cover
-   card (desktop gets .ex-magazine-hero instead; see the 900px block) */
-.ex-spotlight { padding: 4px 16px 0; animation: rise-in .5s cubic-bezier(.16,1,.3,1) both; }
-.ex-spotlight .ec-feature { width: 100%; }
-.ex-spotlight .ec-feature-cover { aspect-ratio: 5/6; border-radius: 22px; box-shadow: var(--shadow-md); }
-.ex-spotlight .ec-feature-body { padding: 18px; }
-.ex-spotlight .ec-feature-title { font-size: 26px; letter-spacing: -0.6px; line-height: 1.15; }
+/* ---- boxed grid card (Explore's "This weekend" section) ---- */
+.ex-weekend-grid { display: flex; flex-direction: column; gap: 16px; padding: 0 16px; }
+.ec-grid {
+  display: block; border-radius: 16px; overflow: hidden;
+  background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: var(--card-shadow);
+}
+.ec-grid-cover {
+  aspect-ratio: 4/3; position: relative;
+  background-size: cover; background-position: center; background-color: var(--surface-2);
+  display: grid; place-items: center;
+}
+.ec-grid-cat {
+  position: absolute; top: 10px; left: 10px; z-index: 1;
+  font: var(--t-caption); letter-spacing: 0.4px; text-transform: uppercase; color: #fff;
+  background: rgba(10,13,18,0.55); backdrop-filter: blur(6px);
+  padding: 4px 10px; border-radius: var(--radius-pill);
+}
+.ec-grid-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.ec-grid .ec-title { font-size: 16px; letter-spacing: -0.2px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+.ec-grid .ec-meta [class^="icon-"] { font-size: 13px; color: var(--text-3); }
+.ec-grid-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--hair); }
+.ec-grid-foot [class^="icon-"] { font-size: 15px; color: var(--text-3); }
 
 /* ---- compact vertical rail card ---- */
 .ec-rail { flex: 0 0 auto; width: 200px; display: flex; flex-direction: column; gap: 8px; }
@@ -522,34 +537,39 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 6px 0; white-space: nowrap; flex: 0 0 auto; }
 .ex-hero-host [class^="icon-"] { font-size: 14px; }
 
-/* Desktop-only magazine hero (see index.css's 900px block for the part that
-   actually shows it) — hidden on mobile, where the Featured rail's first
-   card already does this job at a size that fits the phone column. */
-.ex-magazine-hero {
-  display: none;
-  position: relative; border-radius: 16px; overflow: hidden;
-  background-size: cover; background-position: center;
-  background-color: var(--card-bg);
+/* Full-bleed hero for the top featured event — one implementation at every
+   breakpoint (see the 900px block for the size-up, not a swap to a
+   different element). inset:-1px on the scrim, see the identical comment on
+   .ec-feature-cover::after — this overlay and the element's own
+   background-image are two separately composited layers sharing one
+   rounded-corner clip, and disagree by a hairline at that boundary without
+   the 1px overdraw. */
+.ex-hero-card {
+  display: block; position: relative; overflow: hidden;
+  margin: 4px 16px 0; border-radius: 20px; aspect-ratio: 4/5;
+  background-size: cover; background-position: center; background-color: var(--card-bg);
+  animation: rise-in .5s cubic-bezier(.16,1,.3,1) both;
 }
-/* inset:-1px, see the identical comment on .ec-feature-cover::after — this
-   overlay and the element's own background-image are two separately
-   composited layers sharing one rounded-corner clip, and disagree by a
-   hairline at that boundary, showing as a bright seam along one edge.
-   Overdrawing the overlay past the container lets overflow:hidden alone
-   define the visible edge. (An earlier fix here — a background-color
-   fallback — addressed a different, real-but-smaller issue and is kept,
-   but did not fix this seam; confirmed by inspecting computed styles and
-   the raw source image on the live site, which has no seam baked in.) */
-.ex-magazine-hero::after { content: ""; position: absolute; inset: -1px; background: linear-gradient(to top, rgba(6,8,12,0.90) 0%, rgba(6,8,12,0.35) 45%, transparent 75%); }
-.ex-magazine-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 32px 36px; }
-.ex-magazine-organizer { font: var(--t-caption); letter-spacing: 0.5px; text-transform: uppercase; color: rgba(255,255,255,0.75); }
-.ex-magazine-title { font: var(--t-hero); font-size: 40px; color: #fff; letter-spacing: -1px; margin: 6px 0 10px; max-width: 22ch; }
-.ex-magazine-meta { display: flex; align-items: center; gap: 8px; font: var(--t-body); color: rgba(255,255,255,0.85); margin-bottom: 18px; }
-.ex-magazine-meta .ec-dot { color: rgba(255,255,255,0.5); }
-/* three classes (not just .ex-magazine-cta) so this beats .btn.lg's own
-   width/padding at equal source order regardless of where either rule
-   ends up in the file */
-.ex-magazine-cta.btn.lg { display: inline-flex; width: auto; }
+.ex-hero-card::after { content: ""; position: absolute; inset: -1px; background: linear-gradient(to top, rgba(6,8,12,0.92) 0%, rgba(6,8,12,0.4) 45%, transparent 75%); }
+.ex-hero-card-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 20px; }
+.ex-hero-card-eyebrow {
+  display: inline-flex; align-items: center; font: var(--t-caption); letter-spacing: 0.5px; text-transform: uppercase;
+  color: #fff; background: rgba(255,255,255,0.14); backdrop-filter: blur(6px);
+  padding: 5px 11px; border-radius: var(--radius-pill); margin-bottom: 12px;
+}
+.ex-hero-card-title { font: var(--t-hero); font-size: 28px; color: #fff; letter-spacing: -0.7px; margin: 0 0 10px; max-width: 22ch; }
+.ex-hero-card-meta { display: flex; flex-direction: column; gap: 6px; font: var(--t-body); font-size: 14px; color: rgba(255,255,255,0.85); margin-bottom: 18px; }
+.ex-hero-card-meta span { display: flex; align-items: center; gap: 7px; }
+.ex-hero-card-meta [class^="icon-"] { font-size: 14px; opacity: 0.85; }
+.ex-hero-card-cta { display: flex; align-items: center; gap: 16px; }
+.ex-hero-card-btn.btn.lg { display: inline-flex; width: auto; }
+.ex-hero-card-price { font: var(--t-body); font-size: 14px; color: rgba(255,255,255,0.85); }
+.ex-hero-card-price b { color: #fff; font-weight: 700; }
+
+/* "See all" — Explore section headers' optional right-aligned action link,
+   alongside the plain .ex-sub count text used elsewhere. */
+.ex-see-all { display: inline-flex; align-items: center; gap: 2px; font: var(--t-meta); font-weight: 600; color: var(--accent); flex: 0 0 auto; }
+.ex-see-all [class^="icon-"] { font-size: 15px; }
 
 .ex-section { margin-top: 28px; }
 .ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 10px; }
@@ -1708,17 +1728,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .ex-head { padding-left: 24px; padding-right: 24px; }
   .ex-hero { padding: 32px 24px 8px; }
 
-  /* Magazine layout (desktop only): a full-width editorial hero for the top
-     featured event, replacing the mobile Featured rail's job of doing the
-     same thing at phone-column size — and the other rails compress from a
-     horizontal scroller into a wrapping grid, so the reclaimed width goes
-     toward showing more events at once, not just a wider scrollbar. */
-  .ex-magazine-hero { display: block; height: 380px; margin: 20px 24px 0; }
-  .ex-featured-rail { display: none; }
-  .ex-spotlight { display: none; }
-  /* agenda: one editorial card per event stacks on mobile; on desktop the
-     day group becomes a 3-up grid so the width shows more of the calendar */
-  .ex-agenda {
+  /* Hero sizes up (not swapped) on desktop — a real banner instead of a
+     tall mobile card, same element throughout. */
+  .ex-hero-card { aspect-ratio: auto; height: 420px; margin: 20px 24px 0; }
+  .ex-hero-card-title { font-size: 42px; letter-spacing: -1px; }
+  /* weekend grid + agenda: one editorial/boxed card each on mobile; on
+     desktop both become 3-up grids so the width shows more of the catalog */
+  .ex-weekend-grid, .ex-agenda {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 24px 20px;

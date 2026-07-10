@@ -49,43 +49,38 @@ function groupByDay(list: Weyn[]): { heading: string; list: Weyn[] }[] {
   return groups;
 }
 
-// horizontal-scroll rail of cards, with a header. Renders nothing if empty.
-function Rail({ title, subtitle, events, variant = "rail", className = "" }: { title: string; subtitle?: string; events: Weyn[]; variant?: "rail" | "feature"; className?: string }) {
-  if (!events.length) return null;
-  return (
-    <section className={"ex-section" + (className ? " " + className : "")}>
-      <div className="ex-head">
-        <h2>{title}</h2>
-        {subtitle && <span className="ex-sub">{subtitle}</span>}
-      </div>
-      <div className={"ex-rail" + (variant === "feature" ? " feature" : "")}>
-        {events.map((e) => <Stub key={e.id} e={e} variant={variant} />)}
-      </div>
-    </section>
-  );
+// One eyebrow line up top: category + a broad time framing ("This
+// weekend"/"This July") rather than the exact date — the hero is meant to
+// read at a glance, the exact date/time already has its own row below.
+function heroTimeLabel(e: Weyn): string {
+  if (isToday(e)) return "Today";
+  if (isTomorrow(e)) return "Tomorrow";
+  if (isThisWeekend(e)) return "This weekend";
+  return "This " + new Date(e.startsAt).toLocaleDateString("en-GB", { month: "long" });
 }
 
-// Desktop-only (see .ex-magazine-hero in index.css, hidden below 900px) —
-// one full-width editorial banner for the single best "featured" event,
-// standing in for the mobile Featured rail's first card but with real
-// magazine-cover weight: full-bleed image, large title, one clear CTA.
-// The mobile Featured rail stays exactly as-is; this doesn't replace data,
-// only how the top event is presented on wide screens.
-function MagazineHero({ e }: { e: Weyn }) {
+// Full-bleed hero for the single best "featured" event (falls back to most
+// popular — see featPool below), replacing the old MagazineHero/mobile
+// spotlight split with one implementation that scales across breakpoints
+// instead of swapping between two.
+function HeroCard({ e }: { e: Weyn }) {
+  const catLabel = CATS.find((c) => c.key === e.cat)?.label || e.cat;
   const coverStyle: React.CSSProperties = e.image
     ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
     : { background: e.color };
   return (
-    <Link to={`/e/${e.id}`} className="ex-magazine-hero" style={coverStyle}>
-      <div className="ex-magazine-body">
-        <span className="ex-magazine-organizer">{e.organizer}</span>
-        <h2 className="ex-magazine-title">{e.title}</h2>
-        <div className="ex-magazine-meta">
-          <span>{dayLabel(e)} · {timeLabel(e)}</span>
-          <span className="ec-dot">·</span>
-          <span>{e.venue || e.area}</span>
+    <Link to={`/e/${e.id}`} className="ex-hero-card" style={coverStyle}>
+      <div className="ex-hero-card-body">
+        <span className="ex-hero-card-eyebrow">{catLabel} · {heroTimeLabel(e)}</span>
+        <h2 className="ex-hero-card-title">{e.title}</h2>
+        <div className="ex-hero-card-meta">
+          <span><i className="icon-map-pin" /> {e.venue || e.area}</span>
+          <span><i className="icon-calendar" /> {dayLabel(e)} · {timeLabel(e)}</span>
         </div>
-        <span className="btn lg ex-magazine-cta">View event <i className="icon-arrow-right" /></span>
+        <div className="ex-hero-card-cta">
+          <span className="btn lg ex-hero-card-btn">Get tickets</span>
+          <span className="ex-hero-card-price">{e.price === 0 ? "Free" : <>from <b>{e.price} OMR</b></>}</span>
+        </div>
       </div>
     </Link>
   );
@@ -203,10 +198,17 @@ export default function Explore() {
 
     const featured = [...catFiltered].filter((e) => e.featured).slice(0, 6);
     const featPool = featured.length ? featured : [...catFiltered].sort(byPopular).slice(0, 5);
-    // The full chronological agenda, bucketed by day. catFiltered is already
-    // sorted soonest-first, so buckets come out in calendar order for free.
-    const agenda = groupByDay(catFiltered);
-    return { mode: "browse" as const, all: catFiltered, featPool, agenda };
+    // "This weekend in Muscat" — falls back to the plain next-up events when
+    // nothing lands this weekend, so the section never reads as broken/empty
+    // for a catalog that doesn't always have weekend coverage.
+    const weekend = catFiltered.filter(isThisWeekend);
+    const weekendPool = weekend.length ? weekend : catFiltered.slice(0, 6);
+    const weekendHeading = weekend.length ? "This weekend in Muscat" : "Coming up in Muscat";
+    // Rest of the catalog, excluding whatever's already shown above so the
+    // same event isn't repeated in both the grid and the agenda below it.
+    const shown = new Set([featPool[0]?.id, ...weekendPool.map((e) => e.id)]);
+    const agenda = groupByDay(catFiltered.filter((e) => !shown.has(e.id)));
+    return { mode: "browse" as const, all: catFiltered, featPool, weekendPool, weekendHeading, agenda };
   }, [data, cat, when, q, searching]);
 
   return (
@@ -369,28 +371,28 @@ export default function Explore() {
         )
       )}
 
-      {/* ---- discovery: spotlight + chronological day-grouped agenda ---- */}
+      {/* ---- discovery: hero + "this weekend" grid + chronological agenda ---- */}
       {!loading && !error && S.mode === "browse" && (
         S.all.length === 0 ? (
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
           <>
-            {S.featPool[0] && <MagazineHero e={S.featPool[0]} />}
-            {/* Mobile spotlight — one big editorial cover card for the top
-                featured event (the desktop equivalent is MagazineHero above,
-                which is hidden below 900px just as this is hidden above it). */}
-            {S.featPool[0] && (
-              <div className="ex-spotlight">
-                <Stub e={S.featPool[0]} variant="feature" />
-              </div>
+            {S.featPool[0] && <HeroCard e={S.featPool[0]} />}
+
+            {S.weekendPool.length > 0 && (
+              <section className="ex-section">
+                <div className="ex-head">
+                  <h2>{S.weekendHeading}</h2>
+                  <button type="button" className="ex-see-all" onClick={() => setWhen("weekend")}>
+                    See all <i className="icon-chevron-right" />
+                  </button>
+                </div>
+                <div className="ex-weekend-grid">
+                  {S.weekendPool.map((e) => <Stub key={e.id} e={e} variant="grid" />)}
+                </div>
+              </section>
             )}
-            {/* No "Hand-picked" subtitle — featPool falls back to
-                most-popular when nothing is actually flagged featured, and
-                claiming curation that isn't happening is exactly the kind of
-                fake-signal copy this redesign removes. */}
-            {S.featPool.length > 1 && (
-              <Rail title="Featured" events={S.featPool.slice(1)} variant="feature" className="ex-featured-rail" />
-            )}
+
             {S.agenda.map(({ heading, list }) => (
               <section className="ex-section" key={heading}>
                 <div className="ex-head">
