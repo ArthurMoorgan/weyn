@@ -101,7 +101,12 @@ export default function AuthGate() {
   // behind this same gate and would never get a chance to redirect. /onboarding
   // itself is a sibling route outside this layout (see main.tsx), so this
   // is the only place that needs to know about it.
-  if (!localStorage.getItem("weyn.onboarding.completed") && location.pathname !== "/onboarding") {
+  //
+  // VITE_SKIP_ONBOARDING (dev.weynevents.com only, unset everywhere else)
+  // — the walkthrough is a first-run-conversion surface, not something an
+  // internal reviewer poking at a work-in-progress deployment needs to sit
+  // through on every fresh browser/incognito visit.
+  if (import.meta.env.VITE_SKIP_ONBOARDING !== "1" && !localStorage.getItem("weyn.onboarding.completed") && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;
   }
 
