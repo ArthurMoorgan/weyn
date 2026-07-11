@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type Weyn, type Venue, type Reservation, type VenueAvailabilitySlot } from "../api";
+import { api, type Weyn, type Venue, type Reservation, type VenueAvailabilitySlot, type FloorPlan, type FloorTable, type FloorTableInput } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount, useTickets, useSaved } from "../store";
 import Stub from "../components/Stub";
@@ -8,6 +8,7 @@ import ThemeToggle from "../components/ThemeToggle";
 import CityPill from "../components/CityPill";
 import InstallPrompt from "../components/InstallPrompt";
 import AccountWidget from "../components/AccountWidget";
+import FloorPlanCanvas from "../components/FloorPlanCanvas";
 import { webPushStatus, webPushSupported, subscribeWebPush, unsubscribeWebPush } from "../webpush";
 
 // "More" hub: instead of a wrapping tab strip, this tab is now an
@@ -476,6 +477,7 @@ function VenuesSection({ venues }: { venues: OwnedVenue[] }) {
 const VENUE_TABS = [
   { key: "reservations", label: "Reservations", icon: "icon-calendar-check" },
   { key: "calendar", label: "Calendar", icon: "icon-calendar" },
+  { key: "tables", label: "Tables", icon: "icon-grid-2x2" },
   { key: "guests", label: "Guests", icon: "icon-user" },
   { key: "analytics", label: "Analytics", icon: "icon-bar-chart" },
   { key: "hours", label: "Hours", icon: "icon-clock" },
@@ -522,6 +524,7 @@ function VenueManager({ venue }: { venue: OwnedVenue }) {
         <VenueReservationsTab venueId={venue.id} rows={rows} loading={loading} error={error} setStatus={setStatus} onCreated={reload} />
       )}
       {tab === "calendar" && <VenueCalendar rows={rows} loading={loading} />}
+      {tab === "tables" && <VenueTables venueId={venue.id} />}
       {tab === "guests" && <VenueGuests venueId={venue.id} rows={rows} />}
       {tab === "analytics" && <VenueAnalyticsPanel venueId={venue.id} />}
       {tab === "hours" && <VenueAvailabilityEditor venue={venue} />}
@@ -548,6 +551,7 @@ function VenueReservationsTab({ venueId, rows, loading, error, setStatus, onCrea
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
 
   async function act(id: string, status: "confirmed" | "cancelled" | "seated" | "no_show") {
     setBusyId(id);
@@ -581,32 +585,43 @@ function VenueReservationsTab({ venueId, rows, loading, error, setStatus, onCrea
               const status = (r.status || "pending").toLowerCase();
               const pending = status === "pending";
               const arrivable = status === "confirmed";
+              const canAssign = ["pending", "confirmed", "seated"].includes(status);
               return (
-                <li key={r.id}>
-                  <i className="icon-user" />
-                  <span>
-                    {r.guestName} <small style={{ color: "var(--text-3)" }}>· party of {r.partySize}</small>
-                    {r.source === "manual" && <small style={{ color: "var(--text-3)" }}> · walk-in</small>}
-                    <br />
-                    <small style={{ color: "var(--text-3)" }}>{r.date.slice(0, 10)} · {r.time}</small>
-                    {" "}
-                    <span className={"ec-badge " + statusClass(r.status)}>{status.replace("_", "-")}</span>
-                  </span>
-                  <div style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                    {pending && (
-                      <>
-                        <button className="btn glass sm" onClick={() => act(r.id, "confirmed")} disabled={busyId === r.id}>Confirm</button>
-                        <button className="btn glass sm" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
-                      </>
-                    )}
-                    {arrivable && (
-                      <>
-                        <button className="btn glass sm" onClick={() => act(r.id, "seated")} disabled={busyId === r.id}>Seated</button>
-                        <button className="btn glass sm" onClick={() => act(r.id, "no_show")} disabled={busyId === r.id}>No-show</button>
-                        <button className="btn glass sm" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
-                      </>
-                    )}
+                <li key={r.id} style={{ flexDirection: "column", alignItems: "stretch" }}>
+                  <div style={{ display: "flex", alignItems: "center", width: "100%", gap: 10 }}>
+                    <i className="icon-user" />
+                    <span style={{ flex: 1 }}>
+                      {r.guestName} <small style={{ color: "var(--text-3)" }}>· party of {r.partySize}</small>
+                      {r.source === "manual" && <small style={{ color: "var(--text-3)" }}> · walk-in</small>}
+                      <br />
+                      <small style={{ color: "var(--text-3)" }}>{r.date.slice(0, 10)} · {r.time}</small>
+                      {" "}
+                      <span className={"ec-badge " + statusClass(r.status)}>{status.replace("_", "-")}</span>
+                    </span>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      {pending && (
+                        <>
+                          <button className="btn glass sm" onClick={() => act(r.id, "confirmed")} disabled={busyId === r.id}>Confirm</button>
+                          <button className="btn glass sm" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
+                        </>
+                      )}
+                      {arrivable && (
+                        <>
+                          <button className="btn glass sm" onClick={() => act(r.id, "seated")} disabled={busyId === r.id}>Seated</button>
+                          <button className="btn glass sm" onClick={() => act(r.id, "no_show")} disabled={busyId === r.id}>No-show</button>
+                          <button className="btn glass sm" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
+                        </>
+                      )}
+                      {canAssign && (
+                        <button className="btn glass sm" onClick={() => setAssigningId(assigningId === r.id ? null : r.id)}>
+                          <i className="icon-grid-2x2" /> Table
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  {assigningId === r.id && (
+                    <TableAssignPanel venueId={venueId} reservationId={r.id} onDone={() => setAssigningId(null)} />
+                  )}
                 </li>
               );
             })}
@@ -917,6 +932,186 @@ function VenueAvailabilityEditor({ venue }: { venue: OwnedVenue }) {
       <button className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving}>
         {saving ? "Saving…" : saved ? "Saved ✓" : "Save availability"}
       </button>
+    </div>
+  );
+}
+
+// ---- Tables: the floor-plan layout editor. Mode ("table" vs "seat") is
+// chosen once per venue at setup — table mode assigns whole tables (most
+// restaurants/lounges), seat mode assigns individual seats (e.g. a
+// numbered-barstool bar or a screening-room venue). Layout edits are local
+// until "Save layout" — dragging every pixel to the server would be both
+// slow and noisy.
+function VenueTables({ venueId }: { venueId: string }) {
+  const { data: plan, loading, reload } = useAsync(() => api.getVenueFloorPlan(venueId), [venueId]);
+  const [tables, setTables] = useState<FloorTable[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => { if (plan) { setTables(plan.tables); setDirty(false); } }, [plan]);
+
+  async function init(mode: "table" | "seat") {
+    await api.initVenueFloorPlan(venueId, mode);
+    reload();
+  }
+
+  function addTable() {
+    const n = tables.length + 1;
+    setTables((list) => [...list, {
+      id: `new-${Date.now()}-${n}`, floorPlanId: plan!.id, sectionId: null,
+      label: `Table ${n}`, shape: "rect", x: 20 + (n % 6) * 100, y: 20 + Math.floor(n / 6) * 100,
+      width: 80, height: 80, rotation: 0, minCapacity: 1, maxCapacity: 4, status: "available", seats: [],
+    }]);
+    setDirty(true);
+  }
+
+  function updateTable(id: string, patch: Partial<FloorTable>) {
+    setTables((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    setDirty(true);
+  }
+
+  function removeTable(id: string) {
+    setTables((list) => list.filter((t) => t.id !== id));
+    setDirty(true);
+  }
+
+  async function save() {
+    setSaving(true); setErr("");
+    try {
+      const input: FloorTableInput[] = tables.map((t) => ({
+        id: t.id.startsWith("new-") ? undefined : t.id,
+        label: t.label, shape: t.shape, x: t.x, y: t.y, width: t.width, height: t.height, rotation: t.rotation,
+        minCapacity: t.minCapacity, maxCapacity: t.maxCapacity, sectionId: t.sectionId,
+        seatCount: plan?.mode === "seat" ? (t.seats.length || t.maxCapacity) : undefined,
+      }));
+      await api.setVenueFloorTables(venueId, input);
+      setDirty(false);
+      reload();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't save the layout.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function setStatus(tableId: string, status: FloorTable["status"]) {
+    const updated = await api.setFloorTableStatus(tableId, status);
+    setTables((list) => list.map((t) => (t.id === tableId ? { ...t, status: updated.status } : t)));
+  }
+
+  if (loading) return <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>;
+
+  if (!plan) {
+    return (
+      <div className="dash-card" style={{ padding: 16 }}>
+        <p className="hint" style={{ margin: "0 0 10px" }}><i className="icon-grid-2x2" /> Set up your floor plan</p>
+        <p style={{ fontSize: 13.5, color: "var(--text-2)", marginBottom: 12 }}>
+          Choose how tables get assigned here — you can change this later.
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn glass" onClick={() => init("table")}>Whole tables</button>
+          <button className="btn glass" onClick={() => init("seat")}>Individual seats</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span><i className="icon-grid-2x2" /> Floor plan · {plan.mode === "seat" ? "individual seats" : "whole tables"}</span>
+        <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={addTable}><i className="icon-plus" /> Add table</button>
+      </p>
+
+      <FloorPlanCanvas tables={tables} mode="edit" seatMode={plan.mode === "seat"}
+        onTableDrag={(id, x, y) => updateTable(id, { x, y })}
+        onTableResize={(id, width, height) => updateTable(id, { width, height })}
+      />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+        {tables.map((t) => (
+          <div key={t.id} className="dash-card" style={{ padding: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <input style={{ width: 100 }} value={t.label} onChange={(e) => updateTable(t.id, { label: e.target.value })} />
+            <select value={t.shape} onChange={(e) => updateTable(t.id, { shape: e.target.value as "rect" | "circle" })}>
+              <option value="rect">Rect</option>
+              <option value="circle">Circle</option>
+            </select>
+            <input type="number" style={{ width: 55 }} value={t.minCapacity} onChange={(e) => updateTable(t.id, { minCapacity: Number(e.target.value) || 1 })} title="Min capacity" />
+            <span style={{ color: "var(--text-3)" }}>–</span>
+            <input type="number" style={{ width: 55 }} value={t.maxCapacity} onChange={(e) => updateTable(t.id, { maxCapacity: Number(e.target.value) || 1 })} title="Max capacity" />
+            {plan.mode === "seat" && (
+              <input type="number" style={{ width: 60 }} value={t.seats.length || t.maxCapacity}
+                onChange={(e) => updateTable(t.id, { seats: Array.from({ length: Number(e.target.value) || 0 }, (_, i) => t.seats[i] || { id: `pending-${i}`, tableId: t.id, index: i + 1, label: null, status: "available" }) })}
+                title="Seat count" />
+            )}
+            <select value={t.status} onChange={(e) => setStatus(t.id, e.target.value as FloorTable["status"])} style={{ marginLeft: "auto" }}>
+              <option value="available">Available</option>
+              <option value="reserved">Reserved</option>
+              <option value="occupied">Occupied</option>
+              <option value="needs_cleaning">Needs cleaning</option>
+              <option value="maintenance">Maintenance</option>
+            </select>
+            <button className="btn glass sm" onClick={() => removeTable(t.id)}><i className="icon-x" /></button>
+          </div>
+        ))}
+        {tables.length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No tables yet — add one above.</p>}
+      </div>
+
+      {err && <p className="errline">{err}</p>}
+      <button className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
+        {saving ? "Saving…" : dirty ? "Save layout" : "Saved ✓"}
+      </button>
+    </>
+  );
+}
+
+// ---- Table assignment panel — inline under a reservation row. Click
+// tables to toggle them into the selection (multiple = merge), then
+// confirm. Only tables currently "available" are clickable.
+function TableAssignPanel({ venueId, reservationId, onDone }: { venueId: string; reservationId: string; onDone: () => void }) {
+  const { data: plan, loading } = useAsync(() => api.getVenueFloorPlan(venueId), [venueId]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  function toggle(t: FloorTable) {
+    setSelected((list) => (list.includes(t.id) ? list.filter((id) => id !== t.id) : [...list, t.id]));
+  }
+
+  async function confirm() {
+    if (!selected.length) return;
+    setSaving(true); setErr("");
+    try {
+      await api.assignTables(reservationId, selected);
+      onDone();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't assign that table.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function unassign() {
+    setSaving(true);
+    try { await api.unassignTables(reservationId); onDone(); } finally { setSaving(false); }
+  }
+
+  if (loading) return <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>;
+  if (!plan) {
+    return <p style={{ fontSize: 13, color: "var(--text-2)", marginTop: 8 }}>No floor plan set up yet — add tables in the Tables tab first.</p>;
+  }
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <FloorPlanCanvas tables={plan.tables} mode="assign" seatMode={plan.mode === "seat"} selectedTableIds={selected} onTableClick={toggle} />
+      {err && <p className="errline">{err}</p>}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button className="btn glass sm" style={{ width: "auto" }} onClick={confirm} disabled={saving || !selected.length}>
+          {saving ? "Saving…" : `Assign ${selected.length || ""} table${selected.length === 1 ? "" : "s"}`.trim()}
+        </button>
+        <button className="btn glass sm" style={{ width: "auto" }} onClick={unassign} disabled={saving}>Clear assignment</button>
+      </div>
     </div>
   );
 }

@@ -810,6 +810,34 @@ export function createApp(storage) {
       return res.status(409).json({ error: "You've already reserved a ticket for this event." });
     }
 
+    // Seat-mode events (assigned seating, see FloorPlan) require the guest
+    // to have picked exactly `qty` specific seats before capacity is
+    // touched — seats are the scarcer, more specific resource, so a seat
+    // conflict should never leave capacity claimed with nothing to show for
+    // it. Table-mode events and non-seated events skip this entirely.
+    const eventFloorPlan = await prisma.floorPlan.findUnique({ where: { eventId: e.id } });
+    let seatIds = null;
+    if (eventFloorPlan?.mode === "seat") {
+      seatIds = Array.isArray(req.body?.seatIds) ? [...new Set(req.body.seatIds.filter(Boolean))] : [];
+      if (seatIds.length !== qty) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `Please select exactly ${qty} seat(s)` } });
+      }
+      const validSeats = await prisma.floorSeat.findMany({ where: { id: { in: seatIds }, table: { floorPlanId: eventFloorPlan.id } } });
+      if (validSeats.length !== seatIds.length) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid seat selection" } });
+      }
+      // Per-seat atomic claim — each UPDATE's WHERE clause IS the
+      // availability check, same pattern as claimTierCapacity/claimEventCapacity.
+      const claims = await prisma.$transaction(
+        seatIds.map((sid) => prisma.$queryRaw`UPDATE "FloorSeat" SET status = 'reserved' WHERE id = ${sid} AND status = 'available' RETURNING id`)
+      );
+      const claimedIds = claims.flat().map((r) => r.id);
+      if (claimedIds.length !== seatIds.length) {
+        if (claimedIds.length) await prisma.floorSeat.updateMany({ where: { id: { in: claimedIds } }, data: { status: "available" } });
+        return res.status(409).json({ error: { code: "SEAT_CONFLICT", message: "One or more selected seats were just taken — please pick different seats." } });
+      }
+    }
+
     let bookedTier = null;
     const tierId = req.body?.tierId || null;
     if (Array.isArray(e.tiers) && e.tiers.length) {
@@ -818,19 +846,29 @@ export function createApp(storage) {
       // atomic claim — see db.claimTierCapacity's comment for why this can't
       // be a plain read-then-write without risking overselling under load
       const claimed = await db.claimTierCapacity(tier.id, qty);
-      if (!claimed) return res.status(409).json({ error: `${tier.name} is sold out` });
+      if (!claimed) {
+        if (seatIds) await prisma.floorSeat.updateMany({ where: { id: { in: seatIds } }, data: { status: "available" } });
+        return res.status(409).json({ error: `${tier.name} is sold out` });
+      }
       await prisma.event.update({ where: { id: e.id }, data: { sold: { increment: qty } } });
       bookedTier = tier.name;
     } else {
       const claimed = await db.claimEventCapacity(e.id, qty);
-      if (!claimed) return res.status(409).json({ error: "Not enough tickets left" });
+      if (!claimed) {
+        if (seatIds) await prisma.floorSeat.updateMany({ where: { id: { in: seatIds } }, data: { status: "available" } });
+        return res.status(409).json({ error: "Not enough tickets left" });
+      }
     }
 
     const deviceId = req.body?.deviceId;
     const account = req.body?.email ? { email: req.body.email, name: req.body.name } : null;
     const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body) });
     await prisma.booking.update({ where: { id: booking.id }, data: { status: "paid" } });
-    await db.issueTickets(booking.id, e.id, qty);
+    if (seatIds) {
+      await prisma.ticket.createMany({ data: seatIds.map((seatId) => ({ bookingId: booking.id, eventId: e.id, seatId })) });
+    } else {
+      await db.issueTickets(booking.id, e.id, qty);
+    }
     if (deviceId) {
       const token = await db.tokenForDevice(deviceId);
       if (token) sendPush(token, { title: "You're going! 🎟", body: `${e.title}${bookedTier ? ` (${bookedTier})` : ""} — we'll remind you before it starts.` }).catch(() => {});
@@ -2090,6 +2128,312 @@ export function createApp(storage) {
       res.json(saved);
     } catch (err) {
       captureError(err, { route: "PUT /api/venues/:id/guest-notes/:email", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ============================================================
+  // Floor plans: table/seat picking, shared by Venue reservations and
+  // Event ticketing. See prisma/schema.prisma's FloorPlan comment for the
+  // full model shape. `mode` is set once per venue/event by the owner —
+  // "table" (assign whole tables) or "seat" (assign individual seats).
+  // ============================================================
+
+  const FLOOR_PLAN_INCLUDE = { sections: true, tables: { include: { seats: true }, orderBy: { createdAt: "asc" } } };
+
+  // Owner-only: create (if missing) or fetch a venue's floor plan.
+  app.post("/api/venues/:id/floor-plan", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const mode = req.body?.mode === "seat" ? "seat" : "table";
+      const plan = await prisma.floorPlan.upsert({
+        where: { venueId: req.venue.id },
+        create: { venueId: req.venue.id, mode },
+        update: {},
+        include: FLOOR_PLAN_INCLUDE,
+      });
+      res.status(201).json(plan);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/floor-plan", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/venues/:id/floor-plan", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const plan = await prisma.floorPlan.findUnique({ where: { venueId: req.venue.id }, include: FLOOR_PLAN_INCLUDE });
+      res.json(plan || null);
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/floor-plan", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put("/api/venues/:id/floor-plan", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const mode = req.body?.mode === "seat" ? "seat" : "table";
+      const plan = await prisma.floorPlan.update({ where: { venueId: req.venue.id }, data: { mode }, include: FLOOR_PLAN_INCLUDE });
+      res.json(plan);
+    } catch (err) {
+      captureError(err, { route: "PUT /api/venues/:id/floor-plan", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/venues/:id/floor-plan/sections", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const name = String(req.body?.name || "").trim();
+      if (!name) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "name is required" } });
+      const plan = await prisma.floorPlan.findUnique({ where: { venueId: req.venue.id } });
+      if (!plan) return res.status(400).json({ error: { code: "NO_FLOOR_PLAN", message: "Create the floor plan first" } });
+      const section = await prisma.floorSection.create({ data: { floorPlanId: plan.id, name } });
+      res.status(201).json(section);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/floor-plan/sections", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Bulk-replace a venue's tables in one call — same "here is my current
+  // layout" model as PUT /slots. Tables that carry an `id` are updated in
+  // place (preserving assignment history); tables with no `id` are created;
+  // any existing table NOT present in the incoming list is deleted (which
+  // cascades to its seats and any assignment linking to it — acceptable for
+  // a layout edit, since removing a table from the floor plan means it no
+  // longer physically exists).
+  app.put("/api/venues/:id/floor-plan/tables", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const plan = await prisma.floorPlan.findUnique({ where: { venueId: req.venue.id } });
+      if (!plan) return res.status(400).json({ error: { code: "NO_FLOOR_PLAN", message: "Create the floor plan first" } });
+      const incoming = Array.isArray(req.body?.tables) ? req.body.tables : [];
+      const existing = await prisma.floorTable.findMany({ where: { floorPlanId: plan.id }, select: { id: true } });
+      const existingIds = new Set(existing.map((t) => t.id));
+      const incomingIds = new Set(incoming.filter((t) => t.id).map((t) => t.id));
+      const toDelete = [...existingIds].filter((id) => !incomingIds.has(id));
+
+      const ops = [];
+      if (toDelete.length) ops.push(prisma.floorTable.deleteMany({ where: { id: { in: toDelete } } }));
+      for (const t of incoming) {
+        const data = {
+          label: String(t.label || "Table").slice(0, 40),
+          shape: t.shape === "circle" ? "circle" : "rect",
+          x: Number(t.x) || 0, y: Number(t.y) || 0,
+          width: Number(t.width) || 80, height: Number(t.height) || 80,
+          rotation: Number(t.rotation) || 0,
+          minCapacity: Math.max(1, Number(t.minCapacity) || 1),
+          maxCapacity: Math.max(1, Number(t.maxCapacity) || Number(t.minCapacity) || 2),
+          sectionId: t.sectionId || null,
+        };
+        if (t.id && existingIds.has(t.id)) {
+          ops.push(prisma.floorTable.update({ where: { id: t.id }, data }));
+        } else {
+          ops.push(prisma.floorTable.create({ data: { ...data, floorPlanId: plan.id } }));
+        }
+      }
+      if (ops.length) await prisma.$transaction(ops);
+
+      const tables = await prisma.floorTable.findMany({ where: { floorPlanId: plan.id }, include: { seats: true }, orderBy: { createdAt: "asc" } });
+      res.json({ tables });
+    } catch (err) {
+      captureError(err, { route: "PUT /api/venues/:id/floor-plan/tables", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/floor-tables/:id/status", requireAuth, async (req, res) => {
+    try {
+      const status = String(req.body?.status || "");
+      if (!["available", "reserved", "occupied", "needs_cleaning", "maintenance"].includes(status)) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid status" } });
+      }
+      const table = await prisma.floorTable.findUnique({ where: { id: req.params.id }, include: { floorPlan: { include: { venue: true, event: true } } } });
+      if (!table) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Table not found" } });
+      const ownerId = table.floorPlan.venue?.ownerId ?? table.floorPlan.event?.ownerId;
+      if (ownerId !== req.user.id && req.user.role !== "ADMIN") {
+        return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this table" } });
+      }
+      const updated = await prisma.floorTable.update({ where: { id: table.id }, data: { status } });
+      res.json(updated);
+    } catch (err) {
+      captureError(err, { route: "PATCH /api/floor-tables/:id/status", tableId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Assign one-or-more tables to a reservation — the same shape covers
+  // MERGE (many tableIds, one assignment) and re-assignment (replace the
+  // existing assignment's tables). A table already assigned to a different
+  // *active* reservation at an overlapping date is rejected with 409 rather
+  // than silently double-booking it.
+  app.post("/api/reservations/:id/assign-tables", requireAuth, async (req, res) => {
+    try {
+      const tableIds = Array.isArray(req.body?.tableIds) ? req.body.tableIds.filter(Boolean) : [];
+      if (!tableIds.length) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "tableIds is required" } });
+
+      const reservation = await prisma.reservation.findUnique({ where: { id: req.params.id }, include: { venue: true } });
+      if (!reservation) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Reservation not found" } });
+      if (reservation.venue.ownerId !== req.user.id && req.user.role !== "ADMIN") {
+        return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this venue" } });
+      }
+
+      const tables = await prisma.floorTable.findMany({ where: { id: { in: tableIds } }, include: { floorPlan: true } });
+      if (tables.length !== tableIds.length || tables.some((t) => t.floorPlan.venueId !== reservation.venueId)) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid table(s) for this venue" } });
+      }
+
+      const dayStart = new Date(reservation.date); dayStart.setUTCHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart.getTime() + 24 * 3600e3);
+      const conflict = await prisma.tableAssignmentTable.findFirst({
+        where: {
+          tableId: { in: tableIds },
+          assignment: {
+            reservationId: { not: reservation.id },
+            date: { gte: dayStart, lt: dayEnd },
+            reservation: { status: { in: ["pending", "confirmed", "seated"] } },
+          },
+        },
+      });
+      if (conflict) return res.status(409).json({ error: { code: "TABLE_CONFLICT", message: "One of these tables is already assigned for this date" } });
+
+      const saved = await prisma.tableAssignment.upsert({
+        where: { reservationId: reservation.id },
+        create: {
+          reservationId: reservation.id, date: reservation.date, time: reservation.time, partySize: reservation.partySize,
+          tables: { create: tableIds.map((tableId) => ({ tableId })) },
+        },
+        update: {
+          date: reservation.date, time: reservation.time, partySize: reservation.partySize,
+          tables: { deleteMany: {}, create: tableIds.map((tableId) => ({ tableId })) },
+        },
+        include: { tables: { include: { table: true } } },
+      });
+      res.json(saved);
+    } catch (err) {
+      captureError(err, { route: "POST /api/reservations/:id/assign-tables", reservationId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/reservations/:id/assign-tables", requireAuth, async (req, res) => {
+    try {
+      const reservation = await prisma.reservation.findUnique({ where: { id: req.params.id }, include: { venue: true } });
+      if (!reservation) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Reservation not found" } });
+      if (reservation.venue.ownerId !== req.user.id && req.user.role !== "ADMIN") {
+        return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this venue" } });
+      }
+      await prisma.tableAssignment.deleteMany({ where: { reservationId: reservation.id } });
+      res.json({ ok: true });
+    } catch (err) {
+      captureError(err, { route: "DELETE /api/reservations/:id/assign-tables", reservationId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- event floor plans (organizer-side) — same shape as venue floor
+  // plans above, gated by requireEventAccess("MANAGER") instead of venue
+  // ownership. Used for assigned-seating ticketed events. ----
+  app.post("/api/events/:id/floor-plan", requireEventAccess("MANAGER"), async (req, res) => {
+    try {
+      const mode = req.body?.mode === "seat" ? "seat" : "table";
+      const plan = await prisma.floorPlan.upsert({
+        where: { eventId: req.event.id },
+        create: { eventId: req.event.id, mode },
+        update: {},
+        include: FLOOR_PLAN_INCLUDE,
+      });
+      res.status(201).json(plan);
+    } catch (err) {
+      captureError(err, { route: "POST /api/events/:id/floor-plan", eventId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/events/:id/floor-plan", requireEventAccess("MANAGER"), async (req, res) => {
+    try {
+      const plan = await prisma.floorPlan.findUnique({ where: { eventId: req.event.id }, include: FLOOR_PLAN_INCLUDE });
+      res.json(plan || null);
+    } catch (err) {
+      captureError(err, { route: "GET /api/events/:id/floor-plan", eventId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put("/api/events/:id/floor-plan", requireEventAccess("MANAGER"), async (req, res) => {
+    try {
+      const mode = req.body?.mode === "seat" ? "seat" : "table";
+      const plan = await prisma.floorPlan.update({ where: { eventId: req.event.id }, data: { mode }, include: FLOOR_PLAN_INCLUDE });
+      res.json(plan);
+    } catch (err) {
+      captureError(err, { route: "PUT /api/events/:id/floor-plan", eventId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Bulk-replace an event's tables — mirrors PUT /api/venues/:id/floor-plan/tables.
+  // For "seat" mode, each table's `seatCount` (not persisted on the table
+  // itself) drives how many FloorSeat rows get created/trimmed under it —
+  // seats are numbered 1..seatCount and any existing seat past the new
+  // count is deleted (cascading to release its ticket's seatId, handled by
+  // the FK's ON DELETE SET NULL... actually seats cascade-delete from their
+  // table, and Ticket.seatId is ON DELETE SET NULL, so a shrink never
+  // orphans a ticket — it just loses its specific seat label).
+  app.put("/api/events/:id/floor-plan/tables", requireEventAccess("MANAGER"), async (req, res) => {
+    try {
+      const plan = await prisma.floorPlan.findUnique({ where: { eventId: req.event.id } });
+      if (!plan) return res.status(400).json({ error: { code: "NO_FLOOR_PLAN", message: "Create the floor plan first" } });
+      const incoming = Array.isArray(req.body?.tables) ? req.body.tables : [];
+      const existing = await prisma.floorTable.findMany({ where: { floorPlanId: plan.id }, select: { id: true } });
+      const existingIds = new Set(existing.map((t) => t.id));
+      const incomingIds = new Set(incoming.filter((t) => t.id).map((t) => t.id));
+      const toDelete = [...existingIds].filter((id) => !incomingIds.has(id));
+
+      if (toDelete.length) await prisma.floorTable.deleteMany({ where: { id: { in: toDelete } } });
+      for (const t of incoming) {
+        const data = {
+          label: String(t.label || "Table").slice(0, 40),
+          shape: t.shape === "circle" ? "circle" : "rect",
+          x: Number(t.x) || 0, y: Number(t.y) || 0,
+          width: Number(t.width) || 80, height: Number(t.height) || 80,
+          rotation: Number(t.rotation) || 0,
+          minCapacity: Math.max(1, Number(t.minCapacity) || 1),
+          maxCapacity: Math.max(1, Number(t.maxCapacity) || Number(t.minCapacity) || 2),
+          sectionId: t.sectionId || null,
+        };
+        let table;
+        if (t.id && existingIds.has(t.id)) {
+          table = await prisma.floorTable.update({ where: { id: t.id }, data });
+        } else {
+          table = await prisma.floorTable.create({ data: { ...data, floorPlanId: plan.id } });
+        }
+        if (plan.mode === "seat") {
+          const seatCount = Math.max(0, Number(t.seatCount) || data.maxCapacity);
+          const currentSeats = await prisma.floorSeat.findMany({ where: { tableId: table.id }, orderBy: { index: "asc" } });
+          if (currentSeats.length > seatCount) {
+            await prisma.floorSeat.deleteMany({ where: { id: { in: currentSeats.slice(seatCount).map((s) => s.id) } } });
+          } else if (currentSeats.length < seatCount) {
+            await prisma.floorSeat.createMany({
+              data: Array.from({ length: seatCount - currentSeats.length }, (_, i) => ({ tableId: table.id, index: currentSeats.length + i + 1 })),
+            });
+          }
+        }
+      }
+
+      const tables = await prisma.floorTable.findMany({ where: { floorPlanId: plan.id }, include: { seats: true }, orderBy: { createdAt: "asc" } });
+      res.json({ tables });
+    } catch (err) {
+      captureError(err, { route: "PUT /api/events/:id/floor-plan/tables", eventId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Public seat map — read-only, no owner-sensitive data, used to render
+  // the guest-facing seat picker before checkout on a "seat" mode event.
+  app.get("/api/events/:id/seatmap", async (req, res) => {
+    try {
+      const plan = await prisma.floorPlan.findUnique({ where: { eventId: req.params.id }, include: FLOOR_PLAN_INCLUDE });
+      if (!plan) return res.status(404).json({ error: { code: "NOT_FOUND", message: "This event has no seating map" } });
+      res.json(plan);
+    } catch (err) {
+      captureError(err, { route: "GET /api/events/:id/seatmap", eventId: req.params.id });
       res.status(500).json({ error: err.message });
     }
   });

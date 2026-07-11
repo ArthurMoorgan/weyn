@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import QRCode from "qrcode";
-import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor } from "../../api";
+import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor, type FloorTable, type FloorTableInput } from "../../api";
 import { useAsync } from "../../hooks";
 import { getAuthToken } from "../../store";
 import FeatureLock from "../../components/FeatureLock";
+import FloorPlanCanvas from "../../components/FloorPlanCanvas";
 
 // The real per-event workspace HANDOFF.md §17 called for — deep-linkable
 // tabs (/organizer/events/:id/:tab) instead of the old one-off modal
@@ -23,6 +24,7 @@ const TABS = [
   { key: "overview", label: "Overview", icon: "chart-bar" },
   { key: "attendees", label: "Attendees", icon: "users" },
   { key: "marketing", label: "Marketing", icon: "megaphone" },
+  { key: "seating", label: "Seating", icon: "grid-2x2" },
   { key: "team", label: "Team", icon: "users-round" },
   { key: "checkin", label: "Check-in", icon: "qr-code" },
   { key: "settings", label: "Settings", icon: "settings" },
@@ -74,6 +76,7 @@ export default function EventWorkspace() {
       {tab === "overview" && <OverviewTab event={event} features={features} reload={events.reload} />}
       {tab === "attendees" && <AttendeesTab event={event} features={features} />}
       {tab === "marketing" && <MarketingTab event={event} features={features} />}
+      {tab === "seating" && <SeatingTab event={event} />}
       {tab === "team" && <TeamTab event={event} />}
       {tab === "checkin" && <CheckInTab event={event} />}
       {tab === "settings" && <SettingsTab event={event} features={features} reload={events.reload} />}
@@ -1328,5 +1331,122 @@ function InviteOnlyPanel({ event, onChanged }: { event: Weyn; onChanged: () => v
         </div>
       )}
     </>
+  );
+}
+
+/* ---------- Seating: assigned-seating floor plan for this event (mirrors
+   You.tsx's venue Tables tab — same FloorPlanCanvas, different owner check
+   via requireEventAccess instead of venue ownership). Most events don't
+   need this at all (general-admission is the default); it only matters for
+   a ticketed event with fixed seats, e.g. a wine tasting or a screening. */
+function SeatingTab({ event }: { event: Weyn }) {
+  const { data: plan, loading, reload } = useAsync(() => api.getEventFloorPlan(event.id), [event.id]);
+  const [tables, setTables] = useState<FloorTable[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => { if (plan) { setTables(plan.tables); setDirty(false); } }, [plan]);
+
+  async function init(mode: "table" | "seat") {
+    await api.initEventFloorPlan(event.id, mode);
+    reload();
+  }
+
+  function addTable() {
+    const n = tables.length + 1;
+    setTables((list) => [...list, {
+      id: `new-${Date.now()}-${n}`, floorPlanId: plan!.id, sectionId: null,
+      label: `Table ${n}`, shape: "rect", x: 20 + (n % 6) * 100, y: 20 + Math.floor(n / 6) * 100,
+      width: 80, height: 80, rotation: 0, minCapacity: 1, maxCapacity: 4, status: "available", seats: [],
+    }]);
+    setDirty(true);
+  }
+
+  function updateTable(id: string, patch: Partial<FloorTable>) {
+    setTables((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    setDirty(true);
+  }
+
+  function removeTable(id: string) {
+    setTables((list) => list.filter((t) => t.id !== id));
+    setDirty(true);
+  }
+
+  async function save() {
+    setSaving(true); setErr("");
+    try {
+      const input: FloorTableInput[] = tables.map((t) => ({
+        id: t.id.startsWith("new-") ? undefined : t.id,
+        label: t.label, shape: t.shape, x: t.x, y: t.y, width: t.width, height: t.height, rotation: t.rotation,
+        minCapacity: t.minCapacity, maxCapacity: t.maxCapacity, sectionId: t.sectionId,
+        seatCount: plan?.mode === "seat" ? (t.seats.length || t.maxCapacity) : undefined,
+      }));
+      await api.setEventFloorTables(event.id, input);
+      setDirty(false);
+      reload();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't save the layout.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <p className="hint" style={{ padding: "8px 6px" }}>Loading…</p>;
+
+  if (!plan) {
+    return (
+      <div className="dash-card" style={{ padding: 16, margin: "0 6px" }}>
+        <p className="hint" style={{ margin: "0 0 10px" }}><i className="icon-grid-2x2" /> Assigned seating (optional)</p>
+        <p style={{ fontSize: 13.5, color: "var(--text-2)", marginBottom: 12 }}>
+          Most events don't need this — leave it off for general admission. Set it up only if guests should pick a specific table or seat, like a wine tasting or a screening.
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn glass" onClick={() => init("table")}>Whole tables</button>
+          <button className="btn glass" onClick={() => init("seat")}>Individual seats</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "0 6px" }}>
+      <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span><i className="icon-grid-2x2" /> Floor plan · {plan.mode === "seat" ? "individual seats" : "whole tables"}</span>
+        <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={addTable}><i className="icon-plus" /> Add table</button>
+      </p>
+
+      <FloorPlanCanvas tables={tables} mode="edit" seatMode={plan.mode === "seat"}
+        onTableDrag={(id, x, y) => updateTable(id, { x, y })}
+        onTableResize={(id, width, height) => updateTable(id, { width, height })}
+      />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+        {tables.map((t) => (
+          <div key={t.id} className="dash-card" style={{ padding: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <input style={{ width: 100 }} value={t.label} onChange={(e) => updateTable(t.id, { label: e.target.value })} />
+            <select value={t.shape} onChange={(e) => updateTable(t.id, { shape: e.target.value as "rect" | "circle" })}>
+              <option value="rect">Rect</option>
+              <option value="circle">Circle</option>
+            </select>
+            <input type="number" style={{ width: 55 }} value={t.minCapacity} onChange={(e) => updateTable(t.id, { minCapacity: Number(e.target.value) || 1 })} title="Min capacity" />
+            <span style={{ color: "var(--text-3)" }}>–</span>
+            <input type="number" style={{ width: 55 }} value={t.maxCapacity} onChange={(e) => updateTable(t.id, { maxCapacity: Number(e.target.value) || 1 })} title="Max capacity" />
+            {plan.mode === "seat" && (
+              <input type="number" style={{ width: 60 }} value={t.seats.length || t.maxCapacity}
+                onChange={(e) => updateTable(t.id, { seats: Array.from({ length: Number(e.target.value) || 0 }, (_, i) => t.seats[i] || { id: `pending-${i}`, tableId: t.id, index: i + 1, label: null, status: "available" }) })}
+                title="Seat count" />
+            )}
+            <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => removeTable(t.id)}><i className="icon-x" /></button>
+          </div>
+        ))}
+        {tables.length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No tables yet — add one above.</p>}
+      </div>
+
+      {err && <p className="errline">{err}</p>}
+      <button className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
+        {saving ? "Saving…" : dirty ? "Save layout" : "Saved ✓"}
+      </button>
+    </div>
   );
 }

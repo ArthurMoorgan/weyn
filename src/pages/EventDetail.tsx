@@ -6,6 +6,7 @@ import { isSaved, toggleSave, useSaved, addTicket, ticketFor, getDeviceId, useAc
 import MiniMap from "../components/MiniMap";
 import FollowButton from "../components/FollowButton";
 import TicketSheet from "../components/TicketSheet";
+import FloorPlanCanvas from "../components/FloorPlanCanvas";
 import type { Collection } from "../api";
 import { downloadEventIcs } from "../ics";
 import Tooltip from "../components/Tooltip";
@@ -116,8 +117,21 @@ export default function EventDetail() {
   // inviteCode to a non-owner, see server/app.js).
   const inviteCode = searchParams.get("invite") || undefined;
 
+  // Assigned seating only exists on the free-RSVP path today — paid
+  // checkout (Thawani redirect) would need a seat-hold-with-expiry
+  // mechanism during the payment window, which isn't built yet (see
+  // server/app.js's POST /api/events/:id/book comment). Fetching the
+  // seatmap is harmless for a paid/no-plan event — .catch(() => null)
+  // just means the picker never renders.
+  const seatMapQuery = useAsync(
+    () => (payPrice === 0 ? api.eventSeatMap(ev.id).then((p) => (p.mode === "seat" ? p : null)).catch(() => null) : Promise.resolve(null)),
+    [ev.id, payPrice]
+  );
+  const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
+
   async function book() {
     if (hasTiers && !selectedTier) { setBookErr("Choose a ticket type first."); return; }
+    if (seatMapQuery.data && !selectedSeatId) { setBookErr("Pick a seat first."); return; }
     setBooking(true); setBookErr("");
     try {
       if (ev.ticketingType === "organizer_payment") {
@@ -144,7 +158,7 @@ export default function EventDetail() {
       // pre-book state (and undo the local ticket-list write) on failure.
       setBooked(ev);
       try {
-        const confirmed = await api.bookEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id, inviteCode);
+        const confirmed = await api.bookEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id, inviteCode, selectedSeatId ? [selectedSeatId] : undefined);
         setBooked(confirmed);
         addTicket(ev.id, confirmed.bookingId, confirmed.accessToken);
       } catch (err: any) {
@@ -299,6 +313,17 @@ export default function EventDetail() {
           </div>
         )}
 
+        {seatMapQuery.data && !booked && (
+          <div className="tier-picker">
+            <h3 className="tier-picker-title">Pick your seat</h3>
+            <FloorPlanCanvas
+              tables={seatMapQuery.data.tables} mode="pick" seatMode
+              selectedSeatIds={selectedSeatId ? [selectedSeatId] : []}
+              onSeatClick={(seatId) => { setSelectedSeatId(seatId); setBookErr(""); }}
+            />
+          </div>
+        )}
+
         {ev.ticketingType === "weyn" && payPrice > 0 && !out && (
           <div className="fee-box">
             <div className="ln"><span>Ticket{selectedTier ? ` · ${selectedTier.name}` : ""}</span><span>{payPrice.toFixed(2)} OMR</span></div>
@@ -367,7 +392,7 @@ export default function EventDetail() {
               <div className="p">{hasTiers && !selectedTier ? `From ${Math.min(...tiers.map((t) => t.price))} OMR` : payPrice === 0 ? "Free" : `${(payPrice + payFee).toFixed(2)} OMR`}</div>
               <div className="s">{hasTiers && !selectedTier ? "Pick a ticket type" : payPrice === 0 ? "RSVP to reserve" : "incl. 8% fee"}</div>
             </div>
-            <button className="btn lg" style={{ width: "auto" }} onClick={book} disabled={booking || (hasTiers && !selectedTier)}>
+            <button className="btn lg" style={{ width: "auto" }} onClick={book} disabled={booking || (hasTiers && !selectedTier) || !!(seatMapQuery.data && !selectedSeatId)}>
               {booking ? "Booking…" : payPrice === 0 ? "RSVP" : "Get ticket"}
             </button>
           </>

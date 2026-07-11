@@ -386,6 +386,67 @@ export interface ManualReservationInput {
   status?: "confirmed" | "seated";
 }
 
+// ---------- floor plans: table/seat picking ----------
+export type FloorPlanMode = "table" | "seat";
+export type TableStatus = "available" | "reserved" | "occupied" | "needs_cleaning" | "maintenance";
+
+export interface FloorSeat {
+  id: string;
+  tableId: string;
+  index: number;
+  label: string | null;
+  status: "available" | "reserved" | "occupied";
+}
+
+export interface FloorTable {
+  id: string;
+  floorPlanId: string;
+  sectionId: string | null;
+  label: string;
+  shape: "rect" | "circle";
+  x: number; y: number; width: number; height: number; rotation: number;
+  minCapacity: number;
+  maxCapacity: number;
+  status: TableStatus;
+  seats: FloorSeat[];
+}
+
+export interface FloorSection {
+  id: string;
+  floorPlanId: string;
+  name: string;
+}
+
+export interface FloorPlan {
+  id: string;
+  venueId: string | null;
+  eventId: string | null;
+  mode: FloorPlanMode;
+  sections: FloorSection[];
+  tables: FloorTable[];
+}
+
+export interface FloorTableInput {
+  id?: string;
+  label: string;
+  shape: "rect" | "circle";
+  x: number; y: number; width: number; height: number; rotation?: number;
+  minCapacity: number;
+  maxCapacity: number;
+  sectionId?: string | null;
+  seatCount?: number; // event floor plans in "seat" mode only
+}
+
+export interface TableAssignment {
+  id: string;
+  reservationId: string | null;
+  bookingId: string | null;
+  date: string;
+  time: string;
+  partySize: number;
+  tables: { table: FloorTable }[];
+}
+
 export interface VenueApplication {
   id: string;
   businessType: VenueCategory;
@@ -681,11 +742,11 @@ export const api = {
   // the event (see server/app.js's POST /api/events/:id/book) — the type
   // here previously said Promise<Weyn>, silently hiding them, which is
   // exactly why free RSVPs had a bookingId to persist but never did.
-  bookEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string, inviteCode?: string): Promise<Weyn & { bookingId: string; accessToken: string }> {
+  bookEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string, inviteCode?: string, seatIds?: string[]): Promise<Weyn & { bookingId: string; accessToken: string }> {
     return fetch(`${API_BASE}/api/events/${id}/book`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, ...getStoredUtm(id) }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, seatIds, ...getStoredUtm(id) }),
     }).then((r) => json<Weyn & { bookingId: string; accessToken: string }>(r)).then(absMedia);
   },
   // paid tickets: returns a hosted Thawani checkout URL to redirect to — the
@@ -1315,6 +1376,72 @@ export const api = {
     return fetch(`${API_BASE}/api/venues/${venueId}/guest-notes/${encodeURIComponent(guestEmail)}`, {
       method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ note }),
     }).then((r) => json<VenueGuestNote | { deleted: true }>(r));
+  },
+
+  // ---- floor plans: venue side (table/seat picking) ----
+  async initVenueFloorPlan(venueId: string, mode: FloorPlanMode = "table"): Promise<FloorPlan> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/floor-plan`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ mode }),
+    }).then((r) => json<FloorPlan>(r));
+  },
+  async getVenueFloorPlan(venueId: string): Promise<FloorPlan | null> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/floor-plan`, { headers: { ...(await authHeaders()) } })
+      .then((r) => json<FloorPlan | null>(r));
+  },
+  async setVenueFloorPlanMode(venueId: string, mode: FloorPlanMode): Promise<FloorPlan> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/floor-plan`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ mode }),
+    }).then((r) => json<FloorPlan>(r));
+  },
+  async addVenueFloorSection(venueId: string, name: string): Promise<FloorSection> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/floor-plan/sections`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ name }),
+    }).then((r) => json<FloorSection>(r));
+  },
+  async setVenueFloorTables(venueId: string, tables: FloorTableInput[]): Promise<{ tables: FloorTable[] }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/floor-plan/tables`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ tables }),
+    }).then((r) => json<{ tables: FloorTable[] }>(r));
+  },
+  async setFloorTableStatus(tableId: string, status: TableStatus): Promise<FloorTable> {
+    return fetch(`${API_BASE}/api/floor-tables/${tableId}/status`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ status }),
+    }).then((r) => json<FloorTable>(r));
+  },
+  async assignTables(reservationId: string, tableIds: string[]): Promise<TableAssignment> {
+    return fetch(`${API_BASE}/api/reservations/${reservationId}/assign-tables`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ tableIds }),
+    }).then((r) => json<TableAssignment>(r));
+  },
+  async unassignTables(reservationId: string): Promise<{ ok: true }> {
+    return fetch(`${API_BASE}/api/reservations/${reservationId}/assign-tables`, {
+      method: "DELETE", headers: { ...(await authHeaders()) },
+    }).then((r) => json<{ ok: true }>(r));
+  },
+
+  // ---- floor plans: event side (organizer-managed seating for ticketed events) ----
+  async initEventFloorPlan(eventId: string, mode: FloorPlanMode = "table"): Promise<FloorPlan> {
+    return fetch(`${API_BASE}/api/events/${eventId}/floor-plan`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ mode }),
+    }).then((r) => json<FloorPlan>(r));
+  },
+  async getEventFloorPlan(eventId: string): Promise<FloorPlan | null> {
+    return fetch(`${API_BASE}/api/events/${eventId}/floor-plan`, { headers: { ...(await authHeaders()) } })
+      .then((r) => json<FloorPlan | null>(r));
+  },
+  async setEventFloorPlanMode(eventId: string, mode: FloorPlanMode): Promise<FloorPlan> {
+    return fetch(`${API_BASE}/api/events/${eventId}/floor-plan`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ mode }),
+    }).then((r) => json<FloorPlan>(r));
+  },
+  async setEventFloorTables(eventId: string, tables: FloorTableInput[]): Promise<{ tables: FloorTable[] }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/floor-plan/tables`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ tables }),
+    }).then((r) => json<{ tables: FloorTable[] }>(r));
+  },
+  // Public — no auth — used to render the guest-facing seat picker.
+  async eventSeatMap(eventId: string): Promise<FloorPlan> {
+    return fetch(`${API_BASE}/api/events/${eventId}/seatmap`).then((r) => json<FloorPlan>(r));
   },
 
   // ---- admin: venue-application review ----

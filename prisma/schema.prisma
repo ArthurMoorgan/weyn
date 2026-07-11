@@ -273,6 +273,7 @@ model Event {
   vendors           Vendor[]
   feedback          EventFeedback[]
   automationRules   AutomationRule[]
+  floorPlan         FloorPlan?
 
   @@index([organizer])
   @@index([featured])
@@ -444,6 +445,7 @@ model Booking {
   tier    Tier?    @relation(fields: [tierId], references: [id])
   payment Payment?
   tickets Ticket[]
+  tableAssignment TableAssignment?
 
   @@index([eventId])
   @@index([deviceId])
@@ -485,9 +487,15 @@ model Ticket {
   checkedInAt DateTime?
   checkedInBy String? // User.id of the organizer/staff who scanned it
   createdAt   DateTime  @default(now())
+  // Set only for events whose FloorPlan mode is "seat" — the specific seat
+  // this ticket was assigned at checkout. Null for every non-seated event
+  // (the overwhelming majority), so this stays a plain nullable FK rather
+  // than forcing every event into the seat-picking flow.
+  seatId      String?   @unique
 
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  booking Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  event   Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  seat    FloorSeat? @relation(fields: [seatId], references: [id])
 
   @@index([bookingId])
   @@index([eventId])
@@ -583,6 +591,7 @@ model Venue {
   slots         VenueAvailabilitySlot[]
   reservations  Reservation[]
   guestNotes    VenueGuestNote[]
+  floorPlan     FloorPlan?
 
   @@index([ownerId])
   @@index([category])
@@ -624,10 +633,123 @@ model Reservation {
 
   venue Venue                  @relation(fields: [venueId], references: [id], onDelete: Cascade)
   slot  VenueAvailabilitySlot? @relation(fields: [slotId], references: [id])
+  tableAssignment TableAssignment?
 
   @@index([venueId])
   @@index([slotId])
   @@index([status])
+}
+
+// ============================================================
+// Table/seat picking — one reusable floor-plan system shared by Venues
+// (reservations) and Events (assigned-seating ticketed events like a wine
+// tasting or comedy night), rather than two parallel implementations.
+// `mode` is chosen per venue/event by the organizer:
+//   "table" — guests/staff assign a whole table (most restaurants/lounges)
+//   "seat"  — individual seats are assigned (theater-style ticketed events)
+// ============================================================
+
+model FloorPlan {
+  id        String   @id @default(cuid())
+  venueId   String?  @unique
+  eventId   String?  @unique
+  mode      String   @default("table") // "table" | "seat"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  venue    Venue?         @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  event    Event?         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sections FloorSection[]
+  tables   FloorTable[]
+}
+
+model FloorSection {
+  id          String   @id @default(cuid())
+  floorPlanId String
+  name        String // "Indoor" | "Rooftop" | "Patio" — free text, organizer-defined
+  createdAt   DateTime @default(now())
+
+  floorPlan FloorPlan    @relation(fields: [floorPlanId], references: [id], onDelete: Cascade)
+  tables    FloorTable[]
+
+  @@index([floorPlanId])
+}
+
+// One physical table (or, in "seat" mode, one row/cluster that FloorSeat
+// rows belong to — e.g. a "Row A" pseudo-table holding 12 theater seats).
+// x/y/width/height/rotation drive the visual layout editor; label/capacity
+// drive assignment regardless of whether the canvas has been laid out yet.
+model FloorTable {
+  id          String   @id @default(cuid())
+  floorPlanId String
+  sectionId   String?
+  label       String // "Table 4", "Row A"
+  shape       String   @default("rect") // "rect" | "circle"
+  x           Float    @default(0)
+  y           Float    @default(0)
+  width       Float    @default(80)
+  height      Float    @default(80)
+  rotation    Float    @default(0)
+  minCapacity Int      @default(1)
+  maxCapacity Int
+  status      String   @default("available") // "available" | "reserved" | "occupied" | "needs_cleaning" | "maintenance"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  floorPlan   FloorPlan              @relation(fields: [floorPlanId], references: [id], onDelete: Cascade)
+  section     FloorSection?          @relation(fields: [sectionId], references: [id])
+  seats       FloorSeat[]
+  assignments TableAssignmentTable[]
+
+  @@index([floorPlanId])
+  @@index([sectionId])
+}
+
+// Only populated when the owning FloorPlan's mode is "seat" — one row per
+// physical seat, assignable to a single Ticket (see Ticket.seatId below).
+model FloorSeat {
+  id      String  @id @default(cuid())
+  tableId String
+  index   Int // seat number within its table/row
+  label   String? // e.g. "A1" — overrides the auto "index" label if set
+  status  String  @default("available") // "available" | "reserved" | "occupied"
+
+  table  FloorTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  ticket Ticket?
+
+  @@index([tableId])
+}
+
+// One assignment = one party seated at one moment — links to a Reservation
+// (venue booking) OR a Booking (event booking, rare but supported for
+// table-mode events), and to one-or-more FloorTables via the join table
+// below. Table MERGE is "one assignment, many tables"; table SPLIT is "one
+// table, many assignments at different times" — both fall out of this same
+// shape for free, no separate merge/split concept needed.
+model TableAssignment {
+  id            String   @id @default(cuid())
+  reservationId String?  @unique
+  bookingId     String?  @unique
+  date          DateTime
+  time          String
+  partySize     Int
+  createdAt     DateTime @default(now())
+
+  reservation Reservation?           @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  booking     Booking?               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  tables      TableAssignmentTable[]
+}
+
+model TableAssignmentTable {
+  id           String @id @default(cuid())
+  assignmentId String
+  tableId      String
+
+  assignment TableAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  table      FloorTable      @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, tableId])
+  @@index([tableId])
 }
 
 // Notes an owner keeps on a specific guest at their venue — independent of
