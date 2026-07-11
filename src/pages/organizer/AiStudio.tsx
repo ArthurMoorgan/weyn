@@ -221,7 +221,7 @@ function AssistantTool() {
 function ToolCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
   return (
     <>
-      <div className="date-head"><h2><i className={`icon-${icon}`} style={{ marginRight: 6 }} />{title}</h2></div>
+      <div className="date-head"><h2 style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><i className={`icon-${icon}`} />{title}</h2></div>
       <div className="dash-card" style={{ padding: 16, marginBottom: 16 }}>{children}</div>
     </>
   );

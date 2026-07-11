@@ -834,7 +834,7 @@ function WorkflowRunsPanel({ venueId, workflowId }: { venueId: string; workflowI
           {r.matchedActions.length > 0 && (
             <div style={{ paddingLeft: 30, marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
               {r.matchedActions.map((m, i) => (
-                <small key={i} style={{ color: m.ok ? "var(--text-3)" : "var(--danger, #c7402c)" }}>
+                <small key={i} style={{ color: m.ok ? "var(--text-3)" : "var(--danger)" }}>
                   {ACTION_LABELS[m.action as VenueWorkflowAction] || m.action} — {m.ok ? "ok" : m.error || "failed"}
                 </small>
               ))}

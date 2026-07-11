@@ -93,8 +93,12 @@
    the depth cue is the shadow, not a tint. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #FAFAFA; --bg-elevated: #FFFFFF; --surface: #FFFFFF; --surface-hover: #F7F7F7;
-  --border: #EBEBEB; --border-strong: #DDDDDD;
+  /* Page background is a soft warm neutral, NOT pure white — a full-white
+     field is what "hurts to look at". Cards stay crisp white so they still
+     pop (the Airbnb move: white cards floating on a calm off-white page,
+     depth from the gap + shadow rather than from a bright white everywhere). */
+  --bg: #EEECE8; --bg-elevated: #FFFFFF; --surface: #FFFFFF; --surface-hover: #F3F1ED;
+  --border: #E5E2DC; --border-strong: #D6D2CB;
   --primary: #FF385C; --primary-hover: #E31C5F; --primary-pressed: #D70466;
   --success: #16A34A; --warning: #B45309; --error: #C13515; --info: #FF385C;
   --text: #222222; --text-2: #6A6A6A; --text-3: #B0B0B0; --text-disabled: #DDDDDD;
@@ -379,7 +383,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .ec-badge [class^="icon-"] { font-size: 12px; }
 .ec-badge.featured { color: var(--accent); background: var(--accent-soft); }
-.ec-badge.live { color: var(--danger); background: rgba(240,68,56,0.14); }
+.ec-badge.live { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .ec-badge.out { color: var(--text-3); }
 .ec-badge.confirmed { color: var(--success); background: var(--success-soft); }
 .ec-badge .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); animation: pulse-dot 1.6s ease-in-out infinite; }
@@ -486,9 +490,27 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    marketing copy above the fold reads as friction, not welcome. */
 /* top padding carries the whole gap now that the browse screens have no
    topbar — keeps the greeting/title clear of the status bar / notch */
-.ex-hero { padding: 28px 16px 4px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
-.ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; }
-.ex-greeting { display: block; font-size: 14px; font-weight: 500; color: var(--text-2); margin-bottom: 4px; }
+.ex-hero { padding: 24px 16px 4px; display: flex; align-items: center; justify-content: space-between; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
+.ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; white-space: nowrap; }
+
+/* ---------- Discover header: Events/Venues segmented toggle ---------- */
+.discover-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 20px 16px 6px;
+}
+.seg-toggle {
+  display: inline-flex; background: var(--surface-hover); border-radius: var(--radius-pill);
+  padding: 4px; gap: 2px;
+}
+.seg-btn {
+  font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text-2);
+  padding: 8px 20px; border-radius: var(--radius-pill);
+  transition: color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.seg-btn.on {
+  color: var(--text); background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0,0,0,.12);
+}
 /* A real pill button, not a bare text link — the previous plain colored
    text read as decoration rather than an action and was easy to miss
    entirely ("event hosting is hard to locate"). Matches Airbnb's own
@@ -596,71 +618,30 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 
-/* ---------- tab bar ---------- floating glass pill, inset from the screen
-   edge rather than a flat full-width strip — one accent (--accent) picks
-   out the active tab via its own rounded highlight, everything else stays
-   neutral grayscale. */
+/* ---------- tab bar ---------- flat full-width bottom bar (Airbnb style):
+   sits flush against the bottom edge, solid surface, a single hairline on
+   top, no floating pill / backdrop blur / drop-shadow glow. The active tab
+   is picked out purely by coloring its icon + label in the brand coral —
+   no filled highlight, no glow. */
 .tabs {
-  position: fixed; bottom: max(14px, calc(env(safe-area-inset-bottom) + 2px)); left: 14px; right: 14px; z-index: 40;
-  margin: 0 auto; max-width: calc(var(--maxw) - 28px);
-  display: flex; align-items: stretch; gap: 2px;
-  padding: 6px;
-  border-radius: 26px;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-  box-shadow: 0 10px 30px color-mix(in srgb, var(--bg) 55%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 6%, transparent);
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+  display: flex; align-items: stretch;
+  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
 }
 .tab {
   position: relative; z-index: 2; flex: 1 1 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  min-height: 46px;
-  font-size: 10px; font-weight: 600; color: var(--text-3); padding: 6px 4px;
-  border-radius: 20px;
-  transition: color .2s ease, background-color .2s ease;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-height: 44px;
+  font-size: 11px; font-weight: 600; color: var(--text-3); padding: 4px;
+  transition: color .15s ease;
 }
-.tab [class^="icon-"] { font-size: 20px; transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
-.tab.on {
-  color: #fff;
-  background: var(--accent);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 50%, transparent);
-}
-.tab.on [class^="icon-"] { color: #fff; }
+.tab [class^="icon-"] { font-size: 22px; }
+.tab.on { color: var(--accent); }
+.tab.on [class^="icon-"] { color: var(--accent); }
 .sidebar-brand { display: none; }
 .tabs-right { display: none; }
-
-/* ---------- tab-switch spark burst ----------
-   A handful of small flecks fire outward from an icon the instant it
-   becomes active, then fall away — a quick, literal "spark" rather than a
-   sliding indicator. Pure CSS (a handful of ::before/::after-style spans
-   rendered by JS in App.tsx, one burst per switch, self-removing), so there
-   is no persistent DOM cost between switches. Icon itself gets a small
-   pop/scale to sell the moment of arrival. */
-.tab.on [class^="icon-"] { animation: tab-pop .35s cubic-bezier(.34,1.56,.64,1) both; }
-@keyframes tab-pop {
-  0%   { transform: scale(0.6); }
-  60%  { transform: scale(1.18); }
-  100% { transform: scale(1); }
-}
-
-.tab-sparks {
-  position: absolute; top: 50%; left: 50%; width: 0; height: 0;
-  pointer-events: none; z-index: 3;
-}
-.tab-spark {
-  position: absolute; top: 0; left: 0; width: 5px; height: 5px; border-radius: 50%;
-  background: var(--spark-color, var(--spark-color-1));
-  animation: tab-spark-fly .5s cubic-bezier(.2,.8,.3,1) both;
-}
-@keyframes tab-spark-fly {
-  0%   { opacity: 1; transform: translate(-50%, -50%) translate(0, 0) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -50%) translate(var(--spark-x), var(--spark-y)) scale(0.3); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tab.on [class^="icon-"] { animation: none; }
-  .tab-spark { display: none; }
-}
 
 /* ---------- map ---------- */
 .mappick { margin-top: 2px; }
@@ -1138,23 +1119,24 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--accent); color: #fff;
   /* Restrained skeuomorphic touch — a soft accent-tinted drop shadow (not
      the earlier heavy dual clay-puff) plus a thin inset top highlight,
-     giving primary CTAs a subtly tactile/pressable feel without the whole
-     button system looking molded out of plastic. */
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(0,0,0,.12), 0 6px 16px color-mix(in srgb, var(--accent) 40%, transparent);
+     giving primary CTAs a real 3D "pushable" feel: a solid darker edge
+     underneath (--btn-edge) reads as the button's physical depth, and on
+     :active the button drops down onto that edge (translateY) while the
+     edge shrinks to 0 — so it genuinely looks pressed down, not just
+     recolored. Inspired by the classic 3D push-button pattern. */
+  --btn-edge: var(--primary-pressed);
+  box-shadow: 0 4px 0 var(--btn-edge), 0 6px 14px color-mix(in srgb, var(--accent) 32%, transparent);
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
-  /* transition is set once, in the MOTION section further down (that
-     declaration always wins the cascade since it comes later — this one
-     used to duplicate/shadow it with a different value, which was
-     unreachable dead weight) */
+  transform: translateY(0);
 }
 .btn.lg { min-height: var(--btn-h-lg); font-size: 16px; padding: 16px 24px; }
 .btn.sm { min-height: var(--btn-h-sm); padding: 8px 14px; font-size: 13px; width: auto; }
-.btn:hover { opacity: 0.92; }
-.btn:active { transform: scale(0.98); box-shadow: inset 0 1px 4px rgba(0,0,0,.25); }
-.btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; box-shadow: var(--shadow-sm); }
-.btn.dark { background: var(--text); color: var(--bg); }
-.btn.glass { background: var(--surface-2); color: var(--text); box-shadow: var(--shadow-sm); }
-.btn.done { background: var(--success-soft); color: var(--success); box-shadow: var(--shadow-sm); }
+.btn:hover { filter: brightness(1.04); }
+.btn:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-edge), 0 1px 3px rgba(0,0,0,.2); }
+.btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; box-shadow: 0 3px 0 var(--border-strong); transform: translateY(0); }
+.btn.dark { background: var(--text); color: var(--bg); --btn-edge: color-mix(in srgb, var(--text) 70%, black); }
+.btn.glass { background: var(--surface-2); color: var(--text); --btn-edge: var(--border-strong); box-shadow: 0 4px 0 var(--btn-edge), 0 4px 10px rgba(0,0,0,.12); }
+.btn.done { background: var(--success-soft); color: var(--success); --btn-edge: color-mix(in srgb, var(--success) 30%, transparent); }
 .btn.sq { width: 50px; flex: 0 0 auto; padding: 0; height: 50px; }
 
 /* ---------- forms ---------- */
@@ -1273,7 +1255,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .sub-card-sub { font: var(--t-meta); color: var(--text-3); margin-top: 4px; }
 .sub-card-price { font: var(--t-card); font-weight: 700; color: var(--accent); white-space: nowrap; }
 .sub-status { font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--success-soft); color: var(--success); }
-.sub-status-past_due, .sub-status-suspended, .sub-status-failed { background: rgba(214,164,75,0.15); color: var(--warning); }
+.sub-status-past_due, .sub-status-suspended, .sub-status-failed { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
 .sub-status-cancelled, .sub-status-expired, .sub-status-inactive { background: var(--surface-hover); color: var(--text-3); }
 .sub-card-toggle { display: flex; align-items: center; gap: 6px; margin-top: 12px; font: var(--t-meta); color: var(--text-2); }
 .sub-feature-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -1440,7 +1422,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .cancelled-tag {
   display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.3px; color: var(--danger); background: rgba(199,64,44,0.12);
+  letter-spacing: 0.3px; color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent);
   padding: 2px 7px; border-radius: 999px; margin-left: 7px; vertical-align: middle;
 }
 .discovery-tag {
@@ -1448,7 +1430,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   letter-spacing: 0.3px; padding: 2px 7px; border-radius: 999px; margin-left: 7px; vertical-align: middle;
 }
 .discovery-tag.warn { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); }
-.discovery-tag.danger { color: var(--danger); background: rgba(199,64,44,0.12); }
+.discovery-tag.danger { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
 .dash-row .thumb { width: 46px; height: 46px; border-radius: 12px; background-size: cover; background-position: center; flex: 0 0 auto; display: grid; place-items: center; font-size: 22px; }
 .dash-row .info { flex: 1; min-width: 0; }
 .dash-row .info b { font-size: 14.5px; font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1585,9 +1567,10 @@ body,
 }
 .icon-btn.on [class^="icon-"], .btn.sq .icon-heart { animation: heart-pop .4s cubic-bezier(.2,.9,.3,1.4); }
 
-/* springy presses */
-.btn { transition: transform .22s cubic-bezier(.2,.9,.3,1.6), opacity .12s, background-color .35s, box-shadow .35s; }
-.btn:active { transform: scale(.955); }
+/* springy presses — .btn uses a fast translateY press (the 3D push-button
+   effect defined above), NOT a scale, so keep its transition snappy on
+   transform + box-shadow and don't re-declare a scale :active here. */
+.btn { transition: transform .09s ease, box-shadow .09s ease, filter .15s ease, background-color .35s; }
 .chip:active, .ticketing-opt:active, .theme-toggle:active, .segment button:active { transform: scale(.94); }
 .chip, .ticketing-opt, .segment button { transition: transform .2s cubic-bezier(.2,.9,.3,1.4), background-color .2s, color .2s, border-color .2s; }
 
@@ -1600,7 +1583,7 @@ body,
   .ec-row { transition: transform .25s cubic-bezier(.16,1,.3,1), box-shadow .25s, background-color .35s, border-color .25s; }
   .dash-actions button { transition: color .15s, background-color .15s; }
   .dash-actions button:hover { color: var(--accent); background: var(--accent-soft); }
-  .dash-actions button.danger:hover { color: var(--danger); background: rgba(199,64,44,.1); }
+  .dash-actions button.danger:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 
   /* event-card hover polish (Linear-style: restrained, fast, purposeful) */
   .ec-row:hover { border-color: var(--line); background: var(--surface-2); }
@@ -1657,8 +1640,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
     padding-top: 0;
     border-radius: 0;
     border-top: none; border-bottom: 1px solid var(--hair);
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    background: var(--surface);
   }
   .sidebar-brand {
     display: flex; align-items: center; gap: 9px;

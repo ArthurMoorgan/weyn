@@ -7,14 +7,6 @@ import Stub from "../components/Stub";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
 
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 5) return "Still up?";
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
-
 // Explore is one honest list: a featured spotlight up top, then every
 // upcoming event as a full-width editorial card, all in one continuous
 // scroll — no day-by-day sectioning. An earlier version split the catalog
@@ -113,7 +105,7 @@ const SUGGEST_ICON: Record<Suggestion["kind"], string> = {
   event: "calendar-days", organizer: "user", place: "map-pin", category: "tag",
 };
 
-export default function Explore() {
+export default function Explore({ embedded = false }: { embedded?: boolean }) {
   const account = useAccount();
   // The onboarding-redirect that used to live here moved to AuthGate
   // (main.tsx) — Explore now sits behind that gate, so by the time this
@@ -188,10 +180,12 @@ export default function Explore() {
 
   return (
     <>
-      {!searching && (
+      {/* Hero title is suppressed when embedded in Discover — the Discover
+          shell owns the header (the Events/Venues segmented toggle + host
+          pill) so a second title here would be redundant clutter. */}
+      {!searching && !embedded && (
         <section className="ex-hero">
           <div>
-            <span className="ex-greeting">{greeting()}{account ? `, ${account.name.split(" ")[0]}` : ""} 👋</span>
             <h1>Where to next?</h1>
           </div>
           <Link to="/host/events" className="ex-hero-host">Host an event <i className="icon-arrow-right" /></Link>

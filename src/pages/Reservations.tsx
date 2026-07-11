@@ -29,7 +29,7 @@ function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): num
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export default function Reservations() {
+export default function Reservations({ embedded = false }: { embedded?: boolean }) {
   const [cat, setCat] = useState<VenueCategory | "all">("all");
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
@@ -122,9 +122,13 @@ export default function Reservations() {
 
   return (
     <>
-      <section className="ex-hero">
-        <h1>Reserve a table</h1>
-      </section>
+      {/* Hero suppressed when embedded in Discover (Venues mode) — the
+          Discover shell's segmented toggle is the header there. */}
+      {!embedded && (
+        <section className="ex-hero">
+          <h1>Reserve a table</h1>
+        </section>
+      )}
 
       <div className="search-wrap">
         <div className="search">

@@ -1,7 +1,7 @@
 import {ClerkProvider, useAuth, useUser} from "@clerk/react";
 import React, { Suspense, lazy, useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { HashRouter, BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import "leaflet/dist/leaflet.css";
 import "./ikonate.css";
@@ -180,16 +180,19 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               }
             />
             <Route element={<AuthGate />}>
-              {/* "/", "/reservations", "/tickets", "/you" have no element here —
-                  App.tsx renders those 4 bottom-tab pages itself, keeping
-                  each mounted (scroll position, in-flight state, etc.
-                  preserved) once visited instead of remounting on every tab
-                  switch like a normal Outlet would. These Routes exist only
-                  so the router matches the path and mounts <App/> at all;
-                  see App.tsx for the actual rendering. */}
+              {/* "/", "/tickets", "/you" have no element here — App.tsx
+                  renders those 3 bottom-tab pages itself, keeping each
+                  mounted (scroll position, in-flight state, etc. preserved)
+                  once visited instead of remounting on every tab switch like
+                  a normal Outlet would. These Routes exist only so the router
+                  matches the path and mounts <App/> at all; see App.tsx for
+                  the actual rendering. */}
               <Route element={<App />}>
                 <Route path="/" />
-                <Route path="/reservations" />
+                {/* Reservations is no longer its own tab — venue browsing
+                    folded into Discover's Venues mode. Keep the old path
+                    working by redirecting it home. */}
+                <Route path="/reservations" element={<Navigate to="/" replace />} />
                 <Route path="/tickets" />
                 <Route path="/saved" element={<Saved />} />
                 <Route path="/host/events" element={<Organizer />} />

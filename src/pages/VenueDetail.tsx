@@ -51,7 +51,7 @@ export default function VenueDetail() {
         <div className="ic"><i className="icon-cloud-off" /></div>
         <p>{error || "Venue not found."}</p>
         <button className="btn glass" style={{ maxWidth: 200, margin: "0 auto 10px" }} onClick={reload}>Try again</button>
-        <button className="btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => nav("/reservations")}>Back to Reservations</button>
+        <button className="btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => nav("/")}>Back to Discover</button>
       </div>
     </div>
   );
