@@ -10,7 +10,7 @@ import { useAccount } from "../../store";
 // corner of the profile screen. Mirrors how /admin is wired: a normal lazy
 // route rendered through App's shared <Outlet/>, NOT one of App.tsx's
 // MAIN_TABS — an organizer dashboard doesn't need to stay mounted across
-// every tab switch the way Explore/Reservations/HostHub/You do.
+// every tab switch the way Explore/Reservations/Tickets/You do.
 export type OrganizerCtx = { isHost: boolean; reloadEvents: () => void; eventsLoading: boolean };
 
 // Kept deliberately short — Finance's numbers live on Overview (a small

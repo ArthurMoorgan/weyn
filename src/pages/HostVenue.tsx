@@ -472,7 +472,7 @@ function StepBusinessType({
           type="button"
           className="ticketing-opt"
           style={{ alignItems: "flex-start", gridColumn: "1 / -1" }}
-          onClick={() => nav("/host")}
+          onClick={() => nav("/host/events")}
         >
           <i className="icon-calendar-plus" />
           <b>Event Organizer</b>

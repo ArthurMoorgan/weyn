@@ -18,7 +18,7 @@ import { webPushStatus, webPushSupported, subscribeWebPush, unsubscribeWebPush }
 // those are per-user preferences, not per-screen chrome. Organizer/Admin/
 // account/venues stay real routes (see HANDOFF.md §17, and venue-os/'s own
 // comment), just surfaced as rows here.
-type ProfileTab = "overview" | "tickets" | "saved" | "lists";
+type ProfileTab = "overview" | "saved" | "lists";
 type View = "menu" | ProfileTab;
 
 type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
@@ -91,7 +91,7 @@ export default function You() {
 
   // ---- drilled-in section ----
   const SECTION_TITLES: Record<ProfileTab, string> = {
-    overview: "Your activity", tickets: "Tickets", saved: "Saved",
+    overview: "Your activity", saved: "Saved",
     lists: "My lists",
   };
   return (
@@ -111,9 +111,6 @@ export default function You() {
             onNavigate={setView}
           />
         )
-      )}
-      {view === "tickets" && (
-        eventsPending ? <TabSkeletonOrError error={allEvents.error} onRetry={allEvents.reload} /> : <TicketsSection tickets={myTickets} />
       )}
       {view === "saved" && (
         eventsPending ? <TabSkeletonOrError error={allEvents.error} onRetry={allEvents.reload} /> : <SavedTab events={savedEvents} />
@@ -152,9 +149,9 @@ function OverviewTab({ account, tickets, saved, isHost, summary, onNavigate }: {
   return (
     <>
       <div className="ov-grid" style={{ paddingTop: 4 }}>
-        <button className="ov-card" onClick={() => onNavigate("tickets")}>
+        <Link to="/tickets" className="ov-card">
           <i className="icon-ticket" /><div className="ov-v">{tickets.length}</div><div className="ov-k">Tickets</div>
-        </button>
+        </Link>
         <button className="ov-card" onClick={() => onNavigate("saved")}>
           <i className="icon-heart" /><div className="ov-v">{saved.length}</div><div className="ov-k">Saved</div>
         </button>
@@ -332,20 +329,49 @@ function MoreMenu({ account, isHost, hasVenues, isAdmin, counts, onOpen }: {
 
   // Each row is either a local section (drills in via onOpen) or a real
   // route (to). Only shown when relevant so the dock isn't padded with
-  // dead-end rows for features the visitor hasn't touched.
+  // dead-end rows for features the visitor hasn't touched. Split into two
+  // groups — "you" (attendee stuff) vs "manage" (organizer/venue/admin
+  // tooling) — instead of one flat list, so this screen doesn't read as a
+  // dumping ground mixing attendee and operator concerns together. Tickets
+  // is no longer a row here at all — it's its own bottom tab now (see
+  // Tickets.tsx), which is also where the old "Host" tab's two launcher
+  // buttons live on, folded into the manage section below.
   type Row = { key: string; label: string; sub?: string; icon: string; tab?: ProfileTab; to?: string; show: boolean };
-  const allRows: Row[] = [
+  const allYouRows: Row[] = [
     { key: "overview", label: "You", sub: "Tickets, saved & activity", icon: "layout-grid", tab: "overview", show: true },
-    { key: "tickets", label: "Tickets", sub: counts.tickets > 0 ? `${counts.tickets} upcoming` : "Nothing booked yet", icon: "ticket", tab: "tickets", show: true },
     { key: "saved", label: "Saved", sub: counts.saved > 0 ? `${counts.saved} event${counts.saved === 1 ? "" : "s"}` : "Tap the heart on any event", icon: "heart", tab: "saved", show: true },
     { key: "lists", label: "Lists", sub: "Group events to remember or share", icon: "list", tab: "lists", show: account },
-    { key: "venues", label: "Your venues", sub: `${counts.venues} venue${counts.venues === 1 ? "" : "s"}`, icon: "store", to: "/venue-os", show: hasVenues },
-    { key: "organizer", label: "Organizer dashboard", sub: isHost ? `${counts.events} live event${counts.events === 1 ? "" : "s"}` : "Host an event, free", icon: "layout-dashboard", to: isHost ? "/organizer" : "/host/events", show: true },
     { key: "account", label: "Manage account", sub: "Profile & sign-out", icon: "user-cog", to: "/account", show: account },
-    { key: "admin", label: "Admin dashboard", icon: "shield-check", to: "/admin", show: isAdmin },
     { key: "support", label: "Help & support", icon: "life-buoy", to: "/support", show: true },
   ];
-  const rows = allRows.filter((r) => r.show);
+  const youRows = allYouRows.filter((r) => r.show);
+
+  const allManageRows: Row[] = [
+    { key: "venues", label: "Your venues", sub: `${counts.venues} venue${counts.venues === 1 ? "" : "s"}`, icon: "store", to: "/venue-os", show: hasVenues },
+    { key: "organizer", label: "Organizer dashboard", sub: `${counts.events} live event${counts.events === 1 ? "" : "s"}`, icon: "layout-dashboard", to: "/organizer", show: isHost },
+    { key: "host-event", label: "Host an event", sub: "Free to list", icon: "circle-plus", to: "/host/events", show: !isHost },
+    { key: "host-venue", label: "List your venue", sub: "For reservations — requires approval", icon: "utensils", to: "/host/venue", show: !hasVenues },
+    { key: "admin", label: "Admin dashboard", icon: "shield-check", to: "/admin", show: isAdmin },
+  ];
+  const manageRows = allManageRows.filter((r) => r.show);
+
+  const renderRow = (r: Row) => {
+    const inner = (
+      <>
+        <span className="more-row-ic"><i className={"icon-" + r.icon} /></span>
+        <span className="more-row-text">
+          <b>{r.label}</b>
+          {r.sub && <span>{r.sub}</span>}
+        </span>
+        <i className="icon-chevron-right more-row-chevron" />
+      </>
+    );
+    return r.to ? (
+      <Link key={r.key} to={r.to} className="more-row">{inner}</Link>
+    ) : (
+      <button key={r.key} className="more-row" onClick={() => r.tab && onOpen(r.tab)}>{inner}</button>
+    );
+  };
 
   return (
     <div className="more-page">
@@ -382,26 +408,20 @@ function MoreMenu({ account, isHost, hasVenues, isAdmin, counts, onOpen }: {
         {account && <NotificationsPref />}
       </div>
 
-      {/* the vertical dock */}
+      {/* the vertical dock — split into "you" and "manage" so attendee and
+          operator concerns don't read as one flat undifferentiated list */}
       <nav className="more-dock" aria-label="Sections">
-        {rows.map((r) => {
-          const inner = (
-            <>
-              <span className="more-row-ic"><i className={"icon-" + r.icon} /></span>
-              <span className="more-row-text">
-                <b>{r.label}</b>
-                {r.sub && <span>{r.sub}</span>}
-              </span>
-              <i className="icon-chevron-right more-row-chevron" />
-            </>
-          );
-          return r.to ? (
-            <Link key={r.key} to={r.to} className="more-row">{inner}</Link>
-          ) : (
-            <button key={r.key} className="more-row" onClick={() => r.tab && onOpen(r.tab)}>{inner}</button>
-          );
-        })}
+        {youRows.map(renderRow)}
       </nav>
+
+      {manageRows.length > 0 && (
+        <>
+          <div className="more-dock-label">Manage</div>
+          <nav className="more-dock" aria-label="Management">
+            {manageRows.map(renderRow)}
+          </nav>
+        </>
+      )}
 
       <div style={{ padding: "4px 16px 0" }}><InstallPrompt /></div>
     </div>
@@ -421,21 +441,4 @@ function SectionHeader({ title, onBack }: { title: string; onBack: () => void })
   );
 }
 
-/* ---------- My tickets (always shown) ---------- */
-function TicketsSection({ tickets }: { tickets: Weyn[] }) {
-  return (
-    <section>
-      <div className="date-head"><h2>My tickets</h2><span>{tickets.length}</span></div>
-      {tickets.length > 0 ? (
-        <div className="feed" style={{ paddingBottom: 4 }}>{tickets.map((e) => <Stub key={e.id} e={e} ticket />)}</div>
-      ) : (
-        <div className="empty" style={{ padding: "24px 36px 32px" }}>
-          <div className="ic"><i className="icon-ticket" /></div>
-          <p>No tickets yet. RSVP or grab a ticket and it'll show up here.</p>
-          <Link to="/" className="btn" style={{ maxWidth: 220, margin: "0 auto" }}>Find something to do</Link>
-        </div>
-      )}
-    </section>
-  );
-}
 

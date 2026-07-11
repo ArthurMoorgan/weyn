@@ -10,7 +10,7 @@ import App from "./App";
 import { setTokenGetter } from "./store";
 // Onboarding (the first-run redirect target) stays eagerly bundled — it's
 // critical path for a brand new visitor. The 4 bottom-tab pages (Explore,
-// Reservations, HostHub, You) are imported and rendered by App.tsx itself,
+// Reservations, Tickets, You) are imported and rendered by App.tsx itself,
 // not routed here — see the comment there for why. Everything else is
 // code-split: each route becomes its own chunk fetched on navigation, which
 // pulls the heavy deps out of the initial bundle — leaflet (MapPicker/
@@ -180,7 +180,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               }
             />
             <Route element={<AuthGate />}>
-              {/* "/", "/reservations", "/host", "/you" have no element here —
+              {/* "/", "/reservations", "/tickets", "/you" have no element here —
                   App.tsx renders those 4 bottom-tab pages itself, keeping
                   each mounted (scroll position, in-flight state, etc.
                   preserved) once visited instead of remounting on every tab
@@ -190,8 +190,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               <Route element={<App />}>
                 <Route path="/" />
                 <Route path="/reservations" />
+                <Route path="/tickets" />
                 <Route path="/saved" element={<Saved />} />
-                <Route path="/host" />
                 <Route path="/host/events" element={<Organizer />} />
                 <Route path="/host/venue" element={<HostVenue />} />
                 <Route path="/you" />

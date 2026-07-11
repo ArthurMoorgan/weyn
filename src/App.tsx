@@ -9,13 +9,13 @@ import { useAccount } from "./store";
 // Lazy, same as every other non-critical-path route (see main.tsx) — these
 // just aren't *routed* through main.tsx anymore, App renders them directly.
 const Reservations = lazy(() => import("./pages/Reservations"));
-const HostHub = lazy(() => import("./pages/HostHub"));
+const Tickets = lazy(() => import("./pages/Tickets"));
 const You = lazy(() => import("./pages/You"));
 
 const TABS = [
   { to: "/", icon: "sparkles", label: "Discover" },
   { to: "/reservations", icon: "utensils", label: "Reservations" },
-  { to: "/host", icon: "circle-plus", label: "Host" },
+  { to: "/tickets", icon: "ticket", label: "Tickets" },
   { to: "/you", icon: "user", label: "Profile" },
 ];
 
@@ -32,7 +32,7 @@ const TABS = [
 const MAIN_TABS: { path: string; Component: React.ComponentType }[] = [
   { path: "/", Component: Explore },
   { path: "/reservations", Component: Reservations },
-  { path: "/host", Component: HostHub },
+  { path: "/tickets", Component: Tickets },
   { path: "/you", Component: You },
 ];
 
