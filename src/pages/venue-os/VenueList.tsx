@@ -2,6 +2,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
+import ThemeToggle from "../../components/ThemeToggle";
+import Tooltip from "../../components/Tooltip";
 
 // The /venue-os index — mirrors organizer/Events.tsx's role as the entry
 // point into per-venue workspaces (Workspace.tsx), just simpler: venue
@@ -22,10 +24,9 @@ export default function VenueList() {
   return (
     <>
       <header className="topbar">
-        <div className="brand">
-          <button className="icon-btn" onClick={() => nav("/you")} aria-label="Back"><i className="icon-arrow-left" /></button>
-          <span className="en">Your venues</span>
-        </div>
+        <Tooltip text="Back"><button className="icon-btn" onClick={() => nav("/you")} aria-label="Back"><i className="icon-arrow-left" /></button></Tooltip>
+        <div className="brand"><span className="en">Your venues</span></div>
+        <div className="tb-right"><ThemeToggle /></div>
       </header>
 
       {venues.loading && <p className="hint" style={{ padding: "8px 16px" }}>Loading…</p>}

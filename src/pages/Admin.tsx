@@ -4,6 +4,7 @@ import { api, API_BASE, type ReportReason, type VenueApplication } from "../api"
 import { useAsync } from "../hooks";
 import { useAccount, getAuthToken } from "../store";
 import ThemeToggle from "../components/ThemeToggle";
+import Tooltip from "../components/Tooltip";
 
 const REASON_LABEL: Record<ReportReason, string> = {
   SPAM: "Spam", INAPPROPRIATE: "Inappropriate", FRAUD: "Fraud", DUPLICATE: "Duplicate", OTHER: "Other",
@@ -36,14 +37,12 @@ export default function Admin() {
   return (
     <>
       <header className="topbar">
-        <div className="brand">
-          <button className="icon-btn" onClick={() => nav("/you")} aria-label="Back"><i className="icon-arrow-left" /></button>
-          <span className="en">Admin</span>
-        </div>
+        <Tooltip text="Back"><button className="icon-btn" onClick={() => nav("/you")} aria-label="Back"><i className="icon-arrow-left" /></button></Tooltip>
+        <div className="brand"><span className="en">Admin</span></div>
         <div className="tb-right"><ThemeToggle /></div>
       </header>
 
-      <div className="page-head">
+      <div className="page-head compact">
         <h1>Platform overview</h1>
         <p className="sub">Metrics and the open moderation queue</p>
       </div>
