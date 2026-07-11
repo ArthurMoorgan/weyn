@@ -4,7 +4,6 @@ import ReactDOM from "react-dom/client";
 import { HashRouter, BrowserRouter, Routes, Route } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import "leaflet/dist/leaflet.css";
-import "./lucide.css";
 import "./ikonate.css";
 import "./index.css";
 import App from "./App";
