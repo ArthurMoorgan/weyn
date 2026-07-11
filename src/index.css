@@ -1,52 +1,61 @@
 /* ============================================================
-   WEYN — v4: Airbnb-inspired system. Confident coral brand mark,
-   neutral-first surfaces (no tinted "theme color" bg — depth comes from
-   soft layered shadows and hairline borders, not from dyeing the whole
-   UI one hue), generous whitespace, restrained skeuomorphism (a soft
-   raised/tactile feel on cards and buttons via low-opacity dual shadows,
-   not heavy 3D clay/neumorphism — the earlier "clay" experiment and the
-   terracotta/espresso palette before it both read as amateur rather than
-   premium; this is deliberately calmer).
+   WEYN — v5: "Where?" system. Grounded in the actual tension in Muscat's
+   built environment: a whitewashed, low-rise city bound by real municipal
+   codes (flat roofs, sand/white facades, no neon, no billboards — the
+   daytime city is deliberately quiet) that lights up after dark for the
+   weddings, gigs, and beach-club nights this app exists to surface. The
+   palette is that contrast made literal: --ink is the after-dark base,
+   --limestone is the daytime facade color, --amber is the souq streetlamp
+   that only switches on once the sun's down. Secondary hues come from the
+   same place — the Gulf of Oman at dusk (--gulf), and the oxblood leather
+   of a khanjar sheath (--khanjar) reserved for live/urgent states only.
+   No purple, no coral-Airbnb carryover, no cream+terracotta template.
    ============================================================ */
 
 :root {
   color-scheme: dark;
-  /* True neutral dark (no blue or brown cast) — same family Linear/Stripe/
-     Vercel dashboards use, which is what actually reads as "serious
-     product" rather than a mood-boarded accent color. */
-  --bg:             #0F0F10;
-  --bg-elevated:    #18181A;
-  --surface:        #18181A;
-  --surface-hover:  #232326;
-  --border:         #2C2C2F;
-  --border-strong:  #3A3A3E;
-  /* Airbnb's actual brand red ("Rausch"), lightened slightly for dark-mode
-     contrast — this IS the whole brand mark, so it needs to look confident
-     and specific, not a muted "safe" tone. */
-  --primary:        #FF5A6E;
-  --primary-hover:  #FF7185;
-  --primary-pressed:#E8425A;
-  --success:        #22C55E;
-  --warning:        #FBBF24;
-  --error:          #F87171;
-  --info:           #FF5A6E;
-  --text:           #F5F5F5;
-  --text-2:         #A3A3A3;
-  --text-3:         #737373;
-  --text-disabled:  #4D4D4D;
-  --icon:           #F5F5F5;
-  --icon-2:         #A3A3A3;
-  --divider:        #2C2C2F;
-  --card-bg:        #18181A;
-  --card-border:    #2C2C2F;
-  /* Soft single shadow, not the earlier dual-highlight "clay" — a small
-     inset top highlight is kept ONLY on interactive surfaces (buttons,
-     the primary CTA) via .btn/.tab, giving a subtly tactile/pressable feel
-     without the whole card system looking molded out of plastic. */
-  --card-shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.35);
-  --accent-soft:    rgba(255,90,110,0.16);
-  --success-soft:   rgba(34,197,94,0.15);
+  /* Night-in-Muscat ink — a navy-black with a cool undertone (the gulf sky
+     after dusk), not a neutral gray or a pure black. */
+  --bg:             #10141C;
+  --bg-elevated:    #1A2029;
+  --surface:        #1A2029;
+  --surface-hover:  #232B36;
+  --border:         #2C3542;
+  --border-strong:  #3C4756;
+  /* Souq streetlamp amber — the signature accent. Warm, saturated, and
+     specific to what actually lights up a Muscat night market, not a
+     generic "brand color". */
+  --primary:        #FFB238;
+  --primary-hover:  #FFC562;
+  --primary-pressed:#E89B1E;
+  /* Amber is a light, warm hue — white text on it fails contrast the way it
+     never did on the old coral. Dark ink reads better here anyway: a
+     printed-sign look (dark type on a lit amber ground) fits the brief
+     more than white-on-amber ever would. */
+  --on-primary:     #14110A;
+  --success:        #3FAE86;
+  --warning:        #FFB238;
+  --error:          #D95D4A;
+  --info:           #4A9C9A;
+  --text:           #F3EFE6;
+  --text-2:         #A9B2BE;
+  --text-3:         #6E7885;
+  --text-disabled:  #454E5C;
+  --icon:           #F3EFE6;
+  --icon-2:         #A9B2BE;
+  --divider:        #2C3542;
+  --card-bg:        #1A2029;
+  --card-border:    #2C3542;
+  --card-shadow:    0 1px 2px rgba(0,0,0,.45), 0 8px 20px rgba(0,0,0,.4);
+  --accent-soft:    rgba(255,178,56,0.16);
+  --success-soft:   rgba(63,174,134,0.15);
   --scrim: rgba(0,0,0,0.6);
+  /* Gulf-of-Oman-at-dusk teal — venues, water-adjacent, secondary CTAs. */
+  --gulf:           #2C6E6B;
+  --gulf-soft:      rgba(44,110,107,0.18);
+  /* Khanjar-sheath oxblood — live badges and urgent states only, never a
+     button or a large surface. */
+  --khanjar:        #B4523F;
 
   /* back-compat aliases so existing ~300 call sites keep working unchanged */
   --surface-2:   var(--surface-hover);
@@ -93,22 +102,24 @@
    the depth cue is the shadow, not a tint. */
 :root[data-theme="light"] {
   color-scheme: light;
-  /* Page background is a soft warm neutral, NOT pure white — a full-white
-     field is what "hurts to look at". Cards stay crisp white so they still
-     pop (the Airbnb move: white cards floating on a calm off-white page,
-     depth from the gap + shadow rather than from a bright white everywhere). */
-  --bg: #EEECE8; --bg-elevated: #FFFFFF; --surface: #FFFFFF; --surface-hover: #F3F1ED;
-  --border: #E5E2DC; --border-strong: #D6D2CB;
-  --primary: #FF385C; --primary-hover: #E31C5F; --primary-pressed: #D70466;
-  --success: #16A34A; --warning: #B45309; --error: #C13515; --info: #FF385C;
-  --text: #222222; --text-2: #6A6A6A; --text-3: #B0B0B0; --text-disabled: #DDDDDD;
-  --icon: #222222; --icon-2: #6A6A6A; --divider: #EBEBEB;
-  --card-bg: #FFFFFF; --card-border: #EBEBEB;
-  --card-shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 16px rgba(0,0,0,.06);
-  --accent-soft: rgba(255,56,92,0.08); --success-soft: rgba(22,163,74,0.10);
+  /* Daytime Muscat facade — the limestone/sand-render color the actual
+     municipal building code mandates, not a generic warm-white. Cards stay
+     a cooler off-white (not stark white) so the amber accent still pops
+     without the page reading as "AI cream". */
+  --bg: #F2EEE4; --bg-elevated: #FBFAF6; --surface: #FBFAF6; --surface-hover: #EDE8DB;
+  --border: #DED7C6; --border-strong: #C9C0A9;
+  --primary: #C97A1E; --primary-hover: #A8630F; --primary-pressed: #8A5209;
+  --on-primary: #FBF6EA;
+  --success: #227C60; --warning: #B4700A; --error: #A8402F; --info: #235957;
+  --text: #1C1A15; --text-2: #625C4D; --text-3: #9A917B; --text-disabled: #D8D2C0;
+  --icon: #1C1A15; --icon-2: #625C4D; --divider: #E4DFD1;
+  --card-bg: #FBFAF6; --card-border: #E4DFD1;
+  --card-shadow: 0 1px 2px rgba(28,26,21,.06), 0 6px 16px rgba(28,26,21,.06);
+  --accent-soft: rgba(201,122,30,0.10); --success-soft: rgba(34,124,96,0.10);
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
+  --gulf: #235957; --gulf-soft: rgba(35,89,87,0.10); --khanjar: #96402F;
   --shadow-sm: 0 1px 2px rgba(0,0,0,.05), 0 2px 6px rgba(0,0,0,.05);
   --shadow-md: 0 2px 4px rgba(0,0,0,.04), 0 8px 20px rgba(0,0,0,.08);
   --shadow-lg: 0 6px 16px rgba(0,0,0,.08), 0 16px 40px rgba(0,0,0,.1);
@@ -153,10 +164,14 @@ body {
 }
 
 /* ============================================================
-   TYPE SYSTEM — one scale, used everywhere. Five roles, fixed
-   size/weight/tracking pairings so nothing is ad-hoc. Inter now
-   loads a real 700 (was faux-bolding 600 before). Reference:
-   Linear/Stripe — tight tracking on large sizes, restrained weights.
+   TYPE SYSTEM — a real pairing, not one grotesk doing every job.
+   Fraunces (a soft-optical serif) carries the hero/section roles: set
+   heavy and tight-tracked, at high "opsz" it reads more like carved
+   signage than a delicate editorial serif — the opposite of the thin
+   cream-serif AI default, since it's set on ink/amber, not cream. Inter
+   stays for everything you actually read (body, card titles, UI chrome).
+   IBM Plex Mono carries prices, timestamps and ticket codes — a ticketing
+   app's data should look counted, not just styled.
    ============================================================ */
 :root {
   --fw-regular: 400;
@@ -164,24 +179,29 @@ body {
   --fw-semibold: 600;  /* card titles, buttons, labels */
   --fw-bold:    700;   /* hero + section headings only */
 
-  --t-hero:    700 28px/1.16 "Inter", sans-serif; /* ~30px effective on key screens; bumps to 40px on desktop (see @media 900px) */
-  --t-section: 700 19px/1.25 "Inter", sans-serif;
+  --f-display: "Fraunces", ui-serif, Georgia, serif;
+  --f-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  --t-hero:    700 30px/1.1  "Fraunces", ui-serif, serif; /* ~30px effective on key screens; bumps to 44px on desktop (see @media 900px) */
+  --t-section: 600 20px/1.2  "Fraunces", ui-serif, serif;
   --t-card:    600 15px/1.3  "Inter", sans-serif;
   --t-meta:    500 13px/1.4  "Inter", sans-serif;
   --t-caption: 600 11px/1.3  "Inter", sans-serif;
   /* genuine body-reading text (descriptions, blurbs) — NOT metadata/captions */
   --t-body:    400 16px/1.6  "Inter", sans-serif;
+  --t-data:    600 14px/1.3  "IBM Plex Mono", monospace;
 }
 
 h1, h2, h3, h4 { margin: 0; }
-h1 { font: var(--t-hero);    letter-spacing: -0.6px; }
-h2 { font: var(--t-section); letter-spacing: -0.4px; }
+h1 { font: var(--t-hero);    letter-spacing: -0.2px; }
+h2 { font: var(--t-section); letter-spacing: -0.1px; }
 h3 { font: var(--t-card);    letter-spacing: -0.2px; }
 
 /* utility roles — use on non-heading elements that still need scale identity */
 .t-eyebrow { font: var(--t-caption); letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-3); }
 .t-meta    { font: var(--t-meta); color: var(--text-2); }
 .t-caption { font: var(--t-caption); letter-spacing: 0.2px; color: var(--text-3); }
+.t-data    { font: var(--t-data); font-variant-numeric: tabular-nums; letter-spacing: 0.2px; }
 
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
@@ -328,7 +348,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   box-shadow: var(--shadow-sm);
   white-space: nowrap; transition: all .15s;
 }
-.chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.chip.on { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 
 /* ---------- date section header ---------- */
 .date-head {
@@ -392,6 +412,33 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ec-price.free { color: var(--success); }
 .ec-dist { font: var(--t-caption); color: var(--text-3); white-space: nowrap; }
 .ec-dist.scarce { color: var(--warning); }
+
+/* ---- ticket-stub treatment (Tickets tab only) ----
+   Signature element: a confirmed ticket is styled like an actual torn
+   admission stub, not just another list row — a perforated tear line
+   with punched notches separates the "what" from the "when you're in",
+   and the price/area on the stub half render in the mono utility face
+   like a printed ticket code, not UI copy. */
+.ec-row.ticket {
+  position: relative;
+  background: var(--card-bg);
+}
+.ec-row.ticket .ec-side {
+  position: relative;
+  padding-left: 14px;
+  margin-left: 2px;
+  border-left: 1.5px dashed var(--border-strong);
+}
+.ec-row.ticket .ec-side::before,
+.ec-row.ticket .ec-side::after {
+  content: ""; position: absolute; left: -7px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--bg);
+  border: 1px solid var(--card-border);
+}
+.ec-row.ticket .ec-side::before { top: -8px; }
+.ec-row.ticket .ec-side::after { bottom: -8px; }
+.ec-row.ticket .ec-price { font: var(--t-data); }
+.ec-row.ticket .ec-dist { font: var(--f-mono); font-size: 11px; letter-spacing: 0.2px; }
 
 /* status badge — shared across variants */
 .ec-badge {
@@ -540,6 +587,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   transition: color .15s ease;
 }
 .seg-btn.on { color: var(--text); }
+/* The two modes get their own hue on the active label only (events = the
+   amber signature, venues = the gulf teal) — a small, legible use of color
+   as information (which mode you're in) rather than a repaint of the whole
+   toggle. */
+.seg-btn-events.on { color: var(--primary); }
+.seg-btn-venues.on { color: var(--gulf); }
 .discover-mode { animation: rise-in .3s cubic-bezier(.16,1,.3,1) both; }
 /* A real pill button, not a bare text link — the previous plain colored
    text read as decoration rather than an action and was easy to miss
@@ -673,6 +726,30 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .sidebar-brand { display: none; }
 .tabs-right { display: none; }
 
+/* Host tab — a button (not a link) that opens a two-item popover instead of
+   navigating straight to one flow. Sized and positioned to match a normal
+   .tab so swapping it in doesn't shift anything around it. */
+.tab-host { position: relative; flex: 1 1 0; display: flex; }
+.tab-host > .tab { flex: 1 1 0; width: 100%; }
+.tab-host-menu {
+  position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+  width: 260px; max-width: calc(100vw - 24px);
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;
+  animation: tab-host-in .16s cubic-bezier(.16,1,.3,1);
+}
+@keyframes tab-host-in { from { opacity: 0; transform: translateX(-50%) translateY(6px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+.tab-host-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 10px; border-radius: var(--radius-sm);
+  color: var(--text); transition: background .12s ease;
+}
+.tab-host-item:hover, .tab-host-item:active { background: var(--surface-hover); }
+.tab-host-item [class^="icon-"] { font-size: 19px; color: var(--accent); margin-top: 1px; flex: 0 0 auto; }
+.tab-host-item div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tab-host-item strong { font: var(--t-meta); font-weight: 600; color: var(--text); }
+.tab-host-item span { font: var(--t-caption); color: var(--text-3); font-weight: 500; text-transform: none; letter-spacing: 0; }
+
 /* ---------- map ---------- */
 .mappick { margin-top: 2px; }
 .map-canvas {
@@ -691,7 +768,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .map-search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .map-search button {
-  font-family: inherit; font-size: 13.5px; font-weight: 600; color: #fff; background: var(--accent);
+  font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--on-primary); background: var(--accent);
   padding: 0 16px; height: 42px; border-radius: var(--radius-sm); flex: 0 0 auto;
 }
 
@@ -1004,7 +1081,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .search-filter-btn.on { color: var(--primary); background: var(--accent-soft); }
 .search-filter-count {
   position: absolute; top: -2px; right: -2px; min-width: 15px; height: 15px; padding: 0 3px;
-  border-radius: 999px; background: var(--primary); color: #fff; font-size: 10px; font-weight: 700;
+  border-radius: 999px; background: var(--primary); color: var(--on-primary); font-size: 10px; font-weight: 700;
   display: grid; place-items: center; line-height: 1;
 }
 
@@ -1146,7 +1223,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-family: inherit; font-size: 15px; font-weight: 600;
   border-radius: var(--radius-sm); padding: 14px 20px;
   min-height: var(--btn-h);
-  background: var(--accent); color: #fff;
+  background: var(--accent); color: var(--on-primary);
   /* 3D "pushable" feel: a solid darker edge underneath (--btn-edge) reads
      as the button's physical depth, and on :active the button drops down
      onto that edge (translateY) while the edge shrinks to 0 — so it
@@ -1301,7 +1378,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .upgrade-badge { display: inline-flex; align-items: center; gap: 6px; font: var(--t-caption); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--accent); background: var(--accent-soft); padding: 5px 10px; border-radius: 999px; margin-bottom: 12px; }
 .feature-lock { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-hover); border: 1px dashed var(--border); color: var(--text-2); font-size: 13.5px; }
 .feature-lock [class^="icon-"]:first-child { color: var(--text-3); }
-.pro-badge { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; color: #fff; background: var(--accent); padding: 2px 6px; border-radius: 5px; }
+.pro-badge { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; color: var(--on-primary); background: var(--accent); padding: 2px 6px; border-radius: 5px; }
 
 /* ---------- simple on/off switch (Settings → Notifications) ---------- */
 .switch { position: relative; width: 44px; height: 26px; border-radius: 999px; background: var(--surface-hover); border: 1px solid var(--border); flex: 0 0 auto; transition: background-color .15s ease; }
@@ -1546,7 +1623,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .toast {
   position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
-  background: var(--text); color: #fff; font-size: 14px; font-weight: 500;
+  background: var(--text); color: var(--bg); font-size: 14px; font-weight: 500;
   padding: 12px 18px; border-radius: var(--radius-pill); box-shadow: 0 10px 30px rgba(0,0,0,0.25);
   display: inline-flex; align-items: center; gap: 8px;
 }
@@ -1688,11 +1765,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
     background: var(--surface);
   }
   .sidebar-brand {
-    display: flex; align-items: center; gap: 9px;
+    display: flex; align-items: baseline; gap: 9px;
     padding: 0 24px 0 0;
-    font-size: 17px; font-weight: 700; letter-spacing: -0.4px;
     flex: 0 0 auto;
   }
+  .sidebar-brand .en { font: 700 18px/1 var(--f-display); letter-spacing: -0.2px; }
+  .sidebar-brand [class^="icon-"] { align-self: center; color: var(--accent); }
   .tab {
     flex: 0 0 auto; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px;
     min-height: auto;
@@ -1701,6 +1779,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   }
   .tab [class^="icon-"] { font-size: 19px; }
   .tab.on { background: var(--accent-soft); }
+  .tab-host { flex: 0 0 auto; }
+  .tab-host > .tab { flex: 0 0 auto; width: auto; }
+  .tab-host-menu { bottom: auto; top: calc(100% + 10px); left: 0; transform: none; }
+  @keyframes tab-host-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
   .tabs-right { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: 0 0 auto; }
   .tabs-right .pill { color: var(--text-2); }
 
@@ -2248,7 +2330,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 .wl-top-right { display: flex; align-items: center; gap: 8px; }
 .wl-top-cta {
-  font-size: 13px; font-weight: 600; color: #fff; background: var(--accent);
+  font-size: 13px; font-weight: 600; color: var(--on-primary); background: var(--accent);
   padding: 9px 16px; border-radius: var(--radius-pill); white-space: nowrap;
 }
 .wl-top-cta:active { transform: scale(0.97); }
@@ -2295,7 +2377,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   background: color-mix(in srgb, var(--surface) 55%, transparent);
   color: var(--text-2); transition: all .15s;
 }
-.wl-role.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.wl-role.on { background: var(--accent); color: var(--on-primary); border-color: var(--accent); }
 .wl-fields { display: flex; flex-direction: column; gap: 10px; }
 .wl-field-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; text-align: left; }
 .wl-input {
@@ -2362,7 +2444,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600;
   color: var(--text-2); padding: 6px 12px; border-radius: var(--radius-pill); transition: all .15s;
 }
-.wl-theme-switch span.on { background: var(--accent); color: #fff; }
+.wl-theme-switch span.on { background: var(--accent); color: var(--on-primary); }
 .wl-theme-switch span [class^="icon-"] { width: 13px; height: 13px; }
 
 .wl-phone-frame {

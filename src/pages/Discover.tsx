@@ -25,7 +25,7 @@ export default function Discover() {
           <button
             role="tab"
             aria-selected={mode === "events"}
-            className={"seg-btn" + (mode === "events" ? " on" : "")}
+            className={"seg-btn seg-btn-events" + (mode === "events" ? " on" : "")}
             onClick={() => setMode("events")}
           >
             Events
@@ -33,7 +33,7 @@ export default function Discover() {
           <button
             role="tab"
             aria-selected={mode === "venues"}
-            className={"seg-btn" + (mode === "venues" ? " on" : "")}
+            className={"seg-btn seg-btn-venues" + (mode === "venues" ? " on" : "")}
             onClick={() => setMode("venues")}
           >
             Venues

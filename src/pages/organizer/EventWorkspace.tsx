@@ -1182,7 +1182,7 @@ function SettingsTab({ event, features, reload }: { event: Weyn; features: Recor
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(event.paymentLinkUrl || "");
   const [transferDetails, setTransferDetails] = useState(event.transferDetails || "");
   const [reminderSchedule, setReminderSchedule] = useState<number[]>(event.reminderSchedule || []);
-  const [accentColor, setAccentColor] = useState(event.accentColor || "#FF385C");
+  const [accentColor, setAccentColor] = useState(event.accentColor || "#FFB238");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [saved, setSaved] = useState(false);
