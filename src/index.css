@@ -195,6 +195,27 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: relative;
 }
 
+/* Bottom-tab pages crossfade + settle into place on switch instead of an
+   instant display:none cut — the inactive page fades/slides out and
+   un-hittests itself (position:absolute, pointer-events:none) at the same
+   time the incoming one fades/slides in, so for the transition's duration
+   both sit stacked in the same spot and the switch reads as one continuous
+   motion rather than a hard jump. Kept fast (220ms) since this fires on
+   every single tab tap — a showcase-length animation here would feel
+   sluggish rather than polished. */
+.tab-page {
+  transition: opacity .22s cubic-bezier(.16,1,.3,1), transform .22s cubic-bezier(.16,1,.3,1);
+}
+.tab-page[data-active="true"] { position: relative; opacity: 1; transform: none; }
+.tab-page[data-active="false"] {
+  position: absolute; inset: 0; opacity: 0; transform: translateY(6px);
+  pointer-events: none; overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-page { transition: opacity .12s linear; }
+  .tab-page[data-active="false"] { transform: none; }
+}
+
 /* phone column */
 .shell {
   max-width: var(--maxw);
@@ -307,9 +328,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   box-shadow: var(--shadow-sm);
   white-space: nowrap; transition: all .15s;
 }
-/* Selected state reads as "pressed into the clay" — inset shadow instead
-   of the raised one every other chip gets — rather than just a color swap. */
-.chip.on { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: inset 3px 3px 8px rgba(0,0,0,.25); }
+.chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
 
 /* ---------- date section header ---------- */
 .date-head {
@@ -499,18 +518,29 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   padding: 20px 16px 6px;
 }
 .seg-toggle {
-  display: inline-flex; background: var(--surface-hover); border-radius: var(--radius-pill);
+  position: relative; display: inline-flex; background: var(--surface-hover); border-radius: var(--radius-pill);
   padding: 4px; gap: 2px;
 }
+/* The sliding thumb is an absolutely-positioned div sized to exactly one
+   slot (50% of the toggle's inner width) that transforms between the two
+   positions — .seg-btn itself stays transparent so the thumb shows through
+   underneath it, which is what makes the transition read as "sliding" one
+   shape between two labels instead of two labels independently repainting. */
+.seg-toggle-thumb {
+  position: absolute; top: 4px; left: 4px; bottom: 4px;
+  width: calc(50% - 5px); border-radius: var(--radius-pill);
+  background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  transition: transform .3s cubic-bezier(.2,.8,.2,1);
+}
+.seg-toggle-thumb.slot-2 { transform: translateX(calc(100% + 2px)); }
 .seg-btn {
+  position: relative; z-index: 1;
   font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text-2);
   padding: 8px 20px; border-radius: var(--radius-pill);
-  transition: color .15s ease, background-color .15s ease, box-shadow .15s ease;
+  transition: color .15s ease;
 }
-.seg-btn.on {
-  color: var(--text); background: var(--surface);
-  box-shadow: 0 1px 3px rgba(0,0,0,.12);
-}
+.seg-btn.on { color: var(--text); }
+.discover-mode { animation: rise-in .3s cubic-bezier(.16,1,.3,1) both; }
 /* A real pill button, not a bare text link — the previous plain colored
    text read as decoration rather than an action and was easy to miss
    entirely ("event hosting is hard to locate"). Matches Airbnb's own
@@ -756,7 +786,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   white-space: nowrap; transition: background-color .15s, color .15s;
 }
 .profile-tab [class^="icon-"] { font-size: 15px; }
-.profile-tab.on { color: var(--text); background: var(--surface-2); box-shadow: inset 2px 2px 6px rgba(0,0,0,.15); }
+.profile-tab.on { color: var(--text); background: var(--surface-2); }
 
 /* ---------- "More" hub (You tab) ---------- */
 .more-page { padding-bottom: 24px; }
@@ -1117,20 +1147,27 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-radius: var(--radius-sm); padding: 14px 20px;
   min-height: var(--btn-h);
   background: var(--accent); color: #fff;
-  /* Restrained skeuomorphic touch — a soft accent-tinted drop shadow (not
-     the earlier heavy dual clay-puff) plus a thin inset top highlight,
-     giving primary CTAs a real 3D "pushable" feel: a solid darker edge
-     underneath (--btn-edge) reads as the button's physical depth, and on
-     :active the button drops down onto that edge (translateY) while the
-     edge shrinks to 0 — so it genuinely looks pressed down, not just
-     recolored. Inspired by the classic 3D push-button pattern. */
+  /* 3D "pushable" feel: a solid darker edge underneath (--btn-edge) reads
+     as the button's physical depth, and on :active the button drops down
+     onto that edge (translateY) while the edge shrinks to 0 — so it
+     genuinely looks pressed down. No ambient colored glow around it —
+     that read as a halo/AI-slop effect, not depth. */
   --btn-edge: var(--primary-pressed);
-  box-shadow: 0 4px 0 var(--btn-edge), 0 6px 14px color-mix(in srgb, var(--accent) 32%, transparent);
+  box-shadow: 0 4px 0 var(--btn-edge);
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
   transform: translateY(0);
 }
 .btn.lg { min-height: var(--btn-h-lg); font-size: 16px; padding: 16px 24px; }
-.btn.sm { min-height: var(--btn-h-sm); padding: 8px 14px; font-size: 13px; width: auto; }
+/* .sm is the compact, repeated-inline-row-action variant (dashboard list
+   rows: Confirm/Cancel/Seated/Assign, etc.) — several of these sit side by
+   side in one row, so the full 3D push depth that suits a single standalone
+   CTA reads as visual clutter at this size and frequency. Flat pill instead:
+   depth is dropped entirely, just a plain colored chip. */
+.btn.sm {
+  min-height: var(--btn-h-sm); padding: 8px 14px; font-size: 13px; width: auto;
+  box-shadow: none; background: var(--surface-hover); color: var(--text);
+}
+.btn.sm:active { transform: none; box-shadow: inset 0 1px 3px rgba(0,0,0,.15); }
 .btn:hover { filter: brightness(1.04); }
 .btn:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-edge), 0 1px 3px rgba(0,0,0,.2); }
 .btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; box-shadow: 0 3px 0 var(--border-strong); transform: translateY(0); }
@@ -1144,31 +1181,28 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .form-preview { display: none; }
 .field { margin-bottom: 16px; }
 .field label { display: block; font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 7px; }
+/* Flat, hairline-bordered fields — the earlier "carved-in" dual-inset
+   neumorphic shadow (kept even after the rest of the app moved off
+   claymorphism) is exactly the kind of dated skeuomorphic tell that reads
+   as a template rather than a considered product. Airbnb/Stripe/Linear's
+   actual inputs are flat surfaces with a visible border; depth (if any)
+   shows up only on focus, as a ring, not as a permanent carved slot. */
 .field input, .field select, .field textarea {
   width: 100%; font-family: inherit; font-size: 16px; padding: 12px 13px;
   border-radius: var(--radius-sm); color: var(--text);
-  background: var(--glass-strong); border: 1px solid var(--glass-line);
-  /* Carved-in rather than raised — inputs are the one place clay UIs
-     usually invert the shadow direction, so a field reads as a "slot" you
-     type into, distinct from the puffy buttons/cards around it. */
-  box-shadow: inset 2px 2px 6px rgba(0,0,0,.18), inset -2px -2px 6px rgba(255,255,255,.03);
+  background: var(--surface); border: 1.5px solid var(--border);
+  transition: border-color .15s ease;
 }
 /* Ad-hoc toolbar controls (Attendees' search/sort row) that aren't inside
    a .field wrapper — were falling through to zero styling (bare native
    input/select) since nothing outside .field touches a plain input/select
-   in this stylesheet. Same clay slot look, sized to match .btn's height so
+   in this stylesheet. Same flat treatment, sized to match .btn's height so
    a search box, a select, and an export button sit level in one row. */
 .toolbar-field {
   font-family: inherit; font-size: 15px; padding: 0 13px; min-height: var(--btn-h);
   border-radius: var(--radius-sm); color: var(--text);
-  background: var(--glass-strong); border: 1px solid var(--glass-line);
-  box-shadow: inset 2px 2px 6px rgba(0,0,0,.18), inset -2px -2px 6px rgba(255,255,255,.03);
-}
-:root[data-theme="light"] .toolbar-field {
-  box-shadow: inset 2px 2px 6px rgba(29,29,31,.08), inset -2px -2px 6px rgba(255,255,255,.7);
-}
-:root[data-theme="light"] .field input, :root[data-theme="light"] .field select, :root[data-theme="light"] .field textarea {
-  box-shadow: inset 2px 2px 6px rgba(29,29,31,.08), inset -2px -2px 6px rgba(255,255,255,.7);
+  background: var(--surface); border: 1.5px solid var(--border);
+  transition: border-color .15s ease;
 }
 .field input { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* checkboxes must NOT inherit the text-input treatment above (that padding +
@@ -1195,7 +1229,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   transform: rotate(45deg);
 }
 .field input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: inset 2px 2px 6px rgba(0,0,0,.18), 0 0 0 3px var(--accent-soft); }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .field textarea { resize: vertical; }
 /* form guidance text — users read this to fill fields correctly, not a
    passive caption, so it gets --text-2 for real 4.5:1 contrast */
@@ -1390,7 +1424,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border: none; cursor: pointer; font-family: inherit;
   transition: transform .15s cubic-bezier(.2,.9,.3,1.6), box-shadow .15s;
 }
-.quick-action:active { transform: scale(.95); box-shadow: inset 3px 3px 8px rgba(0,0,0,.2); }
+.quick-action:active { transform: scale(.95); }
 .quick-action [class^="icon-"] { font-size: 20px; color: var(--accent); }
 @media (min-width: 640px) { .quick-actions-grid { grid-template-columns: repeat(7, 1fr); } }
 .stat {
@@ -1537,15 +1571,21 @@ body,
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: none; }
 }
-.feed .ec-row, .dash-card, .stat, .onboard-item {
+.feed .ec-row, .dash-card, .stat, .onboard-item,
+.ec-rail-cover, .ec-feature, .account-row, .dash-row {
   animation: rise-in .5s cubic-bezier(.16,1,.3,1) both;
 }
-.feed .ec-row:nth-child(2), .stat:nth-child(2) { animation-delay: .05s; }
-.feed .ec-row:nth-child(3), .stat:nth-child(3) { animation-delay: .1s; }
-.feed .ec-row:nth-child(4), .stat:nth-child(4) { animation-delay: .15s; }
-.feed .ec-row:nth-child(5) { animation-delay: .2s; }
-.feed .ec-row:nth-child(6) { animation-delay: .25s; }
-.feed .ec-row:nth-child(n+7) { animation-delay: .3s; }
+.feed .ec-row:nth-child(2), .stat:nth-child(2), .account-row:nth-child(2), .dash-row:nth-child(2) { animation-delay: .05s; }
+.feed .ec-row:nth-child(3), .stat:nth-child(3), .account-row:nth-child(3), .dash-row:nth-child(3) { animation-delay: .1s; }
+.feed .ec-row:nth-child(4), .stat:nth-child(4), .account-row:nth-child(4), .dash-row:nth-child(4) { animation-delay: .15s; }
+.feed .ec-row:nth-child(5), .account-row:nth-child(5), .dash-row:nth-child(5) { animation-delay: .2s; }
+.feed .ec-row:nth-child(6), .account-row:nth-child(6), .dash-row:nth-child(6) { animation-delay: .25s; }
+.feed .ec-row:nth-child(n+7), .account-row:nth-child(n+7), .dash-row:nth-child(n+7) { animation-delay: .3s; }
+/* rail cards scroll horizontally — stagger by column instead of row */
+.ec-rail-cover:nth-child(2) { animation-delay: .04s; }
+.ec-rail-cover:nth-child(3) { animation-delay: .08s; }
+.ec-rail-cover:nth-child(4) { animation-delay: .12s; }
+.ec-rail-cover:nth-child(n+5) { animation-delay: .16s; }
 
 /* page headers ease in */
 .page-head { animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
@@ -1593,6 +1633,11 @@ body,
   .ec-rail-cover, .ec-feature-cover { transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s; }
   .chip { transition: background-color .15s, color .15s, border-color .15s; }
   .chip:hover { border-color: var(--line); color: var(--text); }
+  /* the big Discover hero card had no hover treatment at all — same
+     restrained lift + slow image zoom as the smaller rail/feature covers,
+     scaled up for its size. */
+  .ex-hero-card { transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s; background-size: cover; }
+  .ex-hero-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); background-size: 106%; }
 }
 
 /* accessible focus rings */
@@ -1658,12 +1703,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .tab.on { background: var(--accent-soft); }
   .tabs-right { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: 0 0 auto; }
   .tabs-right .pill { color: var(--text-2); }
-  .tb-host {
-    font-size: 14px; font-weight: 600; color: var(--text); padding: 9px 14px;
-    border-radius: var(--radius-pill); white-space: nowrap;
-    transition: background-color .15s ease;
-  }
-  .tb-host:hover { background: var(--surface-hover); }
 
   /* dense row lists become a 3-column grid on desktop — uses the width
      instead of one long centered column, without shrinking each row */

@@ -17,6 +17,11 @@ export default function Discover() {
     <>
       <div className="discover-head">
         <div className="seg-toggle" role="tablist" aria-label="Browse">
+          {/* Sliding thumb — a single element that transforms between the
+              two slot positions, rather than each button re-painting its
+              own background on click, is what actually reads as "sliding"
+              instead of an instant color swap. */}
+          <div className={"seg-toggle-thumb" + (mode === "venues" ? " slot-2" : "")} aria-hidden="true" />
           <button
             role="tab"
             aria-selected={mode === "events"}
@@ -37,13 +42,19 @@ export default function Discover() {
         <Link to="/host/events" className="ex-hero-host">Host <i className="icon-arrow-right" /></Link>
       </div>
 
-      {mode === "events" ? (
-        <Explore embedded />
-      ) : (
-        <Suspense fallback={<div className="route-loading" aria-busy="true"><LoadingMark /></div>}>
-          <Reservations embedded />
-        </Suspense>
-      )}
+      {/* key={mode} + .discover-mode's rise-in animation (same entrance
+          motion as feed cards elsewhere) gives the Events/Venues content
+          swap a real transition instead of an instant hard cut, matching
+          the thumb slide above it. */}
+      <div key={mode} className="discover-mode">
+        {mode === "events" ? (
+          <Explore embedded />
+        ) : (
+          <Suspense fallback={<div className="route-loading" aria-busy="true"><LoadingMark /></div>}>
+            <Reservations embedded />
+          </Suspense>
+        )}
+      </div>
     </>
   );
 }

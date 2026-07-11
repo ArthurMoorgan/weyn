@@ -14,6 +14,7 @@ const You = lazy(() => import("./pages/You"));
 const TABS = [
   { to: "/", icon: "sparkles", label: "Discover" },
   { to: "/tickets", icon: "ticket", label: "Tickets" },
+  { to: "/host/events", icon: "circle-plus", label: "Host" },
   { to: "/you", icon: "user", label: "Profile" },
 ];
 
@@ -47,7 +48,7 @@ export default function App() {
     <div className="shell">
       {MAIN_TABS.map(({ path, Component }) =>
         visited.has(path) ? (
-          <div key={path} style={location.pathname === path ? undefined : { display: "none" }}>
+          <div key={path} className="tab-page" data-active={location.pathname === path}>
             <Suspense fallback={<div className="route-loading" aria-busy="true"><LoadingMark /></div>}>
               <Component />
             </Suspense>
@@ -71,10 +72,10 @@ export default function App() {
         ))}
         {/* Desktop-only (see .tabs-right in index.css, hidden below 900px) —
             once the bar moves to the top on wide layouts, these are the
-            chrome that top bar earns: a persistent host entry, city, theme,
-            and account. */}
+            chrome that top bar earns: city, theme, and account. Host is
+            already a real tab in TABS above (rendered on both mobile and
+            desktop), so no separate host link needed here. */}
         <div className="tabs-right">
-          <Link to="/host/events" className="tb-host">Host an event</Link>
           <CityPill />
           <ThemeToggle />
           <Link to="/you" className="tb-avatar" aria-label="Profile">

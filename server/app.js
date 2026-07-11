@@ -403,6 +403,20 @@ export function createApp(storage) {
     .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
   if (adminAllowlist.length) {
     app.use((req, res, next) => {
+      // Scoped to /api/* only — this is an API-access gate, not a page gate.
+      // It used to run for every request regardless of path, which broke
+      // every full-page navigation to a route this Node function actually
+      // serves (chiefly GET /e/:id, rewritten here specifically for
+      // OG-tag injection — see that route below): a plain top-level page
+      // load/refresh/shared-link open never carries the Bearer token
+      // attachUser looks for (only the SPA's own fetch() calls attach one
+      // via authHeaders()), so req.user was always empty here and this
+      // returned a raw JSON 403 instead of the app shell — for every
+      // visitor, allowlisted admins included. The client-side AuthGate
+      // (src/components/AuthGate.tsx) already re-checks admin status
+      // correctly once Clerk's session is live in the browser; this
+      // middleware only needs to keep /api/* honest.
+      if (!req.path.startsWith("/api/")) return next();
       if (req.hostname === "waitlist.weynevents.com" && req.method === "POST" && req.path === "/api/waitlist") return next();
       const email = req.user?.email?.toLowerCase();
       if (email && adminAllowlist.includes(email)) return next();
