@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
 import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType } from "../../api";
 import { useAsync } from "../../hooks";
+import { useAccount } from "../../store";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
 import WorkflowCanvas from "../../components/WorkflowCanvas";
 
@@ -29,7 +30,14 @@ type VenueTabKey = typeof VENUE_TABS[number]["key"];
 export default function VenueWorkspace() {
   const { venueId, tab = "reservations" } = useParams<{ venueId: string; tab?: VenueTabKey }>();
   const nav = useNavigate();
-  const venues = useAsync(() => api.myVenues(), []);
+  const account = useAccount();
+  // Gated + keyed on `account` (mirrors You.tsx's myVenues call) — an
+  // unconditional `deps: []` here meant a failed first token fetch (Clerk's
+  // getToken() can return null/stale on a fresh session's very first call)
+  // never retried, so this workspace only "showed up" after a hard refresh
+  // landed on an already-warm session. Keying on `account` re-fires the
+  // fetch automatically once auth actually settles.
+  const venues = useAsync(() => (account ? api.myVenues() : Promise.resolve([])), [account]);
   const venue = (venues.data || []).find((v) => v.id === venueId);
 
   if (venues.loading) return <p className="hint" style={{ padding: "8px 6px" }}>Loading…</p>;

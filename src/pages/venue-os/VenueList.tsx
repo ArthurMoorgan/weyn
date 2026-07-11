@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAsync } from "../../hooks";
+import { useAccount } from "../../store";
 
 // The /venue-os index — mirrors organizer/Events.tsx's role as the entry
 // point into per-venue workspaces (Workspace.tsx), just simpler: venue
@@ -8,7 +9,14 @@ import { useAsync } from "../../hooks";
 // list that needs filters/search.
 export default function VenueList() {
   const nav = useNavigate();
-  const venues = useAsync(() => api.myVenues(), []);
+  const account = useAccount();
+  // Gated + keyed on `account` (same pattern as You.tsx's myVenues call) —
+  // Clerk's getToken() can return null/stale on the very first call of a
+  // fresh session, and with an unconditional `deps: []` that failed fetch
+  // never retried, so the dashboard only ever "showed up" after a hard
+  // refresh landed on an already-warm session. Keying on `account` makes
+  // the fetch re-fire automatically once auth actually settles.
+  const venues = useAsync(() => (account ? api.myVenues() : Promise.resolve([])), [account]);
   const list = venues.data || [];
 
   return (
