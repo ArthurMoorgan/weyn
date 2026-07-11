@@ -989,7 +989,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .search input::placeholder { color: var(--text-3); }
 .search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.search .clearx { position: absolute; right: 56px; top: calc(50% + 3px); transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; background: rgba(20,21,26,0.12); color: var(--text-2); display: grid; place-items: center; font-size: 13px; }
+.search .clearx { position: absolute; right: 56px; top: calc(50% + 3px); transform: translateY(-50%); width: 24px; height: 24px; border-radius: 50%; background: var(--surface-hover); color: var(--text-2); display: grid; place-items: center; font-size: 13px; }
 /* stays visually small, but the tap target is 44x44 via an invisible halo */
 .search .clearx::after { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
 
@@ -2077,14 +2077,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius);
   padding: var(--space-5); text-align: left; cursor: pointer; font: inherit; color: var(--text);
 }
-.host-hub-card i { font-size: 22px; color: var(--primary); margin-bottom: 4px; }
+.host-hub-card i { font-size: 22px; color: var(--accent); margin-bottom: 4px; }
 .host-hub-card h3 { font: var(--t-section); margin: 0; }
 .host-hub-card p { color: var(--text-2); margin: 0; font: var(--t-body); }
-.host-hub-cta { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font: var(--t-card); margin-top: 6px; }
+.host-hub-cta { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font: var(--t-card); margin-top: 6px; }
 .host-hub-cta i { font-size: 14px; margin: 0; color: inherit; }
 .host-hub-notice {
   display: flex; flex-direction: column; gap: 2px; background: var(--accent-soft);
-  border: 1px solid var(--primary); border-radius: var(--radius-sm); padding: 12px 14px; margin: 8px 0;
+  border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 12px 14px; margin: 8px 0;
 }
 .host-hub-notice strong { font: var(--t-card); }
 .host-hub-notice span { color: var(--text-2); font: var(--t-meta); }

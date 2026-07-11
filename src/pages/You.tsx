@@ -288,6 +288,7 @@ function CollectionsSection() {
       <div className="date-head"><h2>My lists</h2><span>{data?.length || 0}</span></div>
       <div style={{ display: "flex", gap: 8, padding: "0 16px 10px" }}>
         <input
+          className="toolbar-field"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="New list name…"
