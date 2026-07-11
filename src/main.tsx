@@ -47,6 +47,8 @@ const OrganizerEventWorkspace = lazy(() => import("./pages/organizer/EventWorksp
 const OrganizerAttendees = lazy(() => import("./pages/organizer/Attendees"));
 const OrganizerAiStudio = lazy(() => import("./pages/organizer/AiStudio"));
 const OrganizerSettings = lazy(() => import("./pages/organizer/Settings"));
+const VenueList = lazy(() => import("./pages/venue-os/VenueList"));
+const VenueWorkspace = lazy(() => import("./pages/venue-os/Workspace"));
 
 // as close to page-load as this module can get, so the splash's minimum
 // on-screen duration is measured from real first-paint, not from whenever
@@ -212,6 +214,14 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   <Route path="ai-studio" element={<OrganizerAiStudio />} />
                   <Route path="settings" element={<OrganizerSettings />} />
                 </Route>
+                {/* /venue-os/* — the venue owner's own dashboard (promoted
+                    out of You.tsx's "Your venues" tab the same way
+                    /organizer was promoted out of its old tab). Static
+                    segment ranking note doesn't apply here the same way —
+                    :venueId is always a cuid, never literally a nav label. */}
+                <Route path="/venue-os" element={<VenueList />} />
+                <Route path="/venue-os/:venueId" element={<VenueWorkspace />} />
+                <Route path="/venue-os/:venueId/:tab" element={<VenueWorkspace />} />
               </Route>
               <Route path="/e/:id" element={<EventDetail />} />
               <Route path="/reservations/:id" element={<VenueDetail />} />
