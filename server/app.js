@@ -299,9 +299,16 @@ export function createApp(storage) {
         // Clerk-hosted avatars (Google-account pictures now come through
         // Clerk's own CDN, not directly from googleusercontent).
         imgSrc: ["'self'", "data:", "https://img.clerk.com"],
-        // Clerk ships its own JS bundle via npm (@clerk/react) — no external
-        // <script> host needed for auth itself, only Maps stays external.
-        scriptSrc: ["'self'", "https://maps.googleapis.com"],
+        // Clerk's React SDK does NOT bundle the real Clerk JS — it lazy-loads
+        // it at runtime from Clerk's own Frontend API host via a dynamically
+        // injected <script> tag (confirmed live: "Clerk: Failed to load
+        // Clerk JS (code=failed_to_load_clerk_js)" on every page served
+        // through this Express app, e.g. GET /e/:id, since those get this
+        // CSP header — pages served as static files bypass this app entirely
+        // and never hit the restriction, which is why the failure was easy
+        // to miss testing only "/"). Same two hosts already allow-listed
+        // below for connectSrc; script loading needs them too.
+        scriptSrc: ["'self'", "https://maps.googleapis.com", "https://*.clerk.accounts.dev", "https://clerk.weynevents.com"],
         // Vite/React inject some inline <style> at runtime; Google Fonts'
         // stylesheet is itself hosted on fonts.googleapis.com
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
