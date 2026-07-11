@@ -59,6 +59,23 @@ export interface VenueSegment {
   days?: number;
 }
 
+// ---- venue workflows: trigger -> condition -> action ----
+export type VenueWorkflowTrigger = "reservation_created" | "reservation_cancelled" | "guest_no_show";
+export type VenueWorkflowAction = "notify_owner" | "tag_guest" | "send_guest_email";
+
+export interface VenueWorkflow {
+  id: string;
+  organizerId: string;
+  venueId: string | null;
+  name: string;
+  trigger: string;
+  action: string;
+  config: { minPartySize?: number; requireTag?: string; tag?: string; subject?: string; message?: string } | null;
+  enabled: boolean;
+  lastRunAt: string | null;
+  createdAt: string;
+}
+
 export interface Weyn {
   id: string;
   title: string;
@@ -1409,9 +1426,9 @@ export const api = {
     return fetch(`${API_BASE}/api/venues/mine`, { headers: { ...(await authHeaders()) } })
       .then((r) => json<(Venue & { _count?: { reservations: number; slots: number } })[]>(r));
   },
-  async venueReservations(venueId: string): Promise<(Reservation & { slot?: VenueAvailabilitySlot | null })[]> {
+  async venueReservations(venueId: string): Promise<(Reservation & { slot?: VenueAvailabilitySlot | null; tableAssignment?: { tables: { table: FloorTable }[] } | null })[]> {
     return fetch(`${API_BASE}/api/venues/${venueId}/reservations`, { headers: { ...(await authHeaders()) } })
-      .then((r) => json<(Reservation & { slot?: VenueAvailabilitySlot | null })[]>(r));
+      .then((r) => json<(Reservation & { slot?: VenueAvailabilitySlot | null; tableAssignment?: { tables: { table: FloorTable }[] } | null })[]>(r));
   },
   async setVenueSlots(venueId: string, slots: { dayOfWeek: number; startTime: string; endTime: string; capacity: number }[]): Promise<{ slots: VenueAvailabilitySlot[] }> {
     return fetch(`${API_BASE}/api/venues/${venueId}/slots`, {
@@ -1457,6 +1474,24 @@ export const api = {
   },
   async cancelVenueCampaign(venueId: string, campaignId: string): Promise<Campaign> {
     return fetch(`${API_BASE}/api/venues/${venueId}/campaigns/${campaignId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json<Campaign>(r));
+  },
+
+  // ---- venue workflows: trigger -> condition -> action rules ----
+  async venueWorkflows(venueId: string): Promise<VenueWorkflow[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/workflows`, { headers: await authHeaders() }).then((r) => json<VenueWorkflow[]>(r));
+  },
+  async createVenueWorkflow(venueId: string, input: { name: string; trigger: VenueWorkflowTrigger; action: VenueWorkflowAction; config: Record<string, any> }): Promise<VenueWorkflow> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/workflows`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json<VenueWorkflow>(r));
+  },
+  async setVenueWorkflowEnabled(venueId: string, ruleId: string, enabled: boolean): Promise<VenueWorkflow> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/workflows/${ruleId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ enabled }),
+    }).then((r) => json<VenueWorkflow>(r));
+  },
+  async deleteVenueWorkflow(venueId: string, ruleId: string): Promise<{ ok: true }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/workflows/${ruleId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json<{ ok: true }>(r));
   },
 
   // ---- floor plans: venue side (table/seat picking) ----

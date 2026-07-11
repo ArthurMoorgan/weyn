@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
-import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment } from "../../api";
+import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueWorkflowAction } from "../../api";
 import { useAsync } from "../../hooks";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
 
@@ -19,6 +19,7 @@ const VENUE_TABS = [
   { key: "venue", label: "Venue", icon: "store" },
   { key: "guests", label: "Guests", icon: "user" },
   { key: "marketing", label: "Marketing", icon: "megaphone" },
+  { key: "workflows", label: "Workflows", icon: "zap" },
   { key: "analytics", label: "Analytics", icon: "bar-chart" },
   { key: "hours", label: "Hours", icon: "clock" },
 ] as const;
@@ -84,6 +85,7 @@ function VenueBody({ tab, venue }: { tab: VenueTabKey; venue: OwnedVenue }) {
   if (tab === "venue") return <VenueProfileEditor venue={venue} />;
   if (tab === "guests") return <VenueGuests venueId={venue.id} rows={rows} />;
   if (tab === "marketing") return <VenueMarketing venueId={venue.id} />;
+  if (tab === "workflows") return <VenueWorkflows venueId={venue.id} />;
   if (tab === "analytics") return <VenueAnalyticsPanel venueId={venue.id} />;
   return <VenueAvailabilityEditor venue={venue} />;
 }
@@ -95,7 +97,7 @@ function statusClass(status?: string) {
   return "";
 }
 
-type VenueReservationRow = Reservation & { slot?: VenueAvailabilitySlot | null };
+type VenueReservationRow = Reservation & { slot?: VenueAvailabilitySlot | null; tableAssignment?: { tables: { table: FloorTable }[] } | null };
 
 function VenueReservationsTab({ venueId, rows, loading, error, setStatus, onCreated }: {
   venueId: string;
@@ -153,6 +155,13 @@ function VenueReservationsTab({ venueId, rows, loading, error, setStatus, onCrea
                       <small style={{ color: "var(--text-3)" }}>{r.date.slice(0, 10)} · {r.time}</small>
                       {" "}
                       <span className={"ec-badge " + statusClass(r.status)}>{status.replace("_", "-")}</span>
+                      {r.tableAssignment?.tables.length ? (
+                        <span className="ec-badge confirmed" style={{ marginLeft: 4 }}>
+                          <i className="icon-grid-2x2" /> {r.tableAssignment.tables.map((t) => t.table.label).join(" + ")}
+                        </span>
+                      ) : canAssign ? (
+                        <span className="ec-badge" style={{ marginLeft: 4, color: "var(--text-3)" }}>Unassigned</span>
+                      ) : null}
                     </span>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                       {pending && (
@@ -170,7 +179,7 @@ function VenueReservationsTab({ venueId, rows, loading, error, setStatus, onCrea
                       )}
                       {canAssign && (
                         <button className="btn glass sm" onClick={() => setAssigningId(assigningId === r.id ? null : r.id)}>
-                          <i className="icon-grid-2x2" /> Table
+                          <i className="icon-grid-2x2" /> {r.tableAssignment?.tables.length ? "Reassign" : "Assign"}
                         </button>
                       )}
                     </div>
@@ -222,14 +231,14 @@ function ManualReservationForm({ venueId, onDone }: { venueId: string; onDone: (
     <div className="dash-card" style={{ padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 8 }}>
       <p className="hint" style={{ margin: 0 }}><i className="icon-phone" /> Phone booking / walk-in</p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <input placeholder="Guest name" value={guestName} onChange={(e) => setGuestName(e.target.value)} />
-        <input placeholder="Email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} />
-        <input placeholder="Phone (optional)" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} />
-        <input inputMode="numeric" placeholder="Party size" value={partySize} onChange={(e) => setPartySize(e.target.value)} />
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        <input className="toolbar-field" placeholder="Guest name" value={guestName} onChange={(e) => setGuestName(e.target.value)} />
+        <input className="toolbar-field" placeholder="Email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} />
+        <input className="toolbar-field" placeholder="Phone (optional)" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} />
+        <input className="toolbar-field" inputMode="numeric" placeholder="Party size" value={partySize} onChange={(e) => setPartySize(e.target.value)} />
+        <input className="toolbar-field" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <input className="toolbar-field" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
       </div>
-      <input placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <input className="toolbar-field" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
           <input type="checkbox" checked={status === "seated"} onChange={(e) => setStatus(e.target.checked ? "seated" : "confirmed")} />
@@ -366,8 +375,8 @@ function GuestDetail({ venueId, email, reservations, note, tags, onNoteSaved }: 
           </small>
         ))}
       </div>
-      <input placeholder="Tags, comma-separated (VIP, regular, allergy: nuts…)" value={tagsText} onChange={(e) => setTagsText(e.target.value)} />
-      <textarea rows={2} placeholder="Notes on this guest (allergies, preferences, VIP…)" value={text} onChange={(e) => setText(e.target.value)} />
+      <input className="toolbar-field" placeholder="Tags, comma-separated (VIP, regular, allergy: nuts…)" value={tagsText} onChange={(e) => setTagsText(e.target.value)} />
+      <textarea className="toolbar-field" rows={2} placeholder="Notes on this guest (allergies, preferences, VIP…)" value={text} onChange={(e) => setText(e.target.value)} />
       <button className="btn glass sm" style={{ width: "auto" }} onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
     </div>
   );
@@ -443,12 +452,12 @@ function VenueMarketing({ venueId }: { venueId: string }) {
             ))}
           </div>
           {segmentType === "tag" && (
-            <input style={{ marginTop: 8 }} placeholder="Tag (e.g. VIP)" value={tag} onChange={(e) => setTag(e.target.value)} />
+            <input className="toolbar-field" style={{ marginTop: 8 }} placeholder="Tag (e.g. VIP)" value={tag} onChange={(e) => setTag(e.target.value)} />
           )}
           {segmentType === "inactive" && (
             <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 13 }}>Haven't visited in</span>
-              <input type="number" style={{ width: 70 }} value={days} onChange={(e) => setDays(e.target.value)} />
+              <input className="toolbar-field" type="number" style={{ width: 70 }} value={days} onChange={(e) => setDays(e.target.value)} />
               <span style={{ fontSize: 13 }}>days</span>
             </div>
           )}
@@ -457,11 +466,11 @@ function VenueMarketing({ venueId }: { venueId: string }) {
           </p>
         </div>
 
-        <input placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
-        <textarea rows={4} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
+        <input className="toolbar-field" placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+        <textarea className="toolbar-field" rows={4} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
         <div>
           <label style={{ fontSize: 12.5, color: "var(--text-2)", display: "block", marginBottom: 6 }}>Send now, or schedule for later</label>
-          <input type="datetime-local" value={scheduleFor} onChange={(e) => setScheduleFor(e.target.value)} />
+          <input className="toolbar-field" type="datetime-local" value={scheduleFor} onChange={(e) => setScheduleFor(e.target.value)} />
         </div>
 
         {err && <p className="errline">{err}</p>}
@@ -491,6 +500,152 @@ function VenueMarketing({ venueId }: { venueId: string }) {
               {c.status === "scheduled" && (
                 <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => cancel(c.id)}>Cancel</button>
               )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+const TRIGGER_LABELS: Record<VenueWorkflowTrigger, string> = {
+  reservation_created: "Reservation created",
+  reservation_cancelled: "Reservation cancelled",
+  guest_no_show: "Guest no-shows",
+};
+const ACTION_LABELS: Record<VenueWorkflowAction, string> = {
+  notify_owner: "Notify me (email)",
+  tag_guest: "Tag the guest",
+  send_guest_email: "Email the guest",
+};
+
+// ---- Workflows: trigger -> condition -> action rules, run the instant the
+// trigger actually happens (see server/venue-workflows.js) — not a visual
+// drag-and-drop canvas (that's a much bigger build), but a real, working
+// "if X, then Y" rule engine. e.g. the classic case: trigger "Reservation
+// created" + condition "guest already tagged VIP" + action "Notify me" —
+// covers the same real need as a fancier canvas would, just as a form.
+function VenueWorkflows({ venueId }: { venueId: string }) {
+  const { data: rules, loading, reload } = useAsync(() => api.venueWorkflows(venueId), [venueId]);
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [trigger, setTrigger] = useState<VenueWorkflowTrigger>("reservation_created");
+  const [action, setAction] = useState<VenueWorkflowAction>("notify_owner");
+  const [minPartySize, setMinPartySize] = useState("");
+  const [requireTag, setRequireTag] = useState("");
+  const [tag, setTag] = useState("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function create() {
+    if (!name.trim()) { setErr("Give this workflow a name."); return; }
+    if (action === "tag_guest" && !tag.trim()) { setErr("Choose a tag to apply."); return; }
+    if (action !== "tag_guest" && !message.trim()) { setErr("Write the message it should send."); return; }
+    setSaving(true); setErr("");
+    try {
+      await api.createVenueWorkflow(venueId, {
+        name: name.trim(), trigger, action,
+        config: {
+          ...(minPartySize ? { minPartySize: Number(minPartySize) } : {}),
+          ...(requireTag.trim() ? { requireTag: requireTag.trim() } : {}),
+          ...(action === "tag_guest" ? { tag: tag.trim() } : {}),
+          ...(action !== "tag_guest" ? { subject: subject.trim(), message: message.trim() } : {}),
+        },
+      });
+      setShowForm(false);
+      setName(""); setMinPartySize(""); setRequireTag(""); setTag(""); setSubject(""); setMessage("");
+      reload();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't create that workflow.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggle(rule: VenueWorkflow) {
+    await api.setVenueWorkflowEnabled(venueId, rule.id, !rule.enabled);
+    reload();
+  }
+
+  async function remove(rule: VenueWorkflow) {
+    await api.deleteVenueWorkflow(venueId, rule.id);
+    reload();
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span><i className="icon-zap" /> Workflows</span>
+        <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowForm((v) => !v)}>
+          <i className="icon-plus" /> {showForm ? "Cancel" : "New workflow"}
+        </button>
+      </p>
+
+      {showForm && (
+        <div className="dash-card" style={{ padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Name</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Notify me about VIP bookings" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Trigger</label>
+              <select value={trigger} onChange={(e) => setTrigger(e.target.value as VenueWorkflowTrigger)}>
+                {Object.entries(TRIGGER_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Action</label>
+              <select value={action} onChange={(e) => setAction(e.target.value as VenueWorkflowAction)}>
+                {Object.entries(ACTION_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <p className="hint" style={{ margin: 0 }}>Conditions (optional — leave blank to always run)</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <input className="toolbar-field" type="number" placeholder="Min party size" value={minPartySize} onChange={(e) => setMinPartySize(e.target.value)} />
+            <input className="toolbar-field" placeholder="Guest already tagged (e.g. VIP)" value={requireTag} onChange={(e) => setRequireTag(e.target.value)} />
+          </div>
+
+          {action === "tag_guest" ? (
+            <input className="toolbar-field" placeholder="Tag to apply (e.g. Repeat guest)" value={tag} onChange={(e) => setTag(e.target.value)} />
+          ) : (
+            <>
+              <input className="toolbar-field" placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+              <textarea className="toolbar-field" rows={3} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
+            </>
+          )}
+
+          {err && <p className="errline">{err}</p>}
+          <button className="btn glass" onClick={create} disabled={saving}>{saving ? "Saving…" : "Create workflow"}</button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+      ) : !rules?.length ? (
+        <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No workflows yet — create one above.</p>
+      ) : (
+        <ul className="steps">
+          {rules.map((r) => (
+            <li key={r.id}>
+              <i className="icon-zap" />
+              <span>
+                {r.name} <span className={"ec-badge " + (r.enabled ? "confirmed" : "")}>{r.enabled ? "on" : "off"}</span>
+                <br />
+                <small style={{ color: "var(--text-3)" }}>
+                  {TRIGGER_LABELS[r.trigger as VenueWorkflowTrigger] || r.trigger} → {ACTION_LABELS[r.action as VenueWorkflowAction] || r.action}
+                  {r.lastRunAt ? ` · last ran ${new Date(r.lastRunAt).toLocaleDateString()}` : ""}
+                </small>
+              </span>
+              <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                <button className="btn glass sm" onClick={() => toggle(r)}>{r.enabled ? "Disable" : "Enable"}</button>
+                <button className="btn glass sm" onClick={() => remove(r)}><i className="icon-x" /></button>
+              </div>
             </li>
           ))}
         </ul>
@@ -621,28 +776,45 @@ function VenueProfileEditor({ venue }: { venue: OwnedVenue }) {
           <input type="file" accept="image/*" multiple onChange={(e) => { setNewPhotos(Array.from(e.target.files || [])); setSaved(false); }} />
         </div>
 
-        <label>Name<input value={name} onChange={(e) => { setName(e.target.value); setSaved(false); }} /></label>
-        <label>Description<textarea rows={3} value={description} onChange={(e) => { setDescription(e.target.value); setSaved(false); }} /></label>
+        <div className="field" style={{ margin: 0 }}>
+          <label>Name</label>
+          <input value={name} onChange={(e) => { setName(e.target.value); setSaved(false); }} />
+        </div>
+        <div className="field" style={{ margin: 0 }}>
+          <label>Description</label>
+          <textarea rows={3} value={description} onChange={(e) => { setDescription(e.target.value); setSaved(false); }} />
+        </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <label>Category
+          <div className="field" style={{ margin: 0 }}>
+            <label>Category</label>
             <select value={category} onChange={(e) => { setCategory(e.target.value as VenueCategory); setSaved(false); }}>
               {VENUE_CATS.filter((c) => c.key !== "all").map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
-          </label>
-          <label>Price range
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Price range</label>
             <select value={priceRange} onChange={(e) => { setPriceRange(e.target.value as PriceRange | ""); setSaved(false); }}>
               <option value="">—</option>
               <option value="$">$</option>
               <option value="$$">$$</option>
               <option value="$$$">$$$</option>
             </select>
-          </label>
+          </div>
         </div>
 
-        <label>Address<input value={address} onChange={(e) => { setAddress(e.target.value); setSaved(false); }} /></label>
-        <label>Area<input value={area} onChange={(e) => { setArea(e.target.value); setSaved(false); }} /></label>
-        <label>Tags (comma-separated)<input value={tagsText} onChange={(e) => { setTagsText(e.target.value); setSaved(false); }} placeholder="outdoor, family-friendly, live-music" /></label>
+        <div className="field" style={{ margin: 0 }}>
+          <label>Address</label>
+          <input value={address} onChange={(e) => { setAddress(e.target.value); setSaved(false); }} />
+        </div>
+        <div className="field" style={{ margin: 0 }}>
+          <label>Area</label>
+          <input value={area} onChange={(e) => { setArea(e.target.value); setSaved(false); }} />
+        </div>
+        <div className="field" style={{ margin: 0 }}>
+          <label>Tags (comma-separated)</label>
+          <input value={tagsText} onChange={(e) => { setTagsText(e.target.value); setSaved(false); }} placeholder="outdoor, family-friendly, live-music" />
+        </div>
 
         {err && <p className="errline">{err}</p>}
         <button className="btn glass" onClick={save} disabled={saving}>{saving ? "Saving…" : saved ? "Saved ✓" : "Save changes"}</button>
@@ -829,20 +1001,20 @@ function VenueTables({ venueId }: { venueId: string }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
         {tables.map((t) => (
           <div key={t.id} className="dash-card" style={{ padding: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <input style={{ width: 100 }} value={t.label} onChange={(e) => updateTable(t.id, { label: e.target.value })} />
-            <select value={t.shape} onChange={(e) => updateTable(t.id, { shape: e.target.value as "rect" | "circle" })}>
+            <input className="toolbar-field" style={{ width: 100 }} value={t.label} onChange={(e) => updateTable(t.id, { label: e.target.value })} />
+            <select className="toolbar-field" value={t.shape} onChange={(e) => updateTable(t.id, { shape: e.target.value as "rect" | "circle" })}>
               <option value="rect">Rect</option>
               <option value="circle">Circle</option>
             </select>
-            <input type="number" style={{ width: 55 }} value={t.minCapacity} onChange={(e) => updateTable(t.id, { minCapacity: Number(e.target.value) || 1 })} title="Min capacity" />
+            <input className="toolbar-field" type="number" style={{ width: 55 }} value={t.minCapacity} onChange={(e) => updateTable(t.id, { minCapacity: Number(e.target.value) || 1 })} title="Min capacity" />
             <span style={{ color: "var(--text-3)" }}>–</span>
-            <input type="number" style={{ width: 55 }} value={t.maxCapacity} onChange={(e) => updateTable(t.id, { maxCapacity: Number(e.target.value) || 1 })} title="Max capacity" />
+            <input className="toolbar-field" type="number" style={{ width: 55 }} value={t.maxCapacity} onChange={(e) => updateTable(t.id, { maxCapacity: Number(e.target.value) || 1 })} title="Max capacity" />
             {plan.mode === "seat" && (
-              <input type="number" style={{ width: 60 }} value={t.seats.length || t.maxCapacity}
+              <input className="toolbar-field" type="number" style={{ width: 60 }} value={t.seats.length || t.maxCapacity}
                 onChange={(e) => updateTable(t.id, { seats: Array.from({ length: Number(e.target.value) || 0 }, (_, i) => t.seats[i] || { id: `pending-${i}`, tableId: t.id, index: i + 1, label: null, status: "available" }) })}
                 title="Seat count" />
             )}
-            <select value={t.status} onChange={(e) => setStatus(t.id, e.target.value as FloorTable["status"])} style={{ marginLeft: "auto" }}>
+            <select className="toolbar-field" value={t.status} onChange={(e) => setStatus(t.id, e.target.value as FloorTable["status"])} style={{ marginLeft: "auto" }}>
               <option value="available">Available</option>
               <option value="reserved">Reserved</option>
               <option value="occupied">Occupied</option>

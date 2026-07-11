@@ -30,6 +30,7 @@ import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail, organizerTeamInviteEmail, reminderEmail, waitlistWelcomeEmail, waitlistOwnerNotifyEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
 import { resolveVenueSegment } from "./venue-marketing.js";
+import { runVenueWorkflows, VENUE_TRIGGERS, VENUE_ACTIONS } from "./venue-workflows.js";
 
 // Module-scope (not inside createApp): runCampaignScan/runAutomationScan
 // below are top-level exports, called from a cron/interval outside any
@@ -169,6 +170,55 @@ export async function runCampaignScan() {
     // Orphaned row (its event/venue was deleted after scheduling) — nothing
     // left to send to, mark it done rather than retrying forever.
     await db.markCampaignSent(c.id, 0);
+  }
+}
+
+// Auto-assign a table to a just-created reservation, for venues that have
+// a floor plan set up. Best-effort: a venue with no floor plan, or one
+// that's fully booked for that date, just leaves the reservation
+// unassigned for the staff to sort out manually (same as before this
+// existed) — this never blocks or fails the reservation itself. Picks the
+// smallest single table that fits the party (so a 2-top isn't wasted on a
+// party of 2 when a booth for exactly that size is free); if nothing single
+// fits, greedily merges the largest free tables until capacity is covered
+// (mirrors the manual "merge" flow's own table-assignment shape).
+export async function autoAssignTable(reservation) {
+  try {
+    const plan = await prisma.floorPlan.findUnique({ where: { venueId: reservation.venueId }, include: { tables: true } });
+    if (!plan || plan.mode !== "table") return null; // seat-mode venues assign at the seat level, not here
+    const size = reservation.partySize;
+    const dayStart = new Date(reservation.date); dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 3600e3);
+    const assigned = await prisma.tableAssignmentTable.findMany({
+      where: {
+        tableId: { in: plan.tables.map((t) => t.id) },
+        assignment: { date: { gte: dayStart, lt: dayEnd }, reservation: { status: { in: ["pending", "confirmed", "seated"] } } },
+      },
+      select: { tableId: true },
+    });
+    const takenIds = new Set(assigned.map((a) => a.tableId));
+    const free = plan.tables.filter((t) => t.status === "available" && !takenIds.has(t.id));
+
+    const singleFit = free.filter((t) => t.maxCapacity >= size && t.minCapacity <= size).sort((a, b) => a.maxCapacity - b.maxCapacity)[0];
+    let chosen = singleFit ? [singleFit] : null;
+    if (!chosen) {
+      const combo = [];
+      let total = 0;
+      for (const t of [...free].sort((a, b) => b.maxCapacity - a.maxCapacity)) {
+        combo.push(t); total += t.maxCapacity;
+        if (total >= size) break;
+      }
+      if (total >= size && combo.length) chosen = combo;
+    }
+    if (!chosen) return null;
+
+    await prisma.tableAssignment.create({
+      data: { reservationId: reservation.id, date: reservation.date, time: reservation.time, partySize: size, tables: { create: chosen.map((t) => ({ tableId: t.id })) } },
+    });
+    return chosen.map((t) => t.label);
+  } catch (err) {
+    captureError(err, { route: "autoAssignTable", reservationId: reservation.id });
+    return null;
   }
 }
 
@@ -1897,6 +1947,8 @@ export function createApp(storage) {
           notes: notes ? String(notes).trim() : null,
         },
       });
+      await autoAssignTable(reservation);
+      runVenueWorkflows("reservation_created", reservation).catch(() => {});
       trackEvent(req.user?.id || guestEmail, "reservation_created", { venueId: venue.id, partySize: size });
       res.status(201).json(reservation);
     } catch (err) {
@@ -2109,7 +2161,7 @@ export function createApp(storage) {
     try {
       const reservations = await prisma.reservation.findMany({
         where: { venueId: req.venue.id },
-        include: { slot: true },
+        include: { slot: true, tableAssignment: { include: { tables: { include: { table: true } } } } },
         orderBy: [{ date: "asc" }, { createdAt: "desc" }],
       });
       res.json(reservations);
@@ -2162,6 +2214,8 @@ export function createApp(storage) {
         return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this venue" } });
       }
       const updated = await prisma.reservation.update({ where: { id: reservation.id }, data: { status } });
+      if (status === "cancelled") runVenueWorkflows("reservation_cancelled", updated).catch(() => {});
+      if (status === "no_show") runVenueWorkflows("guest_no_show", updated).catch(() => {});
       res.json(updated);
     } catch (err) {
       captureError(err, { route: "POST /api/reservations/:id/status", reservationId: req.params.id });
@@ -2215,6 +2269,8 @@ export function createApp(storage) {
           source: "manual",
         },
       });
+      await autoAssignTable(reservation);
+      runVenueWorkflows("reservation_created", reservation).catch(() => {});
       res.status(201).json(reservation);
     } catch (err) {
       captureError(err, { route: "POST /api/venues/:id/reservations/manual", venueId: req.params.id });
@@ -2352,6 +2408,41 @@ export function createApp(storage) {
     const cancelled = await db.cancelCampaign(req.params.campaignId, req.user.id);
     if (!cancelled) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Nothing to cancel — it may already have sent." } });
     res.json(cancelled);
+  });
+
+  // ---- Venue Workflows: trigger -> condition -> action rules, executed
+  // immediately at the trigger (server/venue-workflows.js), not polled. ----
+  app.get("/api/venues/:id/workflows", requireAuth, requireVenueOwner, async (req, res) => {
+    res.json(await db.listVenueAutomationRules(req.venue.id));
+  });
+
+  app.post("/api/venues/:id/workflows", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const name = String(req.body?.name || "").trim();
+      const trigger = req.body?.trigger;
+      const action = req.body?.action;
+      if (!name) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "name is required" } });
+      if (!VENUE_TRIGGERS.includes(trigger)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `trigger must be one of: ${VENUE_TRIGGERS.join(", ")}` } });
+      if (!VENUE_ACTIONS.includes(action)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `action must be one of: ${VENUE_ACTIONS.join(", ")}` } });
+      const config = req.body?.config && typeof req.body.config === "object" ? req.body.config : {};
+      const rule = await db.createVenueAutomationRule({ organizerId: req.user.id, venueId: req.venue.id, name, trigger, action, config });
+      res.status(201).json(rule);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/workflows", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/venues/:id/workflows/:ruleId", requireAuth, requireVenueOwner, async (req, res) => {
+    const updated = await db.setAutomationRuleEnabled(req.params.ruleId, req.user.id, !!req.body?.enabled);
+    if (!updated) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+    res.json(updated);
+  });
+
+  app.delete("/api/venues/:id/workflows/:ruleId", requireAuth, requireVenueOwner, async (req, res) => {
+    const deleted = await db.deleteAutomationRule(req.params.ruleId, req.user.id);
+    if (!deleted) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+    res.json({ ok: true });
   });
 
   // ============================================================

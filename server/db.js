@@ -899,6 +899,18 @@ export const db = {
     await prisma.automationRule.update({ where: { id }, data: { lastRunAt: new Date() } });
   },
 
+  // ---- Venue Workflows: reservation-driven automation rules, run
+  // immediately at the trigger (see server/venue-marketing.js's sibling
+  // server/venue-workflows.js), not on a poll cycle like capacity_threshold
+  // above — a reservation being created/cancelled is already a concrete,
+  // real-time event, so there's nothing to wait for a scan to notice. ----
+  async listVenueAutomationRules(venueId) {
+    return prisma.automationRule.findMany({ where: { venueId }, orderBy: { createdAt: "desc" } });
+  },
+  async createVenueAutomationRule({ organizerId, venueId, name, trigger, action, config }) {
+    return prisma.automationRule.create({ data: { organizerId, venueId, name, trigger, action, config: config || {} } });
+  },
+
   async goalProgress(organizerId, month) {
     const goal = await db.getGoal(organizerId, month);
     if (!goal) return { goal: null, progress: null };

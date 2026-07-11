@@ -593,6 +593,7 @@ model Venue {
   reservations  Reservation[]
   guestNotes    VenueGuestNote[]
   campaigns     Campaign[]
+  automationRules AutomationRule[]
   floorPlan     FloorPlan?
 
   @@index([ownerId])
@@ -1241,18 +1242,21 @@ model AutomationRule {
   id          String    @id @default(cuid())
   organizerId String
   eventId     String?
+  venueId     String? // set for venue-workflow rules (reservation_created/cancelled/guest_no_show), alongside the existing event-scoped triggers
   name        String
-  trigger     String // "vip_purchase" | "capacity_threshold" | "sales_drop" | "waitlist_threshold" | "event_published"
-  action      String // "notify_staff" | "tag_attendee" | "send_email"
-  config      Json?
+  trigger     String // events: "vip_purchase" | "capacity_threshold" | "sales_drop" | "waitlist_threshold" | "event_published" — venues: "reservation_created" | "reservation_cancelled" | "guest_no_show"
+  action      String // events: "notify_staff" | "tag_attendee" | "send_email" — venues: "notify_owner" | "tag_guest" | "send_guest_email"
+  config      Json? // e.g. venue rules: {minPartySize?, requireTag?, tag?, subject?, message?}
   enabled     Boolean   @default(true)
   lastRunAt   DateTime?
   createdAt   DateTime  @default(now())
 
   organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
   event     Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  venue     Venue? @relation(fields: [venueId], references: [id], onDelete: Cascade)
 
   @@index([organizerId])
+  @@index([venueId])
 }
 
 // ---- Organizer Goals ----
