@@ -592,6 +592,7 @@ model Venue {
   slots         VenueAvailabilitySlot[]
   reservations  Reservation[]
   guestNotes    VenueGuestNote[]
+  campaigns     Campaign[]
   floorPlan     FloorPlan?
 
   @@index([ownerId])
@@ -763,6 +764,11 @@ model VenueGuestNote {
   venueId    String
   guestEmail String
   note       String
+  // Real CRM tagging (VIP, regular, allergy-aware, ...) — free-text tags an
+  // owner defines themselves, not a fixed enum, since every venue's own
+  // vocabulary differs. Segment-targeted marketing (see Campaign.segment)
+  // matches against these.
+  tags       String[] @default([])
   updatedAt  DateTime @updatedAt
 
   venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
@@ -1089,21 +1095,29 @@ model AttendeeProfile {
 model Campaign {
   id           String    @id @default(cuid())
   organizerId  String
-  eventId      String?
+  eventId      String? // set for event-ticket-buyer campaigns
+  venueId      String? // set for venue-guest campaigns — exactly one of eventId/venueId is set, never both
   channel      String // "email" | "push"
   subject      String?
   message      String
-  segment      Json? // e.g. {tags: ["vip"], minSpend: 50} — matched against AttendeeProfile/Booking
+  segment      Json? // e.g. {tags: ["vip"], minSpend: 50} — matched against AttendeeProfile/Booking (events) or VenueGuestNote/Reservation (venues)
   scheduledFor DateTime?
   sentAt       DateTime?
   status       String    @default("scheduled") // scheduled | sent | cancelled
+  // Set once actually sent — how many people it reached. A count computed
+  // fresh from current data would drift from what was true at send time
+  // (guests/attendees keep changing), so this is captured once and never
+  // recomputed, same reasoning as any other historical ledger entry.
+  recipientCount Int?
   createdAt    DateTime  @default(now())
 
   organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
   event     Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  venue     Venue? @relation(fields: [venueId], references: [id], onDelete: Cascade)
 
   @@index([organizerId])
   @@index([eventId])
+  @@index([venueId])
   @@index([status, scheduledFor])
 }
 

@@ -29,6 +29,7 @@ import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature }
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail, organizerTeamInviteEmail, reminderEmail, waitlistWelcomeEmail, waitlistOwnerNotifyEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
+import { resolveVenueSegment } from "./venue-marketing.js";
 
 // Module-scope (not inside createApp): runCampaignScan/runAutomationScan
 // below are top-level exports, called from a cron/interval outside any
@@ -133,19 +134,41 @@ export async function runReminderScan() {
 export async function runCampaignScan() {
   const due = await db.dueCampaigns(Date.now());
   for (const c of due) {
-    if (!c.eventId || !c.event) { await db.markCampaignSent(c.id); continue; }
-    const bookings = await prisma.booking.findMany({ where: { eventId: c.eventId, status: "paid", email: { not: null } }, select: { email: true } });
-    const safeSubject = escapeHtml(c.subject || "");
-    const safeMessage = escapeHtml(c.message);
-    const safeTitle = escapeHtml(c.event.title);
-    await Promise.all(bookings.map((b) =>
-      sendEmail({
-        to: b.email,
-        subject: `${c.event.title}: ${c.subject || "An update"}`,
-        html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${safeSubject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${safeMessage}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you have a ticket to ${safeTitle}.</p></div>`,
-      }).catch((err) => captureError(err, { route: "runCampaignScan", campaignId: c.id }))
-    ));
-    await db.markCampaignSent(c.id);
+    if (c.eventId && c.event) {
+      const bookings = await prisma.booking.findMany({ where: { eventId: c.eventId, status: "paid", email: { not: null } }, select: { email: true } });
+      const safeSubject = escapeHtml(c.subject || "");
+      const safeMessage = escapeHtml(c.message);
+      const safeTitle = escapeHtml(c.event.title);
+      let emailed = 0;
+      await Promise.all(bookings.map((b) =>
+        sendEmail({
+          to: b.email,
+          subject: `${c.event.title}: ${c.subject || "An update"}`,
+          html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${safeSubject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${safeMessage}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you have a ticket to ${safeTitle}.</p></div>`,
+        }).then(() => emailed++).catch((err) => captureError(err, { route: "runCampaignScan", campaignId: c.id }))
+      ));
+      await db.markCampaignSent(c.id, emailed);
+      continue;
+    }
+    if (c.venueId && c.venue) {
+      const guests = await resolveVenueSegment(c.venueId, c.segment || { type: "all" });
+      const safeSubject = escapeHtml(c.subject || "");
+      const safeMessage = escapeHtml(c.message);
+      const safeVenueName = escapeHtml(c.venue.name);
+      let emailed = 0;
+      await Promise.all(guests.map((g) =>
+        sendEmail({
+          to: g.email,
+          subject: `${c.venue.name}: ${c.subject || "An update"}`,
+          html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${safeSubject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${safeMessage}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you've booked with ${safeVenueName}.</p></div>`,
+        }).then(() => emailed++).catch((err) => captureError(err, { route: "runCampaignScan", campaignId: c.id }))
+      ));
+      await db.markCampaignSent(c.id, emailed);
+      continue;
+    }
+    // Orphaned row (its event/venue was deleted after scheduling) — nothing
+    // left to send to, mark it done rather than retrying forever.
+    await db.markCampaignSent(c.id, 0);
   }
 }
 
@@ -2194,21 +2217,82 @@ export function createApp(storage) {
     try {
       const guestEmail = String(req.params.email || "").trim().toLowerCase();
       const note = String(req.body?.note || "").trim();
+      const tags = Array.isArray(req.body?.tags) ? [...new Set(req.body.tags.map((t) => String(t).trim()).filter(Boolean))] : undefined;
       if (!guestEmail) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "guestEmail is required" } });
-      if (!note) {
+      if (!note && (!tags || tags.length === 0)) {
         await prisma.venueGuestNote.deleteMany({ where: { venueId: req.venue.id, guestEmail } });
         return res.json({ deleted: true });
       }
       const saved = await prisma.venueGuestNote.upsert({
         where: { venueId_guestEmail: { venueId: req.venue.id, guestEmail } },
-        create: { venueId: req.venue.id, guestEmail, note },
-        update: { note },
+        create: { venueId: req.venue.id, guestEmail, note, tags: tags || [] },
+        update: { note, ...(tags ? { tags } : {}) },
       });
       res.json(saved);
     } catch (err) {
       captureError(err, { route: "PUT /api/venues/:id/guest-notes/:email", venueId: req.params.id });
       res.status(500).json({ error: err.message });
     }
+  });
+
+  // ---- Venue Marketing: send-now/scheduled campaigns to a segment of a
+  // venue's guests. Mirrors the event-side Messaging Center (same Campaign
+  // model, same "send now vs create as scheduled" branch, same
+  // runCampaignScan picking up anything with a future scheduledFor) — see
+  // that route's comment for why scheduling reuses a Campaign row instead
+  // of a separate job queue. ----
+  app.get("/api/venues/:id/segment-preview", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const segment = { type: req.query.type || "all", tag: req.query.tag, days: req.query.days ? Number(req.query.days) : undefined };
+      const guests = await resolveVenueSegment(req.venue.id, segment);
+      res.json({ count: guests.length, sample: guests.slice(0, 5).map((g) => g.name) });
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/segment-preview", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/venues/:id/campaigns", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const subject = String(req.body?.subject || "").trim();
+      const message = String(req.body?.message || "").trim();
+      if (!subject || !message) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "subject and message are required" } });
+      const segment = req.body?.segment && typeof req.body.segment === "object" ? req.body.segment : { type: "all" };
+      const scheduledFor = req.body?.scheduledFor ? new Date(req.body.scheduledFor) : null;
+
+      if (scheduledFor && scheduledFor.getTime() > Date.now()) {
+        const campaign = await db.createCampaign({ organizerId: req.user.id, venueId: req.venue.id, subject, message, segment, scheduledFor });
+        return res.status(201).json({ ok: true, scheduled: true, campaign });
+      }
+
+      const guests = await resolveVenueSegment(req.venue.id, segment);
+      const safeSubject = escapeHtml(subject);
+      const safeMessage = escapeHtml(message);
+      const safeVenueName = escapeHtml(req.venue.name);
+      let emailed = 0;
+      await Promise.all(guests.map((g) =>
+        sendEmail({
+          to: g.email,
+          subject: `${req.venue.name}: ${subject}`,
+          html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${safeSubject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${safeMessage}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you've booked with ${safeVenueName}.</p></div>`,
+        }).then(() => emailed++).catch((err) => captureError(err, { route: "POST /api/venues/:id/campaigns", venueId: req.venue.id }))
+      ));
+      const campaign = await db.createCampaign({ organizerId: req.user.id, venueId: req.venue.id, subject, message, segment, scheduledFor: null, recipientCount: emailed });
+      res.status(201).json({ ok: true, scheduled: false, recipients: guests.length, emailed, campaign });
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/campaigns", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/venues/:id/campaigns", requireAuth, requireVenueOwner, async (req, res) => {
+    res.json(await db.listVenueCampaigns(req.venue.id));
+  });
+
+  app.delete("/api/venues/:id/campaigns/:campaignId", requireAuth, requireVenueOwner, async (req, res) => {
+    const cancelled = await db.cancelCampaign(req.params.campaignId, req.user.id);
+    if (!cancelled) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Nothing to cancel — it may already have sent." } });
+    res.json(cancelled);
   });
 
   // ============================================================

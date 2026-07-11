@@ -395,13 +395,21 @@ export const db = {
   // with a future send date — a Campaign row sits in "scheduled" until
   // runCampaignScan picks it up, same polling pattern as the reminder scan
   // above rather than a separate job queue.
-  async createCampaign({ organizerId, eventId, subject, message, scheduledFor }) {
+  async createCampaign({ organizerId, eventId, venueId, subject, message, segment, scheduledFor, recipientCount }) {
     return prisma.campaign.create({
-      data: { organizerId, eventId, channel: "email", subject, message, scheduledFor: scheduledFor || null, status: scheduledFor ? "scheduled" : "sent", sentAt: scheduledFor ? null : new Date() },
+      data: {
+        organizerId, eventId: eventId || null, venueId: venueId || null, channel: "email", subject, message,
+        segment: segment || undefined, scheduledFor: scheduledFor || null,
+        status: scheduledFor ? "scheduled" : "sent", sentAt: scheduledFor ? null : new Date(),
+        recipientCount: scheduledFor ? null : (recipientCount ?? null),
+      },
     });
   },
   async listCampaigns(eventId) {
     return prisma.campaign.findMany({ where: { eventId }, orderBy: { createdAt: "desc" } });
+  },
+  async listVenueCampaigns(venueId) {
+    return prisma.campaign.findMany({ where: { venueId }, orderBy: { createdAt: "desc" } });
   },
   async cancelCampaign(id, organizerId) {
     const c = await prisma.campaign.findUnique({ where: { id } });
@@ -411,11 +419,11 @@ export const db = {
   async dueCampaigns(nowMs) {
     return prisma.campaign.findMany({
       where: { status: "scheduled", scheduledFor: { lte: new Date(nowMs) } },
-      include: { event: { select: { id: true, title: true } } },
+      include: { event: { select: { id: true, title: true } }, venue: { select: { id: true, name: true } } },
     });
   },
-  async markCampaignSent(id) {
-    await prisma.campaign.update({ where: { id }, data: { status: "sent", sentAt: new Date() } });
+  async markCampaignSent(id, recipientCount) {
+    await prisma.campaign.update({ where: { id }, data: { status: "sent", sentAt: new Date(), recipientCount: recipientCount ?? undefined } });
   },
 
   // ---- capacity: atomic, conditional increments (no read-then-write race) ----

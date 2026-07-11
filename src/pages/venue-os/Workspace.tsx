@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
-import { api, type Venue, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput } from "../../api";
+import { api, type Venue, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment } from "../../api";
 import { useAsync } from "../../hooks";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
 
@@ -17,6 +17,7 @@ const VENUE_TABS = [
   { key: "calendar", label: "Calendar", icon: "calendar" },
   { key: "tables", label: "Tables", icon: "grid-2x2" },
   { key: "guests", label: "Guests", icon: "user" },
+  { key: "marketing", label: "Marketing", icon: "megaphone" },
   { key: "analytics", label: "Analytics", icon: "bar-chart" },
   { key: "hours", label: "Hours", icon: "clock" },
 ] as const;
@@ -80,6 +81,7 @@ function VenueBody({ tab, venue }: { tab: VenueTabKey; venue: OwnedVenue }) {
   if (tab === "calendar") return <VenueCalendar rows={rows} loading={loading} />;
   if (tab === "tables") return <VenueTables venueId={venue.id} />;
   if (tab === "guests") return <VenueGuests venueId={venue.id} rows={rows} />;
+  if (tab === "marketing") return <VenueMarketing venueId={venue.id} />;
   if (tab === "analytics") return <VenueAnalyticsPanel venueId={venue.id} />;
   return <VenueAvailabilityEditor venue={venue} />;
 }
@@ -302,6 +304,7 @@ function VenueGuests({ venueId, rows }: { venueId: string; rows: VenueReservatio
   ).sort((a, b) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime());
 
   const noteFor = (email: string) => notesData?.find((n) => n.guestEmail.toLowerCase() === email.toLowerCase())?.note || "";
+  const tagsFor = (email: string) => notesData?.find((n) => n.guestEmail.toLowerCase() === email.toLowerCase())?.tags || [];
 
   return (
     <>
@@ -316,6 +319,7 @@ function VenueGuests({ venueId, rows }: { venueId: string; rows: VenueReservatio
                 <i className="icon-user" />
                 <span style={{ flex: 1 }}>
                   {g.name} <small style={{ color: "var(--text-3)" }}>· {g.email}</small>
+                  {tagsFor(g.email).map((t) => <span key={t} className="chip" style={{ marginLeft: 6, padding: "1px 8px", fontSize: 11 }}>{t}</span>)}
                   <br />
                   <small style={{ color: "var(--text-3)" }}>
                     {g.visits} visit{g.visits === 1 ? "" : "s"}{g.noShows > 0 ? ` · ${g.noShows} no-show${g.noShows === 1 ? "" : "s"}` : ""} · last {g.lastVisit.slice(0, 10)}
@@ -326,7 +330,7 @@ function VenueGuests({ venueId, rows }: { venueId: string; rows: VenueReservatio
                 </button>
               </div>
               {expanded === g.email && (
-                <GuestDetail venueId={venueId} email={g.email} reservations={g.reservations} note={noteFor(g.email)} onNoteSaved={reload} />
+                <GuestDetail venueId={venueId} email={g.email} reservations={g.reservations} note={noteFor(g.email)} tags={tagsFor(g.email)} onNoteSaved={reload} />
               )}
             </li>
           ))}
@@ -336,16 +340,19 @@ function VenueGuests({ venueId, rows }: { venueId: string; rows: VenueReservatio
   );
 }
 
-function GuestDetail({ venueId, email, reservations, note, onNoteSaved }: {
-  venueId: string; email: string; reservations: VenueReservationRow[]; note: string; onNoteSaved: () => void;
+function GuestDetail({ venueId, email, reservations, note, tags, onNoteSaved }: {
+  venueId: string; email: string; reservations: VenueReservationRow[]; note: string; tags: string[]; onNoteSaved: () => void;
 }) {
   const [text, setText] = useState(note);
+  const [tagsText, setTagsText] = useState(tags.join(", "));
   const [saving, setSaving] = useState(false);
   useEffect(() => { setText(note); }, [note]);
+  useEffect(() => { setTagsText(tags.join(", ")); }, [tags]);
 
   async function save() {
     setSaving(true);
-    try { await api.setVenueGuestNote(venueId, email, text); onNoteSaved(); } finally { setSaving(false); }
+    const parsedTags = tagsText.split(",").map((t) => t.trim()).filter(Boolean);
+    try { await api.setVenueGuestNote(venueId, email, text, parsedTags); onNoteSaved(); } finally { setSaving(false); }
   }
 
   return (
@@ -357,9 +364,136 @@ function GuestDetail({ venueId, email, reservations, note, onNoteSaved }: {
           </small>
         ))}
       </div>
+      <input placeholder="Tags, comma-separated (VIP, regular, allergy: nuts…)" value={tagsText} onChange={(e) => setTagsText(e.target.value)} />
       <textarea rows={2} placeholder="Notes on this guest (allergies, preferences, VIP…)" value={text} onChange={(e) => setText(e.target.value)} />
-      <button className="btn glass sm" style={{ width: "auto" }} onClick={save} disabled={saving}>{saving ? "Saving…" : "Save note"}</button>
+      <button className="btn glass sm" style={{ width: "auto" }} onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
     </div>
+  );
+}
+
+const SEGMENT_OPTIONS: { key: VenueSegment["type"]; label: string }[] = [
+  { key: "all", label: "All guests" },
+  { key: "new", label: "First-time guests" },
+  { key: "inactive", label: "Haven't visited recently" },
+  { key: "tag", label: "By tag" },
+];
+
+// ---- Marketing: send a campaign to a real segment of a venue's guests
+// (reusing reservation history + VenueGuestNote tags — no fabricated
+// audience), with a live recipient-count preview before sending, and a
+// history list of what's gone out. Scheduling reuses the same Campaign
+// row + runCampaignScan flow the event side already has.
+function VenueMarketing({ venueId }: { venueId: string }) {
+  const { data: campaigns, loading, reload } = useAsync(() => api.venueCampaigns(venueId), [venueId]);
+  const [segmentType, setSegmentType] = useState<VenueSegment["type"]>("all");
+  const [tag, setTag] = useState("");
+  const [days, setDays] = useState("60");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [scheduleFor, setScheduleFor] = useState("");
+  const [preview, setPreview] = useState<{ count: number; sample: string[] } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState("");
+  const [result, setResult] = useState("");
+
+  const segment: VenueSegment = { type: segmentType, tag: segmentType === "tag" ? tag : undefined, days: segmentType === "inactive" ? Number(days) || 60 : undefined };
+
+  async function loadPreview() {
+    if (segmentType === "tag" && !tag.trim()) { setPreview(null); return; }
+    setPreviewing(true);
+    try { setPreview(await api.venueSegmentPreview(venueId, segment)); } finally { setPreviewing(false); }
+  }
+  useEffect(() => { loadPreview(); }, [segmentType, tag, days]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function send() {
+    if (!subject.trim() || !message.trim()) { setErr("Subject and message are required."); return; }
+    setSending(true); setErr(""); setResult("");
+    try {
+      const res = await api.createVenueCampaign(venueId, {
+        subject: subject.trim(), message: message.trim(), segment,
+        scheduledFor: scheduleFor ? new Date(scheduleFor).toISOString() : undefined,
+      });
+      setResult(res.scheduled ? "Scheduled." : `Sent to ${res.emailed ?? 0} of ${res.recipients ?? 0} guests.`);
+      setSubject(""); setMessage(""); setScheduleFor("");
+      reload();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't send that campaign.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function cancel(campaignId: string) {
+    await api.cancelVenueCampaign(venueId, campaignId);
+    reload();
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "4px 0 8px" }}><i className="icon-megaphone" /> New campaign</p>
+      <div className="dash-card" style={{ padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div>
+          <label style={{ fontSize: 12.5, color: "var(--text-2)", display: "block", marginBottom: 6 }}>Audience</label>
+          <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {SEGMENT_OPTIONS.map((o) => (
+              <button key={o.key} className={"chip" + (segmentType === o.key ? " on" : "")} onClick={() => setSegmentType(o.key)}>{o.label}</button>
+            ))}
+          </div>
+          {segmentType === "tag" && (
+            <input style={{ marginTop: 8 }} placeholder="Tag (e.g. VIP)" value={tag} onChange={(e) => setTag(e.target.value)} />
+          )}
+          {segmentType === "inactive" && (
+            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 13 }}>Haven't visited in</span>
+              <input type="number" style={{ width: 70 }} value={days} onChange={(e) => setDays(e.target.value)} />
+              <span style={{ fontSize: 13 }}>days</span>
+            </div>
+          )}
+          <p style={{ fontSize: 12.5, color: "var(--text-2)", marginTop: 8 }}>
+            {previewing ? "Checking…" : preview ? `${preview.count} guest${preview.count === 1 ? "" : "s"}${preview.sample.length ? ` — e.g. ${preview.sample.join(", ")}` : ""}` : "—"}
+          </p>
+        </div>
+
+        <input placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+        <textarea rows={4} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
+        <div>
+          <label style={{ fontSize: 12.5, color: "var(--text-2)", display: "block", marginBottom: 6 }}>Send now, or schedule for later</label>
+          <input type="datetime-local" value={scheduleFor} onChange={(e) => setScheduleFor(e.target.value)} />
+        </div>
+
+        {err && <p className="errline">{err}</p>}
+        {result && <p className="hint">{result}</p>}
+        <button className="btn glass" onClick={send} disabled={sending || !preview?.count}>
+          {sending ? "Sending…" : scheduleFor ? "Schedule campaign" : `Send to ${preview?.count ?? 0} guest${preview?.count === 1 ? "" : "s"}`}
+        </button>
+      </div>
+
+      <p className="hint" style={{ margin: "4px 0 8px" }}>History</p>
+      {loading ? (
+        <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+      ) : !campaigns?.length ? (
+        <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No campaigns sent yet.</p>
+      ) : (
+        <ul className="steps">
+          {campaigns.map((c) => (
+            <li key={c.id}>
+              <i className="icon-megaphone" />
+              <span>
+                {c.subject || "(no subject)"} <span className={"ec-badge " + (c.status === "sent" ? "confirmed" : c.status === "cancelled" ? "out" : "")}>{c.status}</span>
+                <br />
+                <small style={{ color: "var(--text-3)" }}>
+                  {c.status === "sent" ? `Sent ${new Date(c.sentAt!).toLocaleDateString()} · ${c.recipientCount ?? "?"} recipients` : c.status === "scheduled" ? `Scheduled for ${new Date(c.scheduledFor!).toLocaleString()}` : "Cancelled"}
+                </small>
+              </span>
+              {c.status === "scheduled" && (
+                <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => cancel(c.id)}>Cancel</button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 

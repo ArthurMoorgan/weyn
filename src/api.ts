@@ -41,13 +41,22 @@ export interface Campaign {
   id: string;
   organizerId: string;
   eventId: string | null;
+  venueId?: string | null;
   channel: string;
   subject: string | null;
   message: string;
+  segment?: VenueSegment | null;
   scheduledFor: string | null;
   sentAt: string | null;
   status: "scheduled" | "sent" | "cancelled";
+  recipientCount?: number | null;
   createdAt: string;
+}
+
+export interface VenueSegment {
+  type: "all" | "tag" | "inactive" | "new";
+  tag?: string;
+  days?: number;
 }
 
 export interface Weyn {
@@ -371,6 +380,7 @@ export interface VenueGuestNote {
   venueId: string;
   guestEmail: string;
   note: string;
+  tags: string[];
   updatedAt: string;
 }
 
@@ -1409,10 +1419,27 @@ export const api = {
     return fetch(`${API_BASE}/api/venues/${venueId}/guest-notes`, { headers: { ...(await authHeaders()) } })
       .then((r) => json<VenueGuestNote[]>(r));
   },
-  async setVenueGuestNote(venueId: string, guestEmail: string, note: string): Promise<VenueGuestNote | { deleted: true }> {
+  async setVenueGuestNote(venueId: string, guestEmail: string, note: string, tags?: string[]): Promise<VenueGuestNote | { deleted: true }> {
     return fetch(`${API_BASE}/api/venues/${venueId}/guest-notes/${encodeURIComponent(guestEmail)}`, {
-      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ note }),
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ note, tags }),
     }).then((r) => json<VenueGuestNote | { deleted: true }>(r));
+  },
+
+  // ---- venue marketing: segment-targeted campaigns to a venue's guests ----
+  async venueSegmentPreview(venueId: string, segment: VenueSegment): Promise<{ count: number; sample: string[] }> {
+    const qs = new URLSearchParams({ type: segment.type, ...(segment.tag ? { tag: segment.tag } : {}), ...(segment.days ? { days: String(segment.days) } : {}) });
+    return fetch(`${API_BASE}/api/venues/${venueId}/segment-preview?${qs}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async createVenueCampaign(venueId: string, input: { subject: string; message: string; segment: VenueSegment; scheduledFor?: string }): Promise<{ ok: true; scheduled: boolean; recipients?: number; emailed?: number; campaign: Campaign }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/campaigns`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async venueCampaigns(venueId: string): Promise<Campaign[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/campaigns`, { headers: await authHeaders() }).then((r) => json<Campaign[]>(r));
+  },
+  async cancelVenueCampaign(venueId: string, campaignId: string): Promise<Campaign> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/campaigns/${campaignId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json<Campaign>(r));
   },
 
   // ---- floor plans: venue side (table/seat picking) ----
