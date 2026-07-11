@@ -1123,6 +1123,23 @@ export const api = {
   getVenue(id: string): Promise<VenueDetailResponse> {
     return fetch(`${API_BASE}/api/venues/${id}`).then((r) => json<VenueDetailResponse>(r));
   },
+  async updateVenueProfile(id: string, input: {
+    name?: string; description?: string; category?: VenueCategory; venue?: string; area?: string;
+    priceRange?: PriceRange | ""; tags?: string[]; coverImage?: File; photos?: File[]; removePhotos?: string[];
+  }): Promise<Venue> {
+    const form = new FormData();
+    if (input.name !== undefined) form.set("name", input.name);
+    if (input.description !== undefined) form.set("description", input.description);
+    if (input.category !== undefined) form.set("category", input.category);
+    if (input.venue !== undefined) form.set("venue", input.venue);
+    if (input.area !== undefined) form.set("area", input.area);
+    if (input.priceRange !== undefined) form.set("priceRange", input.priceRange);
+    if (input.tags !== undefined) form.set("tags", JSON.stringify(input.tags));
+    if (input.removePhotos?.length) form.set("removePhotos", JSON.stringify(input.removePhotos));
+    if (input.coverImage) form.set("coverImage", input.coverImage);
+    for (const f of input.photos || []) form.append("photos", f);
+    return fetch(`${API_BASE}/api/venues/${id}`, { method: "PUT", headers: await authHeaders(), body: form }).then((r) => json<Venue>(r));
+  },
   createReservation(venueId: string, input: ReservationInput): Promise<Reservation> {
     return fetch(`${API_BASE}/api/venues/${venueId}/reservations`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),

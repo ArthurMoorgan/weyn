@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
-import { api, type Venue, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment } from "../../api";
+import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment } from "../../api";
 import { useAsync } from "../../hooks";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
 
@@ -16,6 +16,7 @@ const VENUE_TABS = [
   { key: "reservations", label: "Reservations", icon: "calendar-check" },
   { key: "calendar", label: "Calendar", icon: "calendar" },
   { key: "tables", label: "Tables", icon: "grid-2x2" },
+  { key: "venue", label: "Venue", icon: "store" },
   { key: "guests", label: "Guests", icon: "user" },
   { key: "marketing", label: "Marketing", icon: "megaphone" },
   { key: "analytics", label: "Analytics", icon: "bar-chart" },
@@ -80,6 +81,7 @@ function VenueBody({ tab, venue }: { tab: VenueTabKey; venue: OwnedVenue }) {
   if (tab === "reservations") return <VenueReservationsTab venueId={venue.id} rows={rows} loading={loading} error={error} setStatus={setStatus} onCreated={reload} />;
   if (tab === "calendar") return <VenueCalendar rows={rows} loading={loading} />;
   if (tab === "tables") return <VenueTables venueId={venue.id} />;
+  if (tab === "venue") return <VenueProfileEditor venue={venue} />;
   if (tab === "guests") return <VenueGuests venueId={venue.id} rows={rows} />;
   if (tab === "marketing") return <VenueMarketing venueId={venue.id} />;
   if (tab === "analytics") return <VenueAnalyticsPanel venueId={venue.id} />;
@@ -540,6 +542,112 @@ function VenueAnalyticsPanel({ venueId }: { venueId: string }) {
         })}
       </div>
     </>
+  );
+}
+
+// ---- Venue: the business-profile editor. Every field here already exists
+// on the Venue model — this is the first UI that can ever change it after
+// the venue-application was approved (previously permanently frozen at
+// whatever the application captured).
+function VenueProfileEditor({ venue }: { venue: OwnedVenue }) {
+  const [name, setName] = useState(venue.name);
+  const [description, setDescription] = useState(venue.description);
+  const [category, setCategory] = useState<VenueCategory>(venue.category);
+  const [address, setAddress] = useState(venue.venue);
+  const [area, setArea] = useState(venue.area);
+  const [priceRange, setPriceRange] = useState<PriceRange | "">(venue.priceRange || "");
+  const [tagsText, setTagsText] = useState(venue.tags.join(", "));
+  const [photos, setPhotos] = useState(venue.photos);
+  const [removePhotos, setRemovePhotos] = useState<string[]>([]);
+  const [newCover, setNewCover] = useState<File | null>(null);
+  const [newPhotos, setNewPhotos] = useState<File[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState("");
+
+  const coverPreview = newCover ? URL.createObjectURL(newCover) : venue.coverImage;
+  const visiblePhotos = photos.filter((p) => !removePhotos.includes(p));
+
+  function toggleRemovePhoto(url: string) {
+    setRemovePhotos((prev) => (prev.includes(url) ? prev.filter((p) => p !== url) : [...prev, url]));
+    setSaved(false);
+  }
+
+  async function save() {
+    setSaving(true); setErr(""); setSaved(false);
+    try {
+      const updated = await api.updateVenueProfile(venue.id, {
+        name, description, category, venue: address, area,
+        priceRange, tags: tagsText.split(",").map((t) => t.trim()).filter(Boolean),
+        coverImage: newCover || undefined, photos: newPhotos, removePhotos,
+      });
+      setPhotos(updated.photos);
+      setRemovePhotos([]); setNewPhotos([]); setNewCover(null);
+      setSaved(true);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't save your changes.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <p className="hint" style={{ margin: "4px 0 8px" }}><i className="icon-store" /> Business profile</p>
+
+      <div className="dash-card" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div>
+          <label style={{ fontSize: 12.5, color: "var(--text-2)", display: "block", marginBottom: 6 }}>Cover photo</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={coverPreview ? { backgroundImage: `url(${coverPreview})`, width: 72, height: 72, borderRadius: 12, backgroundSize: "cover", backgroundPosition: "center" } : { width: 72, height: 72, borderRadius: 12, background: "var(--surface-2)", display: "grid", placeItems: "center" }}>
+              {!coverPreview && <i className="icon-store" />}
+            </div>
+            <input type="file" accept="image/*" onChange={(e) => { setNewCover(e.target.files?.[0] || null); setSaved(false); }} />
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 12.5, color: "var(--text-2)", display: "block", marginBottom: 6 }}>Gallery photos</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+            {visiblePhotos.map((p) => (
+              <div key={p} style={{ position: "relative" }}>
+                <div style={{ backgroundImage: `url(${p})`, width: 60, height: 60, borderRadius: 8, backgroundSize: "cover", backgroundPosition: "center", opacity: removePhotos.includes(p) ? 0.35 : 1 }} />
+                <button type="button" onClick={() => toggleRemovePhoto(p)} style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: "var(--surface-1)", border: "1px solid var(--glass-line)" }}>
+                  <i className="icon-x" style={{ fontSize: 11 }} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <input type="file" accept="image/*" multiple onChange={(e) => { setNewPhotos(Array.from(e.target.files || [])); setSaved(false); }} />
+        </div>
+
+        <label>Name<input value={name} onChange={(e) => { setName(e.target.value); setSaved(false); }} /></label>
+        <label>Description<textarea rows={3} value={description} onChange={(e) => { setDescription(e.target.value); setSaved(false); }} /></label>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <label>Category
+            <select value={category} onChange={(e) => { setCategory(e.target.value as VenueCategory); setSaved(false); }}>
+              {VENUE_CATS.filter((c) => c.key !== "all").map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+          </label>
+          <label>Price range
+            <select value={priceRange} onChange={(e) => { setPriceRange(e.target.value as PriceRange | ""); setSaved(false); }}>
+              <option value="">—</option>
+              <option value="$">$</option>
+              <option value="$$">$$</option>
+              <option value="$$$">$$$</option>
+            </select>
+          </label>
+        </div>
+
+        <label>Address<input value={address} onChange={(e) => { setAddress(e.target.value); setSaved(false); }} /></label>
+        <label>Area<input value={area} onChange={(e) => { setArea(e.target.value); setSaved(false); }} /></label>
+        <label>Tags (comma-separated)<input value={tagsText} onChange={(e) => { setTagsText(e.target.value); setSaved(false); }} placeholder="outdoor, family-friendly, live-music" /></label>
+
+        {err && <p className="errline">{err}</p>}
+        <button className="btn glass" onClick={save} disabled={saving}>{saving ? "Saving…" : saved ? "Saved ✓" : "Save changes"}</button>
+      </div>
+    </div>
   );
 }
 

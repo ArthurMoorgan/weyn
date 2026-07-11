@@ -1779,6 +1779,65 @@ export function createApp(storage) {
     }
   });
 
+  // Owner-editable business profile — everything here already exists on
+  // the Venue model but had no update path post-approval; an owner's
+  // profile/photos/hours/etc. were permanently frozen at whatever the
+  // venue-application captured. Reuses the same magic-byte image
+  // validation as the application upload above.
+  const VENUE_CATEGORIES = ["restaurant", "cafe", "lounge", "rooftop", "beach_club", "experience"];
+  const VENUE_PRICE_RANGES = ["$", "$$", "$$$"];
+  app.put("/api/venues/:id", requireAuth, requireVenueOwner, upload.fields([{ name: "coverImage", maxCount: 1 }, { name: "photos", maxCount: 6 }]), async (req, res) => {
+    try {
+      const b = req.body || {};
+      const data = {};
+      if (b.name !== undefined) data.name = String(b.name).trim().slice(0, 120);
+      if (b.description !== undefined) data.description = String(b.description).trim().slice(0, 2000);
+      if (b.category !== undefined) {
+        if (!VENUE_CATEGORIES.includes(b.category)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `category must be one of: ${VENUE_CATEGORIES.join(", ")}` } });
+        data.category = b.category;
+      }
+      if (b.venue !== undefined) data.venue = String(b.venue).trim().slice(0, 200);
+      if (b.area !== undefined) data.area = String(b.area).trim().slice(0, 100);
+      if (b.priceRange !== undefined) {
+        if (b.priceRange && !VENUE_PRICE_RANGES.includes(b.priceRange)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `priceRange must be one of: ${VENUE_PRICE_RANGES.join(", ")}` } });
+        data.priceRange = b.priceRange || null;
+      }
+      if (b.tags !== undefined) {
+        const tags = typeof b.tags === "string" ? JSON.parse(b.tags) : b.tags;
+        data.tags = Array.isArray(tags) ? tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 20) : [];
+      }
+
+      async function saveIfImage(file) {
+        if (!file) return null;
+        const mime = sniffImageMime(file.buffer);
+        if (!mime) return null;
+        const { url } = await storage.saveImage(file.buffer, EXT_BY_MIME[mime]);
+        return url;
+      }
+      const newCover = await saveIfImage(req.files?.coverImage?.[0]);
+      if (newCover) data.coverImage = newCover;
+
+      const newPhotos = [];
+      for (const f of (req.files?.photos || [])) {
+        const url = await saveIfImage(f);
+        if (url) newPhotos.push(url);
+      }
+      const removePhotos = new Set(
+        b.removePhotos ? (typeof b.removePhotos === "string" ? JSON.parse(b.removePhotos) : b.removePhotos) : []
+      );
+      if (newPhotos.length || removePhotos.size) {
+        const kept = req.venue.photos.filter((p) => !removePhotos.has(p));
+        data.photos = [...kept, ...newPhotos];
+      }
+
+      const updated = await prisma.venue.update({ where: { id: req.venue.id }, data });
+      res.json(updated);
+    } catch (err) {
+      captureError(err, { route: "PUT /api/venues/:id", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/venues/:id/reservations", bookingLimiter, async (req, res) => {
     try {
       const venue = await prisma.venue.findUnique({ where: { id: req.params.id } });
