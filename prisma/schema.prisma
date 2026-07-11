@@ -54,6 +54,7 @@ model User {
   sponsors        Sponsor[]
   vendors         Vendor[]
   automationRules AutomationRule[]
+  workflows       Workflow[]
   goals           OrganizerGoal[]
   messageTemplates MessageTemplate[]
   teamMemberships EventTeamMember[] @relation("TeamMembership")
@@ -594,6 +595,7 @@ model Venue {
   guestNotes    VenueGuestNote[]
   campaigns     Campaign[]
   automationRules AutomationRule[]
+  workflows     Workflow[]
   floorPlan     FloorPlan?
 
   @@index([ownerId])
@@ -1257,6 +1259,60 @@ model AutomationRule {
 
   @@index([organizerId])
   @@index([venueId])
+}
+
+// ============================================================
+// Workflows — the visual node-graph automation builder (venue-scoped for
+// now, mirrors AutomationRule's venueId-only reach above). A graph is
+// trigger node -> condition node(s) -> action node(s), edges expressing
+// "and then" (a condition's children only run if it passes) and fan-out
+// (multiple children off one node all run). Deliberately NOT modeling
+// true if/else branching, loops, approvals, or scheduled/retry execution
+// yet — this is the real, working core (build/save/execute a graph) the
+// rest of the master automation-builder vision would extend, not the
+// whole thing at once.
+// ============================================================
+model Workflow {
+  id          String   @id @default(cuid())
+  organizerId String
+  venueId     String
+  name        String
+  enabled     Boolean  @default(true)
+  // Node shape: {id, type: "trigger"|"condition"|"action", x, y, data: {...}}
+  // — data's shape depends on type, validated server-side at save time
+  // (see server/venue-workflows.js's NODE_SCHEMAS), not by a Prisma enum,
+  // since the set of condition/action kinds is expected to grow.
+  nodes       Json
+  // Edge shape: {id, source, target} — source/target are node ids above.
+  edges       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizer User          @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  venue     Venue         @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  runs      WorkflowRun[]
+
+  @@index([organizerId])
+  @@index([venueId])
+}
+
+// One row per time a workflow's trigger fired — the "execution logs /
+// debug mode" from the master automation-builder prompt. `matchedActions`
+// records which action nodes actually ran (a condition further up the
+// graph may have stopped some branches) so an owner can see exactly why a
+// run did or didn't do what they expected, not just that it ran.
+model WorkflowRun {
+  id              String   @id @default(cuid())
+  workflowId      String
+  trigger         String
+  reservationId   String?
+  matchedActions  Json // array of {nodeId, action, ok, error?}
+  status          String // "success" | "partial" | "failed"
+  createdAt       DateTime @default(now())
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
 }
 
 // ---- Organizer Goals ----

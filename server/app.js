@@ -30,7 +30,7 @@ import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail, organizerTeamInviteEmail, reminderEmail, waitlistWelcomeEmail, waitlistOwnerNotifyEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
 import { resolveVenueSegment } from "./venue-marketing.js";
-import { runVenueWorkflows, VENUE_TRIGGERS, VENUE_ACTIONS } from "./venue-workflows.js";
+import { runVenueWorkflows, validateWorkflowGraph } from "./venue-workflows.js";
 
 // Module-scope (not inside createApp): runCampaignScan/runAutomationScan
 // below are top-level exports, called from a cron/interval outside any
@@ -2410,39 +2410,69 @@ export function createApp(storage) {
     res.json(cancelled);
   });
 
-  // ---- Venue Workflows: trigger -> condition -> action rules, executed
-  // immediately at the trigger (server/venue-workflows.js), not polled. ----
+  // ---- Venue Workflows: the visual node-graph automation builder,
+  // executed immediately at the trigger (server/venue-workflows.js), not
+  // polled. Graph validation happens on every save (create + update), so a
+  // malformed graph never gets persisted only to silently no-op later. ----
   app.get("/api/venues/:id/workflows", requireAuth, requireVenueOwner, async (req, res) => {
-    res.json(await db.listVenueAutomationRules(req.venue.id));
+    res.json(await prisma.workflow.findMany({ where: { venueId: req.venue.id }, orderBy: { createdAt: "desc" } }));
   });
 
   app.post("/api/venues/:id/workflows", requireAuth, requireVenueOwner, async (req, res) => {
     try {
       const name = String(req.body?.name || "").trim();
-      const trigger = req.body?.trigger;
-      const action = req.body?.action;
+      const nodes = req.body?.nodes;
+      const edges = req.body?.edges;
       if (!name) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "name is required" } });
-      if (!VENUE_TRIGGERS.includes(trigger)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `trigger must be one of: ${VENUE_TRIGGERS.join(", ")}` } });
-      if (!VENUE_ACTIONS.includes(action)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `action must be one of: ${VENUE_ACTIONS.join(", ")}` } });
-      const config = req.body?.config && typeof req.body.config === "object" ? req.body.config : {};
-      const rule = await db.createVenueAutomationRule({ organizerId: req.user.id, venueId: req.venue.id, name, trigger, action, config });
-      res.status(201).json(rule);
+      const invalid = validateWorkflowGraph(nodes, edges);
+      if (invalid) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: invalid } });
+      const workflow = await prisma.workflow.create({ data: { organizerId: req.user.id, venueId: req.venue.id, name, nodes, edges } });
+      res.status(201).json(workflow);
     } catch (err) {
       captureError(err, { route: "POST /api/venues/:id/workflows", venueId: req.params.id });
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.patch("/api/venues/:id/workflows/:ruleId", requireAuth, requireVenueOwner, async (req, res) => {
-    const updated = await db.setAutomationRuleEnabled(req.params.ruleId, req.user.id, !!req.body?.enabled);
-    if (!updated) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+  app.put("/api/venues/:id/workflows/:workflowId", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const existing = await prisma.workflow.findUnique({ where: { id: req.params.workflowId } });
+      if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+      const name = req.body?.name !== undefined ? String(req.body.name).trim() : existing.name;
+      const nodes = req.body?.nodes ?? existing.nodes;
+      const edges = req.body?.edges ?? existing.edges;
+      const invalid = validateWorkflowGraph(nodes, edges);
+      if (invalid) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: invalid } });
+      const updated = await prisma.workflow.update({ where: { id: existing.id }, data: { name, nodes, edges } });
+      res.json(updated);
+    } catch (err) {
+      captureError(err, { route: "PUT /api/venues/:id/workflows/:workflowId", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/venues/:id/workflows/:workflowId", requireAuth, requireVenueOwner, async (req, res) => {
+    const existing = await prisma.workflow.findUnique({ where: { id: req.params.workflowId } });
+    if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+    const updated = await prisma.workflow.update({ where: { id: existing.id }, data: { enabled: !!req.body?.enabled } });
     res.json(updated);
   });
 
-  app.delete("/api/venues/:id/workflows/:ruleId", requireAuth, requireVenueOwner, async (req, res) => {
-    const deleted = await db.deleteAutomationRule(req.params.ruleId, req.user.id);
-    if (!deleted) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+  app.delete("/api/venues/:id/workflows/:workflowId", requireAuth, requireVenueOwner, async (req, res) => {
+    const existing = await prisma.workflow.findUnique({ where: { id: req.params.workflowId } });
+    if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+    await prisma.workflow.delete({ where: { id: existing.id } });
     res.json({ ok: true });
+  });
+
+  // Execution log — the "debug mode" from the master automation-builder
+  // prompt: which action nodes actually ran (and whether each succeeded)
+  // for every time this workflow's trigger fired.
+  app.get("/api/venues/:id/workflows/:workflowId/runs", requireAuth, requireVenueOwner, async (req, res) => {
+    const existing = await prisma.workflow.findUnique({ where: { id: req.params.workflowId } });
+    if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+    const runs = await prisma.workflowRun.findMany({ where: { workflowId: existing.id }, orderBy: { createdAt: "desc" }, take: 50 });
+    res.json(runs);
   });
 
   // ============================================================

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
-import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueWorkflowAction } from "../../api";
+import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType } from "../../api";
 import { useAsync } from "../../hooks";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
+import WorkflowCanvas from "../../components/WorkflowCanvas";
 
 type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
 
@@ -513,144 +514,305 @@ const TRIGGER_LABELS: Record<VenueWorkflowTrigger, string> = {
   reservation_cancelled: "Reservation cancelled",
   guest_no_show: "Guest no-shows",
 };
+const CONDITION_FIELD_LABELS: Record<VenueConditionField, string> = {
+  partySize: "Party size",
+  guestTag: "Guest tag",
+};
 const ACTION_LABELS: Record<VenueWorkflowAction, string> = {
   notify_owner: "Notify me (email)",
   tag_guest: "Tag the guest",
   send_guest_email: "Email the guest",
 };
 
-// ---- Workflows: trigger -> condition -> action rules, run the instant the
-// trigger actually happens (see server/venue-workflows.js) — not a visual
-// drag-and-drop canvas (that's a much bigger build), but a real, working
-// "if X, then Y" rule engine. e.g. the classic case: trigger "Reservation
-// created" + condition "guest already tagged VIP" + action "Notify me" —
-// covers the same real need as a fancier canvas would, just as a form.
-function VenueWorkflows({ venueId }: { venueId: string }) {
-  const { data: rules, loading, reload } = useAsync(() => api.venueWorkflows(venueId), [venueId]);
-  const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState("");
-  const [trigger, setTrigger] = useState<VenueWorkflowTrigger>("reservation_created");
-  const [action, setAction] = useState<VenueWorkflowAction>("notify_owner");
-  const [minPartySize, setMinPartySize] = useState("");
-  const [requireTag, setRequireTag] = useState("");
-  const [tag, setTag] = useState("");
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
+let wfNodeCounter = 0;
+function newNodeId() { wfNodeCounter += 1; return `node-${Date.now()}-${wfNodeCounter}`; }
 
-  async function create() {
-    if (!name.trim()) { setErr("Give this workflow a name."); return; }
-    if (action === "tag_guest" && !tag.trim()) { setErr("Choose a tag to apply."); return; }
-    if (action !== "tag_guest" && !message.trim()) { setErr("Write the message it should send."); return; }
-    setSaving(true); setErr("");
+function defaultDataFor(type: WFNodeType): Record<string, any> {
+  if (type === "trigger") return { trigger: "reservation_created" };
+  if (type === "condition") return { field: "partySize", op: ">=", value: "" };
+  return { action: "notify_owner", config: {} };
+}
+
+function nodeLabel(n: WFNode): { title: string; subtitle: string } {
+  if (n.type === "trigger") return { title: TRIGGER_LABELS[n.data.trigger as VenueWorkflowTrigger] || n.data.trigger, subtitle: "Trigger" };
+  if (n.type === "condition") {
+    const field = CONDITION_FIELD_LABELS[n.data.field as VenueConditionField] || n.data.field;
+    return { title: `${field} ${n.data.op} ${n.data.value}`, subtitle: "Condition" };
+  }
+  const cfg = n.data.config || {};
+  const subtitle = n.data.action === "tag_guest" ? (cfg.tag || "no tag set") : (cfg.subject || "no subject set");
+  return { title: ACTION_LABELS[n.data.action as VenueWorkflowAction] || n.data.action, subtitle };
+}
+
+// ---- Workflows: the visual node-graph automation builder — trigger ->
+// condition(s) -> action(s), executed the instant the trigger actually
+// happens (see server/venue-workflows.js). Deliberately not modeling true
+// if/else branching, loops, or scheduled/retry execution yet — this is
+// the real, working core of a graph editor (draggable nodes, click-to-
+// connect edges, persisted + executed server-side), which the rest of
+// the master automation-builder vision would extend.
+function VenueWorkflows({ venueId }: { venueId: string }) {
+  const { data: workflows, loading, reload } = useAsync(() => api.venueWorkflows(venueId), [venueId]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  async function createNew() {
+    setCreating(true);
     try {
-      await api.createVenueWorkflow(venueId, {
-        name: name.trim(), trigger, action,
-        config: {
-          ...(minPartySize ? { minPartySize: Number(minPartySize) } : {}),
-          ...(requireTag.trim() ? { requireTag: requireTag.trim() } : {}),
-          ...(action === "tag_guest" ? { tag: tag.trim() } : {}),
-          ...(action !== "tag_guest" ? { subject: subject.trim(), message: message.trim() } : {}),
-        },
-      });
-      setShowForm(false);
-      setName(""); setMinPartySize(""); setRequireTag(""); setTag(""); setSubject(""); setMessage("");
+      const trigger: WFNode = { id: newNodeId(), type: "trigger", x: 30, y: 180, data: defaultDataFor("trigger") };
+      const wf = await api.createVenueWorkflow(venueId, { name: "New workflow", nodes: [trigger], edges: [] });
       reload();
-    } catch (e: any) {
-      setErr(e.message || "Couldn't create that workflow.");
+      setEditingId(wf.id);
     } finally {
-      setSaving(false);
+      setCreating(false);
     }
   }
 
-  async function toggle(rule: VenueWorkflow) {
-    await api.setVenueWorkflowEnabled(venueId, rule.id, !rule.enabled);
+  async function toggle(wf: VenueWorkflow) {
+    await api.setVenueWorkflowEnabled(venueId, wf.id, !wf.enabled);
     reload();
   }
 
-  async function remove(rule: VenueWorkflow) {
-    await api.deleteVenueWorkflow(venueId, rule.id);
+  async function remove(wf: VenueWorkflow) {
+    await api.deleteVenueWorkflow(venueId, wf.id);
     reload();
+  }
+
+  const editing = workflows?.find((w) => w.id === editingId);
+  if (editing) {
+    return <WorkflowEditor venueId={venueId} workflow={editing} onDone={() => { setEditingId(null); reload(); }} />;
   }
 
   return (
     <>
       <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span><i className="icon-zap" /> Workflows</span>
-        <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowForm((v) => !v)}>
-          <i className="icon-plus" /> {showForm ? "Cancel" : "New workflow"}
+        <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={createNew} disabled={creating}>
+          <i className="icon-plus" /> New workflow
         </button>
       </p>
 
-      {showForm && (
-        <div className="dash-card" style={{ padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div className="field" style={{ margin: 0 }}>
-            <label>Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Notify me about VIP bookings" />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Trigger</label>
-              <select value={trigger} onChange={(e) => setTrigger(e.target.value as VenueWorkflowTrigger)}>
-                {Object.entries(TRIGGER_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0 }}>
-              <label>Action</label>
-              <select value={action} onChange={(e) => setAction(e.target.value as VenueWorkflowAction)}>
-                {Object.entries(ACTION_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <p className="hint" style={{ margin: 0 }}>Conditions (optional — leave blank to always run)</p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <input className="toolbar-field" type="number" placeholder="Min party size" value={minPartySize} onChange={(e) => setMinPartySize(e.target.value)} />
-            <input className="toolbar-field" placeholder="Guest already tagged (e.g. VIP)" value={requireTag} onChange={(e) => setRequireTag(e.target.value)} />
-          </div>
-
-          {action === "tag_guest" ? (
-            <input className="toolbar-field" placeholder="Tag to apply (e.g. Repeat guest)" value={tag} onChange={(e) => setTag(e.target.value)} />
-          ) : (
-            <>
-              <input className="toolbar-field" placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
-              <textarea className="toolbar-field" rows={3} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
-            </>
-          )}
-
-          {err && <p className="errline">{err}</p>}
-          <button className="btn glass" onClick={create} disabled={saving}>{saving ? "Saving…" : "Create workflow"}</button>
-        </div>
-      )}
-
       {loading ? (
         <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
-      ) : !rules?.length ? (
+      ) : !workflows?.length ? (
         <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No workflows yet — create one above.</p>
       ) : (
         <ul className="steps">
-          {rules.map((r) => (
-            <li key={r.id}>
-              <i className="icon-zap" />
-              <span>
-                {r.name} <span className={"ec-badge " + (r.enabled ? "confirmed" : "")}>{r.enabled ? "on" : "off"}</span>
-                <br />
-                <small style={{ color: "var(--text-3)" }}>
-                  {TRIGGER_LABELS[r.trigger as VenueWorkflowTrigger] || r.trigger} → {ACTION_LABELS[r.action as VenueWorkflowAction] || r.action}
-                  {r.lastRunAt ? ` · last ran ${new Date(r.lastRunAt).toLocaleDateString()}` : ""}
-                </small>
-              </span>
-              <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
-                <button className="btn glass sm" onClick={() => toggle(r)}>{r.enabled ? "Disable" : "Enable"}</button>
-                <button className="btn glass sm" onClick={() => remove(r)}><i className="icon-x" /></button>
-              </div>
-            </li>
-          ))}
+          {workflows.map((w) => {
+            const trigger = w.nodes.find((n) => n.type === "trigger");
+            const actionCount = w.nodes.filter((n) => n.type === "action").length;
+            return (
+              <li key={w.id}>
+                <i className="icon-zap" />
+                <span>
+                  {w.name} <span className={"ec-badge " + (w.enabled ? "confirmed" : "")}>{w.enabled ? "on" : "off"}</span>
+                  <br />
+                  <small style={{ color: "var(--text-3)" }}>
+                    {trigger ? TRIGGER_LABELS[trigger.data.trigger as VenueWorkflowTrigger] || trigger.data.trigger : "no trigger"} · {actionCount} action{actionCount === 1 ? "" : "s"}
+                  </small>
+                </span>
+                <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                  <button className="btn glass sm" onClick={() => setEditingId(w.id)}>Edit</button>
+                  <button className="btn glass sm" onClick={() => toggle(w)}>{w.enabled ? "Disable" : "Enable"}</button>
+                  <button className="btn glass sm" onClick={() => remove(w)}><i className="icon-x" /></button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </>
+  );
+}
+
+function WorkflowEditor({ venueId, workflow, onDone }: { venueId: string; workflow: VenueWorkflow; onDone: () => void }) {
+  const [name, setName] = useState(workflow.name);
+  const [nodes, setNodes] = useState<WFNode[]>(workflow.nodes);
+  const [edges, setEdges] = useState<WFEdge[]>(workflow.edges);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [showRuns, setShowRuns] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const [dirty, setDirty] = useState(false);
+
+  const selected = nodes.find((n) => n.id === selectedNodeId) || null;
+  let nextY = 40 + nodes.length * 90;
+
+  function addNode(type: WFNodeType) {
+    const n: WFNode = { id: newNodeId(), type, x: 280 + (nodes.length % 3) * 200, y: nextY % (CANVAS_H_APPROX - 80), data: defaultDataFor(type) };
+    setNodes([...nodes, n]);
+    setSelectedNodeId(n.id);
+    setDirty(true);
+  }
+
+  function updateSelectedData(patch: Record<string, any>) {
+    if (!selected) return;
+    setNodes(nodes.map((n) => (n.id === selected.id ? { ...n, data: { ...n.data, ...patch } } : n)));
+    setDirty(true);
+  }
+
+  function deleteSelected() {
+    if (!selected) return;
+    if (selected.type === "trigger") { setErr("A workflow needs its trigger node — delete the whole workflow instead if you don't need this rule."); return; }
+    setNodes(nodes.filter((n) => n.id !== selected.id));
+    setEdges(edges.filter((e) => e.source !== selected.id && e.target !== selected.id));
+    setSelectedNodeId(null);
+    setDirty(true);
+  }
+
+  async function save() {
+    setSaving(true); setErr("");
+    try {
+      await api.saveVenueWorkflow(venueId, workflow.id, { name, nodes, edges });
+      setDirty(false);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't save — check every condition/action node is filled in.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <button className="btn glass sm" style={{ width: "auto" }} onClick={onDone}><i className="icon-arrow-left" /> Back</button>
+        <input className="toolbar-field" style={{ flex: 1 }} value={name} onChange={(e) => { setName(e.target.value); setDirty(true); }} />
+        <button className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowRuns((v) => !v)}>{showRuns ? "Canvas" : "Run history"}</button>
+      </div>
+
+      {showRuns ? (
+        <WorkflowRunsPanel venueId={venueId} workflowId={workflow.id} />
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <button className="btn glass sm" style={{ width: "auto" }} onClick={() => addNode("condition")}><i className="icon-plus" /> Condition</button>
+            <button className="btn glass sm" style={{ width: "auto" }} onClick={() => addNode("action")}><i className="icon-plus" /> Action</button>
+          </div>
+
+          <WorkflowCanvas
+            nodes={nodes} edges={edges}
+            onNodesChange={(n) => { setNodes(n); setDirty(true); }}
+            onEdgesChange={(e) => { setEdges(e); setDirty(true); }}
+            onSelectNode={setSelectedNodeId} selectedNodeId={selectedNodeId}
+            renderLabel={nodeLabel}
+          />
+
+          {selected && (
+            <div className="dash-card" style={{ padding: 14, marginTop: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <p className="hint" style={{ margin: 0 }}>{selected.type === "trigger" ? "Trigger" : selected.type === "condition" ? "Condition" : "Action"}</p>
+                {selected.type !== "trigger" && <button className="btn glass sm" style={{ width: "auto" }} onClick={deleteSelected}><i className="icon-x" /> Remove node</button>}
+              </div>
+
+              {selected.type === "trigger" && (
+                <div className="field" style={{ margin: 0 }}>
+                  <label>When</label>
+                  <select value={selected.data.trigger} onChange={(e) => updateSelectedData({ trigger: e.target.value })}>
+                    {Object.entries(TRIGGER_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {selected.type === "condition" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Field</label>
+                    <select value={selected.data.field} onChange={(e) => updateSelectedData({ field: e.target.value, op: e.target.value === "guestTag" ? "has" : ">=" })}>
+                      {Object.entries(CONDITION_FIELD_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Comparison</label>
+                    {selected.data.field === "guestTag" ? (
+                      <select value={selected.data.op} onChange={(e) => updateSelectedData({ op: e.target.value })}>
+                        <option value="has">has tag</option>
+                        <option value="not_has">doesn't have tag</option>
+                      </select>
+                    ) : (
+                      <select value={selected.data.op} onChange={(e) => updateSelectedData({ op: e.target.value })}>
+                        <option value=">=">≥</option>
+                        <option value="<=">≤</option>
+                        <option value="==">=</option>
+                      </select>
+                    )}
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Value</label>
+                    <input value={selected.data.value} onChange={(e) => updateSelectedData({ value: e.target.value })} />
+                  </div>
+                </div>
+              )}
+
+              {selected.type === "action" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Do</label>
+                    <select value={selected.data.action} onChange={(e) => updateSelectedData({ action: e.target.value, config: {} })}>
+                      {Object.entries(ACTION_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                    </select>
+                  </div>
+                  {selected.data.action === "tag_guest" ? (
+                    <div className="field" style={{ margin: 0 }}>
+                      <label>Tag to apply</label>
+                      <input value={selected.data.config?.tag || ""} onChange={(e) => updateSelectedData({ config: { ...selected.data.config, tag: e.target.value } })} placeholder="e.g. Repeat guest" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label>Subject</label>
+                        <input value={selected.data.config?.subject || ""} onChange={(e) => updateSelectedData({ config: { ...selected.data.config, subject: e.target.value } })} />
+                      </div>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label>Message</label>
+                        <textarea rows={3} value={selected.data.config?.message || ""} onChange={(e) => updateSelectedData({ config: { ...selected.data.config, message: e.target.value } })} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {err && <p className="errline" style={{ marginTop: 10 }}>{err}</p>}
+          <button className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
+            {saving ? "Saving…" : dirty ? "Save workflow" : "Saved ✓"}
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+const CANVAS_H_APPROX = 480;
+
+function WorkflowRunsPanel({ venueId, workflowId }: { venueId: string; workflowId: string }) {
+  const { data: runs, loading } = useAsync(() => api.venueWorkflowRuns(venueId, workflowId), [venueId, workflowId]);
+  if (loading) return <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>;
+  if (!runs?.length) return <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>This workflow hasn't run yet.</p>;
+  return (
+    <ul className="steps">
+      {runs.map((r) => (
+        <li key={r.id} style={{ flexDirection: "column", alignItems: "stretch" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <i className="icon-zap" />
+            <span style={{ flex: 1 }}>
+              {TRIGGER_LABELS[r.trigger as VenueWorkflowTrigger] || r.trigger}
+              {" "}<span className={"ec-badge " + (r.status === "success" ? "confirmed" : r.status === "failed" ? "out" : "")}>{r.status}</span>
+              <br />
+              <small style={{ color: "var(--text-3)" }}>{new Date(r.createdAt).toLocaleString()}</small>
+            </span>
+          </div>
+          {r.matchedActions.length > 0 && (
+            <div style={{ paddingLeft: 30, marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+              {r.matchedActions.map((m, i) => (
+                <small key={i} style={{ color: m.ok ? "var(--text-3)" : "var(--danger, #c7402c)" }}>
+                  {ACTION_LABELS[m.action as VenueWorkflowAction] || m.action} — {m.ok ? "ok" : m.error || "failed"}
+                </small>
+              ))}
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 

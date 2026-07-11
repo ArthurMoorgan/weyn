@@ -59,20 +59,44 @@ export interface VenueSegment {
   days?: number;
 }
 
-// ---- venue workflows: trigger -> condition -> action ----
+// ---- venue workflows: the node-graph automation builder ----
+export type WFNodeType = "trigger" | "condition" | "action";
 export type VenueWorkflowTrigger = "reservation_created" | "reservation_cancelled" | "guest_no_show";
+export type VenueConditionField = "partySize" | "guestTag";
 export type VenueWorkflowAction = "notify_owner" | "tag_guest" | "send_guest_email";
+
+export interface WFNode {
+  id: string;
+  type: WFNodeType;
+  x: number;
+  y: number;
+  data: Record<string, any>;
+}
+export interface WFEdge {
+  id: string;
+  source: string;
+  target: string;
+}
 
 export interface VenueWorkflow {
   id: string;
   organizerId: string;
-  venueId: string | null;
+  venueId: string;
   name: string;
-  trigger: string;
-  action: string;
-  config: { minPartySize?: number; requireTag?: string; tag?: string; subject?: string; message?: string } | null;
   enabled: boolean;
-  lastRunAt: string | null;
+  nodes: WFNode[];
+  edges: WFEdge[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowRun {
+  id: string;
+  workflowId: string;
+  trigger: string;
+  reservationId: string | null;
+  matchedActions: { nodeId: string; action: string; ok: boolean; error?: string }[];
+  status: "success" | "partial" | "failed";
   createdAt: string;
 }
 
@@ -1476,22 +1500,30 @@ export const api = {
     return fetch(`${API_BASE}/api/venues/${venueId}/campaigns/${campaignId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json<Campaign>(r));
   },
 
-  // ---- venue workflows: trigger -> condition -> action rules ----
+  // ---- venue workflows: the node-graph automation builder ----
   async venueWorkflows(venueId: string): Promise<VenueWorkflow[]> {
     return fetch(`${API_BASE}/api/venues/${venueId}/workflows`, { headers: await authHeaders() }).then((r) => json<VenueWorkflow[]>(r));
   },
-  async createVenueWorkflow(venueId: string, input: { name: string; trigger: VenueWorkflowTrigger; action: VenueWorkflowAction; config: Record<string, any> }): Promise<VenueWorkflow> {
+  async createVenueWorkflow(venueId: string, input: { name: string; nodes: WFNode[]; edges: WFEdge[] }): Promise<VenueWorkflow> {
     return fetch(`${API_BASE}/api/venues/${venueId}/workflows`, {
       method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
     }).then((r) => json<VenueWorkflow>(r));
   },
-  async setVenueWorkflowEnabled(venueId: string, ruleId: string, enabled: boolean): Promise<VenueWorkflow> {
-    return fetch(`${API_BASE}/api/venues/${venueId}/workflows/${ruleId}`, {
+  async saveVenueWorkflow(venueId: string, workflowId: string, input: { name?: string; nodes?: WFNode[]; edges?: WFEdge[] }): Promise<VenueWorkflow> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/workflows/${workflowId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json<VenueWorkflow>(r));
+  },
+  async setVenueWorkflowEnabled(venueId: string, workflowId: string, enabled: boolean): Promise<VenueWorkflow> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/workflows/${workflowId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ enabled }),
     }).then((r) => json<VenueWorkflow>(r));
   },
-  async deleteVenueWorkflow(venueId: string, ruleId: string): Promise<{ ok: true }> {
-    return fetch(`${API_BASE}/api/venues/${venueId}/workflows/${ruleId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json<{ ok: true }>(r));
+  async deleteVenueWorkflow(venueId: string, workflowId: string): Promise<{ ok: true }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/workflows/${workflowId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json<{ ok: true }>(r));
+  },
+  async venueWorkflowRuns(venueId: string, workflowId: string): Promise<WorkflowRun[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/workflows/${workflowId}/runs`, { headers: await authHeaders() }).then((r) => json<WorkflowRun[]>(r));
   },
 
   // ---- floor plans: venue side (table/seat picking) ----
