@@ -408,6 +408,8 @@ function VenueMarketing({ venueId }: { venueId: string }) {
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState("");
   const [result, setResult] = useState("");
+  const [goal, setGoal] = useState("");
+  const [drafting, setDrafting] = useState(false);
 
   const segment: VenueSegment = { type: segmentType, tag: segmentType === "tag" ? tag : undefined, days: segmentType === "inactive" ? Number(days) || 60 : undefined };
 
@@ -441,6 +443,20 @@ function VenueMarketing({ venueId }: { venueId: string }) {
     reload();
   }
 
+  async function aiDraft() {
+    if (!goal.trim()) { setErr("Describe what this campaign should achieve first."); return; }
+    setDrafting(true); setErr("");
+    try {
+      const segmentLabel = SEGMENT_OPTIONS.find((o) => o.key === segmentType)?.label || "your guests";
+      const draft = await api.aiDraftVenueCampaign(venueId, goal.trim(), segmentLabel);
+      setSubject(draft.subject); setMessage(draft.message);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't draft that right now.");
+    } finally {
+      setDrafting(false);
+    }
+  }
+
   return (
     <>
       <p className="hint" style={{ margin: "4px 0 8px" }}><i className="icon-megaphone" /> New campaign</p>
@@ -467,6 +483,12 @@ function VenueMarketing({ venueId }: { venueId: string }) {
           </p>
         </div>
 
+        <div style={{ display: "flex", gap: 8 }}>
+          <input className="toolbar-field" style={{ flex: 1 }} placeholder="What's this campaign for? e.g. win back guests who haven't visited in a while" value={goal} onChange={(e) => setGoal(e.target.value)} />
+          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={aiDraft} disabled={drafting}>
+            <i className="icon-sparkles" /> {drafting ? "Drafting…" : "AI draft"}
+          </button>
+        </div>
         <input className="toolbar-field" placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
         <textarea className="toolbar-field" rows={4} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
         <div>

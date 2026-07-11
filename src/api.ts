@@ -1496,6 +1496,11 @@ export const api = {
   async venueCampaigns(venueId: string): Promise<Campaign[]> {
     return fetch(`${API_BASE}/api/venues/${venueId}/campaigns`, { headers: await authHeaders() }).then((r) => json<Campaign[]>(r));
   },
+  async aiDraftVenueCampaign(venueId: string, goal: string, segmentLabel: string): Promise<{ subject: string; message: string }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/campaigns/ai-draft`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ goal, segmentLabel }),
+    }).then((r) => json(r));
+  },
   async cancelVenueCampaign(venueId: string, campaignId: string): Promise<Campaign> {
     return fetch(`${API_BASE}/api/venues/${venueId}/campaigns/${campaignId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json<Campaign>(r));
   },

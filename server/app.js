@@ -2404,6 +2404,41 @@ export function createApp(storage) {
     res.json(await db.listVenueCampaigns(req.venue.id));
   });
 
+  // AI-drafted campaign copy — the marketing-copywriting principles this
+  // is built on (benefit-first framing, one clear angle/hook, never invent
+  // urgency/stats/social proof that isn't real) rather than pulling in a
+  // generic "write me an email" prompt. Always a draft the owner reviews
+  // and edits before sending — never auto-sent, same policy as every
+  // other AI Studio feature in this app.
+  app.post("/api/venues/:id/campaigns/ai-draft", requireAuth, requireVenueOwner, requireFeature("aiStudio"), async (req, res) => {
+    if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
+    const goal = String(req.body?.goal || "").trim();
+    if (!goal) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Describe what this campaign should achieve." } });
+    const segmentLabel = String(req.body?.segmentLabel || "your guests").trim();
+    const prompt = `You are an expert direct-response copywriter, writing one short marketing email on behalf of a real venue.
+
+Venue: ${req.venue.name}, a ${req.venue.category.replace("_", " ")} in ${req.venue.area}, Oman.
+Audience: ${segmentLabel} (an existing guest list — not cold outreach).
+Goal: ${goal}
+
+Rules, non-negotiable:
+- Benefit-first, not feature-first — lead with what's in it for the guest, not a description of the venue.
+- One clear angle/hook. Don't try to say three things at once.
+- Never invent statistics, urgency ("only 3 spots left"), or social proof ("hundreds of happy guests") that isn't verifiably true — if you don't have a real number, don't use a fake one.
+- Warm, direct, human tone. No corporate voice ("we are pleased to announce"), no excessive exclamation points.
+- Subject line under 60 characters. Message body under 120 words, plain text (no markdown).
+
+Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
+    try {
+      const draft = await askClaudeJson(prompt, { maxTokens: 400 });
+      await db.logAiGeneration({ organizerId: req.user.id, eventId: null, feature: "venue-campaign-draft", prompt, output: JSON.stringify(draft) });
+      res.json(draft);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/campaigns/ai-draft", venueId: req.params.id });
+      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't draft that right now — try again shortly." } });
+    }
+  });
+
   app.delete("/api/venues/:id/campaigns/:campaignId", requireAuth, requireVenueOwner, async (req, res) => {
     const cancelled = await db.cancelCampaign(req.params.campaignId, req.user.id);
     if (!cancelled) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Nothing to cancel — it may already have sent." } });
