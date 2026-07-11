@@ -60,6 +60,29 @@ export default function EventDetail() {
     return () => { cancelled = true; };
   }, [e?.id]);
 
+  // Rules-of-Hooks fix: these two hooks used to live below the loading/error
+  // early returns (right where `tiers`/`payPrice` are recomputed further
+  // down for the actual booking UI). On the very first render `loading` is
+  // true, so the function returned before ever reaching them — no hooks
+  // called. Once `e` arrived and `loading` flipped false, the SAME render
+  // now called two more hooks than the previous one did, which is exactly
+  // "Rendered more hooks than during the previous render" (React error
+  // #310): every single event-page view crashed into the ErrorBoundary's
+  // "Something went wrong — reloading usually fixes it" screen the moment
+  // its data finished loading, tickets included. Hooks can never sit after
+  // a conditional return; hoisted here (using `e` directly, not the
+  // `booked`-aware `ev` derived below — `booked` can't be set yet this
+  // early in the component's life) so they run on every render regardless
+  // of loading state.
+  const eHasTiers = (e?.tiers?.length ?? 0) > 0;
+  const eSelectedTier = eHasTiers ? e!.tiers!.find((t) => t.id === tierId) || null : null;
+  const ePayPrice = eHasTiers ? (eSelectedTier?.price ?? 0) : (e?.price ?? 0);
+  const seatMapQuery = useAsync(
+    () => (e && ePayPrice === 0 ? api.eventSeatMap(e.id).then((p) => (p.mode === "seat" ? p : null)).catch(() => null) : Promise.resolve(null)),
+    [e?.id, ePayPrice]
+  );
+  const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
+
   if (loading) return (
     <div className="detail">
       <div className="detail-skel-cover" />
@@ -117,17 +140,11 @@ export default function EventDetail() {
   // inviteCode to a non-owner, see server/app.js).
   const inviteCode = searchParams.get("invite") || undefined;
 
-  // Assigned seating only exists on the free-RSVP path today — paid
-  // checkout (Thawani redirect) would need a seat-hold-with-expiry
-  // mechanism during the payment window, which isn't built yet (see
-  // server/app.js's POST /api/events/:id/book comment). Fetching the
-  // seatmap is harmless for a paid/no-plan event — .catch(() => null)
-  // just means the picker never renders.
-  const seatMapQuery = useAsync(
-    () => (payPrice === 0 ? api.eventSeatMap(ev.id).then((p) => (p.mode === "seat" ? p : null)).catch(() => null) : Promise.resolve(null)),
-    [ev.id, payPrice]
-  );
-  const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
+  // seatMapQuery/selectedSeatId are declared above the loading/error early
+  // returns now (see the comment there) — this is just where they used to
+  // live, before assigned seating existed on the free-RSVP path (Thawani
+  // paid checkout doesn't have a seat-hold-with-expiry mechanism yet; see
+  // server/app.js's POST /api/events/:id/book comment).
 
   async function book() {
     if (hasTiers && !selectedTier) { setBookErr("Choose a ticket type first."); return; }
