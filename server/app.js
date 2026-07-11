@@ -19,7 +19,8 @@ import { sendWebPush, webPushConfigured } from "./webpush.js";
 import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./instagram-import.js";
 import { generateMarketingCopy } from "./marketing.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
-import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured, imageGenConfigured, generateImage } from "./ai.js";
+import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured, imageGenConfigured, generateImage, runAgentTurn, agentToolsConfigured } from "./ai.js";
+import { AGENT_TOOLS, buildToolExecutor, toolByName } from "./agent-tools.js";
 import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
 import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, requireEventAccessOrPermission, authConfigured } from "./auth.js";
 import { createEventSchema, updateEventSchema, validateBody } from "./validators.js";
@@ -37,7 +38,7 @@ import { runModerationPipeline } from "./moderation.js";
 // Messaging Center's scheduled campaigns and the Automation Builder's
 // capacity-threshold alerts have never actually sent since either shipped.
 // Found during this session's security review, fixed alongside it.
-function escapeHtml(s) {
+export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
@@ -1184,6 +1185,84 @@ export function createApp(storage) {
       captureError(err, { route: "POST /api/organizer/ai/assistant" });
       res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't reply right now — try again shortly." } });
     }
+  });
+
+  // ---- Weyn AI assistant, agentic mode (Phase 1) ----
+  // Same idea as the assistant above, but with real tools (see
+  // server/agent-tools.js) instead of pre-fetched context glued into a
+  // prompt string. Read-only tools execute immediately as part of the
+  // turn; anything that mutates state is created as a pending AgentAction
+  // instead of executed here — see the three routes below it for the
+  // review/approve/reject flow. History is still client-replayed (same as
+  // the plain assistant), but in Gemini's own {role, parts} turn shape
+  // rather than a flattened transcript string, since tool-call/tool-result
+  // turns need to round-trip in that shape for the model to stay coherent
+  // across turns.
+  const AGENT_SYSTEM_PROMPT = `You are Weyn AI, an operations assistant embedded in an event/venue organizer's dashboard on Weyn (an Oman events + reservations platform). You have tools to look up real data and to propose actions — you can never directly change anything yourself. Every tool that creates/sends/cancels something only ever gets PROPOSED for the owner to review and approve; it is never actually executed by you calling the tool. Always pass a clear, specific "reasoning" argument to any such tool explaining why you're proposing it. Ground every answer in real tool results — never invent numbers, customers, or reservations. Be concise.`;
+
+  app.post("/api/organizer/ai/agent", requireAuth, requireFeature("aiStudio"), async (req, res) => {
+    if (!agentToolsConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
+    const message = String(req.body?.message || "").trim().slice(0, 1000);
+    if (!message) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Say something first." } });
+    const history = Array.isArray(req.body?.history) ? req.body.history.slice(-20) : [];
+    try {
+      const result = await runAgentTurn({
+        systemPrompt: AGENT_SYSTEM_PROMPT,
+        history,
+        userMessage: message,
+        tools: AGENT_TOOLS,
+        executeTool: buildToolExecutor(req.user.id),
+      });
+      const proposedActionIds = result.toolCalls.filter((c) => c.result?.proposed).map((c) => c.result.actionId);
+      const proposedActions = proposedActionIds.length
+        ? await prisma.agentAction.findMany({ where: { id: { in: proposedActionIds } } })
+        : [];
+      await db.logAiGeneration({ organizerId: req.user.id, eventId: null, feature: "agent", prompt: message, output: result.text });
+      res.json({ reply: result.text, history: result.history, proposedActions });
+    } catch (err) {
+      captureError(err, { route: "POST /api/organizer/ai/agent" });
+      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't reply right now — try again shortly." } });
+    }
+  });
+
+  app.get("/api/organizer/ai/actions", requireAuth, requireFeature("aiStudio"), async (req, res) => {
+    const status = req.query.status ? String(req.query.status) : undefined;
+    const actions = await prisma.agentAction.findMany({
+      where: { organizerId: req.user.id, ...(status ? { status } : {}) },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+    res.json(actions);
+  });
+
+  app.post("/api/organizer/ai/actions/:id/approve", requireAuth, requireFeature("aiStudio"), async (req, res) => {
+    const action = await prisma.agentAction.findUnique({ where: { id: req.params.id } });
+    if (!action || action.organizerId !== req.user.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Action not found" } });
+    if (action.status !== "proposed") return res.status(409).json({ error: { code: "ALREADY_DECIDED", message: `This action was already ${action.status}.` } });
+    const tool = toolByName(action.tool);
+    if (!tool) return res.status(500).json({ error: { code: "UNKNOWN_TOOL", message: "This tool no longer exists." } });
+    try {
+      const result = await tool.execute(action.args, { userId: req.user.id });
+      const updated = await prisma.agentAction.update({
+        where: { id: action.id },
+        data: { status: "executed", result, decidedAt: new Date(), executedAt: new Date() },
+      });
+      res.json(updated);
+    } catch (err) {
+      const updated = await prisma.agentAction.update({
+        where: { id: action.id },
+        data: { status: "failed", error: err.message || String(err), decidedAt: new Date() },
+      });
+      res.status(422).json(updated);
+    }
+  });
+
+  app.post("/api/organizer/ai/actions/:id/reject", requireAuth, requireFeature("aiStudio"), async (req, res) => {
+    const action = await prisma.agentAction.findUnique({ where: { id: req.params.id } });
+    if (!action || action.organizerId !== req.user.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Action not found" } });
+    if (action.status !== "proposed") return res.status(409).json({ error: { code: "ALREADY_DECIDED", message: `This action was already ${action.status}.` } });
+    const updated = await prisma.agentAction.update({ where: { id: action.id }, data: { status: "rejected", decidedAt: new Date() } });
+    res.json(updated);
   });
 
   // AI Insights report — a written narrative over the organizer's own

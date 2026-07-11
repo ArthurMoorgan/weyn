@@ -45,6 +45,7 @@ model User {
   analyticsEvents AnalyticsEvent[]
   auditLogs       AuditLog[]
   aiGenerations   AiGenerationLog[]
+  agentActions    AgentAction[]
   eventVenues     EventVenue[]
   attendeeProfiles AttendeeProfile[]
   campaigns       Campaign[]
@@ -1001,6 +1002,33 @@ model AiGenerationLog {
 
   @@index([organizerId])
   @@index([eventId])
+}
+
+// One row per AI-proposed tool call — the approval gate for the agentic
+// assistant (see server/agent-tools.js). Mirrors Campaign's existing
+// "create as pending -> user approves/cancels -> executor runs it" shape
+// rather than inventing a new state machine. Read-only tools never create
+// a row here (see AGENT_TOOLS' `mutates` flag) — they execute immediately
+// and their result just flows back into the conversation. Only tools that
+// create/send/cancel something land here, and none of them touch the
+// database until `status` moves to "approved".
+model AgentAction {
+  id         String   @id @default(cuid())
+  organizerId String
+  tool       String   // e.g. "assignTable" | "createReservation" | "sendCampaignEmail"
+  args       Json     // the exact arguments the model proposed calling the tool with
+  reasoning  String   // the model's own explanation, shown to the owner before they approve
+  status     String   @default("proposed") // "proposed" | "approved" | "rejected" | "executed" | "failed"
+  result     Json?    // set once executed — whatever the tool's real execution returned
+  error      String?  // set if execution failed after approval
+  createdAt  DateTime @default(now())
+  decidedAt  DateTime?
+  executedAt DateTime?
+
+  organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@index([organizerId])
+  @@index([status])
 }
 
 // ---- Venue Management: an organizer's own reusable venue profiles ----

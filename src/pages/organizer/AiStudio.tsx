@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { api, isPast, type Weyn } from "../../api";
+import { useEffect, useState } from "react";
+import { api, isPast, type Weyn, type AgentTurn, type AgentAction } from "../../api";
 import { useAsync } from "../../hooks";
 import FeatureLock from "../../components/FeatureLock";
 
@@ -36,6 +36,7 @@ export default function AiStudio() {
 
       <FeatureLock feature="aiStudio" enabled={enabled}>
         <InsightsTool />
+        <AgentTool />
         <AssistantTool />
       </FeatureLock>
 
@@ -75,6 +76,100 @@ function InsightsTool() {
       {result && (
         <div className="marketing-card" style={{ marginTop: 12 }}><pre className="marketing-text">{result}</pre></div>
       )}
+    </ToolCard>
+  );
+}
+
+// Phase 1 of the agentic assistant — real tools (see server/agent-tools.js)
+// instead of a fixed context blob. Read-only lookups (revenue, reservations,
+// customer history, table availability) answer inline; anything that would
+// create/send/cancel something comes back as a card the owner has to
+// explicitly approve or reject — never executed silently. `geminiHistory` is
+// Gemini's own {role, parts} turn shape, replayed verbatim each turn so
+// tool-call/tool-result turns stay coherent; `log` is a separate
+// display-only transcript (tool-call turns never render as chat bubbles).
+function AgentTool() {
+  const [log, setLog] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
+  const [geminiHistory, setGeminiHistory] = useState<AgentTurn[]>([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const pendingQuery = useAsync(() => api.listAgentActions("proposed"), []);
+  const [pending, setPending] = useState<AgentAction[]>([]);
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+
+  useEffect(() => { if (pendingQuery.data) setPending(pendingQuery.data); }, [pendingQuery.data]);
+
+  async function send() {
+    const message = input.trim();
+    if (!message || busy) return;
+    setInput(""); setErr("");
+    setLog((prev) => [...prev, { role: "user", text: message }]);
+    setBusy(true);
+    try {
+      const res = await api.aiAgentChat(message, geminiHistory);
+      setGeminiHistory(res.history);
+      setLog((prev) => [...prev, { role: "assistant", text: res.reply }]);
+      if (res.proposedActions.length) setPending((prev) => [...res.proposedActions, ...prev]);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't reply right now");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decide(id: string, approve: boolean) {
+    setDecidingId(id);
+    try {
+      const updated = approve ? await api.approveAgentAction(id) : await api.rejectAgentAction(id);
+      setPending((prev) => prev.map((a) => (a.id === id ? updated : a)).filter((a) => a.status === "proposed"));
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  return (
+    <ToolCard title="Weyn AI" icon="sparkles">
+      <p className="hint" style={{ margin: "0 0 10px" }}>
+        Ask it to look something up or propose an action — anything that creates, sends, or cancels something waits for your approval below before it actually happens.
+      </p>
+
+      {pending.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {pending.map((a) => (
+            <div key={a.id} className="marketing-card" style={{ border: "1px solid var(--glass-line)" }}>
+              <b style={{ fontSize: 13 }}>{a.tool}</b>
+              <p style={{ fontSize: 13, margin: "4px 0", color: "var(--text-2)" }}>{a.reasoning}</p>
+              <pre style={{ fontSize: 11.5, background: "var(--surface-2)", padding: 8, borderRadius: 6, overflowX: "auto", margin: "0 0 8px" }}>
+                {JSON.stringify(Object.fromEntries(Object.entries(a.args).filter(([k]) => k !== "reasoning")), null, 2)}
+              </pre>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn glass sm" style={{ width: "auto" }} onClick={() => decide(a.id, true)} disabled={decidingId === a.id}>
+                  <i className="icon-check" /> Approve
+                </button>
+                <button className="btn glass sm" style={{ width: "auto" }} onClick={() => decide(a.id, false)} disabled={decidingId === a.id}>
+                  <i className="icon-x" /> Reject
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {log.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+          {log.map((h, i) => (
+            <div key={i} className="marketing-card" style={{ background: h.role === "user" ? "var(--card-alt, rgba(0,0,0,0.03))" : undefined }}>
+              <p style={{ fontSize: 13.5, margin: 0, whiteSpace: "pre-wrap" }}><b>{h.role === "user" ? "You" : "Weyn AI"}:</b> {h.text}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {err && <p className="errline">{err}</p>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="How's Friday looking? Assign a table for..." style={{ flex: 1 }} />
+        <button className="btn" onClick={send} disabled={busy || !input.trim()}>{busy ? "…" : "Send"}</button>
+      </div>
     </ToolCard>
   );
 }

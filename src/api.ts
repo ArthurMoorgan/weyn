@@ -482,6 +482,27 @@ export interface ReservationInput {
   notes?: string;
 }
 
+// ---------- Weyn AI agent (Phase 1: tool-calling + approval queue) ----------
+export interface AgentAction {
+  id: string;
+  organizerId: string;
+  tool: string;
+  args: Record<string, any>;
+  reasoning: string;
+  status: "proposed" | "approved" | "rejected" | "executed" | "failed";
+  result?: Record<string, any> | null;
+  error?: string | null;
+  createdAt: string;
+  decidedAt?: string | null;
+  executedAt?: string | null;
+}
+
+// Gemini's own {role, parts} turn shape — passed back verbatim each turn so
+// tool-call/tool-result turns stay coherent across the conversation. Opaque
+// to the frontend beyond that; never rendered directly (see AgentTool's
+// separate display-only log).
+export type AgentTurn = { role: string; parts: any[] };
+
 export const CATS: { key: Cat | "all"; label: string }[] = [
   { key: "all", label: "All" },
   { key: "music", label: "Live music" },
@@ -835,6 +856,22 @@ export const api = {
   },
   async aiInsights(): Promise<{ insights: string }> {
     return fetch(`${API_BASE}/api/organizer/ai/insights`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
+  },
+  async aiAgentChat(message: string, history: AgentTurn[]): Promise<{ reply: string; history: AgentTurn[]; proposedActions: AgentAction[] }> {
+    return fetch(`${API_BASE}/api/organizer/ai/agent`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ message, history }),
+    }).then((r) => json(r));
+  },
+  async listAgentActions(status?: AgentAction["status"]): Promise<AgentAction[]> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return fetch(`${API_BASE}/api/organizer/ai/actions${qs}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async approveAgentAction(id: string): Promise<AgentAction> {
+    return fetch(`${API_BASE}/api/organizer/ai/actions/${id}/approve`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
+  },
+  async rejectAgentAction(id: string): Promise<AgentAction> {
+    return fetch(`${API_BASE}/api/organizer/ai/actions/${id}/reject`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
   },
   registerPush(deviceId: string, deviceSecret: string, token: string, platform: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/push/register`, {

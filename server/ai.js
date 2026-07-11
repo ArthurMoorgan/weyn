@@ -195,6 +195,78 @@ export function imageGenConfigured() {
 
 const GEMINI_IMAGE_MODEL = () => process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 
+// ---- agentic tool-calling (Weyn AI assistant) ----
+// Gemini-only for now, deliberately: it's the provider actually configured
+// in this deployment (see server/agent-tools.js's caller — GEMINI_API_KEY
+// is set, ANTHROPIC_API_KEY/GROQ_API_KEY are not), and Gemini's REST API
+// supports function calling natively via the same generateContent endpoint
+// already used elsewhere in this file. Every other function here is
+// single-shot prompt->text; this is the one exception that runs a real
+// multi-turn loop, because tool calls need their results fed back to the
+// model before it can give a final answer.
+const AGENT_MODEL = () => process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const MAX_AGENT_TURNS = 6; // safety cap — a real conversation resolves in 1-3 round-trips
+
+export function agentToolsConfigured() {
+  return !!process.env.GEMINI_API_KEY;
+}
+
+// `history`: prior turns as [{role: "user"|"model", parts: [...]}, ...]
+// `tools`: [{name, description, parameters}] — parameters is a Gemini Schema
+//   object (uppercase type strings: "OBJECT"/"STRING"/"NUMBER"/"ARRAY"/"BOOLEAN")
+// `executeTool(name, args)`: called for every function call the model makes;
+//   returns whatever should be reported back to the model as the tool's result
+//   (for a mutating tool this is NOT the real side effect — see
+//   server/agent-tools.js, which returns a "proposed, awaiting approval"
+//   stand-in instead of actually executing anything here).
+export async function runAgentTurn({ systemPrompt, history, userMessage, tools, executeTool }) {
+  if (!process.env.GEMINI_API_KEY) throw new Error("No GEMINI_API_KEY set on this server yet.");
+  const contents = [...history, { role: "user", parts: [{ text: userMessage }] }];
+  const toolCallsMade = [];
+
+  for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${AGENT_MODEL()}:generateContent`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })) }],
+        generationConfig: { maxOutputTokens: 1024, temperature: 0.3 },
+      }),
+    });
+    if (!res.ok) throw new Error(`Gemini agent API error (${res.status}): ${await res.text()}`);
+    const data = await res.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const functionCalls = parts.filter((p) => p.functionCall);
+
+    if (!functionCalls.length) {
+      const text = parts.map((p) => p.text || "").join("");
+      return { text, toolCalls: toolCallsMade, history: contents };
+    }
+
+    // Record the model's turn (its function-call requests) verbatim, then
+    // execute each and append a matching functionResponse turn — Gemini
+    // requires exactly this shape before it will continue the conversation.
+    contents.push({ role: "model", parts });
+    const responseParts = [];
+    for (const fc of functionCalls) {
+      const { name, args } = fc.functionCall;
+      let result;
+      try {
+        result = await executeTool(name, args || {});
+      } catch (err) {
+        result = { error: err.message || String(err) };
+      }
+      toolCallsMade.push({ name, args, result });
+      responseParts.push({ functionResponse: { name, response: { result } } });
+    }
+    contents.push({ role: "user", parts: responseParts });
+  }
+  return { text: "I wasn't able to finish that within the usual number of steps — try breaking it into a smaller ask.", toolCalls: toolCallsMade, history: contents };
+}
+
 export async function generateImage(prompt) {
   if (!process.env.GEMINI_API_KEY) throw new Error("No GEMINI_API_KEY set on this server yet.");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL()}:generateContent`;
