@@ -1,51 +1,52 @@
 /* ============================================================
-   WEYN — Premium minimal (Linear/Airbnb/Stripe reference)
-   Flat surfaces, strong typography, large imagery. No glassmorphism.
+   WEYN — v4: Airbnb-inspired system. Confident coral brand mark,
+   neutral-first surfaces (no tinted "theme color" bg — depth comes from
+   soft layered shadows and hairline borders, not from dyeing the whole
+   UI one hue), generous whitespace, restrained skeuomorphism (a soft
+   raised/tactile feel on cards and buttons via low-opacity dual shadows,
+   not heavy 3D clay/neumorphism — the earlier "clay" experiment and the
+   terracotta/espresso palette before it both read as amateur rather than
+   premium; this is deliberately calmer).
    ============================================================ */
 
 :root {
   color-scheme: dark;
-  /* Warm terracotta/espresso dark palette (v3) — replaces the earlier
-     cool blue-slate + indigo-violet scheme (too close to generic
-     "AI-purple" branding, and too blue/cold for an Oman brand). Espresso
-     bg/surface layers + a burnt-terracotta primary instead, evoking
-     desert clay and old-Muscat fort walls rather than a tech-blue app. */
-  --bg:             #15110D;
-  --bg-elevated:    #241C15;
-  --surface:        #1F1712;
-  --surface-hover:  #2B2119;
-  --border:         #3A2E23;
-  --border-strong:  #4A3B2C;
-  --primary:        #C1592F;
-  --primary-hover:  #D66A3D;
-  --primary-pressed:#9C4523;
-  --success:        #4E9A5D;
-  --warning:        #D6A44B;
-  --error:          #E2604F;
-  --info:           #C1592F;
-  --text:           #F2ECE4;
-  --text-2:         #B8AA9C;
-  --text-3:         #8C7E71;
-  --text-disabled:  #6B5F54;
-  --icon:           #F2ECE4;
-  --icon-2:         #B8AA9C;
-  --divider:        #3A2E23;
-  --card-bg:        #1A130E;
-  --card-border:    #3A2E23;
-  /* Claymorphism experiment (whole app) — every card/chip/button below
-     reads its shape from these six tokens, so the "puffy molded clay" look
-     is achieved by redefining the tokens themselves rather than touching
-     every individual rule. Two-tone shadow (soft light top-left + darker
-     shadow bottom-right) is the actual signature — a single flat shadow
-     reads as "elevated card", the dual one reads as "clay". */
-  /* Dark-mode clay: a 1px inset top highlight does most of the "molded"
-     work (a bright top-left OUTER glow reads as a halo on a dark bg, not
-     clay), paired with a soft outer highlight and a deep drop shadow that's
-     properly darker than the lifted surface. */
-  --card-shadow:    inset 0 1px 0 rgba(255,255,255,.06), -3px -3px 9px rgba(255,255,255,.02), 6px 8px 20px rgba(0,0,0,.55);
-  --accent-soft:    rgba(193,89,47,0.16);
-  --success-soft:   rgba(78,154,93,0.15);
-  --scrim: rgba(10,7,5,0.55);
+  /* True neutral dark (no blue or brown cast) — same family Linear/Stripe/
+     Vercel dashboards use, which is what actually reads as "serious
+     product" rather than a mood-boarded accent color. */
+  --bg:             #0F0F10;
+  --bg-elevated:    #18181A;
+  --surface:        #18181A;
+  --surface-hover:  #232326;
+  --border:         #2C2C2F;
+  --border-strong:  #3A3A3E;
+  /* Airbnb's actual brand red ("Rausch"), lightened slightly for dark-mode
+     contrast — this IS the whole brand mark, so it needs to look confident
+     and specific, not a muted "safe" tone. */
+  --primary:        #FF5A6E;
+  --primary-hover:  #FF7185;
+  --primary-pressed:#E8425A;
+  --success:        #22C55E;
+  --warning:        #FBBF24;
+  --error:          #F87171;
+  --info:           #FF5A6E;
+  --text:           #F5F5F5;
+  --text-2:         #A3A3A3;
+  --text-3:         #737373;
+  --text-disabled:  #4D4D4D;
+  --icon:           #F5F5F5;
+  --icon-2:         #A3A3A3;
+  --divider:        #2C2C2F;
+  --card-bg:        #18181A;
+  --card-border:    #2C2C2F;
+  /* Soft single shadow, not the earlier dual-highlight "clay" — a small
+     inset top highlight is kept ONLY on interactive surfaces (buttons,
+     the primary CTA) via .btn/.tab, giving a subtly tactile/pressable feel
+     without the whole card system looking molded out of plastic. */
+  --card-shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 20px rgba(0,0,0,.35);
+  --accent-soft:    rgba(255,90,110,0.16);
+  --success-soft:   rgba(34,197,94,0.15);
+  --scrim: rgba(0,0,0,0.6);
 
   /* back-compat aliases so existing ~300 call sites keep working unchanged */
   --surface-2:   var(--surface-hover);
@@ -57,83 +58,60 @@
   --line:        var(--border);
   --chip-soft:   var(--surface-hover);
 
-  --radius: 24px; --radius-sm: 16px; --radius-pill: 999px; --maxw: 468px;
-  --shadow-sm: inset 0 1px 0 rgba(255,255,255,.05), 3px 4px 12px rgba(0,0,0,.5);
-  --shadow-md: inset 0 1px 0 rgba(255,255,255,.06), -3px -3px 9px rgba(255,255,255,.02), 6px 8px 20px rgba(0,0,0,.55);
-  --shadow-lg: inset 0 1px 0 rgba(255,255,255,.07), -5px -5px 14px rgba(255,255,255,.03), 12px 16px 34px rgba(0,0,0,.6);
+  --radius: 16px; --radius-sm: 12px; --radius-pill: 999px; --maxw: 468px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3), 0 2px 8px rgba(0,0,0,.3);
+  --shadow-md: 0 2px 4px rgba(0,0,0,.35), 0 8px 20px rgba(0,0,0,.4);
+  --shadow-lg: 0 4px 10px rgba(0,0,0,.4), 0 16px 40px rgba(0,0,0,.5);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
-  /* --glass-line was the card/chip/input BORDER color everywhere (see the
-     ~20 "border: 1px solid var(--glass-line)" call sites) — clay relies on
-     the dual shadow above for edges, not a hard outline, so this goes
-     transparent instead of getting its own removal pass per call site. */
-  --glass-edge: transparent; --glass-line: transparent; --glass-shadow: var(--shadow-sm);
+  --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm);
   --shadow-float: var(--shadow-md); --lens: none;
-  /* Was only ever referenced as var(--card-alt, rgba(0,0,0,.03)) — an
-     undefined var with a near-invisible dark-mode fallback (AiStudio's
-     assistant bubble, Events' calendar day cells). Defining it properly
-     ties it to the same tonal step as everything else instead of a
-     hardcoded fallback that never matched either theme. */
   --card-alt: var(--surface-hover);
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-8: 48px;
   --btn-h: 48px; --btn-h-lg: 56px; --btn-h-sm: 40px;
 
-  /* cat-music/cat-cars shifted off the violet/indigo family (was #A855F7 /
-     #6366F1) so no category chip reads as "purple" either, matching the
-     brand primary's move away from indigo-violet. */
-  --cat-music: #B5304F; --cat-sports: #16A34A; --cat-food: #F97316;
-  --cat-culture: #EC4899; --cat-cars: #2563AF; --cat-workshop: #2563EB;
+  /* Category colors — 7 distinct hues, none purple, none competing with
+     the coral brand primary. */
+  --cat-music: #4C8DF5; --cat-sports: #16A34A; --cat-food: #F97316;
+  --cat-culture: #DB2777; --cat-cars: #64748B; --cat-workshop: #CA8A04;
   --cat-community: #14B8A6;
 
-  /* fallback scrim used by Stub.tsx cover gradients — theme-aware so the
-     hardcoded #14151A55 doesn't look wrong in light mode */
-  --fallback-scrim: rgba(20,12,6,0.33);
+  /* fallback scrim used by Stub.tsx cover gradients */
+  --fallback-scrim: rgba(0,0,0,0.35);
 
-  /* Tab-switch spark burst (see .tab-spark below) — small flecks in the
-     accent + a warm highlight, tuned per theme so they read against the
-     tab bar's actual background. */
+  /* Tab-switch spark burst (see .tab-spark below) */
   --spark-color-1: var(--primary);
   --spark-color-2: var(--primary-hover);
   --spark-color-3: #fff;
 }
 
-/* Light mode kept as a real, distinct theme (not deleted — the toggle stays)
-   but built on the same flat/minimal philosophy: white surface, near-black
-   text, sparse low-contrast borders instead of glass. */
-/* Sand light mode (v2) — the previous "cream" theme still had a pure-white
-   #FFFFFF surface (cards/inputs), which reads as a basic white UI the
-   moment any content sits on a card. This shifts the whole light palette
-   to a warm sand/terracotta family — warm sand background, warm ivory
-   (not pure white) cards, and a burnt-terracotta primary matching dark
-   mode's new accent instead of the old indigo-violet. */
+/* Light mode — this is the primary/default-feeling theme (matches how
+   Airbnb, Stripe, and Linear's light modes actually work): white cards,
+   near-black text, depth from soft shadows + a hairline border, NOT from
+   dyeing the background a "theme color". A faint neutral-gray page
+   background (not pure white) is what keeps this from reading as "flat" —
+   the depth cue is the shadow, not a tint. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #F1E9DA; --bg-elevated: #FBF6EE; --surface: #FBF6EE; --surface-hover: #EFE6D6;
-  --border: #E2D6C0; --border-strong: #D0C0A3;
-  --primary: #B14B26; --primary-hover: #9A3F1F; --primary-pressed: #7D341A;
-  --success: #2E7D32; --warning: #B7791F; --error: #C1483A; --info: #B14B26;
-  /* Warm charcoal-brown instead of cool gray — pairs with the sand
-     background instead of reading as a gray UI dropped onto warm paper. */
-  --text: #372E24; --text-2: #746758; --text-3: #96897A; --text-disabled: #B7AA9A;
-  --icon: #372E24; --icon-2: #746758; --divider: #E2D6C0;
-  --card-bg: #FBF6EE; --card-border: #E2D6C0;
-  /* Same clay two-tone treatment as dark mode, tuned for the sand
-     background: a bright ivory highlight (brighter than --surface itself,
-     since --bg/--surface are close in value here) plus a warm dark shadow
-     for the "raised off the page" edge — shadow strength softened along
-     with the text color above, the dark half was reading as a hard edge. */
-  --card-shadow: -6px -6px 14px rgba(255,255,255,.9), 8px 8px 20px rgba(45,32,20,.08);
-  --accent-soft: rgba(177,75,38,0.10); --success-soft: rgba(46,125,50,0.10);
+  --bg: #FAFAFA; --bg-elevated: #FFFFFF; --surface: #FFFFFF; --surface-hover: #F7F7F7;
+  --border: #EBEBEB; --border-strong: #DDDDDD;
+  --primary: #FF385C; --primary-hover: #E31C5F; --primary-pressed: #D70466;
+  --success: #16A34A; --warning: #B45309; --error: #C13515; --info: #FF385C;
+  --text: #222222; --text-2: #6A6A6A; --text-3: #B0B0B0; --text-disabled: #DDDDDD;
+  --icon: #222222; --icon-2: #6A6A6A; --divider: #EBEBEB;
+  --card-bg: #FFFFFF; --card-border: #EBEBEB;
+  --card-shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 16px rgba(0,0,0,.06);
+  --accent-soft: rgba(255,56,92,0.08); --success-soft: rgba(22,163,74,0.10);
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
-  --shadow-sm: -3px -3px 8px rgba(255,255,255,.85), 4px 4px 11px rgba(45,32,20,.07);
-  --shadow-md: -4px -4px 12px rgba(255,255,255,.9), 8px 8px 20px rgba(45,32,20,.08);
-  --shadow-lg: -6px -6px 16px rgba(255,255,255,.95), 14px 14px 32px rgba(45,32,20,.1);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05), 0 2px 6px rgba(0,0,0,.05);
+  --shadow-md: 0 2px 4px rgba(0,0,0,.04), 0 8px 20px rgba(0,0,0,.08);
+  --shadow-lg: 0 6px 16px rgba(0,0,0,.08), 0 16px 40px rgba(0,0,0,.1);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
-  --glass-edge: transparent; --glass-line: transparent; --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
+  --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
   --card-alt: var(--surface-hover);
-  --fallback-scrim: rgba(45,32,20,0.15);
+  --fallback-scrim: rgba(0,0,0,0.1);
 
   --spark-color-1: var(--primary);
   --spark-color-2: var(--primary-hover);
@@ -511,8 +489,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ex-hero { padding: 28px 16px 4px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
 .ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; }
 .ex-greeting { display: block; font-size: 14px; font-weight: 500; color: var(--text-2); margin-bottom: 4px; }
-.ex-hero-host { display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); color: var(--accent); padding: 6px 0; white-space: nowrap; flex: 0 0 auto; }
-.ex-hero-host [class^="icon-"] { font-size: 14px; }
+/* A real pill button, not a bare text link — the previous plain colored
+   text read as decoration rather than an action and was easy to miss
+   entirely ("event hosting is hard to locate"). Matches Airbnb's own
+   persistent "Airbnb your home" affordance: a hairline-bordered pill that
+   stays visually present without competing with the primary CTA color. */
+.ex-hero-host {
+  display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); font-weight: 600;
+  color: var(--text); padding: 10px 16px; white-space: nowrap; flex: 0 0 auto;
+  border: 1.5px solid var(--border-strong); border-radius: var(--radius-pill);
+  background: var(--surface); transition: background-color .15s ease, border-color .15s ease;
+}
+.ex-hero-host:hover { background: var(--surface-hover); border-color: var(--text-3); }
+.ex-hero-host [class^="icon-"] { font-size: 14px; color: var(--accent); }
 
 /* Full-bleed hero for the top featured event — one implementation at every
    breakpoint (see the 900px block for the size-up, not a swap to a
@@ -1143,14 +1132,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- buttons ---------- */
 .btn {
-  font-family: inherit; font-size: 15px; font-weight: 700;
+  font-family: inherit; font-size: 15px; font-weight: 600;
   border-radius: var(--radius-sm); padding: 14px 20px;
   min-height: var(--btn-h);
   background: var(--accent); color: #fff;
-  /* Clay puff, tinted with the button's own color rather than a generic
-     black/white shadow — a colored accent glow reads as "molded from the
-     accent color", not just "raised". */
-  box-shadow: -3px -3px 8px color-mix(in srgb, var(--accent) 35%, white 15%), 4px 4px 12px color-mix(in srgb, var(--accent) 55%, black 35%);
+  /* Restrained skeuomorphic touch — a soft accent-tinted drop shadow (not
+     the earlier heavy dual clay-puff) plus a thin inset top highlight,
+     giving primary CTAs a subtly tactile/pressable feel without the whole
+     button system looking molded out of plastic. */
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(0,0,0,.12), 0 6px 16px color-mix(in srgb, var(--accent) 40%, transparent);
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
   /* transition is set once, in the MOTION section further down (that
      declaration always wins the cascade since it comes later — this one
@@ -1160,7 +1150,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .btn.lg { min-height: var(--btn-h-lg); font-size: 16px; padding: 16px 24px; }
 .btn.sm { min-height: var(--btn-h-sm); padding: 8px 14px; font-size: 13px; width: auto; }
 .btn:hover { opacity: 0.92; }
-.btn:active { transform: scale(0.98); box-shadow: inset 3px 3px 8px color-mix(in srgb, var(--accent) 55%, black 35%); }
+.btn:active { transform: scale(0.98); box-shadow: inset 0 1px 4px rgba(0,0,0,.25); }
 .btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; box-shadow: var(--shadow-sm); }
 .btn.dark { background: var(--text); color: var(--bg); }
 .btn.glass { background: var(--surface-2); color: var(--text); box-shadow: var(--shadow-sm); }
@@ -1686,6 +1676,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .tab.on { background: var(--accent-soft); }
   .tabs-right { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: 0 0 auto; }
   .tabs-right .pill { color: var(--text-2); }
+  .tb-host {
+    font-size: 14px; font-weight: 600; color: var(--text); padding: 9px 14px;
+    border-radius: var(--radius-pill); white-space: nowrap;
+    transition: background-color .15s ease;
+  }
+  .tb-host:hover { background: var(--surface-hover); }
 
   /* dense row lists become a 3-column grid on desktop — uses the width
      instead of one long centered column, without shrinking each row */

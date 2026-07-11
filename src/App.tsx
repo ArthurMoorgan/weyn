@@ -117,6 +117,11 @@ export default function App() {
             these are the chrome that top bar earns: city + theme + account,
             each already a real working component elsewhere in the app. */}
         <div className="tabs-right">
+          {/* Persistent host entry point (Airbnb's own top-nav "Airbnb your
+              home" pattern) — hosting shouldn't only live inside Profile's
+              Manage section or a once-per-session hero link; on desktop
+              widths there's room for it to just always be here. */}
+          <Link to="/host/events" className="tb-host">Host an event</Link>
           <CityPill />
           <ThemeToggle />
           <Link to="/you" className="tb-avatar" aria-label="Profile">
