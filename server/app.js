@@ -1237,6 +1237,13 @@ export function createApp(storage) {
     }
   });
 
+  // Shared copywriting principles — same rules the dedicated venue-campaign
+  // AI-draft route uses (see POST /api/venues/:id/campaigns/ai-draft below),
+  // wired into the general assistants too so "help me write a caption for
+  // this" or "what should I post today" gets copy that follows them, not
+  // just the dedicated Marketing "AI draft" button.
+  const MARKETING_COPY_PRINCIPLES = `When asked to write or suggest marketing copy (captions, emails, posts, descriptions), follow these rules: benefit-first framing, not feature-first — lead with what's in it for the reader. One clear angle/hook, not three things at once. Never invent statistics, urgency, or social proof that isn't verifiably real. Warm, direct, human tone — no corporate voice, no excessive exclamation points. Keep it tight and platform-appropriate in length.`;
+
   // Org-wide AI Assistant — a general Q&A chat grounded in the organizer's
   // own dashboard numbers (not a generic chatbot), so "how's my next event
   // looking?" gets a real answer instead of a made-up one. History is kept
@@ -1249,7 +1256,7 @@ export function createApp(storage) {
     const [overview, finance] = await Promise.all([db.organizerOverview(req.user.id), db.organizerFinance(req.user.id)]);
     const context = `Organizer's current numbers on Weyn: ${overview.nextUpcoming?.length ?? 0} upcoming events shown on their dashboard, ${finance.totalRevenue} OMR total revenue across ${finance.byEvent.length} events with sales. Top events by revenue: ${finance.byEvent.slice(0, 3).map((e) => `${e.title} (${e.revenue} OMR, ${e.ticketsSold} tickets)`).join("; ") || "none yet"}.`;
     const transcript = history.map((h) => `${h.role === "assistant" ? "Assistant" : "Organizer"}: ${h.content}`).join("\n");
-    const prompt = `You're a helpful assistant inside an event organizer's dashboard on Weyn (an Oman events platform). Answer concisely and specifically, grounded only in the real data given — never invent numbers.\n\n${context}\n\n${transcript ? transcript + "\n" : ""}Organizer: ${message}\nAssistant:`;
+    const prompt = `You're a helpful assistant inside an event organizer's dashboard on Weyn (an Oman events platform). Answer concisely and specifically, grounded only in the real data given — never invent numbers.\n\n${MARKETING_COPY_PRINCIPLES}\n\n${context}\n\n${transcript ? transcript + "\n" : ""}Organizer: ${message}\nAssistant:`;
     try {
       const output = await askClaude(prompt, { maxTokens: 350 });
       await db.logAiGeneration({ organizerId: req.user.id, eventId: null, feature: "assistant", prompt, output });
@@ -1271,7 +1278,7 @@ export function createApp(storage) {
   // rather than a flattened transcript string, since tool-call/tool-result
   // turns need to round-trip in that shape for the model to stay coherent
   // across turns.
-  const AGENT_SYSTEM_PROMPT = `You are Weyn AI, an operations assistant embedded in an event/venue organizer's dashboard on Weyn (an Oman events + reservations platform). You have tools to look up real data and to propose actions — you can never directly change anything yourself. Every tool that creates/sends/cancels something only ever gets PROPOSED for the owner to review and approve; it is never actually executed by you calling the tool. Always pass a clear, specific "reasoning" argument to any such tool explaining why you're proposing it. Ground every answer in real tool results — never invent numbers, customers, or reservations. Be concise.`;
+  const AGENT_SYSTEM_PROMPT = `You are Weyn AI, an operations assistant embedded in an event/venue organizer's dashboard on Weyn (an Oman events + reservations platform). You have tools to look up real data and to propose actions — you can never directly change anything yourself. Every tool that creates/sends/cancels something only ever gets PROPOSED for the owner to review and approve; it is never actually executed by you calling the tool. Always pass a clear, specific "reasoning" argument to any such tool explaining why you're proposing it. Ground every answer in real tool results — never invent numbers, customers, or reservations. Be concise.\n\n${MARKETING_COPY_PRINCIPLES}`;
 
   app.post("/api/organizer/ai/agent", requireAuth, requireFeature("aiStudio"), async (req, res) => {
     if (!agentToolsConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
