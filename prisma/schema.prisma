@@ -582,6 +582,7 @@ model Venue {
   owner         User?                    @relation(fields: [ownerId], references: [id])
   slots         VenueAvailabilitySlot[]
   reservations  Reservation[]
+  guestNotes    VenueGuestNote[]
 
   @@index([ownerId])
   @@index([category])
@@ -612,7 +613,11 @@ model Reservation {
   partySize  Int
   date       DateTime
   time       String
-  status     String   @default("pending") // "pending" | "confirmed" | "cancelled"
+  status     String   @default("pending") // "pending" | "confirmed" | "cancelled" | "seated" | "no_show"
+  // Owner-entered reservations (phone bookings, walk-ins) skip the guest
+  // submission flow entirely — flagged here so the dashboard can show how a
+  // booking arrived instead of assuming everything came from a guest form.
+  source     String   @default("guest") // "guest" | "manual"
   notes      String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -623,6 +628,23 @@ model Reservation {
   @@index([venueId])
   @@index([slotId])
   @@index([status])
+}
+
+// Notes an owner keeps on a specific guest at their venue — independent of
+// any single Reservation (a guest with 5 past visits should have one running
+// note, not 5 disconnected ones). Deliberately its own tiny table rather than
+// a field bolted onto Reservation, since it's keyed on (venue, guest), not
+// (venue, guest, visit).
+model VenueGuestNote {
+  id         String   @id @default(cuid())
+  venueId    String
+  guestEmail String
+  note       String
+  updatedAt  DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, guestEmail])
 }
 
 // A venue owner's request to be onboarded onto reservation hosting —

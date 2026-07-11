@@ -1947,12 +1947,15 @@ export function createApp(storage) {
     }
   });
 
-  // Owner confirms or cancels a reservation for their venue.
+  // Owner confirms/cancels/seats/no-shows a reservation for their venue.
+  // "seated"/"no_show" are terminal, post-arrival outcomes — distinct from
+  // "confirmed" (accepted, hasn't happened yet) — and back the analytics
+  // endpoint's no-show rate below.
   app.post("/api/reservations/:id/status", requireAuth, async (req, res) => {
     try {
       const status = String(req.body?.status || "");
-      if (!["confirmed", "cancelled"].includes(status)) {
-        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "status must be 'confirmed' or 'cancelled'" } });
+      if (!["confirmed", "cancelled", "seated", "no_show"].includes(status)) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "status must be 'confirmed', 'cancelled', 'seated', or 'no_show'" } });
       }
       const reservation = await prisma.reservation.findUnique({ where: { id: req.params.id }, include: { venue: true } });
       if (!reservation) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Reservation not found" } });
@@ -1963,6 +1966,130 @@ export function createApp(storage) {
       res.json(updated);
     } catch (err) {
       captureError(err, { route: "POST /api/reservations/:id/status", reservationId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Owner-entered reservation — phone bookings, walk-ins — created directly
+  // from the dashboard rather than a guest submitting the public form.
+  // Auto-confirmed (the owner is asserting it happened/will happen) and
+  // deliberately skips the capacity-vs-slot check the public route enforces:
+  // an owner seating a walk-in without a matching slot, or over a slot's
+  // nominal capacity for a one-off, is a real and common case they should be
+  // able to just record.
+  app.post("/api/venues/:id/reservations/manual", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const { guestName, guestEmail, guestPhone, partySize, date, time, slotId, notes, status } = req.body || {};
+      if (!guestName || !String(guestName).trim() || !guestEmail || !String(guestEmail).trim()) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "guestName and guestEmail are required" } });
+      }
+      const size = Number(partySize);
+      if (!Number.isFinite(size) || size < 1) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "partySize must be a positive number" } });
+      }
+      if (!date || isNaN(new Date(date).getTime())) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid date is required" } });
+      }
+      if (!time || !String(time).trim()) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "time is required" } });
+      }
+      let slot = null;
+      if (slotId) {
+        slot = await prisma.venueAvailabilitySlot.findUnique({ where: { id: slotId } });
+        if (!slot || slot.venueId !== req.venue.id) {
+          return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid slot for this venue" } });
+        }
+      }
+      const finalStatus = ["confirmed", "seated"].includes(status) ? status : "confirmed";
+      const reservation = await prisma.reservation.create({
+        data: {
+          venueId: req.venue.id,
+          slotId: slot ? slot.id : null,
+          guestName: String(guestName).trim(),
+          guestEmail: String(guestEmail).trim(),
+          guestPhone: guestPhone ? String(guestPhone).trim() : null,
+          partySize: size,
+          date: new Date(date),
+          time: String(time).trim(),
+          notes: notes ? String(notes).trim() : null,
+          status: finalStatus,
+          source: "manual",
+        },
+      });
+      res.status(201).json(reservation);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/reservations/manual", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- venue analytics: covers seated, no-show rate, peak hours/days ----
+  // Revenue is deliberately not included — Reservation has no monetary field
+  // (no deposit/prepayment exists yet), so a revenue figure here would be
+  // fabricated rather than measured.
+  app.get("/api/venues/:id/analytics", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const reservations = await prisma.reservation.findMany({ where: { venueId: req.venue.id } });
+      const total = reservations.length;
+      const seated = reservations.filter((r) => r.status === "seated");
+      const noShows = reservations.filter((r) => r.status === "no_show");
+      const arrived = seated.length + noShows.length; // reservations with a known post-arrival outcome
+      const coversSeated = seated.reduce((sum, r) => sum + r.partySize, 0);
+      const noShowRate = arrived > 0 ? noShows.length / arrived : null;
+
+      const byHour = {};
+      const byDayOfWeek = [0, 0, 0, 0, 0, 0, 0];
+      for (const r of reservations) {
+        if (r.status === "cancelled") continue;
+        const hour = String(r.time || "").slice(0, 2);
+        if (hour) byHour[hour] = (byHour[hour] || 0) + 1;
+        byDayOfWeek[new Date(r.date).getUTCDay()] += 1;
+      }
+      const peakHours = Object.entries(byHour).sort(([, a], [, b]) => b - a).slice(0, 5).map(([hour, count]) => ({ hour: `${hour}:00`, count }));
+
+      res.json({
+        totalReservations: total,
+        coversSeated,
+        noShows: noShows.length,
+        noShowRate,
+        peakHours,
+        byDayOfWeek,
+      });
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/analytics", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- per-guest notes: a running note per (venue, guestEmail), independent
+  // of any single reservation. List is owner-only same as reservations. ----
+  app.get("/api/venues/:id/guest-notes", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const notes = await prisma.venueGuestNote.findMany({ where: { venueId: req.venue.id } });
+      res.json(notes);
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/guest-notes", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put("/api/venues/:id/guest-notes/:email", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const guestEmail = String(req.params.email || "").trim().toLowerCase();
+      const note = String(req.body?.note || "").trim();
+      if (!guestEmail) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "guestEmail is required" } });
+      if (!note) {
+        await prisma.venueGuestNote.deleteMany({ where: { venueId: req.venue.id, guestEmail } });
+        return res.json({ deleted: true });
+      }
+      const saved = await prisma.venueGuestNote.upsert({
+        where: { venueId_guestEmail: { venueId: req.venue.id, guestEmail } },
+        create: { venueId: req.venue.id, guestEmail, note },
+        update: { note },
+      });
+      res.json(saved);
+    } catch (err) {
+      captureError(err, { route: "PUT /api/venues/:id/guest-notes/:email", venueId: req.params.id });
       res.status(500).json({ error: err.message });
     }
   });

@@ -352,8 +352,38 @@ export interface Reservation {
   time: string;
   slotId?: string | null;
   notes?: string | null;
-  status?: string;
+  status?: string; // "pending" | "confirmed" | "cancelled" | "seated" | "no_show"
+  source?: "guest" | "manual";
   createdAt?: string;
+}
+
+export interface VenueAnalytics {
+  totalReservations: number;
+  coversSeated: number;
+  noShows: number;
+  noShowRate: number | null;
+  peakHours: { hour: string; count: number }[];
+  byDayOfWeek: number[]; // index 0 (Sun) - 6 (Sat)
+}
+
+export interface VenueGuestNote {
+  id: string;
+  venueId: string;
+  guestEmail: string;
+  note: string;
+  updatedAt: string;
+}
+
+export interface ManualReservationInput {
+  guestName: string;
+  guestEmail: string;
+  guestPhone?: string;
+  partySize: number;
+  date: string;
+  time: string;
+  slotId?: string;
+  notes?: string;
+  status?: "confirmed" | "seated";
 }
 
 export interface VenueApplication {
@@ -1263,10 +1293,28 @@ export const api = {
       method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ slots }),
     }).then((r) => json<{ slots: VenueAvailabilitySlot[] }>(r));
   },
-  async setReservationStatus(reservationId: string, status: "confirmed" | "cancelled"): Promise<Reservation> {
+  async setReservationStatus(reservationId: string, status: "confirmed" | "cancelled" | "seated" | "no_show"): Promise<Reservation> {
     return fetch(`${API_BASE}/api/reservations/${reservationId}/status`, {
       method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ status }),
     }).then((r) => json<Reservation>(r));
+  },
+  async createManualReservation(venueId: string, input: ManualReservationInput): Promise<Reservation> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/reservations/manual`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json<Reservation>(r));
+  },
+  async venueAnalytics(venueId: string): Promise<VenueAnalytics> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/analytics`, { headers: { ...(await authHeaders()) } })
+      .then((r) => json<VenueAnalytics>(r));
+  },
+  async venueGuestNotes(venueId: string): Promise<VenueGuestNote[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/guest-notes`, { headers: { ...(await authHeaders()) } })
+      .then((r) => json<VenueGuestNote[]>(r));
+  },
+  async setVenueGuestNote(venueId: string, guestEmail: string, note: string): Promise<VenueGuestNote | { deleted: true }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/guest-notes/${encodeURIComponent(guestEmail)}`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ note }),
+    }).then((r) => json<VenueGuestNote | { deleted: true }>(r));
   },
 
   // ---- admin: venue-application review ----
