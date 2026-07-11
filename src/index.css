@@ -5,36 +5,33 @@
 
 :root {
   color-scheme: dark;
-  /* Blue-slate dark palette (v2) — the flat neutral-gray original had --bg
-     and --surface only ~3% apart in lightness, so borderless clay cards
-     had nothing to separate them from the page. This gives three clearly
-     stepped tonal layers (bg < surface < surface-hover) plus a cooler,
-     more distinctive indigo-violet primary instead of a generic blue. */
-  --bg:             #0A0C11;
-  --bg-elevated:    #1E2330;
-  /* Surfaces lifted a step (was #161A23 / #212734) so a clay card reads as
-     genuinely raised off the darker bg — the old surface sat too close to
-     --bg for any shadow to separate them in dark mode. */
-  --surface:        #191F2B;
-  --surface-hover:  #232B3A;
-  --border:         #2A303D;
-  --border-strong:  #3A4152;
-  --primary:        #7B6EF6;
-  --primary-hover:  #948BFF;
-  --primary-pressed:#5F51D8;
-  --success:        #57B86A;
+  /* Warm terracotta/espresso dark palette (v3) — replaces the earlier
+     cool blue-slate + indigo-violet scheme (too close to generic
+     "AI-purple" branding, and too blue/cold for an Oman brand). Espresso
+     bg/surface layers + a burnt-terracotta primary instead, evoking
+     desert clay and old-Muscat fort walls rather than a tech-blue app. */
+  --bg:             #15110D;
+  --bg-elevated:    #241C15;
+  --surface:        #1F1712;
+  --surface-hover:  #2B2119;
+  --border:         #3A2E23;
+  --border-strong:  #4A3B2C;
+  --primary:        #C1592F;
+  --primary-hover:  #D66A3D;
+  --primary-pressed:#9C4523;
+  --success:        #4E9A5D;
   --warning:        #D6A44B;
-  --error:          #F26D6D;
-  --info:           #7B6EF6;
-  --text:           #EDEFF3;
-  --text-2:         #A6ADBB;
-  --text-3:         #727A88;
-  --text-disabled:  #63666C;
-  --icon:           #EDEFF3;
-  --icon-2:         #A6ADBB;
-  --divider:        #2A303D;
-  --card-bg:        #161A23;
-  --card-border:    #2A303D;
+  --error:          #E2604F;
+  --info:           #C1592F;
+  --text:           #F2ECE4;
+  --text-2:         #B8AA9C;
+  --text-3:         #8C7E71;
+  --text-disabled:  #6B5F54;
+  --icon:           #F2ECE4;
+  --icon-2:         #B8AA9C;
+  --divider:        #3A2E23;
+  --card-bg:        #1A130E;
+  --card-border:    #3A2E23;
   /* Claymorphism experiment (whole app) — every card/chip/button below
      reads its shape from these six tokens, so the "puffy molded clay" look
      is achieved by redefining the tokens themselves rather than touching
@@ -46,9 +43,9 @@
      clay), paired with a soft outer highlight and a deep drop shadow that's
      properly darker than the lifted surface. */
   --card-shadow:    inset 0 1px 0 rgba(255,255,255,.06), -3px -3px 9px rgba(255,255,255,.02), 6px 8px 20px rgba(0,0,0,.55);
-  --accent-soft:    rgba(123,110,246,0.16);
-  --success-soft:   rgba(87,184,106,0.15);
-  --scrim: rgba(6,7,10,0.55);
+  --accent-soft:    rgba(193,89,47,0.16);
+  --success-soft:   rgba(78,154,93,0.15);
+  --scrim: rgba(10,7,5,0.55);
 
   /* back-compat aliases so existing ~300 call sites keep working unchanged */
   --surface-2:   var(--surface-hover);
@@ -81,13 +78,16 @@
   --space-5: 24px; --space-6: 32px; --space-8: 48px;
   --btn-h: 48px; --btn-h-lg: 56px; --btn-h-sm: 40px;
 
-  --cat-music: #A855F7; --cat-sports: #16A34A; --cat-food: #F97316;
-  --cat-culture: #EC4899; --cat-cars: #6366F1; --cat-workshop: #2563EB;
+  /* cat-music/cat-cars shifted off the violet/indigo family (was #A855F7 /
+     #6366F1) so no category chip reads as "purple" either, matching the
+     brand primary's move away from indigo-violet. */
+  --cat-music: #B5304F; --cat-sports: #16A34A; --cat-food: #F97316;
+  --cat-culture: #EC4899; --cat-cars: #2563AF; --cat-workshop: #2563EB;
   --cat-community: #14B8A6;
 
   /* fallback scrim used by Stub.tsx cover gradients — theme-aware so the
      hardcoded #14151A55 doesn't look wrong in light mode */
-  --fallback-scrim: rgba(0,0,0,0.33);
+  --fallback-scrim: rgba(20,12,6,0.33);
 
   /* Tab-switch spark burst (see .tab-spark below) — small flecks in the
      accent + a warm highlight, tuned per theme so they read against the
@@ -100,41 +100,40 @@
 /* Light mode kept as a real, distinct theme (not deleted — the toggle stays)
    but built on the same flat/minimal philosophy: white surface, near-black
    text, sparse low-contrast borders instead of glass. */
-/* Cream light mode — the old theme was near-pure-white (#F7F8FA bg,
-   #FFFFFF cards), which at full brightness is genuinely harsh on the eyes.
-   This is a warm, low-glare palette instead: soft cream background, warm
-   off-white cards, warm near-black text (not pure #000) — closer to
-   paper/Notion than a stark white app. */
+/* Sand light mode (v2) — the previous "cream" theme still had a pure-white
+   #FFFFFF surface (cards/inputs), which reads as a basic white UI the
+   moment any content sits on a card. This shifts the whole light palette
+   to a warm sand/terracotta family — warm sand background, warm ivory
+   (not pure white) cards, and a burnt-terracotta primary matching dark
+   mode's new accent instead of the old indigo-violet. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #F7F6F3; --bg-elevated: #FFFFFF; --surface: #FFFFFF; --surface-hover: #F1EFEA;
-  --border: #E6E3DD; --border-strong: #D8D3C8;
-  /* Primary shifted to the same indigo-violet family as the new dark
-     palette, so both themes read as one brand rather than two. */
-  --primary: #4B4ED6; --primary-hover: #3E40B8; --primary-pressed: #322F94;
-  --success: #2E7D32; --warning: #B7791F; --error: #C53030; --info: #4B4ED6;
-  /* "Too much contrast" == near-black text on a cream card. Softened to a
-     charcoal that's still comfortably AA (~9:1) instead of near-max. */
-  --text: #35363B; --text-2: #6C6D72; --text-3: #8A8A8A; --text-disabled: #ACACAC;
-  --icon: #35363B; --icon-2: #6C6D72; --divider: #E6E3DD;
-  --card-bg: #FFFFFF; --card-border: #E6E3DD;
-  /* Same clay two-tone treatment as dark mode, tuned for the cream
-     background: a bright white highlight (brighter than --surface itself,
+  --bg: #F1E9DA; --bg-elevated: #FBF6EE; --surface: #FBF6EE; --surface-hover: #EFE6D6;
+  --border: #E2D6C0; --border-strong: #D0C0A3;
+  --primary: #B14B26; --primary-hover: #9A3F1F; --primary-pressed: #7D341A;
+  --success: #2E7D32; --warning: #B7791F; --error: #C1483A; --info: #B14B26;
+  /* Warm charcoal-brown instead of cool gray — pairs with the sand
+     background instead of reading as a gray UI dropped onto warm paper. */
+  --text: #372E24; --text-2: #746758; --text-3: #96897A; --text-disabled: #B7AA9A;
+  --icon: #372E24; --icon-2: #746758; --divider: #E2D6C0;
+  --card-bg: #FBF6EE; --card-border: #E2D6C0;
+  /* Same clay two-tone treatment as dark mode, tuned for the sand
+     background: a bright ivory highlight (brighter than --surface itself,
      since --bg/--surface are close in value here) plus a warm dark shadow
      for the "raised off the page" edge — shadow strength softened along
      with the text color above, the dark half was reading as a hard edge. */
-  --card-shadow: -6px -6px 14px rgba(255,255,255,.9), 8px 8px 20px rgba(29,29,31,.07);
-  --accent-soft: rgba(75,78,214,0.10); --success-soft: rgba(46,125,50,0.10);
+  --card-shadow: -6px -6px 14px rgba(255,255,255,.9), 8px 8px 20px rgba(45,32,20,.08);
+  --accent-soft: rgba(177,75,38,0.10); --success-soft: rgba(46,125,50,0.10);
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
-  --shadow-sm: -3px -3px 8px rgba(255,255,255,.85), 4px 4px 11px rgba(29,29,31,.06);
-  --shadow-md: -4px -4px 12px rgba(255,255,255,.9), 8px 8px 20px rgba(29,29,31,.07);
-  --shadow-lg: -6px -6px 16px rgba(255,255,255,.95), 14px 14px 32px rgba(29,29,31,.09);
+  --shadow-sm: -3px -3px 8px rgba(255,255,255,.85), 4px 4px 11px rgba(45,32,20,.07);
+  --shadow-md: -4px -4px 12px rgba(255,255,255,.9), 8px 8px 20px rgba(45,32,20,.08);
+  --shadow-lg: -6px -6px 16px rgba(255,255,255,.95), 14px 14px 32px rgba(45,32,20,.1);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
   --glass-edge: transparent; --glass-line: transparent; --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
   --card-alt: var(--surface-hover);
-  --fallback-scrim: rgba(0,0,0,0.15);
+  --fallback-scrim: rgba(45,32,20,0.15);
 
   --spark-color-1: var(--primary);
   --spark-color-2: var(--primary-hover);

@@ -11,6 +11,9 @@ server/uploads/
 .DS_Store
 ._*
 
+# full DB backups (contain real user PII) — kept locally only, never committed
+backups/
+
 # env (keep .env.example)
 .env
 .env.local

@@ -1,9 +1,10 @@
 // Weyn's signature loading animation — the same "W" swoosh mark used as
-// the logo (see Logo.tsx's <Mark/>), but drawn with a live indigo→violet→
-// pink gradient and a continuous "flowing ink" stroke animation instead of
-// sitting static. This is what should render anywhere the app is waiting
-// on something (see .route-loading in index.css) instead of a blank box or
-// a generic spinner — one reusable, on-brand loading moment everywhere.
+// the logo (see Logo.tsx's <Mark/>), but drawn with a live terracotta→
+// amber→coral gradient and a continuous "flowing ink" stroke animation
+// instead of sitting static. This is what should render anywhere the app is
+// waiting on something (see .route-loading in index.css) instead of a blank
+// box or a generic spinner — one reusable, on-brand loading moment
+// everywhere.
 export default function LoadingMark({ size = 48 }: { size?: number }) {
   return (
     <svg
@@ -18,9 +19,9 @@ export default function LoadingMark({ size = 48 }: { size?: number }) {
     >
       <defs>
         <linearGradient id="loadingMarkGrad" x1="12" y1="12" x2="112" y2="92" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#818CF8" />
-          <stop offset="55%" stopColor="#A78BFA" />
-          <stop offset="100%" stopColor="#F472B6" />
+          <stop offset="0%" stopColor="#C1592F" />
+          <stop offset="55%" stopColor="#E0A040" />
+          <stop offset="100%" stopColor="#E2604F" />
         </linearGradient>
       </defs>
       <path
