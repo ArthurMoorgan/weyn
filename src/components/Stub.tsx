@@ -67,7 +67,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   // ---- dense horizontal list row (default) ----
   if (variant === "list") {
     return (
-      <Link to={`/e/${e.id}`} className={"ec-row" + (ticket ? " ticket" : "")}>
+      <Link to={`/e/${e.id}`} viewTransition className={"ec-row" + (ticket ? " ticket" : "")}>
         <div className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph">{e.glyph}</span>}</div>
         <div className="ec-main">
           <div className="ec-top">
@@ -95,7 +95,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   // ---- full-width editorial card (image top, text below) ----
   if (variant === "card") {
     return (
-      <Link to={`/e/${e.id}`} className="ec-card">
+      <Link to={`/e/${e.id}`} viewTransition className="ec-card">
         <div className="ec-card-cover" style={coverStyle}>
           {statusBadge}
           <SaveHeart id={e.id} />
@@ -119,7 +119,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   // ---- compact vertical card for horizontal rails ----
   if (variant === "rail") {
     return (
-      <Link to={`/e/${e.id}`} className="ec-rail">
+      <Link to={`/e/${e.id}`} viewTransition className="ec-rail">
         <div className="ec-rail-cover" style={coverStyle}>
           {statusBadge}
           <SaveHeart id={e.id} />
@@ -137,7 +137,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
 
   // ---- large featured hero card ----
   return (
-    <Link to={`/e/${e.id}`} className="ec-feature">
+    <Link to={`/e/${e.id}`} viewTransition className="ec-feature">
       <div className="ec-feature-cover" style={coverStyle}>
         {statusBadge}
         <SaveHeart id={e.id} className="ec-save-lg" />

@@ -42,7 +42,7 @@ function HeroCard({ e }: { e: Weyn }) {
     ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
     : { background: e.color };
   return (
-    <Link to={`/e/${e.id}`} className="ex-hero-card" style={coverStyle}>
+    <Link to={`/e/${e.id}`} viewTransition className="ex-hero-card" style={coverStyle}>
       <div className="ex-hero-card-body">
         <span className="ex-hero-card-eyebrow">{catLabel} · {heroTimeLabel(e)}</span>
         <h2 className="ex-hero-card-title">{e.title}</h2>

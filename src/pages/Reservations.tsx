@@ -132,7 +132,7 @@ export default function Reservations({ embedded = false }: { embedded?: boolean 
 
       <div className="search-wrap">
         <div className="search">
-          <i className="icon-search" />
+          <span className="search-icon-slot"><i className="icon-search" /></span>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}

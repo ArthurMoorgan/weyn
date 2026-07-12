@@ -1087,60 +1087,41 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* generous top pad so that when a search is active (the hero above is
    hidden) the field still clears the status bar / notch on the topbar-less
    browse screens */
-.search { padding: 16px 16px 0; position: relative; }
-/* The magnifier, clear-x, and filter icons share one sizing/spacing system —
-   same 34px box, same 18px glyph, same vertical center, edges/gap on the
-   same 12px/8px unit — so they read as one matched set instead of three
-   differently-sized icons scattered at ad-hoc offsets.
-   Each icon glyph lives inside its own 34px box (.search-icon-slot for the
-   magnifier, .clearx, .search-filter-btn's .tooltip-wrap) rather than being
-   sized directly: [class^="icon-"] is an Ikonate mask icon sized via
-   width:1em/height:1em (see ikonate.css), so putting a raw 34px box
-   directly on the <i> itself (as this used to do for the magnifier, being
-   .search's direct child with no wrapper of its own) overrides that and
-   stretches its mask to fill the full 34px box — ballooning it to 2x the
-   size of the other two icons, which stayed correctly glyph-sized because
-   their 34px box lives on their button/wrapper, one level up from the <i>.
-   The box below is purely for position + hit/visual area; the actual glyph
-   size comes from font-size on the box, inherited down to the <i>. */
-.search-icon-slot,
-.search .clearx,
-.tooltip-wrap.search-filter-tooltip {
-  position: absolute; top: calc(50% + 3px); transform: translateY(-50%);
-  width: 34px; height: 34px; display: grid; place-items: center; font-size: 18px;
+/* Rebuilt as a real flex row instead of one text input with three
+   absolutely-positioned icons floating over it at hand-tuned pixel
+   offsets — that approach was exactly what drifted out of alignment
+   whenever type/spacing changed elsewhere. Flex + gap centers every child
+   on the same baseline for free. Fully pill-shaped per the design
+   handoff ("search bar, pill, grooved/inset shadow"), with the input's
+   own background pulled in a shade so the whole bar reads as one grooved
+   trough your fingertip drops into, not a bordered rectangle. */
+.search {
+  display: flex; align-items: center; gap: 4px;
+  padding: 10px 10px 10px 16px; margin: 16px 16px 0; border-radius: var(--radius-pill);
+  background: var(--surface-hover);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.10), inset 0 0 0 1px var(--border);
 }
-.search-icon-slot { left: 12px; color: var(--text-3); z-index: 1; }
+.search-icon-slot { display: grid; place-items: center; width: 20px; height: 20px; font-size: 18px; color: var(--text-3); flex: 0 0 auto; }
 .search input {
-  width: 100%; font-family: inherit; font-size: 16px; padding: 12px 96px 12px 54px;
-  border-radius: var(--radius-sm); color: var(--text);
-  background: var(--glass-strong); border: 1px solid var(--glass-line);
-
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; /* never hard-clip long text/placeholders — right pad clears both the clear-X and filter icons */
+  flex: 1 1 auto; min-width: 0; width: auto; font-family: inherit; font-size: 16px;
+  padding: 8px 4px; border-radius: 0; color: var(--text);
+  background: none; border: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .search input::placeholder { color: var(--text-3); }
-.search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.search .clearx { right: 54px; border-radius: 50%; background: var(--surface-hover); color: var(--text-2); }
+.search:focus-within { box-shadow: inset 0 1px 3px rgba(0,0,0,.10), 0 0 0 3px var(--accent-soft); }
+.search input:focus { outline: none; }
+.search .clearx {
+  flex: 0 0 auto; width: 30px; height: 30px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--surface-2); color: var(--text-2); position: relative;
+}
 /* stays visually matched to the other icons, but the tap target is ~44x44 via an invisible halo */
-.search .clearx::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; }
+.search .clearx::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; }
 
-/* filter icon button always docked to the right edge of the search input,
-   opens the mobile filter sheet (desktop keeps the inline chip rows below).
-   The button is wrapped in <Tooltip>, whose own span.tooltip-wrap is
-   position:relative — that wrapper sits between .search and the button in
-   the DOM, so if the button itself were position:absolute here, the
-   wrapper (not .search) would become its containing block. Since the
-   wrapper is otherwise unsized (both its children are absolutely
-   positioned), it collapses to a stray inline box wherever it falls in
-   .search's normal flow (right after the full-width <input>), and the
-   button's right/top offsets resolve against that instead of the search
-   bar's edge — the icon appears to drift away from the search bar. So the
-   positioning (and now sizing, shared with the other search icons above)
-   lives on .search-filter-tooltip (the wrapper) instead, which correctly
-   resolves against .search, and the button itself just fills it. */
-.tooltip-wrap.search-filter-tooltip { right: 12px; }
+.tooltip-wrap.search-filter-tooltip { flex: 0 0 auto; }
 .search-filter-btn {
-  width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center;
-  color: var(--text-2); background: transparent; border: none; font-size: 18px;
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--text-2); background: transparent; border: none; font-size: 18px; position: relative;
 }
 .search-filter-btn.on { color: var(--primary); background: var(--accent-soft); }
 .search-filter-count {
@@ -2660,4 +2641,32 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .wl-linklike {
   color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: underline;
   text-underline-offset: 2px; background: none; border: none; cursor: pointer; padding: 0;
+}
+
+/* ============================================================
+   VIEW TRANSITIONS — tapping an event card into its detail page (and
+   back) crossfades through a soft blur-and-white wash instead of a hard
+   cut, using the native View Transitions API (React Router's `viewTransition`
+   prop on the card <Link>s triggers this automatically; no-ops silently
+   on browsers that don't support it, e.g. Firefox/Safari, so nothing
+   breaks there). The outgoing screen blurs and lightens toward the page
+   background as it fades; the incoming one arrives from the same blurred/
+   washed-out state, so the moment reads as one continuous exposure change
+   rather than two static screens swapping. Kept fast (patterns like this
+   feel sluggish past ~350ms). */
+::view-transition-old(root) {
+  animation: vt-out .32s cubic-bezier(.4,0,.2,1) both;
+}
+::view-transition-new(root) {
+  animation: vt-in .32s cubic-bezier(.4,0,.2,1) both;
+}
+@keyframes vt-out {
+  to { opacity: 0; filter: blur(14px) brightness(1.3); }
+}
+@keyframes vt-in {
+  from { opacity: 0; filter: blur(14px) brightness(1.3); }
+  to   { opacity: 1; filter: blur(0) brightness(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 }
