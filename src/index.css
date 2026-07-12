@@ -891,6 +891,24 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .profile-tab [class^="icon-"] { font-size: 15px; }
 .profile-tab.on { color: var(--text); background: var(--surface-2); }
 
+/* Workspace sub-nav (per-event / per-venue tabs: Reservations/Calendar/
+   Tables/…, Overview/Attendees/Marketing/…) — a single horizontally
+   scrolling row on mobile instead of wrapping into 2-3 uneven rows of
+   pills, which read as cluttered and gave no sense of "you are here."
+   Becomes a sticky sidebar at the 900px+ breakpoint below. Distinct from
+   the base .profile-tabs behavior (which intentionally wraps) because
+   Profile's own tab bar is flat, everyday navigation where every item
+   must stay reachable without a swipe — a workspace's sub-nav is
+   secondary to its content and fine to scroll. */
+.organizer-shell { padding: 0 6px; }
+.organizer-nav.profile-tabs {
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+  margin: 0 -6px 10px; padding: 0 6px 10px; border-bottom: 1px solid var(--hair);
+  -webkit-overflow-scrolling: touch;
+}
+.organizer-nav.profile-tabs::-webkit-scrollbar { display: none; }
+.organizer-nav.profile-tabs .profile-tab { flex: 0 0 auto; }
+
 /* ---------- "More" hub (You tab) ---------- */
 .more-page { padding-bottom: 24px; }
 .more-head { padding: 20px 16px 10px; }
@@ -1978,11 +1996,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .organizer-nav.profile-tabs {
     flex-direction: column;
     flex-wrap: nowrap;
+    overflow-x: visible;
     gap: 2px;
+    margin: 0; padding: 0; border-bottom: none;
     position: sticky;
     top: 24px;
   }
-  .organizer-nav.profile-tabs .profile-tab { width: 100%; justify-content: flex-start; }
+  .organizer-nav.profile-tabs .profile-tab { width: 100%; justify-content: flex-start; flex: 0 0 auto; }
   .organizer-content .stat-grid { grid-template-columns: repeat(4, 1fr); }
   .organizer-events-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
   /* Coming-up (list) + revenue trend (chart) sit stacked on mobile in that

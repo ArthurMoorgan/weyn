@@ -65,16 +65,17 @@ export default function VenueWorkspace() {
       </div>
       <p className="hint" style={{ padding: "0 6px 10px" }}>{venue.area} · {venue._count?.reservations ?? 0} reservation{(venue._count?.reservations ?? 0) === 1 ? "" : "s"}</p>
 
-      <nav className="profile-tabs organizer-nav" aria-label="Venue sections" style={{ padding: "0 6px 10px" }}>
-        {VENUE_TABS.map((t) => (
-          <NavLink key={t.key} to={`/venue-os/${venue.id}/${t.key}`} className={({ isActive }) => "profile-tab" + (isActive ? " on" : "")}>
-            <i className={`icon-${t.icon}`} /> {t.label}
-          </NavLink>
-        ))}
-      </nav>
-
-      <div style={{ padding: "0 6px" }}>
-        <VenueBody tab={tab} venue={venue} />
+      <div className="organizer-shell">
+        <nav className="profile-tabs organizer-nav" aria-label="Venue sections">
+          {VENUE_TABS.map((t) => (
+            <NavLink key={t.key} to={`/venue-os/${venue.id}/${t.key}`} className={({ isActive }) => "profile-tab" + (isActive ? " on" : "")}>
+              <i className={`icon-${t.icon}`} /> {t.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="organizer-content">
+          <VenueBody tab={tab} venue={venue} />
+        </div>
       </div>
     </>
   );

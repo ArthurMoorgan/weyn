@@ -70,21 +70,24 @@ export default function EventWorkspace() {
             destination (its own route, its own nav), not a modal. */}
         <Link to="/organizer" className="btn glass sm"><i className="icon-layout-dashboard" /> Organizer Dashboard</Link>
       </div>
-      <nav className="profile-tabs" aria-label="Event workspace sections" style={{ padding: "0 6px 10px" }}>
-        {TABS.map((t) => (
-          <NavLink key={t.key} to={`/organizer/events/${event.id}/${t.key}`} className={() => "profile-tab" + (tab === t.key ? " on" : "")}>
-            <i className={`icon-${t.icon}`} /> {t.label}
-          </NavLink>
-        ))}
-      </nav>
-
-      {tab === "overview" && <OverviewTab event={event} features={features} reload={events.reload} />}
-      {tab === "attendees" && <AttendeesTab event={event} features={features} />}
-      {tab === "marketing" && <MarketingTab event={event} features={features} />}
-      {tab === "seating" && <SeatingTab event={event} />}
-      {tab === "team" && <TeamTab event={event} />}
-      {tab === "checkin" && <CheckInTab event={event} />}
-      {tab === "settings" && <SettingsTab event={event} features={features} reload={events.reload} />}
+      <div className="organizer-shell">
+        <nav className="profile-tabs organizer-nav" aria-label="Event workspace sections">
+          {TABS.map((t) => (
+            <NavLink key={t.key} to={`/organizer/events/${event.id}/${t.key}`} className={() => "profile-tab" + (tab === t.key ? " on" : "")}>
+              <i className={`icon-${t.icon}`} /> {t.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="organizer-content">
+          {tab === "overview" && <OverviewTab event={event} features={features} reload={events.reload} />}
+          {tab === "attendees" && <AttendeesTab event={event} features={features} />}
+          {tab === "marketing" && <MarketingTab event={event} features={features} />}
+          {tab === "seating" && <SeatingTab event={event} />}
+          {tab === "team" && <TeamTab event={event} />}
+          {tab === "checkin" && <CheckInTab event={event} />}
+          {tab === "settings" && <SettingsTab event={event} features={features} reload={events.reload} />}
+        </div>
+      </div>
     </>
   );
 }
