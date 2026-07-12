@@ -358,7 +358,7 @@ function MoreMenu({ account, isHost, hasVenues, isAdmin, counts, onOpen }: {
   const renderRow = (r: Row) => {
     const inner = (
       <>
-        <span className="more-row-ic"><i className={"icon-" + r.icon} /></span>
+        <span className={"more-row-ic" + (r.key === "host-event" ? " accent" : "")}><i className={"icon-" + r.icon} /></span>
         <span className="more-row-text">
           <b>{r.label}</b>
           {r.sub && <span>{r.sub}</span>}

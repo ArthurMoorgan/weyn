@@ -348,7 +348,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   box-shadow: var(--shadow-sm);
   white-space: nowrap; transition: all .15s;
 }
-.chip.on { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+/* Selected filter chips get a quiet tinted-neutral treatment, not a solid
+   amber fill — several of these (Any time + a category) are "on" at once,
+   and a full-color fill on each competes with the one thing that should
+   actually read as the primary action (Get ticket / Host). Color marks
+   the selection; it doesn't shout it. */
+.chip.on { background: var(--accent-soft); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
 
 /* ---------- date section header ---------- */
 .date-head {
@@ -908,10 +913,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   transition: transform .12s ease, box-shadow .15s ease;
 }
 .more-row:active { transform: scale(0.985); box-shadow: var(--shadow-sm); }
+/* Neutral by default — every row used to get the same amber-soft square
+   regardless of what it was (Saved, Lists, Help, venues...), which means
+   the color communicated nothing. One hue repeated without reason reads
+   as noise, not a system. Icons carry weight through the row's own
+   typography now; color is reserved for .accent rows that are genuinely
+   the primary action on the page (see You.tsx / Organizer.tsx call sites). */
 .more-row-ic {
   flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
-  background: var(--accent-soft); color: var(--accent); font-size: 19px;
+  background: var(--surface-hover); color: var(--text-2); font-size: 19px;
 }
+.more-row-ic.accent { background: var(--accent-soft); color: var(--accent); }
 .more-row-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .more-row-text b { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
 .more-row-text span { font-size: 12.5px; color: var(--text-3); }
