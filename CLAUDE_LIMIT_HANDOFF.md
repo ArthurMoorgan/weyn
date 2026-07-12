@@ -48,18 +48,23 @@ Move away from the amber/khanjar-terracotta palette (tried and rejected across s
 - Don't implement the 3 organizer-dashboard concepts (1A/1B/1C) — explicitly out of scope per the README itself.
 
 ### Concrete implementation checklist (work through in order)
-1. [ ] Swap `src/index.css` root color tokens to the new coral palette (light + dark), preserving existing variable names.
-2. [ ] Swap typography to Plus Jakarta Sans (Google Fonts import in `index.html`; replace the `--t-*` font-family references in `src/index.css`). Headings 700–800 weight, tight tracking (-0.02em); body 500 weight.
-3. [ ] Re-check the skeuomorphic details the README calls out — some already exist from earlier passes this session, verify they match this spec:
-   - Theme toggle as a physical sliding pill switch (glossy thumb, inset track) — `src/components/ThemeToggle.tsx`.
-   - Primary/CTA buttons: vertical gradient (accent → accentDark), inset top highlight, soft shadow; press = translateY(1px) + reduced shadow. Current repo's `.btn` (in `src/index.css`) is a flatter 3D-edge style from an earlier pass — needs revisiting to match this gradient+glossy spec.
-   - Ticket wallet stub: dot-grain texture, dashed perforation line with circular notches (already exists — verify colors match new palette).
-   - QR panel: white sticker card, soft shadow, diagonal glossy highlight (`mix-blend-mode: soft-light`).
-   - Price slider (search filters): grooved/inset track, glossy round thumb.
-4. [ ] Verify all 4 screens against the reference screenshots at desktop and mobile widths, light and dark: Discovery feed (`src/pages/Discover.tsx`/`Explore.tsx`), Event detail (`src/pages/EventDetail.tsx`), Search & filters, Ticket wallet (`src/pages/Tickets.tsx`).
-5. [ ] Typecheck (`npx tsc --noEmit -p .`), build (`npm run build`), then deploy (`npx vercel deploy --prod --yes`) once satisfied.
+1. [x] Swap `src/index.css` root color tokens to the new coral palette (light + dark), preserving existing variable names. **Done** — `--primary: #E1483D` light / `#FF6B5B` dark, true white/near-black neutrals, matches the handoff exactly. Verified live in both themes.
+2. [x] Swap typography to Plus Jakarta Sans. **Done** — Google Fonts import updated, `--t-*` tokens use it throughout, headings 700–800/tight tracking, body 500 weight.
+3. [x] Skeuomorphic details:
+   - [x] Theme toggle rebuilt as a real sliding pill switch (glossy thumb, inset track, crossfading sun/moon) — `src/components/ThemeToggle.tsx` + CSS in `src/index.css`.
+   - [x] `.btn` rebuilt with vertical gradient (primary → primary-pressed), inset top highlight, soft shadow, 1px press instead of the old 3D-edge push.
+   - [x] Ticket stub — perforation/notches already existed, colors now match new coral palette.
+   - [x] QR panel — added `.qr-sticker` with diagonal soft-light glossy highlight (`src/components/TicketSheet.tsx` + CSS).
+   - [x] Price slider — added to the filter sheet in `src/pages/Explore.tsx` (was completely missing before), grooved track + glossy thumb, actually filters the event list by price now.
+4. [x] Verified Discovery feed, Event detail (desktop 2-col + mobile), Ticket wallet against reference screenshots in both themes — all match closely now.
+5. [x] Search bar redesigned: was 3 absolutely-positioned icons at hand-tuned offsets (the actual misalignment bug) → real flexbox row, fully pill-shaped, grooved inset shadow. Same bare-icon sizing bug fixed in Reservations' venue search too.
+6. [x] Event-card taps now use React Router's native `viewTransition` prop + custom CSS (`::view-transition-old/new(root)`) for a blur+white-wash crossfade into Event Detail, per the user's explicit ask. Confirmed `document.startViewTransition` is supported and firing in the test browser.
+7. [x] **Venue/Event workspace navigation redesigned** — both `VenueWorkspace.tsx` and `EventWorkspace.tsx` previously rendered their section tabs as a plain wrapping pill row (2-3 uneven rows on mobile, same wrapped mess on desktop since neither used the sidebar layout `OrganizerLayout.tsx` already had). Both now share `.organizer-shell`/`.organizer-nav` — sticky sidebar at 900px+, single horizontally-scrolling row on mobile. Verified at 375px and 1280px.
+8. [x] Typecheck/build clean at every step; deployed to production after each batch (`npx vercel deploy --prod --yes`).
 
-### Known outstanding items from earlier in this session (separate from the design-reference work)
-- Continue the interface-design-skill review pass on remaining organizer/venue dashboard tabs (Calendar, Tables, Guests, Marketing, Workflows, Analytics) — nav active-state bug and button-hierarchy fixes already applied to the Reservations tab + AI Studio approvals; the same pattern is likely present elsewhere.
-- A separate background session was spawned earlier to fix EventDetail's desktop-width layout rendering blank — check `git log` / that session for whether it landed.
+### Still open / worth another pass
+- A `computer` scroll-gesture tool action hung/timed-out once on the Discover page during QA (direct `body.scrollTop` JS manipulation worked instantly and rendered correctly with no overlap at the scrolled position) — inconclusive whether this is a real page bug or a testing-tool artifact with this app's "body is the scroll container" pattern. Worth a real-device check if the user still sees scroll issues.
+- Only spot-checked Venue → Reservations tab's nav fix live; the same nav pattern was applied to Organizer's per-event workspace (`EventWorkspace.tsx`) but wasn't re-verified live since this test account has no organizer events (only venues) — check it renders correctly once there's a real organizer event to open.
+- Haven't done a tab-by-tab QA pass of the other venue-os sections (Calendar, Tables, Guests, Marketing, Workflows, Analytics, Hours) or organizer sections (Attendees, Marketing, Seating, Team, Check-in, Settings) against the interface-design skill's checks (hierarchy, button variants, spacing) — only Reservations + AI Studio approvals got that treatment so far.
 - Task #43 (pending, not started): evaluate + execute Neon → Supabase migration.
+- The 3 organizer-dashboard visual concepts (1A/1B/1C) in the design zip remain explicitly out of scope per the zip's own README.
