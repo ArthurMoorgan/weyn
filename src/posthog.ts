@@ -53,3 +53,11 @@ export function identifyPostHog(userId: string, props?: Record<string, unknown>)
 export function resetPostHog() {
   loadPostHog()?.then((posthog) => posthog.reset());
 }
+
+// Generic custom-event capture — same no-op-if-untokened behavior as the
+// rest of this file. Used for funnel instrumentation (onboarding step
+// views/completions, activation events) that autocapture pageviews alone
+// can't tell you: which step someone dropped off at, not just which URL.
+export function capture(event: string, props?: Record<string, unknown>) {
+  loadPostHog()?.then((posthog) => posthog.capture(event, props));
+}

@@ -10,6 +10,7 @@ import FloorPlanCanvas from "../components/FloorPlanCanvas";
 import type { Collection } from "../api";
 import { downloadEventIcs } from "../ics";
 import Tooltip from "../components/Tooltip";
+import { capture } from "../posthog";
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -184,6 +185,7 @@ export default function EventDetail() {
         const confirmed = await api.bookEvent(ev.id, qty, getDeviceId(), account, selectedTier?.id, inviteCode, selectedSeatId ? [selectedSeatId] : undefined);
         setBooked(confirmed);
         addTicket(ev.id, confirmed.bookingId, confirmed.accessToken);
+        capture("ticket_booked", { eventId: ev.id, bookingId: confirmed.bookingId, paid: false });
       } catch (err: any) {
         setBooked(null);
         setBookErr(err.message || "Couldn't book");

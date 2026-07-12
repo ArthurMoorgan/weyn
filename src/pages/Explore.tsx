@@ -6,6 +6,7 @@ import { useAccount } from "../store";
 import Stub from "../components/Stub";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
+import { capture } from "../posthog";
 
 // Explore is one honest list: a featured spotlight up top, then every
 // upcoming event as a full-width editorial card, all in one continuous
@@ -112,7 +113,16 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   // ever mounts, both onboarding and sign-up are already done. Keeping the
   // check here too would just be dead code that never fires.
   const [cat, setCat] = useState<Cat | "all">("all");
-  const [when, setWhen] = useState<"all" | "today" | "tomorrow" | "weekend">("all");
+  const [when, setWhenRaw] = useState<"all" | "today" | "tomorrow" | "weekend">("all");
+  // "Today" is this app's closest real proxy for the "What Can I Do
+  // Tonight?" activation event the business plan defines (open the Tonight
+  // view within 24h of install) — there's no separate "Tonight" screen,
+  // this quick filter IS that moment. Tracked so activation is actually
+  // measurable instead of assumed.
+  function setWhen(w: "all" | "today" | "tomorrow" | "weekend") {
+    if (w === "today") capture("tonight_view_opened");
+    setWhenRaw(w);
+  }
   const [q, setQ] = useState("");
   const [showSuggest, setShowSuggest] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);

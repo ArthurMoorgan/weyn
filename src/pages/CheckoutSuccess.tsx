@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, type BookingStatus } from "../api";
 import { addTicket } from "../store";
+import { capture } from "../posthog";
 
 // Thawani redirects here after payment. The redirect itself proves nothing
 // (the tab could've been closed mid-flow) — the webhook is the real source
@@ -25,7 +26,14 @@ export default function CheckoutSuccess() {
         const s = await api.getBooking(bookingId);
         if (cancelled) return;
         setStatus(s);
-        if (s.status === "paid") { if (bookingId) addTicket(s.eventId, bookingId, accessToken); return; }
+        if (s.status === "paid") {
+          if (bookingId) addTicket(s.eventId, bookingId, accessToken);
+          // The activation event on the organizer side of the funnel — a
+          // real, paid ticket confirmed, not just a checkout redirect (which
+          // proves nothing on its own, see the comment above).
+          capture("ticket_booked", { eventId: s.eventId, bookingId, paid: true });
+          return;
+        }
         if (s.status !== "pending" || ++tries >= 8) return;
         setAttempts(tries);
         setTimeout(poll, 1500);

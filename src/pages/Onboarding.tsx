@@ -3,15 +3,23 @@ import { SignUpButton } from "@clerk/react";
 import { api, CATS, type Cat, type Weyn, dayLabel, timeLabel } from "../api";
 import Stub from "../components/Stub";
 import Logo from "../components/Logo";
+import { capture } from "../posthog";
 
 // First-run onboarding flow, mounted at /onboarding (see main.tsx) and
 // redirected into from Explore for any visitor without
 // weyn.onboarding.completed set. Progress is local component state; only
 // the final selections are persisted, to localStorage, under the
 // weyn.onboarding.* keys below.
+//
+// Was 6 steps (Welcome/Interests/Social/Location/Preview/Sign-up) — the
+// Social-preference step (solo/friends/date night) asked for a second
+// forced choice before any payoff, and nothing downstream actually used it
+// to change what the visitor saw next (only `interests` fed the Preview
+// step's filtering). Every required tap before the aha moment (the
+// personalized Preview) is a real drop-off risk, so it's cut rather than
+// made optional — one clean personalization step, not two.
 
 const INTERESTS_KEY = "weyn.onboarding.interests";
-const SOCIAL_KEY = "weyn.onboarding.socialPrefs";
 
 const INTERESTS = [
   { key: "music", label: "Music", icon: "music" },
@@ -26,14 +34,6 @@ const INTERESTS = [
   { key: "nightlife", label: "Nightlife", icon: "moon" },
 ];
 
-const SOCIAL_PREFS = [
-  { key: "solo", label: "Going solo", icon: "user" },
-  { key: "friends", label: "With friends", icon: "users" },
-  { key: "networking", label: "Networking", icon: "handshake" },
-  { key: "family", label: "Family outings", icon: "home" },
-  { key: "date", label: "Date nights", icon: "heart" },
-];
-
 function readList(key: string): string[] {
   try { return JSON.parse(localStorage.getItem(key) || "") as string[]; }
   catch { return []; }
@@ -43,7 +43,6 @@ function toggle(list: string[], key: string): string[] {
   return list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
 }
 
-// ---- generic multi-select card grid, shared by steps 2/3/4 ----
 function CardGrid({ items, selected, onToggle }: { items: { key: string; label: string; icon: string }[]; selected: string[]; onToggle: (key: string) => void }) {
   return (
     <div className="ob-grid">
@@ -76,26 +75,33 @@ function ProgressDots({ step, total }: { step: number; total: number }) {
   );
 }
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 5;
+const STEP_NAMES = ["welcome", "interests", "location", "preview", "signup"];
 
 export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
   const [step, setStep] = useState(0);
   const [interests, setInterests] = useState<string[]>(() => readList(INTERESTS_KEY));
-  const [socialPrefs, setSocialPrefs] = useState<string[]>(() => readList(SOCIAL_KEY));
   const [locationState, setLocationState] = useState<"idle" | "asking" | "granted" | "denied">("idle");
   const [previewEvents, setPreviewEvents] = useState<Weyn[] | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  function next() { setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1)); }
+  // Funnel instrumentation — which step a visitor is on (view) and which
+  // step they just cleared (complete), so drop-off is actually visible in
+  // PostHog instead of guessed at. Fires once per step reached, not per
+  // re-render (deps: [step] only).
+  useEffect(() => {
+    capture("onboarding_step_viewed", { step: STEP_NAMES[step], step_index: step });
+  }, [step]);
+
+  function next(fromStep?: string) {
+    if (fromStep) capture("onboarding_step_completed", { step: fromStep });
+    setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
+  }
 
   function persistInterests(list: string[]) {
     setInterests(list);
     localStorage.setItem(INTERESTS_KEY, JSON.stringify(list));
-  }
-  function persistSocial(list: string[]) {
-    setSocialPrefs(list);
-    localStorage.setItem(SOCIAL_KEY, JSON.stringify(list));
   }
 
   async function requestLocation() {
@@ -106,17 +112,19 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 });
       });
       setLocationState("granted");
+      capture("onboarding_location_granted");
     } catch {
       // Denied, timed out, or unsupported — never fatal, never blocks progress.
       setLocationState("denied");
+      capture("onboarding_location_denied");
     } finally {
-      next();
+      next("location");
     }
   }
 
-  // Fetch a small preview once the Preview step (index 4) is reached.
+  // Fetch a small preview once the Preview step (index 3) is reached.
   useEffect(() => {
-    if (step !== 4) return;
+    if (step !== 3) return;
     let cancelled = false;
     setPreviewLoading(true);
     setPreviewError(null);
@@ -139,10 +147,9 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
   const stepMeta = useMemo(() => ({
     0: "Welcome",
     1: "Interests",
-    2: "Social",
-    3: "Location",
-    4: "Preview",
-    5: "Sign up",
+    2: "Location",
+    3: "Preview",
+    4: "Sign up",
   }[step]), [step]);
 
   return (
@@ -156,7 +163,7 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
             <Logo size={40} />
             <h1 className="ob-headline">Discover what's happening around you.</h1>
             <p className="ob-sub">A quick setup so Weyn can show you events worth going to.</p>
-            <button className="btn lg" onClick={next}>Get started</button>
+            <button className="btn lg" onClick={() => next("welcome")}>Get started</button>
           </div>
         )}
 
@@ -166,22 +173,12 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
             <h2 className="ob-title">What are you into?</h2>
             <p className="ob-sub">Pick as many as you like.</p>
             <CardGrid items={INTERESTS} selected={interests} onToggle={(k) => persistInterests(toggle(interests, k))} />
-            <button className="btn lg ob-cta" onClick={next} disabled={interests.length === 0}>Continue</button>
+            <button className="btn lg ob-cta" onClick={() => next("interests")} disabled={interests.length === 0}>Continue</button>
           </div>
         )}
 
-        {/* ---- 3. Social preference ---- */}
+        {/* ---- 3. Location permission ---- */}
         {step === 2 && (
-          <div className="ob-step">
-            <h2 className="ob-title">What type of experiences do you enjoy?</h2>
-            <p className="ob-sub">Pick as many as you like.</p>
-            <CardGrid items={SOCIAL_PREFS} selected={socialPrefs} onToggle={(k) => persistSocial(toggle(socialPrefs, k))} />
-            <button className="btn lg ob-cta" onClick={next} disabled={socialPrefs.length === 0}>Continue</button>
-          </div>
-        )}
-
-        {/* ---- 4. Location permission ---- */}
-        {step === 3 && (
           <div className="ob-step ob-center">
             <div className="ob-icon-badge"><i className="icon-map-pin" /></div>
             <h2 className="ob-title">Enable location</h2>
@@ -189,12 +186,12 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
             <button className="btn lg" onClick={requestLocation} disabled={locationState === "asking"}>
               {locationState === "asking" ? "Requesting…" : "Allow location"}
             </button>
-            <button className="btn glass ob-cta" onClick={next}>Skip</button>
+            <button className="btn glass ob-cta" onClick={() => next("location")}>Skip</button>
           </div>
         )}
 
-        {/* ---- 5. Personalized preview ---- */}
-        {step === 4 && (
+        {/* ---- 4. Personalized preview ---- */}
+        {step === 3 && (
           <div className="ob-step">
             <h2 className="ob-title">Here's what we found for you</h2>
             <p className="ob-sub">Based on what you picked.</p>
@@ -220,12 +217,12 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
                 <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing matching yet — check back soon.</p></div>
               )
             )}
-            <button className="btn lg ob-cta" onClick={next}>Continue</button>
+            <button className="btn lg ob-cta" onClick={() => next("preview")}>Continue</button>
           </div>
         )}
 
-        {/* ---- 6. Sign up ---- */}
-        {step === 5 && (
+        {/* ---- 5. Sign up ---- */}
+        {step === 4 && (
           <div className="ob-step ob-center">
             <Logo size={36} />
             <h2 className="ob-title">Create your account</h2>
@@ -236,7 +233,7 @@ export default function Onboarding({ onDone }: { onDone?: () => void } = {}) {
                 if someone found a way to mark onboarding "done" without
                 signing up, AuthGate blocks every route regardless. */}
             <SignUpButton mode="modal" forceRedirectUrl="/">
-              <button className="btn lg" onClick={() => onDone?.()}>Sign up</button>
+              <button className="btn lg" onClick={() => { capture("onboarding_signup_clicked"); onDone?.(); }}>Sign up</button>
             </SignUpButton>
           </div>
         )}
