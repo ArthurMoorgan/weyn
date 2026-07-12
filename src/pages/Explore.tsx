@@ -194,7 +194,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
 
       <div className="search-wrap" ref={searchWrapRef}>
         <div className="search">
-          <i className="icon-search" />
+          <span className="search-icon-slot"><i className="icon-search" /></span>
           <input
             ref={searchInputRef}
             value={q}

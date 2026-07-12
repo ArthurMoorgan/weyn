@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#F2EEE4" />
+    <meta name="theme-color" content="#FFFFFF" />
     <title>Weyn — discover what's on near you</title>
     <meta name="description" content="Weyn — discover events near you in Muscat, tonight and in the weeks ahead." />
 
@@ -24,7 +24,7 @@
     <meta name="twitter:title" content="Weyn — discover what's on near you" />
     <meta name="twitter:description" content="Discover events near you in Muscat, tonight and in the weeks ahead." />
     <meta name="twitter:image" content="https://weynevents.com/og-image.png" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 124 124'%3E%3Crect width='124' height='124' rx='30' fill='%23C1503A'/%3E%3Cg transform='translate(14 22)' fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 29 C27 52 32 67 43 72 C52 76 57 61 60 46' stroke-width='12.5'/%3E%3Cpath d='M60 46 C64 63 70 77 81 73 C93 69 98 50 101 32' stroke-width='22'/%3E%3C/g%3E%3Ccircle cx='115' cy='52' r='12.5' fill='white'/%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 124 124'%3E%3Crect width='124' height='124' rx='30' fill='%23E1483D'/%3E%3Cg transform='translate(14 22)' fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 29 C27 52 32 67 43 72 C52 76 57 61 60 46' stroke-width='12.5'/%3E%3Cpath d='M60 46 C64 63 70 77 81 73 C93 69 98 50 101 32' stroke-width='22'/%3E%3C/g%3E%3Ccircle cx='115' cy='52' r='12.5' fill='white'/%3E%3C/svg%3E" />
     <!-- PWA: installable on iOS / Android / macOS -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -40,7 +40,7 @@
           if (t !== "light" && t !== "dark")
             t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
           document.documentElement.dataset.theme = t;
-          document.querySelector('meta[name="theme-color"]').setAttribute("content", t === "dark" ? "#10141C" : "#F2EEE4");
+          document.querySelector('meta[name="theme-color"]').setAttribute("content", t === "dark" ? "#1C1B1A" : "#FFFFFF");
           if (!localStorage.getItem("weyn.hasLaunched")) {
             document.documentElement.classList.add("show-splash");
           }
@@ -52,9 +52,9 @@
       html.show-splash #splash {
         display: flex; align-items: center; justify-content: center;
         position: fixed; inset: 0; z-index: 9999;
-        background: #10141C;
+        background: #1C1B1A;
       }
-      html.show-splash[data-theme="light"] #splash { background: #F2EEE4; }
+      html.show-splash[data-theme="light"] #splash { background: #FFFFFF; }
       html.show-splash #splash svg { animation: splash-in 0.6s cubic-bezier(.16,1,.3,1) both; overflow: visible; }
       html.show-splash.splash-exit #splash svg { animation: splash-out 0.5s cubic-bezier(.4,0,1,1) both; }
       html.show-splash.splash-exit #splash { animation: splash-fade-out 0.5s ease both; pointer-events: none; }
@@ -86,13 +86,13 @@
     <link
       rel="preload"
       as="style"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@700;800;900&family=IBM+Plex+Mono:wght@500;600&family=Noto+Naskh+Arabic:wght@500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&family=Noto+Naskh+Arabic:wght@500;600&display=swap"
       onload="this.onload=null;this.rel='stylesheet'"
     />
     <noscript>
       <link
         rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@700;800;900&family=IBM+Plex+Mono:wght@500;600&family=Noto+Naskh+Arabic:wght@500;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&family=Noto+Naskh+Arabic:wght@500;600&display=swap"
       />
     </noscript>
     <!-- Icons: Lucide webfont, self-hosted from /public/fonts (see src/lucide.css).
@@ -104,9 +104,9 @@
       <svg width="72" height="58" viewBox="0 6 124 100" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="splashGrad" x1="12" y1="12" x2="112" y2="92" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#9C3D2A" />
-            <stop offset="55%" stop-color="#C1503A" />
-            <stop offset="100%" stop-color="#D2634C" />
+            <stop offset="0%" stop-color="#C93A30" />
+            <stop offset="55%" stop-color="#E1483D" />
+            <stop offset="100%" stop-color="#FF6B5B" />
           </linearGradient>
         </defs>
         <path id="splash-s1" d="M22 29 C27 52 32 67 43 72 C52 76 57 61 60 46" stroke="url(#splashGrad)" stroke-width="12.5" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/>

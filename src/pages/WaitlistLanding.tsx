@@ -143,7 +143,7 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
         <div className="wl-hero-bg" aria-hidden="true">
           <Suspense fallback={null}>
             <Ferrofluid
-              colors={["#1B4965", "#C1503A", "#E39B87"]}
+              colors={["#1C1B1A", "#E1483D", "#FF6B5B"]}
               speed={0.35}
               scale={1.1}
               turbulence={0.8}
@@ -329,7 +329,7 @@ export default function WaitlistLanding({ signedInAs, onSignOut, onRequestSignIn
               interactive={false}
               parallax={false}
               animationSpeed={1.3}
-              linesGradient={["#1B4965", "#C1503A", "#E39B87"]}
+              linesGradient={["#1C1B1A", "#E1483D", "#FF6B5B"]}
               mixBlendMode="screen"
             />
           </Suspense>

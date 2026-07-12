@@ -169,7 +169,7 @@ let theme: Theme = initialTheme();
 function apply(t: Theme) {
   document.documentElement.dataset.theme = t;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", t === "dark" ? "#10141C" : "#F2EEE4");
+  if (meta) meta.setAttribute("content", t === "dark" ? "#1C1B1A" : "#FFFFFF");
 }
 apply(theme);
 export function toggleTheme() {
