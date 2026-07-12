@@ -1084,9 +1084,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .search .clearx::after { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
 
 /* filter icon button always docked to the right edge of the search input,
-   opens the mobile filter sheet (desktop keeps the inline chip rows below) */
-.search-filter-btn {
+   opens the mobile filter sheet (desktop keeps the inline chip rows below).
+   The button is wrapped in <Tooltip>, whose own span.tooltip-wrap is
+   position:relative — that wrapper sits between .search and the button in
+   the DOM, so if the button itself were position:absolute here, the
+   wrapper (not .search) would become its containing block. Since the
+   wrapper is otherwise unsized (both its children are absolutely
+   positioned), it collapses to a stray inline box wherever it falls in
+   .search's normal flow (right after the full-width <input>), and the
+   button's right/top offsets resolve against that instead of the search
+   bar's edge — the icon appears to drift away from the search bar. So the
+   positioning lives on .search-filter-tooltip (the wrapper) instead, which
+   correctly resolves against .search, and the button itself just fills it. */
+.tooltip-wrap.search-filter-tooltip {
   position: absolute; right: 22px; top: calc(50% + 3px); transform: translateY(-50%);
+}
+.search-filter-btn {
   width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
   color: var(--text-2); background: transparent; border: none; font-size: 16px;
 }
@@ -1262,6 +1275,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; box-shadow: 0 3px 0 var(--border-strong); transform: translateY(0); }
 .btn.dark { background: var(--text); color: var(--bg); --btn-edge: color-mix(in srgb, var(--text) 70%, black); }
 .btn.glass { background: var(--surface-2); color: var(--text); --btn-edge: var(--border-strong); box-shadow: 0 4px 0 var(--btn-edge), 0 4px 10px rgba(0,0,0,.12); }
+/* Row-action variants (Seated/Confirm vs No-show vs Cancel) — these used
+   to be three identical .btn.glass.sm buttons in a row with nothing to
+   tell a completing action from a destructive one apart except the word
+   itself. Text-color-only, no fill, so the row stays quiet at a glance
+   and only reads as "decided" up close. */
+.btn.glass.sm.success { color: var(--success); }
+.btn.glass.sm.danger { color: var(--error); }
 .btn.done { background: var(--success-soft); color: var(--success); --btn-edge: color-mix(in srgb, var(--success) 30%, transparent); }
 .btn.sq { width: 50px; flex: 0 0 auto; padding: 0; height: 50px; }
 

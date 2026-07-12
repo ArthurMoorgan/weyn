@@ -144,10 +144,10 @@ function AgentTool() {
                 {JSON.stringify(Object.fromEntries(Object.entries(a.args).filter(([k]) => k !== "reasoning")), null, 2)}
               </pre>
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn glass sm" style={{ width: "auto" }} onClick={() => decide(a.id, true)} disabled={decidingId === a.id}>
+                <button className="btn glass sm success" style={{ width: "auto" }} onClick={() => decide(a.id, true)} disabled={decidingId === a.id}>
                   <i className="icon-check" /> Approve
                 </button>
-                <button className="btn glass sm" style={{ width: "auto" }} onClick={() => decide(a.id, false)} disabled={decidingId === a.id}>
+                <button className="btn glass sm danger" style={{ width: "auto" }} onClick={() => decide(a.id, false)} disabled={decidingId === a.id}>
                   <i className="icon-x" /> Reject
                 </button>
               </div>

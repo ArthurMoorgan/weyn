@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, NavLink, useParams } from "react-router-dom";
+import { Link, Navigate, NavLink, useParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import QRCode from "qrcode";
 import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor, type FloorTable, type FloorTableInput } from "../../api";
@@ -31,7 +31,7 @@ const TABS = [
 ];
 
 export default function EventWorkspace() {
-  const { id, tab = "overview" } = useParams<{ id: string; tab?: string }>();
+  const { id, tab } = useParams<{ id: string; tab?: string }>();
   const events = useAsync(() => api.dashboardEvents(), []);
   const sub = useAsync(() => api.mySubscription(), []);
   const event = (events.data || []).find((e) => e.id === id);
@@ -45,6 +45,11 @@ export default function EventWorkspace() {
       <Link to="/organizer/events" className="btn glass" style={{ maxWidth: 220, margin: "8px auto 0" }}>Back to events</Link>
     </div>
   );
+  // Same fix as VenueWorkspace: the bare /organizer/events/:id route (no
+  // :tab) rendered the overview body via a JS default, but left the URL
+  // without "/overview" — so no NavLink ever matched it and the active
+  // section never highlighted. Redirect once so URL and body agree.
+  if (!tab) return <Navigate to={`/organizer/events/${event.id}/overview`} replace />;
 
   const features = sub.data?.features || {};
 

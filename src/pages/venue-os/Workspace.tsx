@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, NavLink, useNavigate, useParams } from "react-router-dom";
 import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
@@ -28,7 +28,7 @@ const VENUE_TABS = [
 type VenueTabKey = typeof VENUE_TABS[number]["key"];
 
 export default function VenueWorkspace() {
-  const { venueId, tab = "reservations" } = useParams<{ venueId: string; tab?: VenueTabKey }>();
+  const { venueId, tab } = useParams<{ venueId: string; tab?: VenueTabKey }>();
   const nav = useNavigate();
   const account = useAccount();
   // Gated + keyed on `account` (mirrors You.tsx's myVenues call) — an
@@ -49,6 +49,11 @@ export default function VenueWorkspace() {
       <Link to="/venue-os" className="btn glass" style={{ maxWidth: 220, margin: "8px auto 0" }}>Back to venues</Link>
     </div>
   );
+  // The bare /venue-os/:id route (no :tab segment) rendered the reservations
+  // body via a JS default, but that left the URL itself without "/reservations"
+  // — so no NavLink below ever matched it and the active section never
+  // highlighted. Redirect once so the URL and the rendered tab always agree.
+  if (!tab) return <Navigate to={`/venue-os/${venue.id}/reservations`} replace />;
 
   return (
     <>
@@ -175,15 +180,15 @@ function VenueReservationsTab({ venueId, rows, loading, error, setStatus, onCrea
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                       {pending && (
                         <>
-                          <button className="btn glass sm" onClick={() => act(r.id, "confirmed")} disabled={busyId === r.id}>Confirm</button>
-                          <button className="btn glass sm" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
+                          <button className="btn glass sm success" onClick={() => act(r.id, "confirmed")} disabled={busyId === r.id}>Confirm</button>
+                          <button className="btn glass sm danger" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
                         </>
                       )}
                       {arrivable && (
                         <>
-                          <button className="btn glass sm" onClick={() => act(r.id, "seated")} disabled={busyId === r.id}>Seated</button>
+                          <button className="btn glass sm success" onClick={() => act(r.id, "seated")} disabled={busyId === r.id}>Seated</button>
                           <button className="btn glass sm" onClick={() => act(r.id, "no_show")} disabled={busyId === r.id}>No-show</button>
-                          <button className="btn glass sm" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
+                          <button className="btn glass sm danger" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
                         </>
                       )}
                       {canAssign && (

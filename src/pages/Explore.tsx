@@ -210,7 +210,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
             aria-activedescendant={activeIdx >= 0 ? `explore-suggest-${activeIdx}` : undefined}
           />
           {q && <button className="clearx" onClick={() => { setQ(""); setShowSuggest(false); }} aria-label="Clear"><i className="icon-x" /></button>}
-          <Tooltip text="Filter events">
+          <Tooltip text="Filter events" className="search-filter-tooltip">
             <button
               className={"search-filter-btn" + (activeFilterCount ? " on" : "")}
               onClick={() => setShowFilters(true)}
