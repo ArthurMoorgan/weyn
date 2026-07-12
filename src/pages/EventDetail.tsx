@@ -21,6 +21,7 @@ export default function EventDetail() {
   const [booking, setBooking] = useState(false);
   const [bookErr, setBookErr] = useState("");
   const [tierId, setTierId] = useState<string | null>(null);
+  const [qty, setQty] = useState(1);
   const [listSheet, setListSheet] = useState(false);
   const [ticketSheet, setTicketSheet] = useState(false);
   const [shared, setShared] = useState(false);
@@ -130,9 +131,14 @@ export default function EventDetail() {
   const hasTiers = tiers.length > 0;
   const selectedTier = hasTiers ? tiers.find((t) => t.id === tierId) || null : null;
   const tierLeft = (t: { capacity: number; sold: number }) => Math.max(0, t.capacity - t.sold);
-  // price the buyer actually pays: selected tier if tiered, else the flat price
-  const payPrice = hasTiers ? (selectedTier?.price ?? 0) : ev.price;
+  // price the buyer actually pays: selected tier if tiered, else the flat price,
+  // multiplied by the quantity stepper (see .qty-stepper below) — the API
+  // already accepted a quantity param everywhere, it just always got a
+  // hardcoded 1 before this.
+  const unitPrice = hasTiers ? (selectedTier?.price ?? 0) : ev.price;
+  const payPrice = +(unitPrice * qty).toFixed(2);
   const payFee = +(payPrice * 0.08).toFixed(2);
+  const maxQty = hasTiers && selectedTier ? Math.min(10, tierLeft(selectedTier)) : 10;
 
   // The organizer's shared link is /e/:id?invite=CODE — this is the only
   // place a signed-out visitor's browser ever has the code, so it has to
@@ -156,7 +162,7 @@ export default function EventDetail() {
         // hosted transfer-instructions page) — the ticket doesn't exist yet,
         // the organizer has to manually confirm the payment first (see
         // EventWorkspace's Attendees tab / PendingPaymentsPanel).
-        const { bookingId, accessToken, redirectUrl } = await api.organizerPaymentCheckout(ev.id, 1, getDeviceId(), account, selectedTier?.id, inviteCode);
+        const { bookingId, accessToken, redirectUrl } = await api.organizerPaymentCheckout(ev.id, qty, getDeviceId(), account, selectedTier?.id, inviteCode);
         addTicket(ev.id, bookingId, accessToken);
         window.location.href = redirectUrl;
         return;
@@ -165,7 +171,7 @@ export default function EventDetail() {
         // paid ticket: redirect to Thawani's hosted checkout — the booking is
         // only confirmed once payment succeeds (see /checkout/success), so
         // there's nothing to show optimistically here.
-        const { checkoutUrl } = await api.checkoutEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id, inviteCode);
+        const { checkoutUrl } = await api.checkoutEvent(ev.id, qty, getDeviceId(), account, selectedTier?.id, inviteCode);
         window.location.href = checkoutUrl;
         return;
       }
@@ -175,7 +181,7 @@ export default function EventDetail() {
       // pre-book state (and undo the local ticket-list write) on failure.
       setBooked(ev);
       try {
-        const confirmed = await api.bookEvent(ev.id, 1, getDeviceId(), account, selectedTier?.id, inviteCode, selectedSeatId ? [selectedSeatId] : undefined);
+        const confirmed = await api.bookEvent(ev.id, qty, getDeviceId(), account, selectedTier?.id, inviteCode, selectedSeatId ? [selectedSeatId] : undefined);
         setBooked(confirmed);
         addTicket(ev.id, confirmed.bookingId, confirmed.accessToken);
       } catch (err: any) {
@@ -310,21 +316,36 @@ export default function EventDetail() {
 
         {ev.ticketingType === "weyn" && hasTiers && !booked && (
           <div className="tier-picker">
-            <h3 className="tier-picker-title">Choose your ticket</h3>
+            <h3 className="tier-picker-title">Select tickets</h3>
             {tiers.map((t) => {
               const soldOut = tierLeft(t) <= 0;
+              const isSel = tierId === t.id;
               return (
-                <button
-                  key={t.id} type="button" disabled={soldOut}
-                  className={"tier-opt" + (tierId === t.id ? " on" : "") + (soldOut ? " soldout" : "")}
-                  onClick={() => { setTierId(t.id); setBookErr(""); }}
+                <div
+                  key={t.id} role="button" tabIndex={soldOut ? -1 : 0} aria-disabled={soldOut}
+                  className={"tier-opt" + (isSel ? " on" : "") + (soldOut ? " soldout" : "")}
+                  onClick={() => { if (soldOut) return; setTierId(t.id); setQty(1); setBookErr(""); }}
+                  onKeyDown={(ev2) => { if (!soldOut && (ev2.key === "Enter" || ev2.key === " ")) { ev2.preventDefault(); setTierId(t.id); setQty(1); setBookErr(""); } }}
                 >
-                  <div className="tier-opt-main">
-                    <b>{t.name}</b>
-                    <span>{soldOut ? "Sold out" : `${tierLeft(t)} left`}</span>
+                  <div className="tier-opt-top">
+                    <div className="tier-opt-main">
+                      <b>{t.name}</b>
+                      <span>{soldOut ? "Sold out" : `${tierLeft(t)} left`}</span>
+                    </div>
+                    <div className="tier-opt-price">{t.price === 0 ? "Free" : `${t.price} OMR`}</div>
                   </div>
-                  <div className="tier-opt-price">{t.price === 0 ? "Free" : `${t.price} OMR`}</div>
-                </button>
+                  {isSel && !soldOut && (
+                    <div className="qty-stepper" onClick={(ev2) => ev2.stopPropagation()}>
+                      <button type="button" className="qty-btn" disabled={qty <= 1} onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Fewer tickets">
+                        <i className="icon-minus" />
+                      </button>
+                      <span className="qty-val">{qty}</span>
+                      <button type="button" className="qty-btn accent" disabled={qty >= maxQty} onClick={() => setQty((q) => Math.min(maxQty, q + 1))} aria-label="More tickets">
+                        <i className="icon-plus" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -343,7 +364,7 @@ export default function EventDetail() {
 
         {ev.ticketingType === "weyn" && payPrice > 0 && !out && (
           <div className="fee-box">
-            <div className="ln"><span>Ticket{selectedTier ? ` · ${selectedTier.name}` : ""}</span><span>{payPrice.toFixed(2)} OMR</span></div>
+            <div className="ln"><span>{qty} × {selectedTier ? selectedTier.name : "Ticket"}</span><span>{payPrice.toFixed(2)} OMR</span></div>
             <div className="ln"><span>Weyn service fee (8%)</span><span>{payFee.toFixed(2)} OMR</span></div>
             <div className="ln total"><span>Total</span><span>{(payPrice + payFee).toFixed(2)} OMR</span></div>
           </div>
