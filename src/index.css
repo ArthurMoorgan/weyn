@@ -611,7 +611,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    toggle. */
 .seg-btn-events.on { color: var(--primary); }
 .seg-btn-venues.on { color: var(--gulf); }
-.discover-mode { animation: rise-in .3s cubic-bezier(.16,1,.3,1) both; }
+/* animation-fill-mode "both"/"forwards" never technically ends — a
+   transform animation stays "in effect" forever, which per spec makes this
+   element a containing block for any position:fixed descendant (the
+   filter sheet, any modal opened from inside Discover) permanently,
+   instead of the fixed element positioning against the viewport. Base
+   state already equals the "to" keyframe (opacity 1, no transform), so
+   dropping "both" costs nothing visually and lets the animation actually
+   finish. */
+.discover-mode { animation: rise-in .3s cubic-bezier(.16,1,.3,1); }
 /* A real pill button, not a bare text link — the previous plain colored
    text read as decoration rather than an action and was easy to miss
    entirely ("event hosting is hard to locate"). Matches Airbnb's own
