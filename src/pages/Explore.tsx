@@ -117,7 +117,9 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   const [showSuggest, setShowSuggest] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [showFilters, setShowFilters] = useState(false);
-  const activeFilterCount = (when !== "all" ? 1 : 0) + (cat !== "all" ? 1 : 0);
+  // null = no price ceiling set yet (slider sits at the catalog's max, so
+  // dragging it down is the only way this ever actually filters anything).
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { data, loading, error, reload } = useAsync(() => api.listEvents(), [], { cacheKey: "events:all" });
@@ -128,6 +130,16 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => { if (!loading) dismissSplash(); }, [loading]);
 
   const suggestions = useMemo(() => buildSuggestions((data || []).filter((e) => !e.cancelled && !isPast(e)), q), [data, q]);
+
+  // Ceiling for the price slider — the highest ticket price in the current
+  // catalog, rounded up to a clean number so the track's top end isn't an
+  // odd value like "27 OMR".
+  const priceCeiling = useMemo(() => {
+    const max = Math.max(0, ...((data || []).map((e) => e.price)));
+    return Math.max(10, Math.ceil(max / 5) * 5);
+  }, [data]);
+  const priceValue = maxPrice ?? priceCeiling;
+  const activeFilterCount = (when !== "all" ? 1 : 0) + (cat !== "all" ? 1 : 0) + (maxPrice !== null ? 1 : 0);
 
   function chooseSuggestion(s: Suggestion) {
     setQ(s.value);
@@ -146,7 +158,8 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   // one fetch → many derived sections
   const S = useMemo(() => {
     const all = (data || []).filter((e) => !e.cancelled && !isPast(e)).sort(bySoonest);
-    const catFiltered = cat === "all" ? all : all.filter((e) => e.cat === cat);
+    const priceFiltered = maxPrice === null ? all : all.filter((e) => e.price <= maxPrice);
+    const catFiltered = cat === "all" ? priceFiltered : priceFiltered.filter((e) => e.cat === cat);
 
     if (searching) {
       const t = q.trim().toLowerCase();
@@ -176,7 +189,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
     // above on why this replaced day/weekend sectioning.
     const rest = catFiltered.filter((e) => e.id !== hero?.id);
     return { mode: "browse" as const, all: catFiltered, hero, rest };
-  }, [data, cat, when, q, searching]);
+  }, [data, cat, when, q, searching, maxPrice]);
 
   return (
     <>
@@ -300,8 +313,25 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               </div>
             </div>
 
+            <div className="filter-sheet-group">
+              <span className="filter-sheet-label">Price · up to {priceValue} OMR</span>
+              <input
+                type="range"
+                className="price-slider"
+                min={0}
+                max={priceCeiling}
+                step={5}
+                value={priceValue}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setMaxPrice(v >= priceCeiling ? null : v);
+                }}
+                aria-label="Maximum price"
+              />
+            </div>
+
             <div className="filter-sheet-actions">
-              <button className="btn glass" onClick={() => { setWhen("all"); setCat("all"); }}>Clear all</button>
+              <button className="btn glass" onClick={() => { setWhen("all"); setCat("all"); setMaxPrice(null); }}>Clear all</button>
               <button className="btn lg" onClick={() => setShowFilters(false)}>Show results</button>
             </div>
           </div>

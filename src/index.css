@@ -1059,7 +1059,20 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- ticket QR sheet (components/TicketSheet.tsx) ---------- */
 .ticket-qr-card { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 0; }
-.ticket-qr-card img { border-radius: 12px; background: #fff; padding: 10px; }
+/* "White sticker-like card with a soft shadow and a diagonal glossy
+   highlight overlay" per the design handoff — the ::after is a diagonal
+   white gradient band blended with soft-light so it reads as a sheen
+   catching the light across the QR sticker, not a flat white square. */
+.qr-sticker {
+  position: relative; display: inline-block; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 20px rgba(0,0,0,.12);
+}
+.qr-sticker img { display: block; border-radius: 12px; background: #fff; padding: 10px; }
+.qr-sticker::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.65) 48%, transparent 62%);
+  mix-blend-mode: soft-light;
+}
 .ticket-qr-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; letter-spacing: 0.5px; color: var(--text-3); word-break: break-all; }
 
 /* ---------- search ---------- */
@@ -1162,6 +1175,37 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .filter-sheet-group .chips { padding: 0; overflow-x: visible; flex-wrap: wrap; }
 .filter-sheet-actions { display: flex; gap: 10px; margin-top: 8px; }
 .filter-sheet-actions .btn { flex: 1; }
+
+/* Price range slider — "grooved track (inset shadow) with glossy round
+   thumbs" per the design handoff. A native <input type="range"> styled
+   rather than hand-rolled, so keyboard/touch drag behavior comes free. */
+.price-slider {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 24px;
+  background: transparent; margin: 6px 0 2px; padding: 0;
+}
+.price-slider::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px;
+  background: var(--surface-hover);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.18);
+}
+.price-slider::-moz-range-track {
+  height: 6px; border-radius: 999px;
+  background: var(--surface-hover);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.18);
+}
+.price-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%; margin-top: -7px;
+  background: linear-gradient(180deg, #fff, #efece7);
+  box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 2px 5px rgba(0,0,0,.18), 0 0 0 3px var(--accent-soft);
+  cursor: pointer;
+}
+.price-slider::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%; border: none;
+  background: linear-gradient(180deg, #fff, #efece7);
+  box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 2px 5px rgba(0,0,0,.18), 0 0 0 3px var(--accent-soft);
+  cursor: pointer;
+}
 
 @media (min-width: 900px) {
   .chips-desktop-only { display: flex; }

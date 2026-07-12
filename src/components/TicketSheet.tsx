@@ -49,7 +49,9 @@ export default function TicketSheet({
         {tickets?.map((t) => (
           <div key={t.code} className="ticket-qr-card">
             {qrDataUrls[t.code] ? (
-              <img src={qrDataUrls[t.code]} alt="Ticket QR code" width={220} height={220} />
+              <div className="qr-sticker">
+                <img src={qrDataUrls[t.code]} alt="Ticket QR code" width={220} height={220} />
+              </div>
             ) : (
               <div className="detail-skel-cover" style={{ height: 220, width: 220, borderRadius: 12, margin: "0 auto" }} />
             )}
