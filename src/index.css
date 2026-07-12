@@ -1,15 +1,15 @@
 /* ============================================================
-   WEYN — v5: "Where?" system. Grounded in the actual tension in Muscat's
-   built environment: a whitewashed, low-rise city bound by real municipal
-   codes (flat roofs, sand/white facades, no neon, no billboards — the
-   daytime city is deliberately quiet) that lights up after dark for the
-   weddings, gigs, and beach-club nights this app exists to surface. The
-   palette is that contrast made literal: --ink is the after-dark base,
-   --limestone is the daytime facade color, --amber is the souq streetlamp
-   that only switches on once the sun's down. Secondary hues come from the
-   same place — the Gulf of Oman at dusk (--gulf), and the oxblood leather
-   of a khanjar sheath (--khanjar) reserved for live/urgent states only.
-   No purple, no coral-Airbnb carryover, no cream+terracotta template.
+   WEYN — v6: two amber/yellow passes both read as "off" (candy, then
+   hazard-tape, then just "weird yellow") — dropping that hue from the
+   primary role entirely rather than iterating its shade again. The new
+   primary is the khanjar — the curved dagger on the Omani flag and
+   national emblem, its sheath traditionally a deep oxblood/terracotta
+   leather. It's a more specific, more identifiably-Omani signature than
+   a generic "warm accent" ever was, and it isn't in the yellow family at
+   all. Amber now does one job only — the --warning semantic — where a
+   caution color is actually supposed to read as caution. Night-ink base
+   and daytime limestone are unchanged; the Gulf-of-Oman teal stays as
+   the secondary/venues hue.
    ============================================================ */
 
 :root {
@@ -22,17 +22,14 @@
   --surface-hover:  #232B36;
   --border:         #2C3542;
   --border-strong:  #3C4756;
-  /* Souq streetlamp amber — deliberately pulled back from a candy/traffic-
-     sign saturation (the first pass at #FFB238 read as hazard tape, not
-     brass). This is closer to an old incandescent filament bulb: warm,
-     slightly muted, believable as an actual light source rather than a
-     UI accent color someone picked from a wheel. */
-  --primary:        #E0A143;
-  --primary-hover:  #EDB55E;
-  --primary-pressed:#B87F2E;
-  --on-primary:     #16130B;
+  /* Khanjar oxblood/terracotta — the primary. Deep enough that light text
+     sits on it cleanly (no more of the amber contrast juggling). */
+  --primary:        #C1503A;
+  --primary-hover:  #D2634C;
+  --primary-pressed:#9C3D2A;
+  --on-primary:     #FBF3EC;
   --success:        #3FAE86;
-  --warning:        #FFB238;
+  --warning:        #D99A3D;
   --error:          #D95D4A;
   --info:           #4A9C9A;
   --text:           #F3EFE6;
@@ -45,15 +42,15 @@
   --card-bg:        #1A2029;
   --card-border:    #2C3542;
   --card-shadow:    0 1px 2px rgba(0,0,0,.45), 0 8px 20px rgba(0,0,0,.4);
-  --accent-soft:    rgba(255,178,56,0.16);
+  --accent-soft:    rgba(193,80,58,0.16);
   --success-soft:   rgba(63,174,134,0.15);
   --scrim: rgba(0,0,0,0.6);
   /* Gulf-of-Oman-at-dusk teal — venues, water-adjacent, secondary CTAs. */
   --gulf:           #2C6E6B;
   --gulf-soft:      rgba(44,110,107,0.18);
-  /* Khanjar-sheath oxblood — live badges and urgent states only, never a
-     button or a large surface. */
-  --khanjar:        #B4523F;
+  /* Kept as an alias — khanjar is now the primary itself, not a separate
+     "urgent" accent layered on top of it. */
+  --khanjar:        var(--primary);
 
   /* back-compat aliases so existing ~300 call sites keep working unchanged */
   --surface-2:   var(--surface-hover);
@@ -102,22 +99,22 @@
   color-scheme: light;
   /* Daytime Muscat facade — the limestone/sand-render color the actual
      municipal building code mandates, not a generic warm-white. Cards stay
-     a cooler off-white (not stark white) so the amber accent still pops
+     a cooler off-white (not stark white) so the khanjar accent still pops
      without the page reading as "AI cream". */
   --bg: #F2EEE4; --bg-elevated: #FBFAF6; --surface: #FBFAF6; --surface-hover: #EDE8DB;
   --border: #DED7C6; --border-strong: #C9C0A9;
-  --primary: #C97A1E; --primary-hover: #A8630F; --primary-pressed: #8A5209;
-  --on-primary: #FBF6EA;
-  --success: #227C60; --warning: #B4700A; --error: #A8402F; --info: #235957;
+  --primary: #A8402C; --primary-hover: #8F3524; --primary-pressed: #742A1C;
+  --on-primary: #FBF3EC;
+  --success: #227C60; --warning: #97650E; --error: #A8402F; --info: #235957;
   --text: #1C1A15; --text-2: #625C4D; --text-3: #9A917B; --text-disabled: #D8D2C0;
   --icon: #1C1A15; --icon-2: #625C4D; --divider: #E4DFD1;
   --card-bg: #FBFAF6; --card-border: #E4DFD1;
   --card-shadow: 0 1px 2px rgba(28,26,21,.06), 0 6px 16px rgba(28,26,21,.06);
-  --accent-soft: rgba(201,122,30,0.10); --success-soft: rgba(34,124,96,0.10);
+  --accent-soft: rgba(168,64,44,0.10); --success-soft: rgba(34,124,96,0.10);
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
-  --gulf: #235957; --gulf-soft: rgba(35,89,87,0.10); --khanjar: #96402F;
+  --gulf: #235957; --gulf-soft: rgba(35,89,87,0.10); --khanjar: var(--primary);
   --shadow-sm: 0 1px 2px rgba(0,0,0,.05), 0 2px 6px rgba(0,0,0,.05);
   --shadow-md: 0 2px 4px rgba(0,0,0,.04), 0 8px 20px rgba(0,0,0,.08);
   --shadow-lg: 0 6px 16px rgba(0,0,0,.08), 0 16px 40px rgba(0,0,0,.1);

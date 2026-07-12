@@ -18,9 +18,9 @@ export default function LoadingMark({ size = 48 }: { size?: number }) {
     >
       <defs>
         <linearGradient id="loadingMarkGrad" x1="12" y1="12" x2="112" y2="92" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#C97A1E" />
-          <stop offset="55%" stopColor="#FFB238" />
-          <stop offset="100%" stopColor="#FFC562" />
+          <stop offset="0%" stopColor="#9C3D2A" />
+          <stop offset="55%" stopColor="#C1503A" />
+          <stop offset="100%" stopColor="#D2634C" />
         </linearGradient>
       </defs>
       <path
