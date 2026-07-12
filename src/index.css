@@ -22,17 +22,15 @@
   --surface-hover:  #232B36;
   --border:         #2C3542;
   --border-strong:  #3C4756;
-  /* Souq streetlamp amber — the signature accent. Warm, saturated, and
-     specific to what actually lights up a Muscat night market, not a
-     generic "brand color". */
-  --primary:        #FFB238;
-  --primary-hover:  #FFC562;
-  --primary-pressed:#E89B1E;
-  /* Amber is a light, warm hue — white text on it fails contrast the way it
-     never did on the old coral. Dark ink reads better here anyway: a
-     printed-sign look (dark type on a lit amber ground) fits the brief
-     more than white-on-amber ever would. */
-  --on-primary:     #14110A;
+  /* Souq streetlamp amber — deliberately pulled back from a candy/traffic-
+     sign saturation (the first pass at #FFB238 read as hazard tape, not
+     brass). This is closer to an old incandescent filament bulb: warm,
+     slightly muted, believable as an actual light source rather than a
+     UI accent color someone picked from a wheel. */
+  --primary:        #E0A143;
+  --primary-hover:  #EDB55E;
+  --primary-pressed:#B87F2E;
+  --on-primary:     #16130B;
   --success:        #3FAE86;
   --warning:        #FFB238;
   --error:          #D95D4A;
@@ -164,14 +162,16 @@ body {
 }
 
 /* ============================================================
-   TYPE SYSTEM — a real pairing, not one grotesk doing every job.
-   Fraunces (a soft-optical serif) carries the hero/section roles: set
-   heavy and tight-tracked, at high "opsz" it reads more like carved
-   signage than a delicate editorial serif — the opposite of the thin
-   cream-serif AI default, since it's set on ink/amber, not cream. Inter
-   stays for everything you actually read (body, card titles, UI chrome).
-   IBM Plex Mono carries prices, timestamps and ticket codes — a ticketing
-   app's data should look counted, not just styled.
+   TYPE SYSTEM — a real pairing, not one grotesk doing every job. An
+   earlier pass used Fraunces (a serif display) for hero/section — dropped
+   after review: an oversized serif hero headline is itself a recognizable
+   2024-25 AI-startup cliché (the "cream + high-contrast serif" template),
+   regardless of what colors sit around it. Archivo Black replaces it —
+   a confident, wide-set grotesk closer to actual highway/airport
+   wayfinding signage than a startup landing page, which fits "Weyn/
+   Where?" more literally than a serif ever did. Inter stays for
+   everything you actually read (body, card titles, UI chrome). IBM Plex
+   Mono carries prices, timestamps and ticket codes.
    ============================================================ */
 :root {
   --fw-regular: 400;
@@ -179,11 +179,11 @@ body {
   --fw-semibold: 600;  /* card titles, buttons, labels */
   --fw-bold:    700;   /* hero + section headings only */
 
-  --f-display: "Fraunces", ui-serif, Georgia, serif;
+  --f-display: "Archivo", "Inter", sans-serif;
   --f-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
 
-  --t-hero:    700 30px/1.1  "Fraunces", ui-serif, serif; /* ~30px effective on key screens; bumps to 44px on desktop (see @media 900px) */
-  --t-section: 600 20px/1.2  "Fraunces", ui-serif, serif;
+  --t-hero:    800 28px/1.14 "Archivo", "Inter", sans-serif; /* ~28px effective on key screens; bumps to 40px on desktop (see @media 900px) */
+  --t-section: 700 18px/1.25 "Archivo", "Inter", sans-serif;
   --t-card:    600 15px/1.3  "Inter", sans-serif;
   --t-meta:    500 13px/1.4  "Inter", sans-serif;
   --t-caption: 600 11px/1.3  "Inter", sans-serif;
@@ -193,8 +193,8 @@ body {
 }
 
 h1, h2, h3, h4 { margin: 0; }
-h1 { font: var(--t-hero);    letter-spacing: -0.2px; }
-h2 { font: var(--t-section); letter-spacing: -0.1px; }
+h1 { font: var(--t-hero);    letter-spacing: -0.4px; }
+h2 { font: var(--t-section); letter-spacing: -0.3px; }
 h3 { font: var(--t-card);    letter-spacing: -0.2px; }
 
 /* utility roles — use on non-heading elements that still need scale identity */
