@@ -159,11 +159,12 @@
 
 /* Past tickets (Tickets.tsx Upcoming/Past tabs) render at reduced opacity. */
 .ticket-past { opacity: .55; }
-/* Two independent pills, no shared track — active is the standard CTA
-   treatment (black light / coral dark), inactive is a plain surface pill. */
+/* Two independent buttons, no shared track — active is the standard CTA
+   treatment, inactive is a plain surface button. Small radius, not a pill
+   (minimalist spec bans rounded-full for buttons). */
 .ticket-tabs { display: flex; gap: 8px; }
 .ticket-tab {
-  font-size: 14px; font-weight: 600; padding: 9px 18px; border-radius: var(--radius-pill);
+  font-size: 14px; font-weight: 600; padding: 9px 18px; border-radius: var(--radius-sm);
   background: var(--surface-hover); color: var(--text-2);
 }
 .ticket-tab.on { background: var(--cta-bg); color: var(--cta-on-cta); }
@@ -520,12 +521,13 @@
 .ex-hero-card-meta span { display: flex; align-items: center; gap: 7px; }
 .ex-hero-card-meta [class^="icon-"] { font-size: 17px; opacity: 0.85; }
 .ex-hero-card-cta { display: flex; align-items: center; gap: 16px; }
-/* Handoff spec: a white pill CTA over the photo, not the app's standard
-   black/coral .btn — solid white bg, near-black text, no border. */
+/* A solid white CTA over the photo, not the app's standard .btn — solid
+   white bg, near-black text, no border. Small radius, not a pill
+   (minimalist spec bans rounded-full for primary buttons). */
 .ex-hero-card-btn {
   display: inline-flex; align-items: center; font-size: 14.5px; font-weight: 700;
   color: #131316; background: #fff;
-  padding: 11px 20px; border-radius: var(--radius-pill);
+  padding: 11px 20px; border-radius: var(--radius-sm);
 }
 .ex-hero-card-price { font: var(--t-body); font-size: 14px; color: rgba(255,255,255,0.85); }
 .ex-hero-card-price b { color: #fff; font-weight: 700; }
@@ -594,52 +596,53 @@
 }
 
 
-/* ---------- tab bar ---------- Editorial handoff: a floating, icon-only
-   pill nav (not docked/full-width) — translucent blurred surface, floating
-   above the bottom edge, plus a separate circular "Host" pill in the same
-   glass style, aligned next to it (per design_handoff_weyn_ticketing). */
+/* ---------- tab bar ---------- Minimalist pass: a flat, structural bottom
+   bar — the previous floating rounded-full glass pill is gone (the spec
+   bans rounded-full for large containers and heavy blur beyond a subtle
+   navbar hint). Hairline top border + a near-invisible shadow carry depth
+   instead. Still floats a few px above the edge so it isn't flush-docked. */
 .tabs {
   position: fixed;
-  bottom: max(20px, calc(env(safe-area-inset-bottom) + 10px));
+  bottom: max(12px, calc(env(safe-area-inset-bottom) + 6px));
   left: 50%; transform: translateX(-50%); z-index: 40;
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
   width: auto; max-width: calc(100vw - 32px);
   background: transparent; border: none; padding: 0;
 }
 .tabs-pill {
   display: flex; align-items: center; gap: 2px;
-  padding: 8px; border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  padding: 6px; border-radius: var(--radius);
+  background: var(--surface);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--shadow-sm);
 }
 .tab {
   position: relative; z-index: 2; flex: 0 0 auto;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  width: 48px; min-height: 48px;
+  width: 48px; min-height: 44px;
   font-size: 10.5px; font-weight: 600; color: var(--text-3); padding: 4px;
-  transition: color .15s ease;
+  border-radius: var(--radius-sm);
+  transition: color .15s ease, background-color .15s ease;
 }
-/* Icon-only on the floating mobile pill — labels come back at the 900px
-   desktop top-bar breakpoint (see below), where this is a normal inline nav. */
+/* Icon-only on the mobile bar — labels come back at the 900px desktop
+   top-bar breakpoint (see below), where this is a normal inline nav. */
 .tab span { display: none; }
-.tab [class^="icon-"] { font-size: 22px; display: inline-block; transition: transform .18s cubic-bezier(.25,1,.5,1); }
-.tab.on { color: var(--text); }
-.tab.on [class^="icon-"] { color: var(--accent); transform: scale(1.08); }
+.tab [class^="icon-"] { font-size: 21px; display: inline-block; transition: transform .18s cubic-bezier(.25,1,.5,1); }
+.tab.on { color: var(--text); background: var(--accent-soft); }
+.tab.on [class^="icon-"] { color: var(--primary); }
 .sidebar-brand { display: none; }
 .tabs-right { display: none; }
 
-/* Host — its own separate floating circle, a button (not a link) that opens
-   a two-item popover instead of navigating straight to one flow. Same
-   glass/blur/shadow treatment as .tabs-pill, just circular and standalone. */
+/* Host — its own separate bar segment (same flat surface, small radius —
+   not a circle), a button (not a link) that opens a two-item popover
+   instead of navigating straight to one flow. */
 .tab-host { position: relative; flex: 0 0 auto; display: flex; }
 .tab-host > .tab {
-  width: 52px; height: 52px; min-height: 52px; border-radius: 50%;
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  width: 48px; height: 44px; min-height: 44px; border-radius: var(--radius-sm);
+  background: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--shadow-sm);
 }
 .tab-host-menu {
   position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
@@ -786,8 +789,8 @@
 .organizer-nav-primary {
   display: flex; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0;
   overflow-x: auto; scrollbar-width: none;
-  padding: 6px; border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  padding: 6px; border-radius: var(--radius);
+  background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
 }
@@ -795,7 +798,7 @@
 .organizer-nav-primary .profile-tab { flex: 0 0 auto; }
 .organizer-more { position: relative; flex: 0 0 auto; }
 .organizer-more-btn {
-  width: 40px; height: 40px; border-radius: 50%; flex: 0 0 auto;
+  width: 40px; height: 40px; border-radius: var(--radius-sm); flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
   color: var(--text-3); background: var(--surface-hover); border: 1px solid var(--border);
 }
@@ -1285,11 +1288,11 @@
 .payment-row b { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
 .payment-row span { font-size: 12.5px; color: var(--text-2); }
 
-/* Promo code — one pill field, "Apply"/"Remove" as an inline coral text
-   link on the right, not a separate button (per handoff screenshots/03-04). */
+/* Promo code — one field, "Apply"/"Remove" as an inline accent text link on
+   the right, not a separate button. Small radius, not a pill. */
 .promo-row {
   display: flex; align-items: center; gap: 8px;
-  padding: 4px 4px 4px 16px; border-radius: var(--radius-pill);
+  padding: 4px 4px 4px 16px; border-radius: var(--radius);
   background: var(--surface-hover); border: 1px solid var(--border);
 }
 .promo-row input {
@@ -1734,12 +1737,13 @@
   background: var(--card-bg); box-shadow: var(--card-shadow);
   position: relative; overflow: hidden;
 }
-/* thin gradient accent top-border (Phase 6) — the banner is the one
+/* Flat hairline top marker (minimalist pass) — the banner is the one
    "this page's headline metric" surface on Overview, so it gets a small
-   marker distinguishing it from every other flat --card-bg surface. */
+   structural marker distinguishing it from every other flat --card-bg
+   surface; no gradient (banned), just the accent color as a flat line. */
 .dash-banner::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-  background: var(--gradient-accent-top);
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--primary);
 }
 .dash-banner-eyebrow { display: block; font-size: 13px; color: var(--text-2); margin-bottom: 4px; }
 .dash-banner h2 { font-size: 20px; letter-spacing: -0.4px; }
@@ -1941,7 +1945,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @media (min-width: 900px) {
   :root {
     --maxw: 1080px;
-    --t-hero: 800 40px/1.1 var(--f-display);
+    --t-hero: 400 44px/1.1 var(--f-serif);
   }
 
   .shell {
