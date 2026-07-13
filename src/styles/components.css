@@ -1441,12 +1441,29 @@
 .stat {
   border-radius: var(--radius); padding: 15px 16px;
   background: var(--glass-strong); border: 1px solid var(--glass-line);
-  
+
   box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
 }
 .stat .k { font-size: 12.5px; color: var(--text-2); font-weight: 500; }
 .stat .v { font-size: 25px; font-weight: 700; margin-top: 4px; letter-spacing: -0.6px; }
 .stat .v small { font-size: 13px; font-weight: 500; color: var(--text-2); }
+/* Hero-stat treatment (Phase 6) — every .stat-grid across the dashboards
+   leads with the same primary metric (net revenue), so giving the first
+   tile real emphasis instead of uniform equal-weight tiles is a safe,
+   semantically-correct asymmetric layout, not an arbitrary one. Spans 2
+   columns/rows where the grid has room; degrades to a plain wide tile
+   below that (auto-fit's min column width means a lone spanning tile
+   never orphans on narrow grids). */
+.stat-grid .stat:first-child {
+  background: color-mix(in srgb, var(--primary) 7%, var(--glass-strong));
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--glass-line));
+  box-shadow: var(--shadow-tint-sm), inset 0 1px 0 var(--glass-edge);
+}
+.stat-grid .stat:first-child .k { color: color-mix(in srgb, var(--primary) 65%, var(--text-2)); }
+.stat-grid .stat:first-child .v { font-size: 29px; }
+@media (min-width: 480px) {
+  .stat-grid .stat:first-child { grid-column: span 2; }
+}
 
 .dash-card {
   margin-bottom: 10px; border-radius: var(--radius); overflow: hidden;
@@ -1492,6 +1509,14 @@
   display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
   padding: 18px 20px; margin: 4px 0 14px; border-radius: var(--radius);
   background: var(--card-bg); box-shadow: var(--card-shadow);
+  position: relative; overflow: hidden;
+}
+/* thin gradient accent top-border (Phase 6) — the banner is the one
+   "this page's headline metric" surface on Overview, so it gets a small
+   marker distinguishing it from every other flat --card-bg surface. */
+.dash-banner::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--gradient-accent-top);
 }
 .dash-banner-eyebrow { display: block; font-size: 13px; color: var(--text-2); margin-bottom: 4px; }
 .dash-banner h2 { font-size: 20px; letter-spacing: -0.4px; }
