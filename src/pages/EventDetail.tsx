@@ -356,6 +356,7 @@ export default function EventDetail() {
         {seatMapQuery.data && !booked && (
           <div className="seat-picker">
             <h3 className="tier-picker-title">Pick your seat</h3>
+            <div className="stage-pill">Stage</div>
             <FloorPlanCanvas
               tables={seatMapQuery.data.tables} mode="pick" seatMode
               selectedSeatIds={selectedSeatId ? [selectedSeatId] : []}

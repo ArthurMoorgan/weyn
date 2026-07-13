@@ -112,19 +112,20 @@ export default function Checkout() {
         </div>
 
         <div className="field" style={{ marginTop: 16 }}>
-          <label>Promo code</label>
-          <div style={{ display: "flex", gap: 8 }}>
+          {/* Handoff spec: one pill field with "Promo code" placeholder and
+              an inline coral text link ("Apply") on the right — not a
+              separate input + button pair. */}
+          <div className="promo-row">
             <input
               value={promoInput}
               onChange={(e) => { setPromoInput(e.target.value); setPromoErr(""); }}
-              placeholder="Enter code"
+              placeholder="Promo code"
               disabled={!!appliedPromo}
-              style={{ flex: 1 }}
             />
             {appliedPromo ? (
-              <button type="button" className="btn glass sm" onClick={() => { setAppliedPromo(null); setPromoInput(""); }}>Remove</button>
+              <button type="button" className="promo-row-action" onClick={() => { setAppliedPromo(null); setPromoInput(""); }}>Remove</button>
             ) : (
-              <button type="button" className="btn glass sm" onClick={applyPromo} disabled={promoApplying || !promoInput.trim()}>
+              <button type="button" className="promo-row-action" onClick={applyPromo} disabled={promoApplying || !promoInput.trim()}>
                 {promoApplying ? "Applying…" : "Apply"}
               </button>
             )}

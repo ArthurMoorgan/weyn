@@ -153,11 +153,12 @@ export default function FloorPlanCanvas({
                         key={s.id}
                         onClick={(e) => { e.stopPropagation(); if (seatClickable) onSeatClick?.(s.id, t); }}
                         style={{
-                          width: 10, height: 10, borderRadius: "50%",
-                          /* Editorial handoff seat states: available = light
-                             gray fill, selected = solid coral, sold = same
-                             gray fill dimmed to 50% opacity (not a separate
-                             color) — see the seat legend below the grid. */
+                          /* Pixel-checked against screenshots/03 & 04: seats
+                             are small ROUNDED SQUARES, not circles — available
+                             = light gray fill, selected = solid coral, sold =
+                             same gray fill dimmed to 50% opacity (not a
+                             separate color) — see the seat legend below the grid. */
+                          width: 10, height: 10, borderRadius: 3,
                           background: seatSelected ? "var(--primary)" : "var(--border-strong)",
                           opacity: !seatSelected && s.status !== "available" ? 0.5 : 1,
                           cursor: seatClickable ? "pointer" : "default",

@@ -59,6 +59,9 @@ function HeroCard({ e }: { e: Weyn }) {
     : { background: e.color };
   return (
     <Link to={`/e/${e.id}`} viewTransition className="ex-hero-card" style={coverStyle}>
+      {/* Editorial handoff: a "FEATURED" pill badge top-left — pixel-checked
+          against screenshots/01, was missing entirely. */}
+      <span className="ex-hero-card-featured">Featured</span>
       <div className="ex-hero-card-body">
         <span className="ex-hero-card-eyebrow">{catLabel} · {heroTimeLabel(e)}</span>
         <h2 className="ex-hero-card-title">{e.title}</h2>
@@ -67,7 +70,9 @@ function HeroCard({ e }: { e: Weyn }) {
           <span><i className="icon-calendar" /> {dayLabel(e)} · {timeLabel(e)}</span>
         </div>
         <div className="ex-hero-card-cta">
-          <span className="btn lg ex-hero-card-btn">Get tickets</span>
+          {/* Handoff spec: "white pill CTA button" over the photo — a
+              distinct style from the app's standard black/coral .btn. */}
+          <span className="ex-hero-card-btn">Get tickets</span>
           <span className="ex-hero-card-price">{e.price === 0 ? "Free" : <>from <b>{e.price} OMR</b></>}</span>
         </div>
       </div>
