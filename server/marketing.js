@@ -21,7 +21,7 @@ function ctaLink(e) {
 // Countdown dates are computed here rather than by the AI/template copy —
 // they're plain arithmetic off startsAt, not something worth a model call,
 // and stay correct even when the template fallback is used.
-function scheduleDates(e) {
+export function scheduleDates(e) {
   const start = new Date(e.startsAt);
   const daysBefore = (n) => new Date(start.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
   return {
@@ -62,10 +62,39 @@ function templateCopy(e) {
     { stage: "Day-of", date: dates["Day-of"], label: "Today", text: `Today's the day 🎉 ${e.title}, ${when(e)}. See you at ${e.venue} — ${link}`.trim() },
   ];
 
-  return { instagram, instagramStory, whatsapp, whatsappBroadcast, telegram, twitter, schedule };
+  // Ad-platform copy, kept template-generated (not AI) in the fallback path
+  // the same way every other channel above is — real, usable text even
+  // with no ANTHROPIC_API_KEY configured, just less varied than the AI path.
+  const googleAdVariants = [
+    { headline: `${e.title}`.slice(0, 30), description: `${priceLine(e)} · ${e.venue}, ${e.area}. ${when(e)}.`.slice(0, 90) },
+    { headline: `${e.venue} — ${e.title}`.slice(0, 30), description: `${e.blurb}`.slice(0, 90) },
+    { headline: `Get tickets: ${e.title}`.slice(0, 30), description: `${when(e)}. ${priceLine(e)}. Book now.`.slice(0, 90) },
+  ];
+  const metaAdVariants = [
+    { headline: `${e.title}`.slice(0, 40), description: `${e.blurb} — ${when(e)} at ${e.venue}, ${e.area}. ${priceLine(e)}.`.slice(0, 125) },
+    { headline: `Don't miss ${e.title}`.slice(0, 40), description: `${priceLine(e)} · ${when(e)} · ${e.venue}. ${link}`.slice(0, 125) },
+    { headline: `${e.venue} presents: ${e.title}`.slice(0, 40), description: `${e.blurb}`.slice(0, 125) },
+  ];
+  const pressRelease =
+    `${(e.area || "MUSCAT").toUpperCase()} — ${e.title} is set to take place ${when(e)} at ${e.venue}, ${e.area}.\n\n${e.blurb}\n\n${priceLine(e)}. ${link ? "More information and tickets: " + link : ""}\n\nFor media inquiries, contact the event organizer directly.`.trim();
+  const influencerDm =
+    `Hey! I'm putting on ${e.title} at ${e.venue}, ${e.area} on ${when(e)}, and thought you'd genuinely love it — would you be up for coming through (on us) and sharing it with your audience if it's a fit? No pressure either way, happy to send more details. ${link ? link : ""}`.trim();
+
+  return { instagram, instagramStory, whatsapp, whatsappBroadcast, telegram, twitter, schedule, googleAdVariants, metaAdVariants, pressRelease, influencerDm };
 }
 
-async function aiCopy(e) {
+// Brand kit is optional — a null/empty kit renders as nothing extra in the
+// prompt, so an organizer who hasn't set one up gets exactly the same copy
+// as before this feature existed.
+function brandKitLine(brandKit) {
+  if (!brandKit) return "";
+  const tone = brandKit.toneOfVoice ? `Tone of voice: ${brandKit.toneOfVoice}.` : "";
+  const color = brandKit.primaryColor ? `Brand color (mention only if writing something like a poster/ad description that references color): ${brandKit.primaryColor}.` : "";
+  const line = [tone, color].filter(Boolean).join(" ");
+  return line ? `\nBrand guidance — follow this for all copy: ${line}\n` : "";
+}
+
+async function aiCopy(e, brandKit) {
   const prompt = `Write promotional copy for this event, for several channels and a countdown posting schedule. Return STRICT JSON with keys
 "instagram" (caption with line breaks and a few relevant hashtags, engaging tone),
 "instagramStory" (very short text overlay for an Instagram/WhatsApp Story — 3 lines max, no hashtags, ends with a call to tap the link),
@@ -73,9 +102,13 @@ async function aiCopy(e) {
 "whatsappBroadcast" (a warmer, more personal variant for a broadcast list/close contacts — like telling a friend, not announcing),
 "telegram" (similar to whatsapp but for a channel post),
 "twitter" (a single tweet, <=280 characters, no hashtag spam),
-"schedule" (an array of exactly 4 objects, one per countdown stage in this order: {"stage":"T-7","label":"One week out","text":"..."}, {"stage":"T-3","label":"3 days left","text":"..."}, {"stage":"T-1","label":"Tomorrow","text":"..."}, {"stage":"Day-of","label":"Today","text":"..."} — each "text" is a short standalone post building urgency toward the event, reusable on Instagram/WhatsApp).
+"schedule" (an array of exactly 4 objects, one per countdown stage in this order: {"stage":"T-7","label":"One week out","text":"..."}, {"stage":"T-3","label":"3 days left","text":"..."}, {"stage":"T-1","label":"Tomorrow","text":"..."}, {"stage":"Day-of","label":"Today","text":"..."} — each "text" is a short standalone post building urgency toward the event, reusable on Instagram/WhatsApp),
+"googleAdVariants" (an array of exactly 3 objects {"headline":"...","description":"..."} — headline <=30 characters, description <=90 characters, Google Search Ads limits, punchy and benefit-first),
+"metaAdVariants" (an array of exactly 3 objects {"headline":"...","description":"..."} — headline <=40 characters, description <=125 characters, Meta/Facebook/Instagram ad limits),
+"pressRelease" (a short press-release-style announcement, 3-4 short paragraphs, third person, factual/newsworthy tone, dateline-style opening line e.g. "MUSCAT, Oman —"),
+"influencerDm" (a short, warm, non-spammy direct message an organizer could send to an influencer or potential partner inviting them to the event/a collab, first person, casual but professional).
 Include the venue, date/time, and price naturally. Do not invent details not given.
-
+${brandKitLine(brandKit)}
 Event:
 title: ${e.title}
 venue: ${e.venue}, ${e.area}
@@ -85,7 +118,7 @@ description: ${e.blurb}
 link: ${ctaLink(e)}
 
 Return ONLY the JSON object.`;
-  return askClaudeJson(prompt, { maxTokens: 900 });
+  return askClaudeJson(prompt, { maxTokens: 1400 });
 }
 
 // The 4 countdown dates are always computed here, never asked of the model —
@@ -96,10 +129,10 @@ function withScheduleDates(e, schedule) {
   return (schedule || []).map((s) => ({ ...s, date: dates[s.stage] ?? null }));
 }
 
-export async function generateMarketingCopy(event) {
+export async function generateMarketingCopy(event, brandKit = null) {
   if (aiConfigured()) {
     try {
-      const copy = await aiCopy(event);
+      const copy = await aiCopy(event, brandKit);
       return { ...copy, schedule: withScheduleDates(event, copy.schedule), generatedAt: new Date().toISOString(), aiGenerated: true };
     } catch {
       // fall through to templates on any AI hiccup

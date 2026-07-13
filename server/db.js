@@ -500,7 +500,21 @@ export const db = {
   },
 
   // ---- checkout / payments ----
-  async createPendingBooking({ eventId, tierId, deviceId, account, qty, utm }) {
+  async createPendingBooking({ eventId, tierId, deviceId, account, qty, utm, refCode }) {
+    // Marketing Hub referral program: ?ref=CODE is captured the same way
+    // ?utm_source/etc is above — resolved to the real ReferralCode row
+    // (never trusted as anything but attribution) and its tally bumped
+    // right away, same moment a promo code's usedCount would bump. Simple
+    // "referral count" leaderboard, no real payout — an invalid/unknown
+    // code is silently ignored rather than failing the booking.
+    let referredByCodeId = null;
+    if (refCode && typeof refCode === "string") {
+      const code = await prisma.referralCode.findUnique({ where: { code: refCode.trim().toUpperCase() } });
+      if (code && code.eventId === eventId) {
+        referredByCodeId = code.id;
+        await prisma.referralCode.update({ where: { id: code.id }, data: { referralCount: { increment: 1 } } });
+      }
+    }
     return prisma.booking.create({
       data: {
         eventId, tierId: tierId || null, deviceId: deviceId || null, qty: qty || 1,
@@ -508,6 +522,7 @@ export const db = {
         accessToken: crypto.randomBytes(24).toString("base64url"),
         email: account?.email || null, name: account?.name || null,
         utmSource: utm?.source || null, utmMedium: utm?.medium || null, utmCampaign: utm?.campaign || null,
+        referredByCodeId,
       },
     });
   },

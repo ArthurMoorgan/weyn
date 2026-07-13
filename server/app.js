@@ -17,7 +17,7 @@ import { db, prisma } from "./db.js";
 import { sendPush, pushConfigured } from "./push.js";
 import { sendWebPush, webPushConfigured } from "./webpush.js";
 import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./instagram-import.js";
-import { generateMarketingCopy } from "./marketing.js";
+import { generateMarketingCopy, scheduleDates } from "./marketing.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
 import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured, imageGenConfigured, generateImage, runAgentTurn, agentToolsConfigured } from "./ai.js";
 import { AGENT_TOOLS, buildToolExecutor, toolByName } from "./agent-tools.js";
@@ -991,7 +991,7 @@ export function createApp(storage) {
 
     const deviceId = req.body?.deviceId;
     const account = req.body?.email ? { email: req.body.email, name: req.body.name } : null;
-    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body) });
+    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body), refCode: req.body?.refCode });
     await prisma.booking.update({ where: { id: booking.id }, data: { status: "paid" } });
     if (seatIds) {
       await prisma.ticket.createMany({ data: seatIds.map((seatId) => ({ bookingId: booking.id, eventId: e.id, seatId })) });
@@ -1054,7 +1054,7 @@ export function createApp(storage) {
 
     const deviceId = req.body?.deviceId;
     const account = req.body?.email ? { email: req.body.email, name: req.body.name } : null;
-    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body) });
+    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body), refCode: req.body?.refCode });
 
     const origin = publicOrigin(req);
     try {
@@ -1108,7 +1108,7 @@ export function createApp(storage) {
 
     const deviceId = req.body?.deviceId;
     const account = { email: req.body.email, name: req.body.name };
-    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body) });
+    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body), refCode: req.body?.refCode });
     await prisma.payment.create({ data: { bookingId: booking.id, amount: price * qty, status: "pending" } });
     if (req.body?.promoCode) {
       redeemPromoCode(e.id, req.body.promoCode)
@@ -3864,7 +3864,8 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     const e = req.event;
     let copy = await db.getMarketing(e.id);
     if (!copy) {
-      copy = await generateMarketingCopy(e);
+      const brandKit = e.ownerId ? await prisma.organizerBrandKit.findUnique({ where: { organizerId: e.ownerId } }) : null;
+      copy = await generateMarketingCopy(e, brandKit);
       await db.setMarketing(e.id, copy);
     }
     res.json(copy);
@@ -3874,9 +3875,119 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // call, so cap it even though it's owner-gated — stops an owner from
   // hammering it to run up API cost.
   app.post("/api/events/:id/marketing/regenerate", importLimiter, requireEventOwner(), async (req, res) => {
-    const copy = await generateMarketingCopy(req.event);
+    const brandKit = req.event.ownerId ? await prisma.organizerBrandKit.findUnique({ where: { organizerId: req.event.ownerId } }) : null;
+    const copy = await generateMarketingCopy(req.event, brandKit);
     await db.setMarketing(req.event.id, copy);
     res.json(copy);
+  });
+
+  // ---- Marketing Hub: UTM link builder ----
+  app.post("/api/events/:id/marketing-links", requireEventOwner(), requireFeature("utmLinkBuilder"), async (req, res) => {
+    const b = req.body || {};
+    const label = String(b.label || "").trim();
+    const utmSource = String(b.utmSource || "").trim();
+    const utmMedium = String(b.utmMedium || "").trim();
+    const utmCampaign = String(b.utmCampaign || "").trim();
+    if (!label || !utmSource || !utmMedium || !utmCampaign) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "label, utmSource, utmMedium, and utmCampaign are all required" } });
+    }
+    const params = new URLSearchParams({ utm_source: utmSource, utm_medium: utmMedium, utm_campaign: utmCampaign });
+    const url = `${req.protocol}://${req.get("host")}/e/${req.event.id}?${params.toString()}`;
+    const created = await prisma.marketingLink.create({
+      data: { eventId: req.event.id, organizerId: req.user.id, label, utmSource, utmMedium, utmCampaign, url },
+    });
+    res.status(201).json(created);
+  });
+  app.get("/api/events/:id/marketing-links", requireEventOwner(), requireFeature("utmLinkBuilder"), async (req, res) => {
+    res.json(await prisma.marketingLink.findMany({ where: { eventId: req.event.id }, orderBy: { createdAt: "desc" } }));
+  });
+  app.delete("/api/events/:id/marketing-links/:linkId", requireEventOwner(), requireFeature("utmLinkBuilder"), async (req, res) => {
+    const existing = await prisma.marketingLink.findUnique({ where: { id: req.params.linkId } });
+    if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Link not found" } });
+    await prisma.marketingLink.delete({ where: { id: existing.id } });
+    res.json({ ok: true });
+  });
+
+  // ---- Marketing Hub: referral program ----
+  // "Enable referral tracking" just means "the organizer has created at
+  // least one code" — there's no separate on/off toggle on Event, matching
+  // the spec's "keep it simple" instruction (no real payout mechanism).
+  app.post("/api/events/:id/referral-codes", requireEventOwner(), requireFeature("referralPrograms"), async (req, res) => {
+    const b = req.body || {};
+    const ownerName = b.ownerName ? String(b.ownerName).trim() : null;
+    const ownerEmail = b.ownerEmail ? String(b.ownerEmail).trim() : null;
+    // Short, URL-safe, human-shareable code — collision retry rather than a
+    // long opaque id, since this is meant to be typed/read aloud too.
+    let code;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      code = crypto.randomBytes(4).toString("hex").toUpperCase();
+      const clash = await prisma.referralCode.findUnique({ where: { code } });
+      if (!clash) break;
+    }
+    const created = await prisma.referralCode.create({
+      data: { eventId: req.event.id, organizerId: req.user.id, code, ownerName, ownerEmail },
+    });
+    res.status(201).json(created);
+  });
+  app.get("/api/events/:id/referral-codes", requireEventOwner(), requireFeature("referralPrograms"), async (req, res) => {
+    res.json(await prisma.referralCode.findMany({ where: { eventId: req.event.id }, orderBy: { referralCount: "desc" } }));
+  });
+  // Leaderboard — same data as the list above, ranked, capped to a sane
+  // top-N for the UI. Kept as its own route (rather than a query param) so
+  // it reads clearly from the frontend call site.
+  app.get("/api/events/:id/referral-codes/leaderboard", requireEventOwner(), requireFeature("referralPrograms"), async (req, res) => {
+    const codes = await prisma.referralCode.findMany({
+      where: { eventId: req.event.id },
+      orderBy: { referralCount: "desc" },
+      take: 50,
+    });
+    res.json(codes);
+  });
+  app.delete("/api/events/:id/referral-codes/:codeId", requireEventOwner(), requireFeature("referralPrograms"), async (req, res) => {
+    const existing = await prisma.referralCode.findUnique({ where: { id: req.params.codeId } });
+    if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Referral code not found" } });
+    await prisma.referralCode.delete({ where: { id: existing.id } });
+    res.json({ ok: true });
+  });
+
+  // ---- Marketing Hub: cross-event marketing calendar ----
+  // Reuses the exact same T-7/T-3/T-1/day-of dates as the per-event
+  // Marketing tab (server/marketing.js's scheduleDates) but across every
+  // event this organizer owns/manages, so they can see the whole slate's
+  // posting calendar in one place.
+  app.get("/api/organizer/marketing-calendar", requireAuth, requireFeature("marketingCalendar"), async (req, res) => {
+    const events = await db.eventsAccessibleTo(req.user.id);
+    const items = [];
+    for (const e of events) {
+      if (e.cancelled) continue;
+      const dates = scheduleDates(e);
+      const labels = { "T-7": "One week out", "T-3": "3 days left", "T-1": "Tomorrow", "Day-of": "Today" };
+      for (const stage of ["T-7", "T-3", "T-1", "Day-of"]) {
+        items.push({ eventId: e.id, eventTitle: e.title, stage, label: labels[stage], date: dates[stage] });
+      }
+    }
+    items.sort((a, b) => new Date(a.date) - new Date(b.date));
+    res.json(items);
+  });
+
+  // ---- Marketing Hub: brand kit ----
+  app.get("/api/me/brand-kit", requireAuth, requireFeature("brandKit"), async (req, res) => {
+    const kit = await prisma.organizerBrandKit.findUnique({ where: { organizerId: req.user.id } });
+    res.json(kit || { organizerId: req.user.id, logoUrl: null, primaryColor: null, toneOfVoice: null });
+  });
+  app.put("/api/me/brand-kit", requireAuth, requireFeature("brandKit"), async (req, res) => {
+    const b = req.body || {};
+    const data = {
+      logoUrl: b.logoUrl ? String(b.logoUrl).trim() : null,
+      primaryColor: b.primaryColor ? String(b.primaryColor).trim() : null,
+      toneOfVoice: b.toneOfVoice ? String(b.toneOfVoice).trim() : null,
+    };
+    const kit = await prisma.organizerBrandKit.upsert({
+      where: { organizerId: req.user.id },
+      create: { organizerId: req.user.id, ...data },
+      update: data,
+    });
+    res.json(kit);
   });
 
   // catch-all error handler — multer/upload errors land here (4xx, not

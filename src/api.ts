@@ -269,6 +269,11 @@ export interface MarketingScheduleItem {
   date: string | null;
 }
 
+export interface AdVariant {
+  headline: string;
+  description: string;
+}
+
 export interface MarketingCopy {
   instagram: string;
   instagramStory: string;
@@ -279,6 +284,51 @@ export interface MarketingCopy {
   schedule: MarketingScheduleItem[];
   generatedAt: string;
   aiGenerated: boolean;
+  // Marketing Hub additions — nullable/optional since older cached rows
+  // (generated before this shipped) won't have them until regenerated.
+  googleAdVariants?: AdVariant[] | null;
+  metaAdVariants?: AdVariant[] | null;
+  pressRelease?: string | null;
+  influencerDm?: string | null;
+}
+
+export interface MarketingLink {
+  id: string;
+  eventId: string;
+  organizerId: string;
+  label: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  url: string;
+  clicks: number;
+  createdAt: string;
+}
+
+export interface ReferralCode {
+  id: string;
+  eventId: string;
+  organizerId: string;
+  code: string;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  referralCount: number;
+  createdAt: string;
+}
+
+export interface MarketingCalendarItem {
+  eventId: string;
+  eventTitle: string;
+  stage: "T-7" | "T-3" | "T-1" | "Day-of";
+  label: string;
+  date: string;
+}
+
+export interface BrandKit {
+  organizerId: string;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  toneOfVoice: string | null;
 }
 
 export interface InstagramImportResult {
@@ -624,12 +674,16 @@ export function captureUtmFromUrl(eventId: string) {
   const source = params.get("utm_source");
   const medium = params.get("utm_medium");
   const campaign = params.get("utm_campaign");
-  if (!source && !medium && !campaign) return;
+  // Marketing Hub referral program: ?ref=CODE, captured alongside utm_*
+  // using the same sessionStorage-per-eventId approach so it survives the
+  // sign-in redirect a first-time visitor goes through before booking.
+  const ref = params.get("ref");
+  if (!source && !medium && !campaign && !ref) return;
   try {
-    sessionStorage.setItem(`weyn.utm.${eventId}`, JSON.stringify({ utmSource: source, utmMedium: medium, utmCampaign: campaign }));
+    sessionStorage.setItem(`weyn.utm.${eventId}`, JSON.stringify({ utmSource: source, utmMedium: medium, utmCampaign: campaign, refCode: ref }));
   } catch { /* private browsing / storage disabled — attribution is best-effort */ }
 }
-function getStoredUtm(eventId: string): { utmSource?: string; utmMedium?: string; utmCampaign?: string } {
+function getStoredUtm(eventId: string): { utmSource?: string; utmMedium?: string; utmCampaign?: string; refCode?: string } {
   try {
     const raw = sessionStorage.getItem(`weyn.utm.${eventId}`);
     return raw ? JSON.parse(raw) : {};
@@ -1070,6 +1124,50 @@ export const api = {
   },
   async regenerateMarketing(id: string): Promise<MarketingCopy> {
     return fetch(`${API_BASE}/api/events/${id}/marketing/regenerate`, { method: "POST", headers: await authHeaders() }).then((r) => json<MarketingCopy>(r));
+  },
+
+  // ---- Marketing Hub: UTM link builder ----
+  async listMarketingLinks(eventId: string): Promise<MarketingLink[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/marketing-links`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async createMarketingLink(eventId: string, input: { label: string; utmSource: string; utmMedium: string; utmCampaign: string }): Promise<MarketingLink> {
+    return fetch(`${API_BASE}/api/events/${eventId}/marketing-links`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async deleteMarketingLink(eventId: string, linkId: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/marketing-links/${linkId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Marketing Hub: referral program ----
+  async listReferralCodes(eventId: string): Promise<ReferralCode[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/referral-codes`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async createReferralCode(eventId: string, input: { ownerName?: string; ownerEmail?: string }): Promise<ReferralCode> {
+    return fetch(`${API_BASE}/api/events/${eventId}/referral-codes`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async referralLeaderboard(eventId: string): Promise<ReferralCode[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/referral-codes/leaderboard`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async deleteReferralCode(eventId: string, codeId: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/referral-codes/${codeId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Marketing Hub: cross-event calendar ----
+  async marketingCalendar(): Promise<MarketingCalendarItem[]> {
+    return fetch(`${API_BASE}/api/organizer/marketing-calendar`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Marketing Hub: brand kit ----
+  async getBrandKit(): Promise<BrandKit> {
+    return fetch(`${API_BASE}/api/me/brand-kit`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async setBrandKit(input: { logoUrl?: string | null; primaryColor?: string | null; toneOfVoice?: string | null }): Promise<BrandKit> {
+    return fetch(`${API_BASE}/api/me/brand-kit`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
   },
 
   // ---- organizer dashboard ----

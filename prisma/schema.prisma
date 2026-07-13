@@ -69,6 +69,9 @@ model User {
   venueApplications VenueApplication[]
   webPushSubscriptions WebPushSubscription[]
   subscription    Subscription?
+  marketingLinks  MarketingLink[]
+  referralCodes   ReferralCode[]
+  brandKit        OrganizerBrandKit?
 
   @@index([email])
 }
@@ -278,6 +281,8 @@ model Event {
   automationRules   AutomationRule[]
   eventWorkflows    EventWorkflow[]
   floorPlan         FloorPlan?
+  marketingLinks    MarketingLink[]
+  referralCodes     ReferralCode[]
 
   @@index([organizer])
   @@index([featured])
@@ -444,16 +449,23 @@ model Booking {
   utmSource   String?
   utmMedium   String?
   utmCampaign String?
+  // Marketing Hub referral program: which organizer-issued ReferralCode (if
+  // any) this booking was attributed to, captured from ?ref=CODE the same
+  // way utmSource/etc are captured from ?utm_source=... — null means this
+  // booking wasn't referred.
+  referredByCodeId String?
 
   event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tier    Tier?    @relation(fields: [tierId], references: [id])
   payment Payment?
   tickets Ticket[]
   tableAssignment TableAssignment?
+  referredByCode ReferralCode? @relation("ReferredBookings", fields: [referredByCodeId], references: [id])
 
   @@index([eventId])
   @@index([deviceId])
   @@index([status])
+  @@index([referredByCodeId])
 }
 
 enum PaymentStatus {
@@ -573,6 +585,79 @@ model MarketingAsset {
   schedule          Json?
   generatedAt       DateTime @default(now())
   aiGenerated       Boolean  @default(false)
+  // Marketing Hub: paid ad-platform copy and outreach templates, all
+  // additive/nullable like instagramStory/whatsappBroadcast above — old
+  // rows stay valid until the organizer next regenerates. googleAd*/metaAd*
+  // are arrays of {headline, description} variants (character-limit-aware,
+  // see server/marketing.js), not single strings, since ad platforms
+  // expect several headline/description options to rotate.
+  googleAdVariants  Json?
+  metaAdVariants    Json?
+  pressRelease      String?
+  influencerDm      String?
+}
+
+// Marketing Hub: UTM-tagged trackable links an organizer generates for one
+// event (e.g. one per channel/campaign) — clicks are counted via the
+// existing /api/events/:id link-through redirect the frontend already
+// appends utm_* params for on booking (see Booking.utmSource etc); this
+// table is just the organizer-facing "here are the links I made" list, not
+// a new tracking pixel.
+model MarketingLink {
+  id          String   @id @default(cuid())
+  eventId     String
+  organizerId String
+  label       String
+  utmSource   String
+  utmMedium   String
+  utmCampaign String
+  url         String
+  clicks      Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  event    Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([organizerId])
+}
+
+// Marketing Hub: simple referral tracking, no real payout mechanism (per
+// spec) — an attendee gets a shareable code, referred bookings tally
+// against it for a leaderboard/perk credit the organizer decides on
+// manually. One row per attendee-per-event; `code` is globally unique so it
+// can be used as a URL param (?ref=CODE) without also needing eventId.
+model ReferralCode {
+  id            String   @id @default(cuid())
+  eventId       String
+  organizerId   String
+  code          String   @unique
+  ownerName     String?
+  ownerEmail    String?
+  referralCount Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  event      Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizer  User       @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  bookings   Booking[]  @relation("ReferredBookings")
+
+  @@index([eventId])
+  @@index([organizerId])
+}
+
+// Marketing Hub: per-organizer branding preferences threaded into the AI
+// copy prompt (server/marketing.js) so generated copy stays on-brand.
+// Deliberately its own table rather than more fields on User — this is
+// optional, organizer-dashboard-only settings, same reasoning as
+// EventVenue being split out from Event.
+model OrganizerBrandKit {
+  organizerId String   @id
+  logoUrl     String?
+  primaryColor String?
+  toneOfVoice String? // free text, e.g. "playful and casual" / "polished and formal"
+  updatedAt   DateTime @updatedAt
+
+  organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
 }
 
 // ---- Reservations (tables/spots at restaurants, cafes, lounges, rooftops,

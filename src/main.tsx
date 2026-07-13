@@ -44,6 +44,7 @@ const OrganizerOverview = lazy(() => import("./pages/organizer/Overview"));
 const OrganizerEvents = lazy(() => import("./pages/organizer/Events"));
 const OrganizerEventWorkspace = lazy(() => import("./pages/organizer/EventWorkspace"));
 const OrganizerAttendees = lazy(() => import("./pages/organizer/Attendees"));
+const OrganizerMarketingHub = lazy(() => import("./pages/organizer/MarketingHub"));
 const OrganizerWorkflows = lazy(() => import("./pages/organizer/Workflows"));
 const OrganizerAiStudio = lazy(() => import("./pages/organizer/AiStudio"));
 const OrganizerSettings = lazy(() => import("./pages/organizer/Settings"));
@@ -214,6 +215,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   <Route path="events/:id" element={<OrganizerEventWorkspace />} />
                   <Route path="events/:id/:tab" element={<OrganizerEventWorkspace />} />
                   <Route path="attendees" element={<OrganizerAttendees />} />
+                  <Route path="marketing" element={<OrganizerMarketingHub />} />
                   <Route path="workflows" element={<OrganizerWorkflows />} />
                   <Route path="ai-studio" element={<OrganizerAiStudio />} />
                   <Route path="settings" element={<OrganizerSettings />} />

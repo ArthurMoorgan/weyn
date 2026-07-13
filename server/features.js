@@ -25,6 +25,10 @@ export const FEATURES = [
   // parity with the venue side's Workflow/WorkflowRun) — see
   // server/event-workflows.js.
   "eventWorkflows",
+  // Marketing Hub — see server/marketing.js (ad copy variants) and the new
+  // /api/events/:id/marketing-links, /api/events/:id/referral-codes,
+  // /api/organizer/marketing-calendar routes in server/app.js.
+  "adCopyGeneration", "utmLinkBuilder", "referralPrograms", "marketingCalendar", "brandKit",
 ];
 const FEATURE_SET = new Set(FEATURES);
 

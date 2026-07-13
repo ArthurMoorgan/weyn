@@ -31,4 +31,10 @@ export const FEATURE_LABELS: Record<string, string> = {
   customBranding: "Custom branding",
   reducedWeynBranding: "Reduced Weyn branding",
   aiStudio: "AI Studio",
+  eventWorkflows: "Event workflows",
+  adCopyGeneration: "Ad copy generation",
+  utmLinkBuilder: "UTM link builder",
+  referralPrograms: "Referral programs",
+  marketingCalendar: "Marketing calendar",
+  brandKit: "Brand kit",
 };
