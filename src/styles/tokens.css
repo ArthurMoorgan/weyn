@@ -14,13 +14,15 @@
   --surface-hover:  #1C1C1F;
   --border:         #232328;
   --border-strong:  #2C2C33;
-  /* Editorial coral accent — same hex in both themes per handoff spec. */
-  --primary:        #FF5A3C;
-  --primary-hover:  #FF7057;
-  --primary-pressed:#E84E30;
-  --on-primary:     #FFFFFF;
+  /* Editorial accent, recolored from coral to a muted blue (same hex in
+     both themes) per follow-up request — layout/shape stays Editorial,
+     only the accent hue changed. */
+  --primary:        #6FB6E0;
+  --primary-hover:  #8AC6E8;
+  --primary-pressed:#57A0CC;
+  --on-primary:     #0A0A0A;
   /* CTA buttons are a distinct concept from the accent color: black-on-white
-     in light mode, coral in dark mode (Editorial direction). */
+     in light mode, blue in dark mode (Editorial direction). */
   --cta-bg:         var(--primary);
   --cta-on-cta:     var(--on-primary);
   --success:        #3FBE7C;
@@ -37,7 +39,7 @@
   --card-bg:        #141414;
   --card-border:    #232328;
   --card-shadow:    0 1px 2px rgba(0,0,0,.4);
-  --accent-soft:    rgba(255,90,60,.16);
+  --accent-soft:    rgba(111,182,224,.16);
   --success-soft:   rgba(63,190,124,.14);
   --scrim: rgba(0,0,0,0.6);
   /* Not part of the new system — kept only because a couple of venue/
@@ -117,9 +119,9 @@
   /* Editorial handoff light tokens — exact hex from design_handoff_weyn_ticketing/README.md */
   --bg: #FAFAFA; --bg-elevated: #F1F1F3; --surface: #FFFFFF; --surface-hover: #F4F4F5;
   --border: #E6E6E9; --border-strong: #D6D6D9;
-  --primary: #FF5A3C; --primary-hover: #FF7057; --primary-pressed: #E84E30;
+  --primary: #1F6C9F; --primary-hover: #2C82B8; --primary-pressed: #175680;
   --on-primary: #FFFFFF;
-  /* Light mode CTAs are black, not coral — coral stays reserved for accents. */
+  /* Light mode CTAs are black, not blue — blue stays reserved for accents. */
   --cta-bg: var(--text);
   --cta-on-cta: var(--bg);
   --success: #2E9E5B; --warning: #97650E; --error: #C21E23; --info: #2678A8;
@@ -127,7 +129,7 @@
   --icon: #0A0A0A; --icon-2: #5B5B63; --divider: #E6E6E9;
   --card-bg: #FFFFFF; --card-border: #E6E6E9;
   --card-shadow: 0 1px 2px rgba(0,0,0,.05);
-  --accent-soft: #FFF3F0; --success-soft: #EAF7EF;
+  --accent-soft: #E1F3FE; --success-soft: #EAF7EF;
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
