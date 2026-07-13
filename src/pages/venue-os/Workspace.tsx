@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType, type WinBackStats, type VenueLoyaltyGuest, type VenueMarketingLink, type VenueMarketingCalendarItem, type VenueBrandKit } from "../../api";
+import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType, type WinBackStats, type VenueLoyaltyGuest, type VenueMarketingLink, type VenueMarketingCalendarItem, type VenueBrandKit, type SocialAccountConnection, type VenueSocialPost, type VenueMarketingContact, type AdVariant, type PersuasionAngle } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
@@ -550,6 +550,9 @@ function VenueMarketing({ venueId }: { venueId: string }) {
 const HUB_SECTIONS = [
   { key: "winback", label: "Win-back" },
   { key: "loyalty", label: "Loyalty" },
+  { key: "accounts", label: "Connected accounts" },
+  { key: "email", label: "Email list" },
+  { key: "growth", label: "Growth ideas" },
   { key: "links", label: "UTM Links" },
   { key: "calendar", label: "Calendar" },
   { key: "brand", label: "Brand Kit" },
@@ -567,6 +570,9 @@ function VenueMarketingHub({ venueId }: { venueId: string }) {
       </div>
       {section === "winback" && <VenueWinBack venueId={venueId} />}
       {section === "loyalty" && <VenueLoyalty venueId={venueId} />}
+      {section === "accounts" && <VenueConnectedAccounts venueId={venueId} />}
+      {section === "email" && <VenueEmailList venueId={venueId} />}
+      {section === "growth" && <VenueGrowthIdeas venueId={venueId} />}
       {section === "links" && <VenueMarketingLinks venueId={venueId} />}
       {section === "calendar" && <VenueMarketingCalendar venueId={venueId} />}
       {section === "brand" && <VenueBrandKitEditor venueId={venueId} />}
@@ -591,6 +597,32 @@ function VenueWinBack({ venueId }: { venueId: string }) {
   const [result, setResult] = useState("");
   const [stats, setStats] = useState<Record<string, WinBackStats>>({});
   const [statsWindow, setStatsWindow] = useState("30");
+
+  // Psychology-informed copy variants — a toggle next to the campaign
+  // draft, mirroring the organizer Marketing Hub's ad-copy angle picker.
+  const [angle, setAngle] = useState<PersuasionAngle>("scarcity");
+  const [angling, setAngling] = useState(false);
+  const [angledResult, setAngledResult] = useState<{ instagram?: string; whatsapp?: string } | null>(null);
+
+  // Bulk ad-variant generation for A/B testing at scale.
+  const [bulkPlatform, setBulkPlatform] = useState<"google" | "meta">("meta");
+  const [bulkCount, setBulkCount] = useState(6);
+  const [bulkVariants, setBulkVariants] = useState<AdVariant[] | null>(null);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
+
+  async function applyAngle() {
+    setAngling(true);
+    try { setAngledResult(await api.venueAngledCopy(venueId, angle)); } finally { setAngling(false); }
+  }
+  async function generateMoreVariants() {
+    setBulkGenerating(true);
+    try {
+      const res = await api.venueBulkAdVariants(venueId, { platform: bulkPlatform, count: bulkCount });
+      setBulkVariants(res.variants);
+    } finally {
+      setBulkGenerating(false);
+    }
+  }
 
   const segment: VenueSegment = { type: "inactive", days: Number(days) || 60 };
 
@@ -659,6 +691,47 @@ function VenueWinBack({ venueId }: { venueId: string }) {
         <button className="btn glass" onClick={send} disabled={sending || !preview?.count}>
           {sending ? "Sending…" : `Send win-back to ${preview?.count ?? 0} guest${preview?.count === 1 ? "" : "s"}`}
         </button>
+      </div>
+
+      <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
+        <p className="hint" style={{ margin: "0 0 10px" }}>Psychology-informed copy variants</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <select className="toolbar-field" value={angle} onChange={(e) => setAngle(e.target.value as PersuasionAngle)}>
+            <option value="scarcity">Scarcity</option>
+            <option value="social_proof">Social proof</option>
+            <option value="urgency">Urgency / FOMO</option>
+            <option value="exclusivity">Exclusivity</option>
+          </select>
+          <button className="btn glass sm" style={{ width: "auto" }} onClick={applyAngle} disabled={angling}>
+            <i className="icon-zap" /> {angling ? "Re-angling…" : "Re-angle copy"}
+          </button>
+        </div>
+        {angledResult && (
+          <div className="marketing-card" style={{ marginTop: 10 }}>
+            {angledResult.instagram && <><b>Instagram ({angle.replace("_", " ")})</b><pre className="marketing-text">{angledResult.instagram}</pre></>}
+            {angledResult.whatsapp && <><b>WhatsApp</b><pre className="marketing-text">{angledResult.whatsapp}</pre></>}
+          </div>
+        )}
+      </div>
+
+      <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
+        <p className="hint" style={{ margin: "0 0 10px" }}>Bulk ad variants (A/B testing)</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <select className="toolbar-field" value={bulkPlatform} onChange={(e) => setBulkPlatform(e.target.value as "google" | "meta")}>
+            <option value="meta">Meta (Facebook/Instagram)</option>
+            <option value="google">Google Search</option>
+          </select>
+          <input type="number" min={1} max={10} className="toolbar-field" style={{ width: 70 }} value={bulkCount} onChange={(e) => setBulkCount(Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1)))} />
+          <button className="btn glass sm" style={{ width: "auto" }} onClick={generateMoreVariants} disabled={bulkGenerating}>
+            <i className="icon-refresh-cw" /> {bulkGenerating ? "Generating…" : "Generate variants"}
+          </button>
+        </div>
+        {bulkVariants && bulkVariants.map((v, i) => (
+          <div className="marketing-card" key={i} style={{ marginTop: 10 }}>
+            <b>{v.headline}</b>
+            <pre className="marketing-text">{v.description}</pre>
+          </div>
+        ))}
       </div>
 
       <p className="hint" style={{ margin: "4px 0 8px" }}>Past win-back campaigns · conversion within</p>
@@ -805,6 +878,247 @@ function VenueMarketingLinks({ venueId }: { venueId: string }) {
                 <small style={{ color: "var(--text-3)", wordBreak: "break-all" }}>{l.url}</small>
               </span>
               <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => remove(l.id)}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+// ---- Connected accounts: Meta OAuth connect + real Instagram posting for
+// this venue, the venue-dashboard mirror of the organizer Marketing Hub's
+// ConnectedAccountsSection. ----
+function VenueConnectedAccounts({ venueId }: { venueId: string }) {
+  const { data: accounts, loading, reload } = useAsync(() => api.listVenueSocialAccounts(venueId), [venueId]);
+  const meta = (accounts as SocialAccountConnection[] | undefined)?.find((a) => a.provider === "meta");
+  const { data: posts, reload: reloadPosts } = useAsync(() => api.listVenueSocialPosts(venueId), [venueId]);
+  const [caption, setCaption] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [postErr, setPostErr] = useState("");
+
+  async function disconnect(id: string) {
+    if (!confirm("Disconnect this account? You'll need to reconnect to post again.")) return;
+    await api.disconnectVenueSocialAccount(venueId, id);
+    reload();
+  }
+  async function post(confirmRepost?: boolean) {
+    if (!caption.trim()) return;
+    setPosting(true); setPostErr("");
+    try {
+      await api.postVenueToInstagram(venueId, { caption: caption.trim(), confirmRepost });
+      reloadPosts();
+    } catch (e: any) {
+      if (e?.error?.code === "ALREADY_POSTED" || e?.code === "ALREADY_POSTED") {
+        if (confirm("This venue was already posted to Instagram. Post again anyway?")) return post(true);
+      } else {
+        setPostErr(e.message || "Couldn't post");
+      }
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  if (loading) return <p className="hint">Loading…</p>;
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 12px", color: "var(--text-2)" }}>
+        Connect your Instagram/Facebook so Weyn can actually publish your venue's campaign copy — not just hand you text to paste.
+      </p>
+
+      <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
+        {meta ? (
+          <>
+            <p className="hint" style={{ margin: "0 0 8px" }}>
+              <i className="icon-instagram" /> Connected — posting via <b>{meta.pageName || "your Facebook Page"}</b>
+            </p>
+            <button className="btn glass sm" style={{ width: "auto" }} onClick={() => disconnect(meta.id)}>
+              <i className="icon-x" /> Disconnect
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="hint" style={{ margin: "0 0 10px" }}>Not connected yet.</p>
+            <a className="btn glass sm" style={{ width: "auto" }} href={api.connectVenueMetaUrl(venueId)}>
+              <i className="icon-instagram" /> Connect Instagram / Facebook
+            </a>
+            <p className="hint" style={{ marginTop: 10, color: "var(--text-3)" }}>
+              Requires this Weyn deployment to have Meta app credentials configured — if the button leads to an error, this isn't turned on here yet.
+            </p>
+          </>
+        )}
+      </div>
+
+      {meta && (
+        <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
+          <p className="hint" style={{ margin: "0 0 10px" }}>Post to Instagram</p>
+          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={5} style={{ width: "100%", marginBottom: 10 }} placeholder="Caption…" />
+          {postErr && <p className="errline">{postErr}</p>}
+          <button className="btn glass sm" style={{ width: "auto" }} onClick={() => post()} disabled={posting || !caption.trim()}>
+            <i className="icon-send" /> {posting ? "Posting…" : "Post now"}
+          </button>
+        </div>
+      )}
+
+      {!!(posts as VenueSocialPost[] | undefined)?.length && (
+        <>
+          <p className="section-label">Post history</p>
+          <ul className="steps">
+            {(posts as VenueSocialPost[]).map((p) => (
+              <li key={p.id}>
+                <i className={p.status === "posted" ? "icon-check" : "icon-x"} />
+                <span>
+                  <b>{p.provider}</b> — {p.status} <span className="hint">{new Date(p.postedAt).toLocaleString()}</span>
+                  {p.error && <><br /><small style={{ color: "var(--text-3)" }}>{p.error}</small></>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </>
+  );
+}
+
+// ---- Email list: real subscriber list + campaign send for this venue,
+// the venue-dashboard mirror of the organizer Marketing Hub's
+// EmailListSection. ----
+function VenueEmailList({ venueId }: { venueId: string }) {
+  const { data: contacts, loading, reload } = useAsync(() => api.listVenueMarketingContacts(venueId), [venueId]);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [csv, setCsv] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
+
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ recipients: number; sent: number } | null>(null);
+
+  const subscribedCount = (contacts as VenueMarketingContact[] | undefined)?.filter((c) => c.subscribed).length ?? 0;
+
+  async function addContact() {
+    if (!email.trim()) return;
+    setSaving(true);
+    try { await api.addVenueMarketingContact(venueId, { email: email.trim(), name: name.trim() || undefined }); setEmail(""); setName(""); reload(); } finally { setSaving(false); }
+  }
+  async function importCsv() {
+    if (!csv.trim()) return;
+    setSaving(true); setImportMsg("");
+    try {
+      const res = await api.importVenueMarketingContacts(venueId, csv);
+      setImportMsg(`Imported ${res.imported} of ${res.total} (${res.skipped} skipped)`);
+      setCsv("");
+      reload();
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function removeContact(id: string) {
+    await api.deleteVenueMarketingContact(venueId, id);
+    reload();
+  }
+  async function send() {
+    if (!subject.trim() || !body.trim()) return;
+    setSending(true); setSendResult(null);
+    try {
+      const res = await api.sendVenueEmailCampaign(venueId, { subject: subject.trim(), body: body.trim() });
+      setSendResult({ recipients: res.recipients, sent: res.sent });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 12px", color: "var(--text-2)" }}>
+        A real, separately-consented subscriber list — distinct from guests who've just booked a table — with a genuine one-click unsubscribe on every send.
+      </p>
+
+      <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
+        <p className="hint" style={{ margin: "0 0 10px" }}>Add a subscriber</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div className="field" style={{ margin: 0 }}><label>Email</label><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" /></div>
+          <div className="field" style={{ margin: 0 }}><label>Name (optional)</label><input value={name} onChange={(e) => setName(e.target.value)} /></div>
+        </div>
+        <button className="btn glass sm" style={{ width: "auto" }} onClick={addContact} disabled={saving || !email.trim()}>
+          <i className="icon-plus" /> Add
+        </button>
+      </div>
+
+      <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
+        <p className="hint" style={{ margin: "0 0 10px" }}>Import CSV (email,name per line)</p>
+        <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={4} style={{ width: "100%", marginBottom: 10 }} placeholder={"email,name\njane@example.com,Jane"} />
+        {importMsg && <p className="hint">{importMsg}</p>}
+        <button className="btn glass sm" style={{ width: "auto" }} onClick={importCsv} disabled={saving || !csv.trim()}>
+          <i className="icon-upload" /> Import
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="hint">Loading…</p>
+      ) : (
+        <>
+          <p className="hint" style={{ margin: "0 0 8px" }}>{subscribedCount} subscribed contact{subscribedCount === 1 ? "" : "s"}</p>
+          <ul className="steps">
+            {((contacts as VenueMarketingContact[] | undefined) || []).map((c) => (
+              <li key={c.id} style={{ opacity: c.subscribed ? 1 : 0.5 }}>
+                <i className="icon-mail" />
+                <span><b>{c.email}</b> {c.name && <span className="hint">{c.name}</span>} {!c.subscribed && <span className="hint">(unsubscribed)</span>}</span>
+                <button className="btn glass sm" style={{ marginLeft: "auto", width: "auto" }} onClick={() => removeContact(c.id)}><i className="icon-x" /></button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <p className="section-label">Send a campaign</p>
+      <div className="dash-card" style={{ padding: 14 }}>
+        <div className="field"><label>Subject</label><input value={subject} onChange={(e) => setSubject(e.target.value)} /></div>
+        <div className="field"><label>Body</label><textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} style={{ width: "100%" }} /></div>
+        {sendResult && <p className="hint">Sent to {sendResult.sent} of {sendResult.recipients} recipients.</p>}
+        <button className="btn glass" onClick={send} disabled={sending || !subject.trim() || !body.trim()} style={{ marginTop: 4 }}>
+          <i className="icon-send" /> {sending ? "Sending…" : `Send to ${subscribedCount} subscriber${subscribedCount === 1 ? "" : "s"}`}
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ---- Growth ideas: tactical suggestions + free-tool/lead-magnet concepts
+// for this venue, the venue-dashboard mirror of the organizer Marketing
+// Hub's GrowthIdeasSection. ----
+function VenueGrowthIdeas({ venueId }: { venueId: string }) {
+  const { data: growth, loading: growthLoading, reload: reloadGrowth } = useAsync(() => api.venueGrowthIdeas(venueId), [venueId]);
+  const { data: freeTool, loading: freeToolLoading, reload: reloadFreeTool } = useAsync(() => api.venueFreeToolIdeas(venueId), [venueId]);
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 12px", color: "var(--text-2)" }}>
+        Concrete, tactical ideas for this specific venue — not generic "post on social media" advice.
+      </p>
+
+      <p className="section-label">Growth ideas <button className="copy-btn" onClick={reloadGrowth}><i className="icon-refresh-cw" /> Regenerate</button></p>
+      {growthLoading ? <p className="hint">Loading…</p> : (
+        <ul className="steps">
+          {(growth?.ideas || []).map((idea, i) => (
+            <li key={i}>
+              <i className="icon-trending-up" />
+              <span><b>{idea.title}</b><br /><small style={{ color: "var(--text-3)" }}>{idea.description}</small></span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="section-label">Free tool / lead magnet ideas <button className="copy-btn" onClick={reloadFreeTool}><i className="icon-refresh-cw" /> Regenerate</button></p>
+      {freeToolLoading ? <p className="hint">Loading…</p> : (
+        <ul className="steps">
+          {(freeTool?.ideas || []).map((idea, i) => (
+            <li key={i}>
+              <i className="icon-gift" />
+              <span><b>{idea.name}</b><br /><small style={{ color: "var(--text-3)" }}>{idea.description}</small><br /><small style={{ color: "var(--text-3)" }}>Why: {idea.why}</small></span>
             </li>
           ))}
         </ul>

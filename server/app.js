@@ -30,7 +30,7 @@ import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature }
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail, organizerTeamInviteEmail, reminderEmail, waitlistWelcomeEmail, waitlistOwnerNotifyEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
-import { resolveVenueSegment, LOYALTY_TIERS, loyaltyTierForVisits, venueGuestVisitCounts, winBackConversion } from "./venue-marketing.js";
+import { resolveVenueSegment, LOYALTY_TIERS, loyaltyTierForVisits, venueGuestVisitCounts, winBackConversion, PERSUASION_ANGLE_KEYS as VENUE_PERSUASION_ANGLE_KEYS, generateVenueGrowthIdeas, generateVenueAngledCopy, generateVenueBulkAdVariants, generateVenueFreeToolIdeas } from "./venue-marketing.js";
 import { runVenueWorkflows, validateWorkflowGraph } from "./venue-workflows.js";
 import { runEventWorkflows, validateEventWorkflowGraph, redeemPromoCode } from "./event-workflows.js";
 
@@ -2770,6 +2770,274 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
       update: data,
     });
     res.json(kit);
+  });
+
+  // ---- Venue social/email growth suite: real Meta connect+post, a real
+  // guest-marketing subscriber list, and growth tools — the venue-dashboard
+  // mirror of the organizer suite above (server/social-posting.js,
+  // server/crypto-secrets.js, server/venue-marketing.js). Same "parked,
+  // code-complete, inert until env vars are set" pattern: metaConfigured()/
+  // encryptionConfigured() gate everything below the same way. ----
+
+  const venueMetaOAuthState = new Map();
+  function pruneVenueMetaOAuthState() {
+    const now = Date.now();
+    for (const [k, v] of venueMetaOAuthState) if (v.expires < now) venueMetaOAuthState.delete(k);
+  }
+  function venueIntegrationErrorResponse(err, res) {
+    if (err instanceof IntegrationNotConfiguredError || err.code === "INTEGRATION_NOT_CONFIGURED") {
+      return res.status(503).json({ error: { code: "INTEGRATION_NOT_CONFIGURED", message: err.message } });
+    }
+    return null;
+  }
+
+  app.get("/api/venues/:id/social-accounts", requireAuth, requireVenueOwner, async (req, res) => {
+    const rows = await prisma.socialAccountConnection.findMany({ where: { venueId: req.venue.id } });
+    res.json(rows.map(({ accessTokenEnc, ...rest }) => rest));
+  });
+
+  app.get("/api/venues/:id/social-accounts/meta/connect", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      pruneVenueMetaOAuthState();
+      const state = crypto.randomBytes(16).toString("hex");
+      venueMetaOAuthState.set(state, { venueId: req.venue.id, userId: req.user.id, expires: Date.now() + 10 * 60_000 });
+      const url = buildMetaOAuthUrl(state);
+      res.redirect(url);
+    } catch (err) {
+      const handled = venueIntegrationErrorResponse(err, res);
+      if (!handled) { captureError(err, { route: "GET /api/venues/:id/social-accounts/meta/connect", venueId: req.params.id }); res.status(500).json({ error: err.message }); }
+    }
+  });
+
+  app.get("/api/venues/:id/social-accounts/meta/callback", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const { code, state, error: oauthError } = req.query;
+      if (oauthError) return res.status(400).json({ error: { code: "OAUTH_DENIED", message: String(oauthError) } });
+      pruneVenueMetaOAuthState();
+      const stateEntry = state && venueMetaOAuthState.get(String(state));
+      if (!stateEntry || stateEntry.venueId !== req.venue.id || stateEntry.userId !== req.user.id) {
+        return res.status(400).json({ error: { code: "INVALID_STATE", message: "OAuth state missing, expired, or mismatched — please try connecting again." } });
+      }
+      venueMetaOAuthState.delete(String(state));
+      if (!code) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Missing code from Meta" } });
+
+      const conn = await exchangeCodeForConnection(String(code));
+      const saved = await prisma.socialAccountConnection.upsert({
+        where: { venueId_provider: { venueId: req.venue.id, provider: "meta" } },
+        create: { venueId: req.venue.id, provider: "meta", ...conn },
+        update: conn,
+      });
+      await db.audit("venue.social_connect", { actorId: req.user.id, entityType: "socialAccountConnection", entityId: saved.id, metadata: { provider: "meta", venueId: req.venue.id } });
+      res.redirect(`/venue-os/${req.venue.id}?tab=marketing&connected=meta`);
+    } catch (err) {
+      const handled = venueIntegrationErrorResponse(err, res);
+      if (!handled) { captureError(err, { route: "GET /api/venues/:id/social-accounts/meta/callback", venueId: req.params.id }); res.status(500).json({ error: err.message }); }
+    }
+  });
+
+  app.delete("/api/venues/:id/social-accounts/meta/:connId", requireAuth, requireVenueOwner, async (req, res) => {
+    const existing = await prisma.socialAccountConnection.findUnique({ where: { id: req.params.connId } });
+    if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Connection not found" } });
+    await prisma.socialAccountConnection.delete({ where: { id: existing.id } });
+    await db.audit("venue.social_disconnect", { actorId: req.user.id, entityType: "socialAccountConnection", entityId: existing.id, metadata: { provider: existing.provider, venueId: req.venue.id } });
+    res.json({ ok: true });
+  });
+
+  // ---- Real posting: Instagram, via the venue's connected Meta account ----
+  app.post("/api/venues/:id/marketing/post-to-instagram", socialLimiter, requireAuth, requireVenueOwner, requireFeature("venueSocialAutoPosting"), async (req, res) => {
+    try {
+      const v = req.venue;
+      const connection = await prisma.socialAccountConnection.findUnique({ where: { venueId_provider: { venueId: v.id, provider: "meta" } } });
+      if (!connection) return res.status(400).json({ error: { code: "NOT_CONNECTED", message: "Connect your Instagram/Facebook account first." } });
+      const imageUrl = v.coverImage || v.photos?.[0];
+      if (!imageUrl) return res.status(400).json({ error: { code: "NO_IMAGE", message: "This venue needs a cover photo before it can be posted." } });
+
+      const b = req.body || {};
+      const caption = String(b.caption || "").trim();
+      if (!caption) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "caption is required" } });
+
+      if (!b.confirmRepost) {
+        const already = await prisma.venueSocialPost.findFirst({ where: { venueId: v.id, provider: "instagram", status: "posted" } });
+        if (already) return res.status(409).json({ error: { code: "ALREADY_POSTED", message: "This venue was already posted to Instagram. Pass confirmRepost:true to post again anyway." }, previousPost: already });
+      }
+
+      let result;
+      try {
+        result = await publishInstagramPost(connection, { imageUrl, caption });
+      } catch (err) {
+        await prisma.venueSocialPost.create({ data: { venueId: v.id, provider: "instagram", copy: { caption, imageUrl }, status: "failed", error: err.message } });
+        throw err;
+      }
+      const post = await prisma.venueSocialPost.create({
+        data: { venueId: v.id, provider: "instagram", externalPostId: result.externalPostId, copy: { caption, imageUrl }, status: "posted" },
+      });
+      await db.audit("venue.social_post", { actorId: req.user.id, entityType: "venue", entityId: v.id, metadata: { provider: "instagram", postId: post.id } });
+      res.status(201).json(post);
+    } catch (err) {
+      const handled = venueIntegrationErrorResponse(err, res);
+      if (!handled) { captureError(err, { route: "POST /api/venues/:id/marketing/post-to-instagram", venueId: req.params.id }); res.status(500).json({ error: err.message }); }
+    }
+  });
+
+  app.get("/api/venues/:id/marketing/social-posts", requireAuth, requireVenueOwner, requireFeature("venueSocialAutoPosting"), async (req, res) => {
+    res.json(await prisma.venueSocialPost.findMany({ where: { venueId: req.venue.id }, orderBy: { postedAt: "desc" } }));
+  });
+
+  // ---- Real email lists: venue-owned VenueMarketingContact subscriber list ----
+  function newVenueUnsubscribeToken() {
+    return crypto.randomBytes(24).toString("base64url");
+  }
+
+  app.get("/api/venues/:id/marketing-contacts", requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+    res.json(await prisma.venueMarketingContact.findMany({ where: { venueId: req.venue.id }, orderBy: { createdAt: "desc" } }));
+  });
+
+  app.post("/api/venues/:id/marketing-contacts", requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const name = req.body?.name ? String(req.body.name).trim() : null;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid email is required" } });
+    }
+    try {
+      const contact = await prisma.venueMarketingContact.upsert({
+        where: { venueId_email: { venueId: req.venue.id, email } },
+        create: { venueId: req.venue.id, email, name, source: "manual", unsubscribeToken: newVenueUnsubscribeToken() },
+        update: { name: name ?? undefined, subscribed: true },
+      });
+      res.status(201).json(contact);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/marketing-contacts", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/venues/:id/marketing-contacts/import", requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+    const raw = String(req.body?.csv || "");
+    if (!raw.trim()) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "csv text is required" } });
+    const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const seen = new Map();
+    for (const line of lines) {
+      const [rawEmail, rawName] = line.split(",");
+      const email = String(rawEmail || "").trim().toLowerCase();
+      if (!email || email === "email" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
+      seen.set(email, rawName ? String(rawName).trim() : null);
+    }
+    let imported = 0;
+    let skipped = 0;
+    for (const [email, name] of seen) {
+      try {
+        await prisma.venueMarketingContact.upsert({
+          where: { venueId_email: { venueId: req.venue.id, email } },
+          create: { venueId: req.venue.id, email, name, source: "csv_import", unsubscribeToken: newVenueUnsubscribeToken() },
+          update: { name: name ?? undefined },
+        });
+        imported++;
+      } catch {
+        skipped++;
+      }
+    }
+    res.json({ imported, skipped, total: seen.size });
+  });
+
+  app.delete("/api/venues/:id/marketing-contacts/:contactId", requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+    const existing = await prisma.venueMarketingContact.findUnique({ where: { id: req.params.contactId } });
+    if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Contact not found" } });
+    await prisma.venueMarketingContact.delete({ where: { id: existing.id } });
+    res.json({ ok: true });
+  });
+
+  // Public, no-auth, one-click unsubscribe for the venue guest-marketing
+  // list — a distinct token space from the organizer's MarketingContact
+  // (separate model, separate @unique), so a separate public route rather
+  // than reusing /api/marketing-contacts/unsubscribe/:token.
+  app.get("/api/venue-marketing-contacts/unsubscribe/:token", async (req, res) => {
+    const contact = await prisma.venueMarketingContact.findUnique({ where: { unsubscribeToken: req.params.token } });
+    if (contact) await prisma.venueMarketingContact.update({ where: { id: contact.id }, data: { subscribed: false } });
+    res.set("Content-Type", "text/html");
+    res.send(`<!doctype html><html><body style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:60px auto;padding:0 24px;text-align:center"><h2>You're unsubscribed</h2><p style="color:#666">You won't receive marketing emails from this venue again.</p></body></html>`);
+  });
+
+  // ---- Real campaign send: existing AI-drafted venue campaign copy, sent
+  // to the venue's subscribed VenueMarketingContact list via
+  // server/email.js's sendEmail()/Resend wrapper. Same fixed-size-batch
+  // approach as the organizer's send-email-campaign route. ----
+  const VENUE_EMAIL_BATCH_SIZE = 25;
+  app.post("/api/venues/:id/marketing/send-email-campaign", socialLimiter, requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+    const subject = String(req.body?.subject || "").trim();
+    const bodyText = String(req.body?.body || "").trim();
+    if (!subject || !bodyText) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "subject and body are required" } });
+
+    const contacts = await prisma.venueMarketingContact.findMany({ where: { venueId: req.venue.id, subscribed: true } });
+    const safeBody = bodyText.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    let sent = 0;
+    for (let i = 0; i < contacts.length; i += VENUE_EMAIL_BATCH_SIZE) {
+      const batch = contacts.slice(i, i + VENUE_EMAIL_BATCH_SIZE);
+      await Promise.all(batch.map((c) => {
+        const unsubUrl = `${req.protocol}://${req.get("host")}/api/venue-marketing-contacts/unsubscribe/${c.unsubscribeToken}`;
+        return sendEmail({
+          to: c.email,
+          subject: `${req.venue.name}: ${subject}`,
+          html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><p style="white-space:pre-wrap;line-height:1.6;color:#222">${safeBody}</p><p style="color:#999;font-size:11px;margin-top:32px;border-top:1px solid #eee;padding-top:12px">You're receiving this because you're on ${req.venue.name}'s mailing list. <a href="${unsubUrl}" style="color:#999">Unsubscribe</a></p></div>`,
+        }).then(() => { sent++; }).catch((err) => captureError(err, { route: "POST /api/venues/:id/marketing/send-email-campaign", venueId: req.venue.id }));
+      }));
+    }
+
+    const record = await prisma.venueEmailCampaignSend.create({
+      data: { venueId: req.venue.id, subject, bodyHtml: safeBody, recipientCount: sent },
+    });
+    await db.audit("venue.email_campaign", { actorId: req.user.id, entityType: "venue", entityId: req.venue.id, metadata: { subject, recipients: contacts.length, sent } });
+    res.status(201).json({ ok: true, recipients: contacts.length, sent, campaign: record });
+  });
+
+  app.get("/api/venues/:id/email-campaign-sends", requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+    res.json(await prisma.venueEmailCampaignSend.findMany({ where: { venueId: req.venue.id }, orderBy: { sentAt: "desc" }, take: 100 }));
+  });
+
+  // ---- Venue growth tools ----
+  app.get("/api/venues/:id/marketing/growth-ideas", importLimiter, requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      res.json({ ideas: await generateVenueGrowthIdeas(req.venue) });
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/marketing/growth-ideas", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/venues/:id/marketing/free-tool-ideas", importLimiter, requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      res.json({ ideas: await generateVenueFreeToolIdeas(req.venue) });
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/marketing/free-tool-ideas", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/venues/:id/marketing/angled-copy", importLimiter, requireAuth, requireVenueOwner, async (req, res) => {
+    const angle = String(req.query.angle || "");
+    if (!VENUE_PERSUASION_ANGLE_KEYS.includes(angle)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `angle must be one of: ${VENUE_PERSUASION_ANGLE_KEYS.join(", ")}` } });
+    }
+    try {
+      const brandKit = await prisma.venueBrandKit.findUnique({ where: { venueId: req.venue.id } });
+      res.json(await generateVenueAngledCopy(req.venue, brandKit, angle));
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/marketing/angled-copy", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/venues/:id/marketing/bulk-ad-variants", importLimiter, requireAuth, requireVenueOwner, async (req, res) => {
+    const platform = req.query.platform === "google" ? "google" : "meta";
+    const count = Math.min(10, Math.max(1, parseInt(req.query.count, 10) || 3));
+    try {
+      const brandKit = await prisma.venueBrandKit.findUnique({ where: { venueId: req.venue.id } });
+      const variants = await generateVenueBulkAdVariants(req.venue, brandKit, { platform, count });
+      res.json({ platform, variants });
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/marketing/bulk-ad-variants", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // ---- Venue Workflows: the visual node-graph automation builder,

@@ -681,9 +681,21 @@ model OrganizerBrandKit {
 // signatures get timing-safe comparison in server/payments.js: a token
 // leak here is a real account-takeover-adjacent risk (posting-as-organizer
 // on their real Instagram/Facebook), not just an inconvenience.
+// Dual-owned: exactly one of userId (organizer) / venueId (venue) is set,
+// never both — a Venue here is owned by a single User (Venue.ownerId), so
+// rather than a venue-specific sibling model (which SocialPost/
+// MarketingContact/EmailCampaignSend below use instead, since those really
+// are list/history data, not a 1:1 connection record) this one just grows
+// a second optional FK: a connection is a single row keyed by "the thing
+// posting" either way, and duplicating the OAuth-token-storage shape+
+// crypto handling for an identical connection record bought nothing.
+// Enforced in code (server/app.js), not the DB: whichever route creates
+// this (organizer's /api/me/social-accounts/meta/callback vs. venue's
+// /api/venues/:id/social-accounts/meta/callback) sets only its own FK.
 model SocialAccountConnection {
   id                  String    @id @default(cuid())
-  userId              String
+  userId              String?
+  venueId             String?
   provider            String    // "meta" (Instagram + Facebook via Meta Graph API) — only provider today, room to add more later
   accessTokenEnc       String    // AES-256-GCM ciphertext, see server/crypto-secrets.js encryptSecret()
   tokenExpiresAt      DateTime?
@@ -693,10 +705,84 @@ model SocialAccountConnection {
   connectedAt         DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venue Venue? @relation(fields: [venueId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
+  @@unique([venueId, provider])
   @@index([userId])
+  @@index([venueId])
+}
+
+// ---- Venue-owned siblings of SocialPost/MarketingContact/EmailCampaignSend
+// above. Kept as separate models (rather than adding a nullable venueId to
+// the organizer-scoped ones) because those three are list/history data
+// scoped to "organizerId" as a required FK with organizer-only unique
+// constraints (e.g. MarketingContact's @@unique([organizerId, email])) —
+// bolting an optional venueId alongside would mean every existing query,
+// index, and unique constraint on those models would need an
+// organizerId-or-venueId branch throughout server/app.js's organizer
+// routes, for no shared benefit (a venue guest list and an organizer's
+// ticket-buyer list are never the same rows). A connection record
+// (above) is different: it's really one MetaConnection concept regardless
+// of who owns it, so growing one FK there was cheaper than duplicating
+// OAuth/token-storage code.
+
+model VenueSocialPost {
+  id             String   @id @default(cuid())
+  venueId        String
+  provider       String   // "instagram" today
+  externalPostId String?
+  copy           Json     // snapshot of exactly what was posted (caption + which image url)
+  status         String   @default("posted") // "posted" | "failed"
+  error          String?
+  postedAt       DateTime @default(now())
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId])
+}
+
+// Venue-owned guest-marketing subscriber list — distinct from
+// Reservation.guestEmail (transactional, per-booking, never opted in to
+// marketing email) and from VenueGuestNote (CRM tags, not a mailing
+// list). Real unsubscribeToken, same generation pattern as
+// MarketingContact above — CAN-SPAM/GDPR-style compliance is required for
+// real bulk email regardless of which dashboard sends it.
+model VenueMarketingContact {
+  id               String   @id @default(cuid())
+  venueId          String
+  email            String
+  name             String?
+  subscribed       Boolean  @default(true)
+  source           String   @default("manual") // "manual" | "csv_import"
+  tags             String[] @default([])
+  unsubscribeToken String   @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, email])
+  @@index([venueId])
+}
+
+// One row per real bulk-email send to a venue's VenueMarketingContact list
+// (mirrors EmailCampaignSend above) — separate from Campaign (which
+// already records the guest-segment win-back email flow) since a
+// campaign send targets Reservation-derived segments, this targets the
+// venue's opted-in marketing list specifically.
+model VenueEmailCampaignSend {
+  id             String   @id @default(cuid())
+  venueId        String
+  subject        String
+  bodyHtml       String
+  recipientCount Int      @default(0)
+  sentAt         DateTime @default(now())
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId])
 }
 
 // Record of an actual publish to Instagram (container-create → publish,
@@ -801,6 +887,10 @@ model Venue {
   marketingLinks  VenueMarketingLink[]
   loyaltyProfiles VenueLoyalty[]
   brandKit        VenueBrandKit?
+  socialAccountConnections SocialAccountConnection[]
+  socialPosts              VenueSocialPost[]
+  marketingContacts        VenueMarketingContact[]
+  emailCampaignSends       VenueEmailCampaignSend[]
 
   @@index([ownerId])
   @@index([category])

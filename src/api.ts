@@ -384,7 +384,8 @@ export interface BrandKit {
 
 export interface SocialAccountConnection {
   id: string;
-  userId: string;
+  userId: string | null;
+  venueId: string | null;
   provider: string;
   tokenExpiresAt: string | null;
   igBusinessAccountId: string | null;
@@ -392,6 +393,38 @@ export interface SocialAccountConnection {
   pageName: string | null;
   connectedAt: string;
   updatedAt: string;
+}
+
+export interface VenueSocialPost {
+  id: string;
+  venueId: string;
+  provider: string;
+  externalPostId: string | null;
+  copy: { caption: string; imageUrl: string };
+  status: "posted" | "failed";
+  error: string | null;
+  postedAt: string;
+}
+
+export interface VenueMarketingContact {
+  id: string;
+  venueId: string;
+  email: string;
+  name: string | null;
+  subscribed: boolean;
+  source: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VenueEmailCampaignSend {
+  id: string;
+  venueId: string;
+  subject: string;
+  bodyHtml: string;
+  recipientCount: number;
+  sentAt: string;
 }
 
 export interface SocialPost {
@@ -1348,6 +1381,65 @@ export const api = {
   },
   async bulkAdVariants(eventId: string, input: { platform: "google" | "meta"; count: number }): Promise<{ platform: string; variants: AdVariant[] }> {
     return fetch(`${API_BASE}/api/events/${eventId}/marketing/bulk-ad-variants?platform=${input.platform}&count=${input.count}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Venue social/email growth suite (venue-dashboard mirror of the above) ----
+  async listVenueSocialAccounts(venueId: string): Promise<SocialAccountConnection[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/social-accounts`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  connectVenueMetaUrl(venueId: string): string {
+    return `${API_BASE}/api/venues/${venueId}/social-accounts/meta/connect`;
+  },
+  async disconnectVenueSocialAccount(venueId: string, connId: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/social-accounts/meta/${connId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+  async postVenueToInstagram(venueId: string, input: { caption: string; confirmRepost?: boolean }): Promise<VenueSocialPost> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing/post-to-instagram`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async listVenueSocialPosts(venueId: string): Promise<VenueSocialPost[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing/social-posts`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  async listVenueMarketingContacts(venueId: string): Promise<VenueMarketingContact[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing-contacts`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async addVenueMarketingContact(venueId: string, input: { email: string; name?: string }): Promise<VenueMarketingContact> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing-contacts`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async importVenueMarketingContacts(venueId: string, csv: string): Promise<{ imported: number; skipped: number; total: number }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing-contacts/import`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ csv }),
+    }).then((r) => json(r));
+  },
+  async deleteVenueMarketingContact(venueId: string, contactId: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing-contacts/${contactId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  async sendVenueEmailCampaign(venueId: string, input: { subject: string; body: string }): Promise<{ ok: boolean; recipients: number; sent: number; campaign: VenueEmailCampaignSend }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing/send-email-campaign`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async listVenueEmailCampaignSends(venueId: string): Promise<VenueEmailCampaignSend[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/email-campaign-sends`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Venue growth tools ----
+  async venueGrowthIdeas(venueId: string): Promise<{ ideas: GrowthIdea[] }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing/growth-ideas`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async venueFreeToolIdeas(venueId: string): Promise<{ ideas: FreeToolIdea[] }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing/free-tool-ideas`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async venueAngledCopy(venueId: string, angle: PersuasionAngle): Promise<AngledCopy> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing/angled-copy?angle=${angle}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async venueBulkAdVariants(venueId: string, input: { platform: "google" | "meta"; count: number }): Promise<{ platform: string; variants: AdVariant[] }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing/bulk-ad-variants?platform=${input.platform}&count=${input.count}`, { headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- organizer dashboard ----

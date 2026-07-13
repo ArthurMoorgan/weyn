@@ -44,6 +44,13 @@ export const FEATURES = [
   // /api/events/:id/marketing/post-to-instagram, /api/me/marketing-contacts*,
   // /api/events/:id/marketing/send-email-campaign routes in server/app.js.
   "socialAutoPosting", "emailCampaigns",
+  // Venue-dashboard mirror of the growth suite above — see
+  // server/social-posting.js (shared/reused, dual-owned via
+  // SocialAccountConnection.venueId), server/venue-marketing.js, and the
+  // /api/venues/:id/social-accounts*, /api/venues/:id/marketing/post-to-instagram,
+  // /api/venues/:id/marketing-contacts*, /api/venues/:id/marketing/send-email-campaign
+  // routes in server/app.js.
+  "venueSocialAutoPosting", "venueEmailCampaigns",
 ];
 const FEATURE_SET = new Set(FEATURES);
 
