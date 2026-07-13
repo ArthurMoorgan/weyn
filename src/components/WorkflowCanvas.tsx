@@ -17,6 +17,8 @@ const CANVAS_W = 900;
 const CANVAS_H = 480;
 const NODE_W = 180;
 const NODE_H = 64;
+const GRID = 20;
+const ZOOM_LEVELS = [0.75, 1, 1.25, 1.5];
 
 const TYPE_COLOR: Record<WFNodeType, string> = {
   trigger: "var(--accent)",
@@ -36,7 +38,9 @@ export default function WorkflowCanvas({
   renderLabel: (node: WFNode) => { title: string; subtitle: string };
 }) {
   const outerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [fitScale, setFitScale] = useState(1);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const scale = fitScale * zoomLevel;
   const [dragId, setDragId] = useState<string | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
@@ -44,7 +48,7 @@ export default function WorkflowCanvas({
   useLayoutEffect(() => {
     const el = outerRef.current;
     if (!el) return;
-    const update = () => setScale(el.getBoundingClientRect().width / CANVAS_W);
+    const update = () => setFitScale(el.getBoundingClientRect().width / CANVAS_W);
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -67,9 +71,11 @@ export default function WorkflowCanvas({
   function onPointerMove(e: React.PointerEvent) {
     if (!dragId) return;
     const p = toLogicalPoint(e.clientX, e.clientY);
-    const x = Math.max(0, Math.min(CANVAS_W - NODE_W, p.x - dragOffset.current.x));
-    const y = Math.max(0, Math.min(CANVAS_H - NODE_H, p.y - dragOffset.current.y));
-    onNodesChange(nodes.map((n) => (n.id === dragId ? { ...n, x: Math.round(x), y: Math.round(y) } : n)));
+    const rawX = Math.max(0, Math.min(CANVAS_W - NODE_W, p.x - dragOffset.current.x));
+    const rawY = Math.max(0, Math.min(CANVAS_H - NODE_H, p.y - dragOffset.current.y));
+    const x = Math.max(0, Math.min(CANVAS_W - NODE_W, Math.round(rawX / GRID) * GRID));
+    const y = Math.max(0, Math.min(CANVAS_H - NODE_H, Math.round(rawY / GRID) * GRID));
+    onNodesChange(nodes.map((n) => (n.id === dragId ? { ...n, x, y } : n)));
   }
 
   function endDrag() {
@@ -95,17 +101,28 @@ export default function WorkflowCanvas({
   return (
     <div
       ref={outerRef}
-      style={{ width: "100%", maxWidth: CANVAS_W, aspectRatio: `${CANVAS_W} / ${CANVAS_H}`, position: "relative", background: "var(--surface-1)", border: "1px solid var(--glass-line)", borderRadius: 12, overflow: "hidden" }}
+      style={{ width: "100%", maxWidth: CANVAS_W, aspectRatio: zoomLevel === 1 ? `${CANVAS_W} / ${CANVAS_H}` : undefined, height: zoomLevel !== 1 ? CANVAS_H * fitScale : undefined, position: "relative", background: "var(--surface-1)", border: "1px solid var(--glass-line)", borderRadius: 12, overflow: "auto" }}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
     >
+      <div style={{ position: "absolute", top: 6, right: 6, zIndex: 2, display: "flex", gap: 4, background: "var(--surface-2)", borderRadius: 8, padding: 3, border: "1px solid var(--glass-line)" }}>
+        <button type="button" className="btn glass sm" style={{ width: 28, padding: 0 }} title="Zoom out"
+          onClick={() => setZoomLevel((z) => ZOOM_LEVELS[Math.max(0, ZOOM_LEVELS.indexOf(z) - 1)])}>−</button>
+        <button type="button" className="btn glass sm" style={{ width: "auto", fontSize: 11 }} title="Reset zoom" onClick={() => setZoomLevel(1)}>{Math.round(zoomLevel * 100)}%</button>
+        <button type="button" className="btn glass sm" style={{ width: 28, padding: 0 }} title="Zoom in"
+          onClick={() => setZoomLevel((z) => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, ZOOM_LEVELS.indexOf(z) + 1)])}>+</button>
+      </div>
       <div style={{ position: "absolute", top: 0, left: 0, width: CANVAS_W, height: CANVAS_H, transform: `scale(${scale})`, transformOrigin: "top left" }}>
         <svg width={CANVAS_W} height={CANVAS_H} style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}>
           <defs>
             <marker id="wf-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
               <path d="M0,0 L8,4 L0,8 Z" fill="var(--text-3)" />
             </marker>
+            <pattern id="wf-grid" width={GRID} height={GRID} patternUnits="userSpaceOnUse">
+              <path d={`M ${GRID} 0 L 0 0 0 ${GRID}`} fill="none" stroke="var(--glass-line)" strokeWidth={0.5} opacity={0.5} />
+            </pattern>
           </defs>
+          <rect width={CANVAS_W} height={CANVAS_H} fill="url(#wf-grid)" />
           {edges.map((e) => {
             const source = nodes.find((n) => n.id === e.source);
             const target = nodes.find((n) => n.id === e.target);

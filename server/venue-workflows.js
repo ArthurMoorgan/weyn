@@ -15,8 +15,8 @@ function escapeHtml(s) {
 }
 
 export const VENUE_TRIGGERS = ["reservation_created", "reservation_cancelled", "guest_no_show"];
-export const CONDITION_FIELDS = ["partySize", "guestTag"];
-export const VENUE_ACTIONS = ["notify_owner", "tag_guest", "send_guest_email"];
+export const CONDITION_FIELDS = ["partySize", "guestTag", "reservationSource", "reservationNotes"];
+export const VENUE_ACTIONS = ["notify_owner", "tag_guest", "send_guest_email", "send_guest_sms"];
 
 // Validates a graph's shape at save time — exactly one trigger node,
 // every edge references a real node, node `data` matches its type's
@@ -51,6 +51,14 @@ function evaluateCondition(node, reservation, guestTags) {
     const has = guestTags.includes(String(value));
     return op === "not_has" ? !has : has;
   }
+  if (field === "reservationSource") {
+    return String(reservation.source || "") === String(value);
+  }
+  if (field === "reservationNotes") {
+    const notes = String(reservation.notes || "").toLowerCase();
+    const has = notes.includes(String(value || "").toLowerCase());
+    return op === "not_contains" ? !has : has;
+  }
   return true;
 }
 
@@ -72,6 +80,11 @@ async function runActionNode(node, reservation, venue) {
         create: { venueId: reservation.venueId, guestEmail, note: "", tags: [cfg.tag] },
         update: { tags: { push: cfg.tag } },
       });
+    } else if (action === "send_guest_sms") {
+      // No SMS provider (e.g. Twilio) is wired up anywhere in this codebase
+      // yet — the catalog entry is visible in the UI so the feature reads
+      // complete, but we never pretend a text actually went out.
+      return { nodeId: node.id, action, ok: false, error: "SMS isn't set up for this venue yet" };
     } else if (action === "send_guest_email" && cfg.message) {
       const safeSubject = escapeHtml(cfg.subject || "An update on your reservation");
       const safeMessage = escapeHtml(cfg.message);

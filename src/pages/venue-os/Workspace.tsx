@@ -6,6 +6,7 @@ import { useAccount } from "../../store";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
 import WorkflowCanvas from "../../components/WorkflowCanvas";
 import DashboardShell from "../../components/dashboard/DashboardShell";
+import { layoutGraph, unreachableNodeIds } from "../../lib/workflowLayout";
 
 type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
 
@@ -548,11 +549,32 @@ const TRIGGER_LABELS: Record<VenueWorkflowTrigger, string> = {
 const CONDITION_FIELD_LABELS: Record<VenueConditionField, string> = {
   partySize: "Party size",
   guestTag: "Guest tag",
+  reservationSource: "Booking source",
+  reservationNotes: "Reservation notes",
 };
 const ACTION_LABELS: Record<VenueWorkflowAction, string> = {
   notify_owner: "Notify me (email)",
   tag_guest: "Tag the guest",
   send_guest_email: "Email the guest",
+  send_guest_sms: "Text the guest (coming soon)",
+};
+
+const TRIGGER_DESCRIPTIONS: Record<VenueWorkflowTrigger, string> = {
+  reservation_created: "Fires the instant a guest books a reservation at this venue.",
+  reservation_cancelled: "Fires the instant a reservation is cancelled — by the guest or by you.",
+  guest_no_show: "Fires when you mark a reservation as a no-show.",
+};
+const CONDITION_FIELD_DESCRIPTIONS: Record<VenueConditionField, string> = {
+  partySize: "Only continue down this branch if the reservation's party size matches.",
+  guestTag: "Only continue down this branch based on a tag already on the guest's profile (set by a previous \"Tag the guest\" action, for example).",
+  reservationSource: "Only continue down this branch based on how the reservation was made — a guest self-booking, or one you entered manually (phone/walk-in).",
+  reservationNotes: "Only continue down this branch if the reservation's notes contain a specific word or phrase.",
+};
+const ACTION_DESCRIPTIONS: Record<VenueWorkflowAction, string> = {
+  notify_owner: "Sends you (the venue owner) an email — use it for anything you want a heads-up on.",
+  tag_guest: "Adds a tag to the guest's profile, so later workflows/conditions can key off it.",
+  send_guest_email: "Sends an email straight to the guest who made the reservation.",
+  send_guest_sms: "Not available yet — there's no SMS provider set up for this venue, so this action will report an error until that's added.",
 };
 
 let wfNodeCounter = 0;
@@ -564,6 +586,13 @@ function defaultDataFor(type: WFNodeType): Record<string, any> {
   return { action: "notify_owner", config: {} };
 }
 
+function defaultOpForField(field: string): string {
+  if (field === "guestTag") return "has";
+  if (field === "reservationSource") return "==";
+  if (field === "reservationNotes") return "contains";
+  return ">=";
+}
+
 function nodeLabel(n: WFNode): { title: string; subtitle: string } {
   if (n.type === "trigger") return { title: TRIGGER_LABELS[n.data.trigger as VenueWorkflowTrigger] || n.data.trigger, subtitle: "Trigger" };
   if (n.type === "condition") {
@@ -571,8 +600,94 @@ function nodeLabel(n: WFNode): { title: string; subtitle: string } {
     return { title: `${field} ${n.data.op} ${n.data.value}`, subtitle: "Condition" };
   }
   const cfg = n.data.config || {};
-  const subtitle = n.data.action === "tag_guest" ? (cfg.tag || "no tag set") : (cfg.subject || "no subject set");
+  const subtitle = n.data.action === "tag_guest" ? (cfg.tag || "no tag set") : n.data.action === "send_guest_sms" ? "not set up yet" : (cfg.subject || "no subject set");
   return { title: ACTION_LABELS[n.data.action as VenueWorkflowAction] || n.data.action, subtitle };
+}
+
+// ---- Workflow templates: hardcoded, curated starting points built only
+// from the real trigger/condition/action catalog in
+// server/venue-workflows.js — small enough that a per-venue DB-backed
+// catalog isn't worth it. Node ids here are placeholders re-generated via
+// newNodeId() at insertion time (see instantiateTemplate) so multiple
+// insertions of the same template never collide.
+type WFTemplate = { id: string; name: string; description: string; nodes: WFNode[]; edges: WFEdge[] };
+
+const WORKFLOW_TEMPLATES: WFTemplate[] = [
+  {
+    id: "notify-every-reservation",
+    name: "Notify me on every reservation",
+    description: "Get an email the moment any reservation is booked.",
+    nodes: [
+      { id: "trigger", type: "trigger", x: 30, y: 30, data: { trigger: "reservation_created" } },
+      { id: "notify", type: "action", x: 280, y: 30, data: { action: "notify_owner", config: { subject: "New reservation" } } },
+    ],
+    edges: [{ id: "e1", source: "trigger", target: "notify" }],
+  },
+  {
+    id: "notify-large-parties",
+    name: "Notify me on large parties",
+    description: "Get an email only when a booking is for a big group (6+).",
+    nodes: [
+      { id: "trigger", type: "trigger", x: 30, y: 30, data: { trigger: "reservation_created" } },
+      { id: "cond", type: "condition", x: 280, y: 30, data: { field: "partySize", op: ">=", value: "6" } },
+      { id: "notify", type: "action", x: 530, y: 30, data: { action: "notify_owner", config: { subject: "Large party booked" } } },
+    ],
+    edges: [{ id: "e1", source: "trigger", target: "cond" }, { id: "e2", source: "cond", target: "notify" }],
+  },
+  {
+    id: "auto-tag-vip-no-shows",
+    name: "Auto-tag VIP no-shows",
+    description: "Tag a guest \"Frequent no-show\" whenever they no-show.",
+    nodes: [
+      { id: "trigger", type: "trigger", x: 30, y: 30, data: { trigger: "guest_no_show" } },
+      { id: "tag", type: "action", x: 280, y: 30, data: { action: "tag_guest", config: { tag: "Frequent no-show" } } },
+    ],
+    edges: [{ id: "e1", source: "trigger", target: "tag" }],
+  },
+  {
+    id: "thank-returning-guests",
+    name: "Thank returning guests",
+    description: "Email a thank-you to guests already tagged \"Repeat guest\" when they book again.",
+    nodes: [
+      { id: "trigger", type: "trigger", x: 30, y: 30, data: { trigger: "reservation_created" } },
+      { id: "cond", type: "condition", x: 280, y: 30, data: { field: "guestTag", op: "has", value: "Repeat guest" } },
+      { id: "email", type: "action", x: 530, y: 30, data: { action: "send_guest_email", config: { subject: "Thanks for coming back!", message: "We noticed you booked with us again — thank you for being a regular! See you soon." } } },
+    ],
+    edges: [{ id: "e1", source: "trigger", target: "cond" }, { id: "e2", source: "cond", target: "email" }],
+  },
+  {
+    id: "cancellation-follow-up",
+    name: "Cancellation follow-up",
+    description: "Email a guest when they cancel, then tag them so you can follow up later.",
+    nodes: [
+      { id: "trigger", type: "trigger", x: 30, y: 30, data: { trigger: "reservation_cancelled" } },
+      { id: "email", type: "action", x: 280, y: 30, data: { action: "send_guest_email", config: { subject: "Sorry to see you cancel", message: "We're sorry your plans changed — hope to host you another time soon." } } },
+      { id: "tag", type: "action", x: 530, y: 30, data: { action: "tag_guest", config: { tag: "Cancelled recently" } } },
+    ],
+    edges: [{ id: "e1", source: "trigger", target: "email" }, { id: "e2", source: "email", target: "tag" }],
+  },
+  {
+    id: "vip-no-show-alert",
+    name: "VIP no-show alert",
+    description: "Get an email whenever a guest already tagged \"VIP\" no-shows.",
+    nodes: [
+      { id: "trigger", type: "trigger", x: 30, y: 30, data: { trigger: "guest_no_show" } },
+      { id: "cond", type: "condition", x: 280, y: 30, data: { field: "guestTag", op: "has", value: "VIP" } },
+      { id: "notify", type: "action", x: 530, y: 30, data: { action: "notify_owner", config: { subject: "VIP no-show" } } },
+    ],
+    edges: [{ id: "e1", source: "trigger", target: "cond" }, { id: "e2", source: "cond", target: "notify" }],
+  },
+];
+
+function instantiateTemplate(tpl: WFTemplate): { name: string; nodes: WFNode[]; edges: WFEdge[] } {
+  const idMap = new Map<string, string>();
+  const nodes = tpl.nodes.map((n) => {
+    const id = newNodeId();
+    idMap.set(n.id, id);
+    return { ...n, id };
+  });
+  const edges = tpl.edges.map((e) => ({ ...e, id: newNodeId(), source: idMap.get(e.source)!, target: idMap.get(e.target)! }));
+  return { name: tpl.name, nodes: layoutGraph(nodes, edges), edges };
 }
 
 // ---- Workflows: the visual node-graph automation builder — trigger ->
@@ -585,18 +700,18 @@ function nodeLabel(n: WFNode): { title: string; subtitle: string } {
 function VenueWorkflows({ venueId }: { venueId: string }) {
   const { data: workflows, loading, reload } = useAsync(() => api.venueWorkflows(venueId), [venueId]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [starting, setStarting] = useState<{ name: string; nodes: WFNode[]; edges: WFEdge[] } | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  async function createNew() {
-    setCreating(true);
-    try {
-      const trigger: WFNode = { id: newNodeId(), type: "trigger", x: 30, y: 180, data: defaultDataFor("trigger") };
-      const wf = await api.createVenueWorkflow(venueId, { name: "New workflow", nodes: [trigger], edges: [] });
-      reload();
-      setEditingId(wf.id);
-    } finally {
-      setCreating(false);
-    }
+  function startNew() {
+    const trigger: WFNode = { id: newNodeId(), type: "trigger", x: 30, y: 180, data: defaultDataFor("trigger") };
+    setStarting({ name: "New workflow", nodes: [trigger], edges: [] });
+  }
+
+  function startFromTemplate(tpl: WFTemplate) {
+    setStarting(instantiateTemplate(tpl));
+    setShowTemplates(false);
   }
 
   async function toggle(wf: VenueWorkflow) {
@@ -613,20 +728,72 @@ function VenueWorkflows({ venueId }: { venueId: string }) {
   if (editing) {
     return <WorkflowEditor venueId={venueId} workflow={editing} onDone={() => { setEditingId(null); reload(); }} />;
   }
+  if (starting) {
+    return (
+      <WorkflowEditor
+        venueId={venueId}
+        initial={starting}
+        onDone={() => { setStarting(null); reload(); }}
+      />
+    );
+  }
+
+  if (showTemplates) {
+    return (
+      <>
+        <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span><i className="icon-layout" /> Start from template</span>
+          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowTemplates(false)}>Cancel</button>
+        </p>
+        <ul className="steps">
+          {WORKFLOW_TEMPLATES.map((tpl) => (
+            <li key={tpl.id}>
+              <i className="icon-zap" />
+              <span>
+                {tpl.name}<br />
+                <small style={{ color: "var(--text-3)" }}>{tpl.description}</small>
+              </span>
+              <button className="btn glass sm" style={{ marginLeft: "auto", width: "auto" }} onClick={() => startFromTemplate(tpl)}>Use this</button>
+            </li>
+          ))}
+        </ul>
+      </>
+    );
+  }
 
   return (
     <>
       <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span><i className="icon-zap" /> Workflows</span>
-        <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={createNew} disabled={creating}>
-          <i className="icon-plus" /> New workflow
-        </button>
+        <span style={{ display: "flex", gap: 8 }}>
+          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowTemplates(true)}>
+            <i className="icon-layout" /> Start from template
+          </button>
+          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={startNew} disabled={creating}>
+            <i className="icon-plus" /> New workflow
+          </button>
+        </span>
       </p>
 
       {loading ? (
         <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
       ) : !workflows?.length ? (
-        <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No workflows yet — create one above.</p>
+        <div className="dash-card" style={{ padding: 16 }}>
+          <p style={{ margin: "0 0 8px", fontWeight: 600 }}>No workflows yet</p>
+          <p style={{ color: "var(--text-2)", fontSize: 13.5, margin: "0 0 12px" }}>
+            A workflow is a simple <strong>trigger → condition → action</strong> chain: something happens at your venue
+            (a reservation is booked, cancelled, or no-shows), you can optionally narrow it down (party size, guest tag),
+            and then something happens automatically (notify you, tag the guest, or email them).
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowTemplates(true)}>
+              <i className="icon-layout" /> Start from template
+            </button>
+            <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={startNew} disabled={creating}>
+              <i className="icon-plus" /> New workflow
+            </button>
+          </div>
+        </div>
       ) : (
         <ul className="steps">
           {workflows.map((w) => {
@@ -656,23 +823,39 @@ function VenueWorkflows({ venueId }: { venueId: string }) {
   );
 }
 
-function WorkflowEditor({ venueId, workflow, onDone }: { venueId: string; workflow: VenueWorkflow; onDone: () => void }) {
-  const [name, setName] = useState(workflow.name);
-  const [nodes, setNodes] = useState<WFNode[]>(workflow.nodes);
-  const [edges, setEdges] = useState<WFEdge[]>(workflow.edges);
+function WorkflowEditor({ venueId, workflow, initial, onDone }: { venueId: string; workflow?: VenueWorkflow; initial?: { name: string; nodes: WFNode[]; edges: WFEdge[] }; onDone: () => void }) {
+  const seed = workflow || initial!;
+  const [workflowId, setWorkflowId] = useState<string | null>(workflow?.id || null);
+  const [name, setName] = useState(seed.name);
+  const [nodes, setNodes] = useState<WFNode[]>(seed.nodes);
+  const [edges, setEdges] = useState<WFEdge[]>(seed.edges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showRuns, setShowRuns] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-  const [dirty, setDirty] = useState(false);
+  const [dirty, setDirty] = useState(!workflowId);
 
   const selected = nodes.find((n) => n.id === selectedNodeId) || null;
+  const unreachable = unreachableNodeIds(nodes, edges);
   let nextY = 40 + nodes.length * 90;
+
+  // Auto-arrange once when a workflow is first created (brand-new blank
+  // trigger, or freshly instantiated from a template) — nothing manual to
+  // preserve yet at that point, so this doesn't fight in-progress edits.
+  useEffect(() => {
+    if (!workflowId) setNodes((ns) => layoutGraph(ns, edges));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function addNode(type: WFNodeType) {
     const n: WFNode = { id: newNodeId(), type, x: 280 + (nodes.length % 3) * 200, y: nextY % (CANVAS_H_APPROX - 80), data: defaultDataFor(type) };
     setNodes([...nodes, n]);
     setSelectedNodeId(n.id);
+    setDirty(true);
+  }
+
+  function autoArrange() {
+    setNodes(layoutGraph(nodes, edges));
     setDirty(true);
   }
 
@@ -694,7 +877,12 @@ function WorkflowEditor({ venueId, workflow, onDone }: { venueId: string; workfl
   async function save() {
     setSaving(true); setErr("");
     try {
-      await api.saveVenueWorkflow(venueId, workflow.id, { name, nodes, edges });
+      if (workflowId) {
+        await api.saveVenueWorkflow(venueId, workflowId, { name, nodes, edges });
+      } else {
+        const wf = await api.createVenueWorkflow(venueId, { name, nodes, edges });
+        setWorkflowId(wf.id);
+      }
       setDirty(false);
     } catch (e: any) {
       setErr(e.message || "Couldn't save — check every condition/action node is filled in.");
@@ -708,16 +896,17 @@ function WorkflowEditor({ venueId, workflow, onDone }: { venueId: string; workfl
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <button className="btn glass sm" style={{ width: "auto" }} onClick={onDone}><i className="icon-arrow-left" /> Back</button>
         <input className="toolbar-field" style={{ flex: 1 }} value={name} onChange={(e) => { setName(e.target.value); setDirty(true); }} />
-        <button className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowRuns((v) => !v)}>{showRuns ? "Canvas" : "Run history"}</button>
+        {workflowId && <button className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowRuns((v) => !v)}>{showRuns ? "Canvas" : "Run history"}</button>}
       </div>
 
-      {showRuns ? (
-        <WorkflowRunsPanel venueId={venueId} workflowId={workflow.id} />
+      {showRuns && workflowId ? (
+        <WorkflowRunsPanel venueId={venueId} workflowId={workflowId} />
       ) : (
         <>
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
             <button className="btn glass sm" style={{ width: "auto" }} onClick={() => addNode("condition")}><i className="icon-plus" /> Condition</button>
             <button className="btn glass sm" style={{ width: "auto" }} onClick={() => addNode("action")}><i className="icon-plus" /> Action</button>
+            <button className="btn glass sm" style={{ width: "auto" }} onClick={autoArrange}><i className="icon-layout" /> Auto-arrange</button>
           </div>
 
           <WorkflowCanvas
@@ -730,10 +919,20 @@ function WorkflowEditor({ venueId, workflow, onDone }: { venueId: string; workfl
 
           {selected && (
             <div className="dash-card" style={{ padding: 14, marginTop: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
                 <p className="hint" style={{ margin: 0 }}>{selected.type === "trigger" ? "Trigger" : selected.type === "condition" ? "Condition" : "Action"}</p>
                 {selected.type !== "trigger" && <button className="btn glass sm" style={{ width: "auto" }} onClick={deleteSelected}><i className="icon-x" /> Remove node</button>}
               </div>
+              <p style={{ color: "var(--text-3)", fontSize: 12.5, margin: "0 0 10px" }}>
+                {selected.type === "trigger" && (TRIGGER_DESCRIPTIONS[selected.data.trigger as VenueWorkflowTrigger] || "")}
+                {selected.type === "condition" && (CONDITION_FIELD_DESCRIPTIONS[selected.data.field as VenueConditionField] || "")}
+                {selected.type === "action" && (ACTION_DESCRIPTIONS[selected.data.action as VenueWorkflowAction] || "")}
+              </p>
+              {unreachable.includes(selected.id) && (
+                <p className="hint" style={{ margin: "0 0 10px", color: "var(--warning)" }}>
+                  <i className="icon-alert-triangle" /> This node isn't connected to the trigger yet, so it won't run — connect it (or a node upstream of it) to the flow.
+                </p>
+              )}
 
               {selected.type === "trigger" && (
                 <div className="field" style={{ margin: 0 }}>
@@ -748,7 +947,7 @@ function WorkflowEditor({ venueId, workflow, onDone }: { venueId: string; workfl
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                   <div className="field" style={{ margin: 0 }}>
                     <label>Field</label>
-                    <select value={selected.data.field} onChange={(e) => updateSelectedData({ field: e.target.value, op: e.target.value === "guestTag" ? "has" : ">=" })}>
+                    <select value={selected.data.field} onChange={(e) => updateSelectedData({ field: e.target.value, op: defaultOpForField(e.target.value), value: "" })}>
                       {Object.entries(CONDITION_FIELD_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                     </select>
                   </div>
@@ -759,6 +958,13 @@ function WorkflowEditor({ venueId, workflow, onDone }: { venueId: string; workfl
                         <option value="has">has tag</option>
                         <option value="not_has">doesn't have tag</option>
                       </select>
+                    ) : selected.data.field === "reservationNotes" ? (
+                      <select value={selected.data.op} onChange={(e) => updateSelectedData({ op: e.target.value })}>
+                        <option value="contains">contains</option>
+                        <option value="not_contains">doesn't contain</option>
+                      </select>
+                    ) : selected.data.field === "reservationSource" ? (
+                      <select value={selected.data.op} disabled><option value="==">is</option></select>
                     ) : (
                       <select value={selected.data.op} onChange={(e) => updateSelectedData({ op: e.target.value })}>
                         <option value=">=">≥</option>
@@ -769,7 +975,15 @@ function WorkflowEditor({ venueId, workflow, onDone }: { venueId: string; workfl
                   </div>
                   <div className="field" style={{ margin: 0 }}>
                     <label>Value</label>
-                    <input value={selected.data.value} onChange={(e) => updateSelectedData({ value: e.target.value })} />
+                    {selected.data.field === "reservationSource" ? (
+                      <select value={selected.data.value} onChange={(e) => updateSelectedData({ value: e.target.value })}>
+                        <option value="">Select…</option>
+                        <option value="guest">Guest booking</option>
+                        <option value="manual">Manual (phone/walk-in)</option>
+                      </select>
+                    ) : (
+                      <input value={selected.data.value} onChange={(e) => updateSelectedData({ value: e.target.value })} placeholder={selected.data.field === "reservationNotes" ? "e.g. anniversary" : ""} />
+                    )}
                   </div>
                 </div>
               )}
@@ -787,6 +1001,10 @@ function WorkflowEditor({ venueId, workflow, onDone }: { venueId: string; workfl
                       <label>Tag to apply</label>
                       <input value={selected.data.config?.tag || ""} onChange={(e) => updateSelectedData({ config: { ...selected.data.config, tag: e.target.value } })} placeholder="e.g. Repeat guest" />
                     </div>
+                  ) : selected.data.action === "send_guest_sms" ? (
+                    <p className="hint" style={{ margin: 0, color: "var(--warning)" }}>
+                      <i className="icon-alert-triangle" /> SMS isn't set up for this venue yet — this node will save fine, but it'll report an error each time it runs until a text provider is connected.
+                    </p>
                   ) : (
                     <>
                       <div className="field" style={{ margin: 0 }}>

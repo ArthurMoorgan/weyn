@@ -62,8 +62,8 @@ export interface VenueSegment {
 // ---- venue workflows: the node-graph automation builder ----
 export type WFNodeType = "trigger" | "condition" | "action";
 export type VenueWorkflowTrigger = "reservation_created" | "reservation_cancelled" | "guest_no_show";
-export type VenueConditionField = "partySize" | "guestTag";
-export type VenueWorkflowAction = "notify_owner" | "tag_guest" | "send_guest_email";
+export type VenueConditionField = "partySize" | "guestTag" | "reservationSource" | "reservationNotes";
+export type VenueWorkflowAction = "notify_owner" | "tag_guest" | "send_guest_email" | "send_guest_sms";
 
 export interface WFNode {
   id: string;
