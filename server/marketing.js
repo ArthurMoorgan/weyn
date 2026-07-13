@@ -140,3 +140,160 @@ export async function generateMarketingCopy(event, brandKit = null) {
   }
   return { ...templateCopy(event), generatedAt: new Date().toISOString(), aiGenerated: false };
 }
+
+// ---- Growth tools: modeled on the "growth ideas", "psychology-informed
+// copy", "bulk ad variants", and "free tool / lead magnet" marketing
+// skills — ephemeral (no persistence, "easy regenerate" per the spec),
+// each just a shaped AI prompt with a template fallback so it's still
+// useful with no key configured. ----
+
+const PERSUASION_ANGLES = {
+  scarcity: "scarcity (limited capacity/tickets remaining — only true if it's actually plausible for this event, never invent a specific number that isn't given)",
+  social_proof: "social proof (this is popular/well-attended/talked about — phrase generically, e.g. 'one of the most talked-about nights this month', never invent a specific stat or testimonial that isn't given)",
+  urgency: "urgency/FOMO (time is running out to grab a spot, the date is approaching)",
+  exclusivity: "exclusivity (this is a special, limited, insider kind of experience, not for everyone)",
+};
+export const PERSUASION_ANGLE_KEYS = Object.keys(PERSUASION_ANGLES);
+
+// Re-angles the same event's existing copy through one persuasion lens —
+// a toggle next to the ad-copy section, not a new page. Falls back to the
+// same template copy (unangled) if AI isn't configured; the "angle" is a
+// framing nuance real templates can't meaningfully vary, so template mode
+// just returns solid generic copy rather than pretending to angle it.
+export async function generateAngledCopy(event, brandKit, angle) {
+  const angleDesc = PERSUASION_ANGLES[angle];
+  if (!angleDesc) throw new Error(`Unknown persuasion angle: ${angle}`);
+  if (!aiConfigured()) {
+    const t = templateCopy(event);
+    return { instagram: t.instagram, whatsapp: t.whatsapp, metaAdVariants: t.metaAdVariants, angle, aiGenerated: false };
+  }
+  const prompt = `Rewrite promotional copy for this event, specifically framed through this persuasion angle: ${angleDesc}. Stay honest — do not invent statistics, numbers, or claims not given below. Return STRICT JSON with keys
+"instagram" (caption, a few hashtags, this persuasion angle should be the clear hook),
+"whatsapp" (short, punchy, *bold* markdown, same angle),
+"metaAdVariants" (array of exactly 3 {"headline":"...","description":"..."} objects, headline <=40 chars, description <=125 chars, all leaning into this angle).
+${brandKitLine(brandKit)}
+Event:
+title: ${event.title}
+venue: ${event.venue}, ${event.area}
+when: ${when(event)}
+price: ${priceLine(event)}
+description: ${event.blurb}
+link: ${ctaLink(event)}
+
+Return ONLY the JSON object.`;
+  try {
+    const copy = await askClaudeJson(prompt, { maxTokens: 900 });
+    return { ...copy, angle, aiGenerated: true };
+  } catch {
+    const t = templateCopy(event);
+    return { instagram: t.instagram, whatsapp: t.whatsapp, metaAdVariants: t.metaAdVariants, angle, aiGenerated: false };
+  }
+}
+
+// Bulk ad-variant generation for A/B testing at scale — same shape as
+// googleAdVariants/metaAdVariants above but a caller-chosen count
+// (default 3, capped at 10) instead of always exactly 3. Kept as a
+// separate function rather than changing generateMarketingCopy's contract
+// (that one's cached in MarketingAsset at a fixed shape of exactly 3 each).
+export async function generateBulkAdVariants(event, brandKit, { platform = "meta", count = 3 } = {}) {
+  const n = Math.max(1, Math.min(10, parseInt(count, 10) || 3));
+  const isGoogle = platform === "google";
+  const limits = isGoogle ? "headline <=30 characters, description <=90 characters (Google Search Ads limits)" : "headline <=40 characters, description <=125 characters (Meta/Facebook/Instagram ad limits)";
+  if (!aiConfigured()) {
+    const base = isGoogle ? templateCopy(event).googleAdVariants : templateCopy(event).metaAdVariants;
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(base[i % base.length]);
+    return out;
+  }
+  const prompt = `Write ${n} distinct ad copy variants for A/B testing, for ${isGoogle ? "Google Search Ads" : "Meta (Facebook/Instagram) Ads"}. Each variant must have a genuinely different angle/hook (not just reworded) — vary between benefit-first, urgency, curiosity, and direct-offer framings across the set. Return STRICT JSON: an array of exactly ${n} objects {"headline":"...","description":"..."}, respecting these limits: ${limits}. Do not invent details not given.
+${brandKitLine(brandKit)}
+Event:
+title: ${event.title}
+venue: ${event.venue}, ${event.area}
+when: ${when(event)}
+price: ${priceLine(event)}
+description: ${event.blurb}
+link: ${ctaLink(event)}
+
+Return ONLY the JSON array.`;
+  try {
+    const result = await askClaudeJson(prompt, { maxTokens: 200 + n * 120 });
+    return Array.isArray(result) ? result.slice(0, n) : (result.variants || []).slice(0, n);
+  } catch {
+    const base = isGoogle ? templateCopy(event).googleAdVariants : templateCopy(event).metaAdVariants;
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(base[i % base.length]);
+    return out;
+  }
+}
+
+// Growth ideas generator — concrete, tactical suggestions specific to this
+// event (category/description/venue/area), not generic "post on social
+// media" advice. Ephemeral by design (per spec): regenerate any time,
+// nothing persisted.
+export async function generateGrowthIdeas(event) {
+  if (!aiConfigured()) {
+    return [
+      { title: "Partner with a nearby business", description: `Ask a café or shop near ${event.venue} to display a flyer or QR code in exchange for a shoutout — foot traffic in ${event.area} converts better than cold ads.` },
+      { title: "Post in local community groups", description: `Share the event (not just an ad — a real post with a photo and story) in Muscat/${event.area}-focused Facebook and WhatsApp community groups.` },
+      { title: "T-minus countdown posts", description: "Use the T-7/T-3/T-1/day-of schedule already generated for this event — posting a countdown consistently outperforms a single announcement." },
+      { title: "Early-bird urgency window", description: "If you haven't already, set a real early-bird price that expires in the next few days — a genuine deadline (not fake urgency) reliably pulls forward bookings." },
+      { title: "Ask past attendees to share", description: "If this is a repeat event, message last time's attendees directly and ask them to share with one friend — personal asks convert far better than public posts." },
+    ];
+  }
+  const prompt = `You are a tactical growth marketer helping a local event organizer sell more tickets. Given this specific event, suggest 5 to 8 CONCRETE, TACTICAL growth ideas — not generic advice like "use social media" or "run ads". Think: specific partnership types for this category of event, local community angles specific to the area given, timing/urgency tactics, and audience-specific outreach. Every idea must be something the organizer could literally go do this week. Do not invent facts about this event not given below.
+Return STRICT JSON: an array of objects {"title":"short punchy title","description":"1-2 sentences, concrete and specific to this event"}.
+
+Event:
+title: ${event.title}
+category: ${event.cat}
+venue: ${event.venue}, ${event.area}
+when: ${when(event)}
+price: ${priceLine(event)}
+description: ${event.blurb}
+capacity: ${event.capacity}
+tickets sold so far: ${event.sold}
+
+Return ONLY the JSON array.`;
+  try {
+    const result = await askClaudeJson(prompt, { maxTokens: 1200 });
+    const ideas = Array.isArray(result) ? result : (result.ideas || []);
+    if (ideas.length) return ideas.slice(0, 8);
+  } catch {
+    // fall through to the static fallback below
+  }
+  return [
+    { title: "Partner with a nearby business", description: `Ask a café or shop near ${event.venue} to display a flyer or QR code in exchange for a shoutout — foot traffic in ${event.area} converts better than cold ads.` },
+    { title: "Post in local community groups", description: `Share the event (not just an ad — a real post with a photo and story) in Muscat/${event.area}-focused Facebook and WhatsApp community groups.` },
+    { title: "T-minus countdown posts", description: "Use the T-7/T-3/T-1/day-of schedule already generated for this event — posting a countdown consistently outperforms a single announcement." },
+  ];
+}
+
+// Free tool / lead-magnet idea generator — text-only concept output (not
+// an actual built tool, per spec): a concrete idea the organizer could
+// build/commission, plus why it'd attract signups for THIS event's niche.
+export async function generateFreeToolIdeas(event) {
+  if (!aiConfigured()) {
+    return [
+      { name: `${event.cat} planning checklist`, description: `A simple downloadable checklist related to ${event.cat} events — collect an email to send it, then invite them to this event in the same email.`, why: "Low effort to make, directly relevant to people already interested in this category." },
+    ];
+  }
+  const prompt = `Suggest 2-3 concrete "free tool" or "lead magnet" ideas for an event organizer to attract email signups, specific to this event's category/niche — e.g. a calculator, quiz, checklist, or template genuinely useful to this audience (not generic "download our newsletter"). For each, explain briefly what it would do and why it would attract the right signups. This is a text concept only — nothing gets built here.
+Return STRICT JSON: an array of objects {"name":"short name","description":"what it does, 1-2 sentences","why":"why it attracts the right signups for this event, 1 sentence"}.
+
+Event:
+title: ${event.title}
+category: ${event.cat}
+venue: ${event.venue}, ${event.area}
+description: ${event.blurb}
+
+Return ONLY the JSON array.`;
+  try {
+    const result = await askClaudeJson(prompt, { maxTokens: 700 });
+    const ideas = Array.isArray(result) ? result : (result.ideas || []);
+    if (ideas.length) return ideas.slice(0, 3);
+  } catch {
+    // fall through
+  }
+  return [{ name: `${event.cat} planning checklist`, description: `A simple downloadable checklist related to ${event.cat} events — collect an email to send it, then invite them to this event in the same email.`, why: "Low effort to make, directly relevant to people already interested in this category." }];
+}

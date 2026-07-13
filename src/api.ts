@@ -382,6 +382,73 @@ export interface BrandKit {
   toneOfVoice: string | null;
 }
 
+export interface SocialAccountConnection {
+  id: string;
+  userId: string;
+  provider: string;
+  tokenExpiresAt: string | null;
+  igBusinessAccountId: string | null;
+  pageId: string | null;
+  pageName: string | null;
+  connectedAt: string;
+  updatedAt: string;
+}
+
+export interface SocialPost {
+  id: string;
+  eventId: string;
+  organizerId: string;
+  provider: string;
+  externalPostId: string | null;
+  copy: { caption: string; imageUrl: string };
+  status: "posted" | "failed";
+  error: string | null;
+  postedAt: string;
+}
+
+export interface MarketingContact {
+  id: string;
+  organizerId: string;
+  email: string;
+  name: string | null;
+  subscribed: boolean;
+  source: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailCampaignSend {
+  id: string;
+  organizerId: string;
+  eventId: string | null;
+  subject: string;
+  bodyHtml: string;
+  recipientCount: number;
+  sentAt: string;
+}
+
+export type PersuasionAngle = "scarcity" | "social_proof" | "urgency" | "exclusivity";
+
+export interface AngledCopy {
+  instagram?: string;
+  whatsapp?: string;
+  metaAdVariants?: AdVariant[];
+  angle: PersuasionAngle;
+  aiGenerated: boolean;
+}
+
+export interface GrowthIdea {
+  title: string;
+  description: string;
+}
+
+export interface FreeToolIdea {
+  name: string;
+  description: string;
+  why: string;
+}
+
 export interface InstagramImportResult {
   title: string;
   blurb: string;
@@ -1219,6 +1286,68 @@ export const api = {
     return fetch(`${API_BASE}/api/me/brand-kit`, {
       method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
     }).then((r) => json(r));
+  },
+
+  // ---- Organizer social/email growth suite ----
+  async listSocialAccounts(): Promise<SocialAccountConnection[]> {
+    return fetch(`${API_BASE}/api/me/social-accounts`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  // Not a fetch — this navigates the browser to Meta's OAuth dialog (via
+  // our own redirect route, which carries the session cookie), same-origin
+  // so the Clerk cookie/session travels with it.
+  connectMetaUrl(): string {
+    return `${API_BASE}/api/me/social-accounts/meta/connect`;
+  },
+  async disconnectSocialAccount(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/me/social-accounts/meta/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+  async postToInstagram(eventId: string, input: { caption: string; confirmRepost?: boolean }): Promise<SocialPost> {
+    return fetch(`${API_BASE}/api/events/${eventId}/marketing/post-to-instagram`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async listSocialPosts(eventId: string): Promise<SocialPost[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/marketing/social-posts`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  async listMarketingContacts(): Promise<MarketingContact[]> {
+    return fetch(`${API_BASE}/api/me/marketing-contacts`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async addMarketingContact(input: { email: string; name?: string }): Promise<MarketingContact> {
+    return fetch(`${API_BASE}/api/me/marketing-contacts`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async importMarketingContacts(csv: string): Promise<{ imported: number; skipped: number; total: number }> {
+    return fetch(`${API_BASE}/api/me/marketing-contacts/import`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ csv }),
+    }).then((r) => json(r));
+  },
+  async deleteMarketingContact(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/me/marketing-contacts/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  async sendEmailCampaign(eventId: string, input: { subject: string; body: string }): Promise<{ ok: boolean; recipients: number; sent: number; campaign: EmailCampaignSend }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/marketing/send-email-campaign`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async listEmailCampaignSends(): Promise<EmailCampaignSend[]> {
+    return fetch(`${API_BASE}/api/organizer/email-campaign-sends`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Growth tools ----
+  async growthIdeas(eventId: string): Promise<{ ideas: GrowthIdea[] }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/marketing/growth-ideas`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async freeToolIdeas(eventId: string): Promise<{ ideas: FreeToolIdea[] }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/marketing/free-tool-ideas`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async angledCopy(eventId: string, angle: PersuasionAngle): Promise<AngledCopy> {
+    return fetch(`${API_BASE}/api/events/${eventId}/marketing/angled-copy?angle=${angle}`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async bulkAdVariants(eventId: string, input: { platform: "google" | "meta"; count: number }): Promise<{ platform: string; variants: AdVariant[] }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/marketing/bulk-ad-variants?platform=${input.platform}&count=${input.count}`, { headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- organizer dashboard ----

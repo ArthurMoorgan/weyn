@@ -72,6 +72,10 @@ model User {
   marketingLinks  MarketingLink[]
   referralCodes   ReferralCode[]
   brandKit        OrganizerBrandKit?
+  socialAccountConnections SocialAccountConnection[]
+  marketingContacts        MarketingContact[]
+  socialPosts              SocialPost[]
+  emailCampaignSends       EmailCampaignSend[]
 
   @@index([email])
 }
@@ -283,6 +287,7 @@ model Event {
   floorPlan         FloorPlan?
   marketingLinks    MarketingLink[]
   referralCodes     ReferralCode[]
+  socialPosts       SocialPost[]
 
   @@index([organizer])
   @@index([featured])
@@ -658,6 +663,106 @@ model OrganizerBrandKit {
   updatedAt   DateTime @updatedAt
 
   organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+}
+
+// ---- Organizer social/email growth suite: real connect-and-send, not just
+// copy-to-paste (that's MarketingAsset/googleAdVariants/etc above). Parked
+// integration pattern, same as server/email.js's Resend wrapper and
+// handoff.md §4.5's Stripe plan — every route here is fully code-complete
+// but gated on env vars (META_APP_ID/META_APP_SECRET/META_REDIRECT_URI/
+// SOCIAL_TOKEN_ENC_KEY) that are empty in every environment today, so none
+// of it can fire until someone deliberately sets them in prod. ----
+
+// One row per organizer per provider (organizer-level, not per-event —
+// Instagram/Facebook posting publishes from the organizer's own connected
+// Page/IG Business Account regardless of which event the copy is for).
+// accessTokenEnc is AES-256-GCM ciphertext (see server/crypto-secrets.js),
+// never a plaintext token at rest — same reasoning PayTabs webhook
+// signatures get timing-safe comparison in server/payments.js: a token
+// leak here is a real account-takeover-adjacent risk (posting-as-organizer
+// on their real Instagram/Facebook), not just an inconvenience.
+model SocialAccountConnection {
+  id                  String    @id @default(cuid())
+  userId              String
+  provider            String    // "meta" (Instagram + Facebook via Meta Graph API) — only provider today, room to add more later
+  accessTokenEnc       String    // AES-256-GCM ciphertext, see server/crypto-secrets.js encryptSecret()
+  tokenExpiresAt      DateTime?
+  igBusinessAccountId String?   // resolved once at connect-time from the chosen Facebook Page
+  pageId              String?
+  pageName            String?
+  connectedAt         DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+// Record of an actual publish to Instagram (container-create → publish,
+// see server/social-posting.js) — lets the UI show post history and, more
+// importantly, block an accidental double-post of the same drafted copy
+// for the same event (see the route's pre-check in server/app.js).
+model SocialPost {
+  id            String   @id @default(cuid())
+  eventId       String
+  organizerId   String
+  provider      String   // "instagram" today
+  externalPostId String?  // Graph API media/publish id, once known
+  copy          Json     // snapshot of exactly what was posted (caption + which image url)
+  status        String   @default("posted") // "posted" | "failed"
+  error         String?
+  postedAt      DateTime @default(now())
+
+  event     Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizer User  @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([organizerId])
+}
+
+// Organizer-owned (not event-owned) email subscriber list — distinct from
+// ticket-buyer Booking.email, which is transactional/per-event and was
+// never opted in to marketing email. This is the real, separately-
+// consented list real bulk email requires. unsubscribeToken is a real
+// one-click-unsubscribe credential (crypto.randomBytes, same generation
+// pattern as EventTeamMember/PromoCode invite codes elsewhere in this
+// schema), not a decorative link — CAN-SPAM/GDPR-style compliance is a
+// legal requirement for real bulk email, not an optional nicety.
+model MarketingContact {
+  id                String   @id @default(cuid())
+  organizerId       String
+  email             String
+  name              String?
+  subscribed        Boolean  @default(true)
+  source            String   @default("manual") // "manual" | "csv_import"
+  tags              String[] @default([])
+  unsubscribeToken  String   @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@unique([organizerId, email])
+  @@index([organizerId])
+}
+
+// One row per real bulk-email send via sendEmail()/Resend — history +
+// recipient count for the Marketing Hub UI, mirroring how Campaign already
+// records the per-event notify-attendees flow (this is the organizer-owned
+// subscriber-list equivalent, not a replacement for Campaign).
+model EmailCampaignSend {
+  id             String   @id @default(cuid())
+  organizerId    String
+  eventId        String?  // nullable — a send can be about one event's copy but still goes out to the organizer-wide list, not per-event recipients
+  subject        String
+  bodyHtml       String
+  recipientCount Int      @default(0)
+  sentAt         DateTime @default(now())
+
+  organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@index([organizerId])
 }
 
 // ---- Reservations (tables/spots at restaurants, cafes, lounges, rooftops,

@@ -38,6 +38,12 @@ export const FEATURES = [
   // /api/venues/:id/brand-kit, and /api/venues/:id/marketing-calendar
   // routes in server/app.js.
   "venueWinBackCampaigns", "venueLoyaltyProgram", "venueUtmLinkBuilder", "venueMarketingCalendar", "venueBrandKit",
+  // Organizer social/email growth suite — real connect-and-send on top of
+  // the copy-only Marketing Hub above. See server/social-posting.js,
+  // server/crypto-secrets.js, and the /api/me/social-accounts*,
+  // /api/events/:id/marketing/post-to-instagram, /api/me/marketing-contacts*,
+  // /api/events/:id/marketing/send-email-campaign routes in server/app.js.
+  "socialAutoPosting", "emailCampaigns",
 ];
 const FEATURE_SET = new Set(FEATURES);
 

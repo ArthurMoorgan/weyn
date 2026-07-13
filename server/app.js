@@ -17,7 +17,8 @@ import { db, prisma } from "./db.js";
 import { sendPush, pushConfigured } from "./push.js";
 import { sendWebPush, webPushConfigured } from "./webpush.js";
 import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./instagram-import.js";
-import { generateMarketingCopy, scheduleDates, brandKitLine } from "./marketing.js";
+import { generateMarketingCopy, scheduleDates, brandKitLine, generateAngledCopy, PERSUASION_ANGLE_KEYS, generateBulkAdVariants, generateGrowthIdeas, generateFreeToolIdeas } from "./marketing.js";
+import { metaConfigured, buildMetaOAuthUrl, exchangeCodeForConnection, publishInstagramPost, IntegrationNotConfiguredError } from "./social-posting.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
 import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured, imageGenConfigured, generateImage, runAgentTurn, agentToolsConfigured } from "./ai.js";
 import { AGENT_TOOLS, buildToolExecutor, toolByName } from "./agent-tools.js";
@@ -4170,6 +4171,299 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
       update: data,
     });
     res.json(kit);
+  });
+
+  // ---- Organizer social/email growth suite ----
+  // Real connect-and-send on top of the copy-only Marketing Hub above:
+  // Meta (Instagram + Facebook) account connection + posting, and an
+  // organizer-owned email subscriber list + real campaign sends. Parked
+  // integration pattern (see server/email.js's Resend wrapper) — every
+  // Meta-touching route below checks metaConfigured() first and returns a
+  // typed 503 instead of ever reaching real Graph API calls, since
+  // META_APP_ID/META_APP_SECRET/META_REDIRECT_URI are unset in every
+  // environment today.
+
+  function integrationErrorResponse(err, res) {
+    if (err instanceof IntegrationNotConfiguredError || err.code === "INTEGRATION_NOT_CONFIGURED") {
+      return res.status(503).json({ error: { code: "INTEGRATION_NOT_CONFIGURED", message: err.message } });
+    }
+    return null;
+  }
+
+  // Short-lived CSRF state store for the Meta OAuth round trip — nonce ->
+  // userId, same shape/reasoning as auth.js's userCache (process-local,
+  // best-effort on Cloudflare, bounded, correctness doesn't depend on size).
+  const metaOAuthState = new Map();
+  const META_STATE_TTL_MS = 10 * 60_000;
+  function pruneMetaOAuthState() {
+    const now = Date.now();
+    for (const [k, v] of metaOAuthState) if (v.expires < now) metaOAuthState.delete(k);
+  }
+
+  app.get("/api/me/social-accounts", requireAuth, async (req, res) => {
+    const rows = await prisma.socialAccountConnection.findMany({ where: { userId: req.user.id } });
+    // Never return the encrypted token to the client — connection status only.
+    res.json(rows.map(({ accessTokenEnc, ...rest }) => rest));
+  });
+
+  app.get("/api/me/social-accounts/meta/connect", requireAuth, async (req, res) => {
+    try {
+      pruneMetaOAuthState();
+      const state = crypto.randomBytes(16).toString("hex");
+      metaOAuthState.set(state, { userId: req.user.id, expires: Date.now() + META_STATE_TTL_MS });
+      const url = buildMetaOAuthUrl(state);
+      res.redirect(url);
+    } catch (err) {
+      const handled = integrationErrorResponse(err, res);
+      if (!handled) { captureError(err, { route: "GET /api/me/social-accounts/meta/connect" }); res.status(500).json({ error: err.message }); }
+    }
+  });
+
+  app.get("/api/me/social-accounts/meta/callback", requireAuth, async (req, res) => {
+    try {
+      const { code, state, error: oauthError } = req.query;
+      if (oauthError) return res.status(400).json({ error: { code: "OAUTH_DENIED", message: String(oauthError) } });
+      pruneMetaOAuthState();
+      const stateEntry = state && metaOAuthState.get(String(state));
+      if (!stateEntry || stateEntry.userId !== req.user.id) {
+        return res.status(400).json({ error: { code: "INVALID_STATE", message: "OAuth state missing, expired, or mismatched — please try connecting again." } });
+      }
+      metaOAuthState.delete(String(state));
+      if (!code) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Missing code from Meta" } });
+
+      const conn = await exchangeCodeForConnection(String(code));
+      const saved = await prisma.socialAccountConnection.upsert({
+        where: { userId_provider: { userId: req.user.id, provider: "meta" } },
+        create: { userId: req.user.id, provider: "meta", ...conn },
+        update: conn,
+      });
+      await db.audit("social.connect", { actorId: req.user.id, entityType: "socialAccountConnection", entityId: saved.id, metadata: { provider: "meta" } });
+      res.redirect("/organizer/marketing?connected=meta");
+    } catch (err) {
+      const handled = integrationErrorResponse(err, res);
+      if (!handled) { captureError(err, { route: "GET /api/me/social-accounts/meta/callback" }); res.status(500).json({ error: err.message }); }
+    }
+  });
+
+  app.delete("/api/me/social-accounts/meta/:id", requireAuth, async (req, res) => {
+    const existing = await prisma.socialAccountConnection.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.userId !== req.user.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Connection not found" } });
+    await prisma.socialAccountConnection.delete({ where: { id: existing.id } });
+    await db.audit("social.disconnect", { actorId: req.user.id, entityType: "socialAccountConnection", entityId: existing.id, metadata: { provider: existing.provider } });
+    res.json({ ok: true });
+  });
+
+  // ---- Real posting: Instagram, via the organizer's connected Meta account ----
+  app.post("/api/events/:id/marketing/post-to-instagram", socialLimiter, requireEventOwner(), requireFeature("socialAutoPosting"), async (req, res) => {
+    try {
+      const e = req.event;
+      const connection = await prisma.socialAccountConnection.findUnique({ where: { userId_provider: { userId: req.user.id, provider: "meta" } } });
+      if (!connection) return res.status(400).json({ error: { code: "NOT_CONNECTED", message: "Connect your Instagram/Facebook account first." } });
+      if (!e.image) return res.status(400).json({ error: { code: "NO_IMAGE", message: "This event needs a cover image before it can be posted." } });
+
+      const b = req.body || {};
+      const caption = String(b.caption || "").trim();
+      if (!caption) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "caption is required" } });
+
+      // Best-effort double-post guard, not a hard lock — an organizer who
+      // genuinely wants to post the same event twice (e.g. a reminder
+      // closer to the date) can still confirm through; this just warns.
+      if (!b.confirmRepost) {
+        const already = await prisma.socialPost.findFirst({ where: { eventId: e.id, provider: "instagram", status: "posted" } });
+        if (already) return res.status(409).json({ error: { code: "ALREADY_POSTED", message: "This event was already posted to Instagram. Pass confirmRepost:true to post again anyway." }, previousPost: already });
+      }
+
+      let result;
+      try {
+        result = await publishInstagramPost(connection, { imageUrl: e.image, caption });
+      } catch (err) {
+        await prisma.socialPost.create({ data: { eventId: e.id, organizerId: req.user.id, provider: "instagram", copy: { caption, imageUrl: e.image }, status: "failed", error: err.message } });
+        throw err;
+      }
+      const post = await prisma.socialPost.create({
+        data: { eventId: e.id, organizerId: req.user.id, provider: "instagram", externalPostId: result.externalPostId, copy: { caption, imageUrl: e.image }, status: "posted" },
+      });
+      await db.audit("event.social_post", { actorId: req.user.id, entityType: "event", entityId: e.id, metadata: { provider: "instagram", postId: post.id } });
+      res.status(201).json(post);
+    } catch (err) {
+      const handled = integrationErrorResponse(err, res);
+      if (!handled) { captureError(err, { route: "POST /api/events/:id/marketing/post-to-instagram", eventId: req.params.id }); res.status(500).json({ error: err.message }); }
+    }
+  });
+
+  app.get("/api/events/:id/marketing/social-posts", requireEventOwner(), requireFeature("socialAutoPosting"), async (req, res) => {
+    res.json(await prisma.socialPost.findMany({ where: { eventId: req.event.id }, orderBy: { postedAt: "desc" } }));
+  });
+
+  // ---- Real email lists: organizer-owned MarketingContact subscriber list ----
+  function newUnsubscribeToken() {
+    return crypto.randomBytes(24).toString("base64url");
+  }
+
+  app.get("/api/me/marketing-contacts", requireAuth, requireFeature("emailCampaigns"), async (req, res) => {
+    res.json(await prisma.marketingContact.findMany({ where: { organizerId: req.user.id }, orderBy: { createdAt: "desc" } }));
+  });
+
+  app.post("/api/me/marketing-contacts", requireAuth, requireFeature("emailCampaigns"), async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const name = req.body?.name ? String(req.body.name).trim() : null;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid email is required" } });
+    }
+    try {
+      const contact = await prisma.marketingContact.upsert({
+        where: { organizerId_email: { organizerId: req.user.id, email } },
+        create: { organizerId: req.user.id, email, name, source: "manual", unsubscribeToken: newUnsubscribeToken() },
+        update: { name: name ?? undefined, subscribed: true },
+      });
+      res.status(201).json(contact);
+    } catch (err) {
+      captureError(err, { route: "POST /api/me/marketing-contacts" });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // CSV import — plain "email,name" rows (a header row is auto-detected and
+  // skipped), deduped by email against this organizer's existing list.
+  // Deliberately a hand-rolled line parser (no quoted-field/embedded-comma
+  // support) rather than pulling in a new dependency for a two-column
+  // format — matches this codebase's existing CSV *export* routes, which
+  // are all similarly simple `join(",")` builders with no library either.
+  app.post("/api/me/marketing-contacts/import", requireAuth, requireFeature("emailCampaigns"), async (req, res) => {
+    const raw = String(req.body?.csv || "");
+    if (!raw.trim()) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "csv text is required" } });
+    const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const seen = new Map(); // email -> name, last one wins, dedupes within the file itself
+    for (const line of lines) {
+      const [rawEmail, rawName] = line.split(",");
+      const email = String(rawEmail || "").trim().toLowerCase();
+      if (!email || email === "email" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue; // skips header row + junk lines
+      seen.set(email, rawName ? String(rawName).trim() : null);
+    }
+    let imported = 0;
+    let skipped = 0;
+    for (const [email, name] of seen) {
+      try {
+        await prisma.marketingContact.upsert({
+          where: { organizerId_email: { organizerId: req.user.id, email } },
+          create: { organizerId: req.user.id, email, name, source: "csv_import", unsubscribeToken: newUnsubscribeToken() },
+          update: { name: name ?? undefined },
+        });
+        imported++;
+      } catch {
+        skipped++;
+      }
+    }
+    res.json({ imported, skipped, total: seen.size });
+  });
+
+  app.delete("/api/me/marketing-contacts/:id", requireAuth, requireFeature("emailCampaigns"), async (req, res) => {
+    const existing = await prisma.marketingContact.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.organizerId !== req.user.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Contact not found" } });
+    await prisma.marketingContact.delete({ where: { id: existing.id } });
+    res.json({ ok: true });
+  });
+
+  // Public, no-auth, one-click unsubscribe — a real legal requirement for
+  // bulk email, not decorative. Idempotent (already-unsubscribed clicking
+  // again just re-confirms) and never reveals whether a token was valid vs
+  // reused beyond a generic message, so it can't be used to enumerate emails.
+  app.get("/api/marketing-contacts/unsubscribe/:token", async (req, res) => {
+    const contact = await prisma.marketingContact.findUnique({ where: { unsubscribeToken: req.params.token } });
+    if (contact) await prisma.marketingContact.update({ where: { id: contact.id }, data: { subscribed: false } });
+    res.set("Content-Type", "text/html");
+    res.send(`<!doctype html><html><body style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:60px auto;padding:0 24px;text-align:center"><h2>You're unsubscribed</h2><p style="color:#666">You won't receive marketing emails from this organizer again.</p></body></html>`);
+  });
+
+  // ---- Real campaign send: the AI-drafted email copy, sent to the
+  // organizer's subscribed MarketingContact list via server/email.js's
+  // sendEmail()/Resend wrapper. Batched in fixed-size chunks (rather than
+  // one giant Promise.all like sendEventNotificationNow's smaller
+  // ticket-buyer fan-out) since a subscriber list can be much larger than
+  // one event's attendee list. ----
+  const EMAIL_BATCH_SIZE = 25;
+  app.post("/api/events/:id/marketing/send-email-campaign", socialLimiter, requireEventOwner(), requireFeature("emailCampaigns"), async (req, res) => {
+    const subject = String(req.body?.subject || "").trim();
+    const bodyText = String(req.body?.body || "").trim();
+    if (!subject || !bodyText) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "subject and body are required" } });
+
+    const contacts = await prisma.marketingContact.findMany({ where: { organizerId: req.user.id, subscribed: true } });
+    const safeBody = bodyText.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    let sent = 0;
+    for (let i = 0; i < contacts.length; i += EMAIL_BATCH_SIZE) {
+      const batch = contacts.slice(i, i + EMAIL_BATCH_SIZE);
+      await Promise.all(batch.map((c) => {
+        const unsubUrl = `${req.protocol}://${req.get("host")}/api/marketing-contacts/unsubscribe/${c.unsubscribeToken}`;
+        return sendEmail({
+          to: c.email,
+          subject,
+          html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><p style="white-space:pre-wrap;line-height:1.6;color:#222">${safeBody}</p><p style="color:#999;font-size:11px;margin-top:32px;border-top:1px solid #eee;padding-top:12px">You're receiving this because you're on this organizer's mailing list. <a href="${unsubUrl}" style="color:#999">Unsubscribe</a></p></div>`,
+        }).then(() => { sent++; }).catch((err) => captureError(err, { route: "POST /api/events/:id/marketing/send-email-campaign", eventId: req.event.id }));
+      }));
+    }
+
+    const record = await prisma.emailCampaignSend.create({
+      data: { organizerId: req.user.id, eventId: req.event.id, subject, bodyHtml: safeBody, recipientCount: sent },
+    });
+    await db.audit("event.email_campaign", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { subject, recipients: contacts.length, sent } });
+    res.status(201).json({ ok: true, recipients: contacts.length, sent, campaign: record });
+  });
+
+  app.get("/api/organizer/email-campaign-sends", requireAuth, requireFeature("emailCampaigns"), async (req, res) => {
+    res.json(await prisma.emailCampaignSend.findMany({ where: { organizerId: req.user.id }, orderBy: { sentAt: "desc" }, take: 100 }));
+  });
+
+  // ---- Growth tools ----
+  app.get("/api/events/:id/marketing/growth-ideas", importLimiter, requireEventOwner(), async (req, res) => {
+    try {
+      res.json({ ideas: await generateGrowthIdeas(req.event) });
+    } catch (err) {
+      captureError(err, { route: "GET /api/events/:id/marketing/growth-ideas", eventId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/events/:id/marketing/free-tool-ideas", importLimiter, requireEventOwner(), async (req, res) => {
+    try {
+      res.json({ ideas: await generateFreeToolIdeas(req.event) });
+    } catch (err) {
+      captureError(err, { route: "GET /api/events/:id/marketing/free-tool-ideas", eventId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Psychology-informed copy variants — re-angle the existing ad/social
+  // copy through a chosen persuasion lens, a toggle in the UI rather than
+  // a new page.
+  app.get("/api/events/:id/marketing/angled-copy", importLimiter, requireEventOwner(), async (req, res) => {
+    const angle = String(req.query.angle || "");
+    if (!PERSUASION_ANGLE_KEYS.includes(angle)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `angle must be one of: ${PERSUASION_ANGLE_KEYS.join(", ")}` } });
+    }
+    try {
+      const brandKit = req.event.ownerId ? await prisma.organizerBrandKit.findUnique({ where: { organizerId: req.event.ownerId } }) : null;
+      res.json(await generateAngledCopy(req.event, brandKit, angle));
+    } catch (err) {
+      captureError(err, { route: "GET /api/events/:id/marketing/angled-copy", eventId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Bulk ad creative — "generate more variants" for A/B testing at scale,
+  // on top of the fixed-3 googleAdVariants/metaAdVariants already cached
+  // on MarketingAsset.
+  app.get("/api/events/:id/marketing/bulk-ad-variants", importLimiter, requireEventOwner(), async (req, res) => {
+    const platform = req.query.platform === "google" ? "google" : "meta";
+    const count = Math.min(10, Math.max(1, parseInt(req.query.count, 10) || 3));
+    try {
+      const brandKit = req.event.ownerId ? await prisma.organizerBrandKit.findUnique({ where: { organizerId: req.event.ownerId } }) : null;
+      const variants = await generateBulkAdVariants(req.event, brandKit, { platform, count });
+      res.json({ platform, variants });
+    } catch (err) {
+      captureError(err, { route: "GET /api/events/:id/marketing/bulk-ad-variants", eventId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // catch-all error handler — multer/upload errors land here (4xx, not
