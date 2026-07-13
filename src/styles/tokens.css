@@ -3,60 +3,46 @@
    Extracted from the original monolithic index.css (Phase 0 of
    the visual redesign) — pure mechanical extraction, no rule
    changes. See src/index.css for the v9 overhaul history.
-
-   Minimalist pass: replaced the Editorial coral direction with the
-   "Premium Utilitarian Minimalism" system — warm monochrome canvas,
-   off-black solid CTAs (flipped to warm off-white on dark surfaces,
-   since a literal #111 button is unreadable on a near-black bg — same
-   underlying language, theme-appropriate contrast), muted pastel accents
-   for tags/status only, capped radii (12px max outside pill-shaped tags),
-   near-invisible shadows. The previous coral system is preserved in git
-   history/backup branch (backup-pre-minimalist-ui) — nothing here is
-   coral-derived anymore.
    ============================================================ */
 
 :root {
   color-scheme: dark;
-  /* Warm near-black canvas, not a cool/blue-black. */
-  --bg:             #171614;
-  --bg-elevated:    #1D1B18;
-  --surface:        #1D1B18;
-  --surface-hover:  #262420;
-  --border:         rgba(255,255,255,.08);
-  --border-strong:  rgba(255,255,255,.14);
-  /* Muted pastel blue — the interactive/"selected" accent used sparingly
-     for links, active rings, and tinted fills. Never a large fill. */
-  --primary:        #6FB6E0;
-  --primary-hover:  #8AC6E8;
-  --primary-pressed:#57A0CC;
-  --on-primary:     #0A0A0A;
-  /* CTA is a solid, ultra-high-contrast block — off-black on light
-     surfaces, warm off-white on dark surfaces (the skill's single button
-     spec assumes a light canvas; this is the necessary dark-mode flip to
-     keep the same "solid, no-shadow, small-radius" language legible). */
-  --cta-bg:         #F5F3EE;
-  --cta-on-cta:     #171614;
-  --success:        #5FBE86;
-  --warning:        #D9A94A;
-  --error:          #E0736F;
-  --info:           #6FB6E0;
-  --text:           #F5F3EE;
-  --text-2:         #A8A6A0;
-  --text-3:         #7D7B76;
-  --text-disabled:  #504E4A;
-  --icon:           #F5F3EE;
-  --icon-2:         #A8A6A0;
-  --divider:        rgba(255,255,255,.08);
-  --card-bg:        #1D1B18;
-  --card-border:    rgba(255,255,255,.08);
-  --card-shadow:    0 1px 2px rgba(0,0,0,.3);
-  --accent-soft:    rgba(111,182,224,.14);
-  --success-soft:   rgba(95,190,134,.14);
-  --warning-soft:   rgba(217,169,74,.14);
-  --error-soft:     rgba(224,115,111,.14);
+  /* Editorial handoff dark tokens — exact hex from design_handoff_weyn_ticketing/README.md */
+  --bg:             #0A0A0A;
+  --bg-elevated:    #131313;
+  --surface:        #141414;
+  --surface-hover:  #1C1C1F;
+  --border:         #232328;
+  --border-strong:  #2C2C33;
+  /* Editorial coral accent — same hex in both themes per handoff spec. */
+  --primary:        #FF5A3C;
+  --primary-hover:  #FF7057;
+  --primary-pressed:#E84E30;
+  --on-primary:     #FFFFFF;
+  /* CTA buttons are a distinct concept from the accent color: black-on-white
+     in light mode, coral in dark mode (Editorial direction). */
+  --cta-bg:         var(--primary);
+  --cta-on-cta:     var(--on-primary);
+  --success:        #3FBE7C;
+  --warning:        #F0B429;
+  --error:          #FF453A;
+  --info:           #5EC8D8;
+  --text:           #F5F5F6;
+  --text-2:         #9A9AA0;
+  --text-3:         #77777D;
+  --text-disabled:  #54545A;
+  --icon:           #F5F5F6;
+  --icon-2:         #9A9AA0;
+  --divider:        #232328;
+  --card-bg:        #141414;
+  --card-border:    #232328;
+  --card-shadow:    0 1px 2px rgba(0,0,0,.4);
+  --accent-soft:    rgba(255,90,60,.16);
+  --success-soft:   rgba(63,190,124,.14);
   --scrim: rgba(0,0,0,0.6);
-  /* Not part of the current system — kept only because a couple of venue/
-     category call sites still reference these; no longer load-bearing. */
+  /* Not part of the new system — kept only because a couple of venue/
+     category call sites still reference these; no longer load-bearing
+     for the primary brand color. */
   --gulf:           #2C6E6B;
   --gulf-soft:      rgba(44,110,107,0.18);
   --khanjar:        var(--primary);
@@ -71,28 +57,25 @@
   --line:        var(--border);
   --chip-soft:   var(--surface-hover);
 
-  /* Crisp, capped radii — nothing above 12px outside pill-shaped tags
-     (--radius-pill is kept ONLY for small tags/status badges, per the
-     minimalist spec's explicit exception; buttons/cards/nav no longer
-     use it). */
-  --radius: 10px; --radius-sm: 8px; --radius-pill: 999px; --maxw: 468px;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.25);
-  --shadow-md: 0 1px 2px rgba(0,0,0,.22), 0 4px 10px rgba(0,0,0,.18);
-  --shadow-lg: 0 2px 4px rgba(0,0,0,.2), 0 8px 20px rgba(0,0,0,.2);
+  /* Sharper, flatter than the previous pass — Uber/Instagram read as
+     crisp rectangles with modest rounding, not soft "bubble" cards. */
+  --radius: 12px; --radius-sm: 8px; --radius-pill: 999px; --maxw: 468px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.35);
+  --shadow-md: 0 1px 3px rgba(0,0,0,.4), 0 4px 10px rgba(0,0,0,.3);
+  --shadow-lg: 0 2px 6px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.4);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
   --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm);
-  /* Floating elements (nav, tickets) — ultra-diffuse, low-opacity per spec
-     (<0.05 alpha), not the previous heavy 20px/50px coral-adjacent glow. */
-  --shadow-float: 0 8px 24px rgba(0,0,0,.18);
+  /* Floating elements (pill nav, tickets) per handoff spec: soft, large,
+     low-opacity — dark shadow on both surfaces, lower opacity on light. */
+  --shadow-float: 0 20px 50px rgba(0,0,0,.4);
   --lens: none;
   --card-alt: var(--surface-hover);
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-8: 48px;
   --btn-h: 48px; --btn-h-lg: 56px; --btn-h-sm: 40px;
 
-  /* Category colors — 7 distinct hues, kept as-is (they identify real
-     event categories, not the brand accent, so they're untouched by the
-     accent-system change). */
+  /* Category colors — 7 distinct hues, none red so none compete with
+     the new --primary accent. */
   --cat-music: #4C8DF5; --cat-sports: #16A34A; --cat-food: #F97316;
   --cat-culture: #DB2777; --cat-cars: #64748B; --cat-workshop: #CA8A04;
   --cat-community: #14B8A6;
@@ -105,48 +88,56 @@
   --spark-color-2: var(--primary-hover);
   --spark-color-3: #fff;
 
-  /* Shadows are intentionally flat/neutral now (no brand-hue tint) — the
-     minimalist spec calls for borders to carry structure, not tinted glow.
-     Radii capped at 12px; the old asymmetric "signature shape" is
-     flattened to match the crisp, document-like card language. */
-  --shadow-tint-sm: var(--shadow-sm);
-  --shadow-tint-md: var(--shadow-md);
-  --shadow-tint-lg: var(--shadow-lg);
-  --radius-lg: 12px;
-  --radius-xl: 12px;
-  --radius-asym: 12px;
-  --gradient-primary: none;
-  --gradient-accent-top: none;
+  /* Phase 2 additions (redesign pass) — tinted shadows (carry the brand
+     hue instead of flat black, per the redesign audit's guidance against
+     generic gray/black shadows), larger + asymmetric radii for a
+     signature shape distinct from the uniform --radius used everywhere,
+     and gradient tokens for accent borders/fills. Purely additive:
+     nothing above is renamed or removed. */
+  --shadow-tint-sm: 0 1px 3px color-mix(in srgb, var(--primary) 10%, rgba(0,0,0,.4));
+  --shadow-tint-md: 0 2px 8px color-mix(in srgb, var(--primary) 14%, rgba(0,0,0,.4)),
+                    0 10px 24px color-mix(in srgb, var(--primary) 8%, rgba(0,0,0,.32));
+  --shadow-tint-lg: 0 4px 14px color-mix(in srgb, var(--primary) 16%, rgba(0,0,0,.45)),
+                    0 20px 44px color-mix(in srgb, var(--primary) 10%, rgba(0,0,0,.4));
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  /* one-corner-tucked signature shape — used sparingly on hero/feature
+     surfaces, not as a blanket replacement for --radius */
+  --radius-asym: 20px 20px 20px 6px;
+  --gradient-primary: linear-gradient(135deg, var(--primary-hover), var(--primary-pressed));
+  --gradient-accent-top: linear-gradient(90deg, var(--primary), var(--gulf));
 }
 
-/* Light mode — warm bone/off-white canvas (not cool gray, not pure white),
-   off-black (not true-black) text, 1px hairline borders instead of shadow
-   for depth, per the Premium Utilitarian Minimalism spec. */
+/* Light mode — Uber/Instagram/Airbnb-style: white cards on a faint
+   neutral-gray page (not pure white, not warm-tinted), near-black
+   (not true-black) text, depth from a hairline border + a near-invisible
+   shadow rather than dyeing the background a "theme color". */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #FBFBFA; --bg-elevated: #F7F6F3; --surface: #FFFFFF; --surface-hover: #F7F6F3;
-  --border: #EAEAEA; --border-strong: #D8D8D6;
-  --primary: #1F6C9F; --primary-hover: #2C82B8; --primary-pressed: #175680;
+  /* Editorial handoff light tokens — exact hex from design_handoff_weyn_ticketing/README.md */
+  --bg: #FAFAFA; --bg-elevated: #F1F1F3; --surface: #FFFFFF; --surface-hover: #F4F4F5;
+  --border: #E6E6E9; --border-strong: #D6D6D9;
+  --primary: #FF5A3C; --primary-hover: #FF7057; --primary-pressed: #E84E30;
   --on-primary: #FFFFFF;
-  /* Solid off-black CTA, no shadow, small radius (see .btn). */
-  --cta-bg: #111111;
-  --cta-on-cta: #FFFFFF;
-  --success: #346538; --warning: #956400; --error: #9F2F2D; --info: #1F6C9F;
-  --text: #111111; --text-2: #787774; --text-3: #ABABA6; --text-disabled: #D3D1CC;
-  --icon: #111111; --icon-2: #787774; --divider: #EAEAEA;
-  --card-bg: #FFFFFF; --card-border: #EAEAEA;
-  --card-shadow: 0 1px 2px rgba(0,0,0,.04);
-  --accent-soft: #E1F3FE; --success-soft: #EDF3EC; --warning-soft: #FBF3DB; --error-soft: #FDEBEC;
+  /* Light mode CTAs are black, not coral — coral stays reserved for accents. */
+  --cta-bg: var(--text);
+  --cta-on-cta: var(--bg);
+  --success: #2E9E5B; --warning: #97650E; --error: #C21E23; --info: #2678A8;
+  --text: #0A0A0A; --text-2: #5B5B63; --text-3: #8A8A90; --text-disabled: #ABABB2;
+  --icon: #0A0A0A; --icon-2: #5B5B63; --divider: #E6E6E9;
+  --card-bg: #FFFFFF; --card-border: #E6E6E9;
+  --card-shadow: 0 1px 2px rgba(0,0,0,.05);
+  --accent-soft: #FFF3F0; --success-soft: #EAF7EF;
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
   --gulf: #235957; --gulf-soft: rgba(35,89,87,0.10); --khanjar: var(--primary);
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.03);
-  --shadow-md: 0 1px 2px rgba(0,0,0,.03), 0 4px 10px rgba(0,0,0,.03);
-  --shadow-lg: 0 2px 4px rgba(0,0,0,.03), 0 8px 20px rgba(0,0,0,.04);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 1px 3px rgba(0,0,0,.05), 0 4px 10px rgba(0,0,0,.06);
+  --shadow-lg: 0 2px 6px rgba(0,0,0,.06), 0 12px 28px rgba(0,0,0,.08);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
   --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm);
-  --shadow-float: 0 8px 24px rgba(0,0,0,.06);
+  --shadow-float: 0 20px 50px rgba(0,0,0,.16);
   --card-alt: var(--surface-hover);
   --fallback-scrim: rgba(0,0,0,0.1);
 
@@ -154,23 +145,25 @@
   --spark-color-2: var(--primary-hover);
   --spark-color-3: var(--text);
 
-  --shadow-tint-sm: var(--shadow-sm);
-  --shadow-tint-md: var(--shadow-md);
-  --shadow-tint-lg: var(--shadow-lg);
-  --radius-lg: 12px;
-  --radius-xl: 12px;
-  --radius-asym: 12px;
-  --gradient-primary: none;
-  --gradient-accent-top: none;
+  /* Phase 2 additions — same tokens as dark, lower-opacity tints appropriate
+     for a white surface. */
+  --shadow-tint-sm: 0 1px 3px color-mix(in srgb, var(--primary) 6%, rgba(0,0,0,.06));
+  --shadow-tint-md: 0 2px 8px color-mix(in srgb, var(--primary) 8%, rgba(0,0,0,.06)),
+                    0 10px 24px color-mix(in srgb, var(--primary) 5%, rgba(0,0,0,.05));
+  --shadow-tint-lg: 0 4px 14px color-mix(in srgb, var(--primary) 10%, rgba(0,0,0,.08)),
+                    0 20px 44px color-mix(in srgb, var(--primary) 6%, rgba(0,0,0,.07));
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  --radius-asym: 20px 20px 20px 6px;
+  --gradient-primary: linear-gradient(135deg, var(--primary-hover), var(--primary-pressed));
+  --gradient-accent-top: linear-gradient(90deg, var(--primary), var(--gulf));
 }
 
-/* Self-hosted variable Geist fonts (see public/fonts/, copied from the
-   `geist` npm package's raw woff2 files since that package's JS exports are
-   Next.js `next/font`-only and don't work in this Vite app). Instrument
-   Serif (Google Fonts, alongside the existing Noto Naskh Arabic link in
-   index.html) is the editorial serif for hero/page headings only — Geist
-   Sans stays the UI/body typeface, per the minimalist spec's "extreme
-   typographic contrast" directive. */
+/* Editorial handoff typeface — self-hosted variable Geist fonts (see
+   public/fonts/, copied from the `geist` npm package's raw woff2 files
+   since that package's JS exports are Next.js `next/font`-only and don't
+   work in this Vite app). Fallback stack matches the handoff spec exactly
+   for browsers where the font fails to load. */
 @font-face {
   font-family: "Geist";
   font-display: swap;
@@ -191,13 +184,9 @@
   --fw-bold:    700;   /* hero + section headings only */
 
   --f-display: "Geist", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-  --f-serif: "Instrument Serif", "Playfair Display", Georgia, serif;
   --f-mono:    "Geist Mono", ui-monospace, "SF Mono", monospace;
 
-  /* Hero/page-title scale switches to the editorial serif with tight
-     tracking/leading, per spec — everything else (section/card/meta/
-     caption/body/data) stays on Geist Sans/Mono, unchanged. */
-  --t-hero:    400 32px/1.1 var(--f-serif);
+  --t-hero:    700 28px/1.14 var(--f-display); /* ~28px effective on key screens; bumps to 40px on desktop (see @media 900px) */
   --t-section: 700 18px/1.25 var(--f-display);
   --t-card:    600 15px/1.3  var(--f-display);
   --t-meta:    500 13px/1.4  var(--f-display);
