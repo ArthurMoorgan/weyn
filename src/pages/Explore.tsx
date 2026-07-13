@@ -7,6 +7,7 @@ import Stub from "../components/Stub";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
 import { capture } from "../posthog";
+import SplitText from "../components/landing/SplitText";
 
 // Explore is one honest list: a featured spotlight up top, then every
 // upcoming event as a full-width editorial card, all in one continuous
@@ -209,7 +210,18 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
       {!searching && !embedded && (
         <section className="ex-hero">
           <div>
-            <h1>Where to next?</h1>
+            <SplitText
+              text="Where to next?"
+              tag="h1"
+              splitType="chars"
+              duration={0.7}
+              delay={18}
+              from={{ opacity: 0, y: 14 }}
+              to={{ opacity: 1, y: 0 }}
+              textAlign="left"
+              threshold={0}
+              rootMargin="0px"
+            />
           </div>
           <Link to="/host/events" className="ex-hero-host">Host an event <i className="icon-arrow-right" /></Link>
         </section>

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, NavLink, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
 import WorkflowCanvas from "../../components/WorkflowCanvas";
+import DashboardShell from "../../components/dashboard/DashboardShell";
 
 type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
 
@@ -65,18 +66,12 @@ export default function VenueWorkspace() {
       </div>
       <p className="hint" style={{ padding: "0 6px 10px" }}>{venue.area} · {venue._count?.reservations ?? 0} reservation{(venue._count?.reservations ?? 0) === 1 ? "" : "s"}</p>
 
-      <div className="organizer-shell">
-        <nav className="profile-tabs organizer-nav" aria-label="Venue sections">
-          {VENUE_TABS.map((t) => (
-            <NavLink key={t.key} to={`/venue-os/${venue.id}/${t.key}`} className={({ isActive }) => "profile-tab" + (isActive ? " on" : "")}>
-              <i className={`icon-${t.icon}`} /> {t.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="organizer-content">
-          <VenueBody tab={tab} venue={venue} />
-        </div>
-      </div>
+      <DashboardShell
+        ariaLabel="Venue sections"
+        navItems={VENUE_TABS.map((t) => ({ to: `/venue-os/${venue.id}/${t.key}`, icon: t.icon, label: t.label }))}
+      >
+        <VenueBody tab={tab} venue={venue} />
+      </DashboardShell>
     </>
   );
 }

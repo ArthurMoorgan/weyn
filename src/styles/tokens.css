@@ -79,6 +79,25 @@
   --spark-color-1: var(--primary);
   --spark-color-2: var(--primary-hover);
   --spark-color-3: #fff;
+
+  /* Phase 2 additions (redesign pass) — tinted shadows (carry the brand
+     hue instead of flat black, per the redesign audit's guidance against
+     generic gray/black shadows), larger + asymmetric radii for a
+     signature shape distinct from the uniform --radius used everywhere,
+     and gradient tokens for accent borders/fills. Purely additive:
+     nothing above is renamed or removed. */
+  --shadow-tint-sm: 0 1px 3px color-mix(in srgb, var(--primary) 10%, rgba(0,0,0,.4));
+  --shadow-tint-md: 0 2px 8px color-mix(in srgb, var(--primary) 14%, rgba(0,0,0,.4)),
+                    0 10px 24px color-mix(in srgb, var(--primary) 8%, rgba(0,0,0,.32));
+  --shadow-tint-lg: 0 4px 14px color-mix(in srgb, var(--primary) 16%, rgba(0,0,0,.45)),
+                    0 20px 44px color-mix(in srgb, var(--primary) 10%, rgba(0,0,0,.4));
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  /* one-corner-tucked signature shape — used sparingly on hero/feature
+     surfaces, not as a blanket replacement for --radius */
+  --radius-asym: 20px 20px 20px 6px;
+  --gradient-primary: linear-gradient(135deg, var(--primary-hover), var(--primary-pressed));
+  --gradient-accent-top: linear-gradient(90deg, var(--primary), var(--gulf));
 }
 
 /* Light mode — Uber/Instagram/Airbnb-style: white cards on a faint
@@ -112,6 +131,19 @@
   --spark-color-1: var(--primary);
   --spark-color-2: var(--primary-hover);
   --spark-color-3: var(--text);
+
+  /* Phase 2 additions — same tokens as dark, lower-opacity tints appropriate
+     for a white surface. */
+  --shadow-tint-sm: 0 1px 3px color-mix(in srgb, var(--primary) 6%, rgba(0,0,0,.06));
+  --shadow-tint-md: 0 2px 8px color-mix(in srgb, var(--primary) 8%, rgba(0,0,0,.06)),
+                    0 10px 24px color-mix(in srgb, var(--primary) 5%, rgba(0,0,0,.05));
+  --shadow-tint-lg: 0 4px 14px color-mix(in srgb, var(--primary) 10%, rgba(0,0,0,.08)),
+                    0 20px 44px color-mix(in srgb, var(--primary) 6%, rgba(0,0,0,.07));
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  --radius-asym: 20px 20px 20px 6px;
+  --gradient-primary: linear-gradient(135deg, var(--primary-hover), var(--primary-pressed));
+  --gradient-accent-top: linear-gradient(90deg, var(--primary), var(--gulf));
 }
 
 :root {

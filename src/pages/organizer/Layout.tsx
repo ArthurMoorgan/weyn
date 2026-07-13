@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { NavLink, Outlet, Link, useNavigate } from "react-router-dom";
+import { Outlet, Link, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
+import DashboardShell from "../../components/dashboard/DashboardShell";
 
 // Promoted out of You.tsx's "Organizer" tab into its own top-level section —
 // per HANDOFF.md §17, organizer tools are meant to be a real product
@@ -75,18 +76,9 @@ export default function OrganizerLayout() {
           <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "9px 14px" }}><i className="icon-plus" /> New event</Link>
         </div>
       </header>
-      <div className="organizer-shell">
-        <nav className="profile-tabs organizer-nav" aria-label="Organizer sections">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => "profile-tab" + (isActive ? " on" : "")}>
-              <i className={`icon-${n.icon}`} /> {n.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="organizer-content">
-          <Outlet context={{ isHost, reloadEvents: dashEvents.reload, eventsLoading: dashEvents.loading } satisfies OrganizerCtx} />
-        </div>
-      </div>
+      <DashboardShell navItems={NAV} ariaLabel="Organizer sections">
+        <Outlet context={{ isHost, reloadEvents: dashEvents.reload, eventsLoading: dashEvents.loading } satisfies OrganizerCtx} />
+      </DashboardShell>
     </section>
   );
 }

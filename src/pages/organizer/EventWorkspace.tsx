@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, Navigate, NavLink, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import QRCode from "qrcode";
 import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor, type FloorTable, type FloorTableInput, type MarketingScheduleItem } from "../../api";
@@ -7,6 +7,7 @@ import { useAsync } from "../../hooks";
 import { getAuthToken } from "../../store";
 import FeatureLock from "../../components/FeatureLock";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
+import DashboardShell from "../../components/dashboard/DashboardShell";
 
 // The real per-event workspace HANDOFF.md §17 called for — deep-linkable
 // tabs (/organizer/events/:id/:tab) instead of the old one-off modal
@@ -70,24 +71,23 @@ export default function EventWorkspace() {
             destination (its own route, its own nav), not a modal. */}
         <Link to="/organizer" className="btn glass sm"><i className="icon-layout-dashboard" /> Organizer Dashboard</Link>
       </div>
-      <div className="organizer-shell">
-        <nav className="profile-tabs organizer-nav" aria-label="Event workspace sections">
-          {TABS.map((t) => (
-            <NavLink key={t.key} to={`/organizer/events/${event.id}/${t.key}`} className={() => "profile-tab" + (tab === t.key ? " on" : "")}>
-              <i className={`icon-${t.icon}`} /> {t.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="organizer-content">
-          {tab === "overview" && <OverviewTab event={event} features={features} reload={events.reload} />}
-          {tab === "attendees" && <AttendeesTab event={event} features={features} />}
-          {tab === "marketing" && <MarketingTab event={event} features={features} />}
-          {tab === "seating" && <SeatingTab event={event} />}
-          {tab === "team" && <TeamTab event={event} />}
-          {tab === "checkin" && <CheckInTab event={event} />}
-          {tab === "settings" && <SettingsTab event={event} features={features} reload={events.reload} />}
-        </div>
-      </div>
+      <DashboardShell
+        ariaLabel="Event workspace sections"
+        navItems={TABS.map((t) => ({
+          to: `/organizer/events/${event.id}/${t.key}`,
+          icon: t.icon,
+          label: t.label,
+          active: tab === t.key,
+        }))}
+      >
+        {tab === "overview" && <OverviewTab event={event} features={features} reload={events.reload} />}
+        {tab === "attendees" && <AttendeesTab event={event} features={features} />}
+        {tab === "marketing" && <MarketingTab event={event} features={features} />}
+        {tab === "seating" && <SeatingTab event={event} />}
+        {tab === "team" && <TeamTab event={event} />}
+        {tab === "checkin" && <CheckInTab event={event} />}
+        {tab === "settings" && <SettingsTab event={event} features={features} reload={events.reload} />}
+      </DashboardShell>
     </>
   );
 }
