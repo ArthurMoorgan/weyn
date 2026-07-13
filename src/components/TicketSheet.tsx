@@ -12,12 +12,13 @@ import { useClosing } from "../hooks";
 type TicketRow = { code: string; checkedInAt: string | null };
 
 export default function TicketSheet({
-  eventTitle, bookingId, accessToken, onClose,
-}: { eventTitle: string; bookingId: string; accessToken?: string; onClose: () => void }) {
+  eventTitle, bookingId, accessToken, venue, lat, lng, onClose,
+}: { eventTitle: string; bookingId: string; accessToken?: string; venue?: string; lat?: number; lng?: number; onClose: () => void }) {
   const { closing, close } = useClosing(onClose);
   const [tickets, setTickets] = useState<TicketRow[] | null>(null);
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
+  const [walletToast, setWalletToast] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +65,31 @@ export default function TicketSheet({
           </div>
         ))}
 
-        <button className="btn glass" style={{ marginTop: 16 }} onClick={close}>Close</button>
+        {tickets && !err && (
+          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+            <button
+              className="btn"
+              onClick={() => { setWalletToast(true); setTimeout(() => setWalletToast(false), 2200); }}
+            >
+              <i className="icon-wallet" /> Add to Wallet
+            </button>
+            {typeof lat === "number" && typeof lng === "number" && (
+              <a
+                className="btn glass"
+                href={`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={venue ? `Directions to ${venue}` : "Directions"}
+              >
+                <i className="icon-map-pin" /> Directions
+              </a>
+            )}
+          </div>
+        )}
+
+        {walletToast && <div className="toast"><i className="icon-info" /> Wallet passes are coming soon</div>}
+
+        <button className="btn glass" style={{ marginTop: 8 }} onClick={close}>Close</button>
       </div>
     </div>
   );

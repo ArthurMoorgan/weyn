@@ -13,11 +13,15 @@
   --surface-hover:  #212124;
   --border:         rgba(255,255,255,.09);
   --border-strong:  rgba(255,255,255,.18);
-  /* Sharp Uber-style red, brightened one step for dark surfaces. */
-  --primary:        #FF3B30;
-  --primary-hover:  #FF564C;
-  --primary-pressed:#E0281E;
+  /* Editorial coral — warm accent replacing the old Uber-style red. */
+  --primary:        #FF6B4A;
+  --primary-hover:  #FF8567;
+  --primary-pressed:#E85433;
   --on-primary:     #FFFFFF;
+  /* CTA buttons are a distinct concept from the accent color: black-on-white
+     in light mode, coral in dark mode (Editorial direction). */
+  --cta-bg:         var(--primary);
+  --cta-on-cta:     var(--on-primary);
   --success:        #32D583;
   --warning:        #F0B429;
   --error:          #FF453A;
@@ -108,8 +112,11 @@
   color-scheme: light;
   --bg: #FFFFFF; --bg-elevated: #F6F6F7; --surface: #FFFFFF; --surface-hover: #F6F6F7;
   --border: #E7E7E9; --border-strong: #D6D6D9;
-  --primary: #E0272D; --primary-hover: #EB3E43; --primary-pressed: #C21E23;
+  --primary: #F0552F; --primary-hover: #FF6B4A; --primary-pressed: #D6431F;
   --on-primary: #FFFFFF;
+  /* Light mode CTAs are black, not coral — coral stays reserved for accents. */
+  --cta-bg: var(--text);
+  --cta-on-cta: var(--bg);
   --success: #178A4C; --warning: #97650E; --error: #C21E23; --info: #2678A8;
   --text: #131316; --text-2: #5E5E66; --text-3: #98989F; --text-disabled: #D3D3D7;
   --icon: #131316; --icon-2: #5E5E66; --divider: #E7E7E9;

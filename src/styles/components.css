@@ -1133,8 +1133,8 @@
      spec; the primary CTA now reads as one unmistakable solid block of
      color, matching the flat surface language used everywhere else. Press
      state is a small translateY(1px) + a slightly quieter shadow. */
-  background: var(--primary);
-  color: var(--on-primary);
+  background: var(--cta-bg);
+  color: var(--cta-on-cta);
   box-shadow: var(--shadow-sm);
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
   transform: translateY(0);

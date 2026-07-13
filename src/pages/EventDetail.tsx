@@ -263,7 +263,7 @@ export default function EventDetail() {
       {ticketSheet && (() => {
         const rec = ticketFor(ev.id);
         return rec?.bookingId ? (
-          <TicketSheet eventTitle={ev.title} bookingId={rec.bookingId} accessToken={rec.accessToken} onClose={() => setTicketSheet(false)} />
+          <TicketSheet eventTitle={ev.title} bookingId={rec.bookingId} accessToken={rec.accessToken} venue={ev.venue} lat={ev.lat} lng={ev.lng} onClose={() => setTicketSheet(false)} />
         ) : null;
       })()}
 
