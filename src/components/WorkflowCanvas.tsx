@@ -20,8 +20,8 @@ const NODE_H = 64;
 
 const TYPE_COLOR: Record<WFNodeType, string> = {
   trigger: "var(--accent)",
-  condition: "#e6a23c",
-  action: "#3f9b5c",
+  condition: "var(--warning)",
+  action: "var(--success)",
 };
 
 export default function WorkflowCanvas({

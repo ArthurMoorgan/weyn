@@ -24,6 +24,7 @@ const NAV = [
   { to: "/organizer", end: true, icon: "layout-dashboard", label: "Overview" },
   { to: "/organizer/events", icon: "calendar", label: "Events" },
   { to: "/organizer/attendees", icon: "users", label: "Attendees" },
+  { to: "/organizer/workflows", icon: "zap", label: "Workflows" },
   { to: "/organizer/ai-studio", icon: "sparkles", label: "AI Studio" },
   { to: "/organizer/settings", icon: "settings", label: "Settings" },
 ];

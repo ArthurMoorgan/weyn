@@ -28,10 +28,10 @@ const CANVAS_H = 480;
 
 const STATUS_COLOR: Record<string, string> = {
   available: "var(--surface-2)",
-  reserved: "#e6a23c",
-  occupied: "#d94f4f",
-  needs_cleaning: "#8a8a8a",
-  maintenance: "#5b5b5b",
+  reserved: "var(--warning)",
+  occupied: "var(--error)",
+  needs_cleaning: "var(--text-3)",
+  maintenance: "var(--text-2)",
 };
 
 export default function FloorPlanCanvas({
@@ -137,7 +137,7 @@ export default function FloorPlanCanvas({
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                 cursor: mode === "edit" ? "grab" : clickable ? "pointer" : "default",
                 userSelect: "none", touchAction: "none",
-                fontSize: 11, color: isSelected ? "#fff" : "var(--text)", fontWeight: 600,
+                fontSize: 11, color: isSelected ? "var(--on-primary)" : "var(--text)", fontWeight: 600,
                 opacity: mode !== "edit" && t.status !== "available" && mode !== "assign" ? 0.7 : 1,
               }}
             >
@@ -154,7 +154,7 @@ export default function FloorPlanCanvas({
                         onClick={(e) => { e.stopPropagation(); if (seatClickable) onSeatClick?.(s.id, t); }}
                         style={{
                           width: 10, height: 10, borderRadius: "50%",
-                          background: seatSelected ? "#fff" : s.status === "available" ? "var(--accent)" : "var(--text-3)",
+                          background: seatSelected ? "var(--on-primary)" : s.status === "available" ? "var(--accent)" : "var(--text-3)",
                           border: seatSelected ? "2px solid var(--accent)" : "none",
                           cursor: seatClickable ? "pointer" : "default",
                         }}

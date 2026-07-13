@@ -8,8 +8,8 @@ export function Mark({ size = 26, gradient = false }: { size?: number; gradient?
       {gradient && (
         <defs>
           <linearGradient id="weynGrad" x1="12" y1="12" x2="112" y2="92" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#E1483D" />
-            <stop offset="1" stopColor="#C93A30" />
+            <stop stopColor="#9D7BFF" />
+            <stop offset="1" stopColor="#7C3AED" />
           </linearGradient>
         </defs>
       )}

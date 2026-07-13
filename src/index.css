@@ -1,49 +1,44 @@
 /* ============================================================
-   WEYN — v7: implementing the "Weyn ticketing app design" handoff
-   (design_handoff_ticketing_app, 2026-07-12) exactly as specified —
-   Airbnb-style warm coral on true neutrals, Plus Jakarta Sans, visible
-   skeuomorphic touches on buttons/toggles/tickets. This replaces the
-   amber/khanjar experiment from earlier the same day. Variable NAMES are
-   kept as-is (--bg, --surface, --primary, --on-primary, --card-bg, etc.)
-   so the ~300 existing call sites across the app don't need touching —
-   only the hex values change to match the handoff's token spec 1:1
-   (--accent → --primary, --accentInk → --on-primary, --accentSoft →
-   --accent-soft, --good → --success, --panel/--panel2 → --card-bg/
-   --surface-hover, --bg2 → --bg-elevated).
+   WEYN — v9: Uber/Instagram/Airbnb full overhaul — minimalist
+   near-black-and-white base, sharp red accent, flat/high-contrast
+   elevation (hairline borders do the work, shadow is a whisper, not a
+   glow), sharper corners than the v8 pass. Replaces v8's violet-purple
+   system same session. Variable NAMES are kept as-is (--bg, --surface,
+   --primary, --on-primary, --card-bg, etc.) so the ~300 existing call
+   sites across the app don't need touching — only values change.
    ============================================================ */
 
 :root {
   color-scheme: dark;
-  --bg:             #1C1B1A;
-  --bg-elevated:    #141312;
-  --surface:        #242220;
-  --surface-hover:  #2C2A27;
-  --border:         rgba(255,255,255,.08);
-  --border-strong:  rgba(255,255,255,.16);
-  /* Handoff's dark-theme accent — coral, one step brighter than the light
-     theme's since dark surfaces need more chroma to read the same. */
-  --primary:        #FF6B5B;
-  --primary-hover:  #FF8577;
-  --primary-pressed:#E1483D;
-  --on-primary:     #1C1B1A;
-  --success:        #4ADE80;
-  --warning:        #E8B23D;
-  --error:          #E1483D;
-  --info:           #4A9C9A;
-  --text:           #F5F1EC;
-  --text-2:         #A8A29B;
-  --text-3:         #6E6960;
-  --text-disabled:  #4A453D;
-  --icon:           #F5F1EC;
-  --icon-2:         #A8A29B;
-  --divider:        rgba(255,255,255,.08);
-  --card-bg:        #242220;
-  --card-border:    rgba(255,255,255,.08);
-  --card-shadow:    0 1px 2px rgba(0,0,0,.45), 0 8px 20px rgba(0,0,0,.4);
-  --accent-soft:    rgba(255,107,91,.16);
-  --success-soft:   rgba(74,222,128,0.15);
+  --bg:             #0D0D0F;
+  --bg-elevated:    #060607;
+  --surface:        #18181B;
+  --surface-hover:  #212124;
+  --border:         rgba(255,255,255,.09);
+  --border-strong:  rgba(255,255,255,.18);
+  /* Sharp Uber-style red, brightened one step for dark surfaces. */
+  --primary:        #FF3B30;
+  --primary-hover:  #FF564C;
+  --primary-pressed:#E0281E;
+  --on-primary:     #FFFFFF;
+  --success:        #32D583;
+  --warning:        #F0B429;
+  --error:          #FF453A;
+  --info:           #5EC8D8;
+  --text:           #F4F4F5;
+  --text-2:         #9F9FA6;
+  --text-3:         #67676D;
+  --text-disabled:  #3F3F44;
+  --icon:           #F4F4F5;
+  --icon-2:         #9F9FA6;
+  --divider:        rgba(255,255,255,.09);
+  --card-bg:        #18181B;
+  --card-border:    rgba(255,255,255,.09);
+  --card-shadow:    0 1px 2px rgba(0,0,0,.4);
+  --accent-soft:    rgba(255,59,48,.16);
+  --success-soft:   rgba(50,213,131,0.15);
   --scrim: rgba(0,0,0,0.6);
-  /* Not part of the handoff spec — kept only because a couple of venue/
+  /* Not part of the new system — kept only because a couple of venue/
      category call sites still reference these; no longer load-bearing
      for the primary brand color. */
   --gulf:           #2C6E6B;
@@ -60,10 +55,12 @@
   --line:        var(--border);
   --chip-soft:   var(--surface-hover);
 
-  --radius: 16px; --radius-sm: 12px; --radius-pill: 999px; --maxw: 468px;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.3), 0 2px 8px rgba(0,0,0,.3);
-  --shadow-md: 0 2px 4px rgba(0,0,0,.35), 0 8px 20px rgba(0,0,0,.4);
-  --shadow-lg: 0 4px 10px rgba(0,0,0,.4), 0 16px 40px rgba(0,0,0,.5);
+  /* Sharper, flatter than the previous pass — Uber/Instagram read as
+     crisp rectangles with modest rounding, not soft "bubble" cards. */
+  --radius: 12px; --radius-sm: 8px; --radius-pill: 999px; --maxw: 468px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.35);
+  --shadow-md: 0 1px 3px rgba(0,0,0,.4), 0 4px 10px rgba(0,0,0,.3);
+  --shadow-lg: 0 2px 6px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.4);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
   --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm);
   --shadow-float: var(--shadow-md); --lens: none;
@@ -72,8 +69,8 @@
   --space-5: 24px; --space-6: 32px; --space-8: 48px;
   --btn-h: 48px; --btn-h-lg: 56px; --btn-h-sm: 40px;
 
-  /* Category colors — 7 distinct hues, none purple, none competing with
-     the coral brand primary. */
+  /* Category colors — 7 distinct hues, none red so none compete with
+     the new --primary accent. */
   --cat-music: #4C8DF5; --cat-sports: #16A34A; --cat-food: #F97316;
   --cat-culture: #DB2777; --cat-cars: #64748B; --cat-workshop: #CA8A04;
   --cat-community: #14B8A6;
@@ -87,34 +84,29 @@
   --spark-color-3: #fff;
 }
 
-/* Light mode — this is the primary/default-feeling theme (matches how
-   Airbnb, Stripe, and Linear's light modes actually work): white cards,
-   near-black text, depth from soft shadows + a hairline border, NOT from
-   dyeing the background a "theme color". A faint neutral-gray page
-   background (not pure white) is what keeps this from reading as "flat" —
-   the depth cue is the shadow, not a tint. */
+/* Light mode — Uber/Instagram/Airbnb-style: white cards on a faint
+   neutral-gray page (not pure white, not warm-tinted), near-black
+   (not true-black) text, depth from a hairline border + a near-invisible
+   shadow rather than dyeing the background a "theme color". */
 :root[data-theme="light"] {
   color-scheme: light;
-  /* Handoff's light theme — true white surfaces on a barely-off-white
-     page, warm coral accent, Airbnb-style depth-from-shadow rather than
-     dyeing anything a "theme color". */
-  --bg: #FFFFFF; --bg-elevated: #F7F7F7; --surface: #FFFFFF; --surface-hover: #FBF9F7;
-  --border: #EBEBEB; --border-strong: #DDDDDD;
-  --primary: #E1483D; --primary-hover: #EA5B50; --primary-pressed: #C93A30;
+  --bg: #FFFFFF; --bg-elevated: #F6F6F7; --surface: #FFFFFF; --surface-hover: #F6F6F7;
+  --border: #E7E7E9; --border-strong: #D6D6D9;
+  --primary: #E0272D; --primary-hover: #EB3E43; --primary-pressed: #C21E23;
   --on-primary: #FFFFFF;
-  --success: #008A05; --warning: #97650E; --error: #C93A30; --info: #235957;
-  --text: #222222; --text-2: #6A6A6A; --text-3: #B0AEAA; --text-disabled: #DDD8D3;
-  --icon: #222222; --icon-2: #6A6A6A; --divider: #EBEBEB;
-  --card-bg: #FFFFFF; --card-border: #EBEBEB;
-  --card-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
-  --accent-soft: #FDEDEB; --success-soft: rgba(0,138,5,0.10);
+  --success: #178A4C; --warning: #97650E; --error: #C21E23; --info: #2678A8;
+  --text: #131316; --text-2: #5E5E66; --text-3: #98989F; --text-disabled: #D3D3D7;
+  --icon: #131316; --icon-2: #5E5E66; --divider: #E7E7E9;
+  --card-bg: #FFFFFF; --card-border: #E7E7E9;
+  --card-shadow: 0 1px 2px rgba(0,0,0,.05);
+  --accent-soft: #FDECEC; --success-soft: rgba(23,138,76,0.10);
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
   --gulf: #235957; --gulf-soft: rgba(35,89,87,0.10); --khanjar: var(--primary);
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.05), 0 2px 6px rgba(0,0,0,.05);
-  --shadow-md: 0 2px 4px rgba(0,0,0,.04), 0 8px 20px rgba(0,0,0,.08);
-  --shadow-lg: 0 6px 16px rgba(0,0,0,.08), 0 16px 40px rgba(0,0,0,.1);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 1px 3px rgba(0,0,0,.05), 0 4px 10px rgba(0,0,0,.06);
+  --shadow-lg: 0 2px 6px rgba(0,0,0,.06), 0 12px 28px rgba(0,0,0,.08);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
   --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
   --card-alt: var(--surface-hover);
@@ -148,7 +140,7 @@ html, body {
 
 body {
   margin: 0;
-  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -156,30 +148,31 @@ body {
 }
 
 /* ============================================================
-   TYPE SYSTEM — per the design handoff: Plus Jakarta Sans everywhere,
-   one family instead of a display/body pairing. Headings sit at 700–800
-   weight with tight (-0.02em) tracking; body copy is 500 weight, not the
-   usual 400 — Jakarta's regular cut reads slightly light at UI sizes, 500
-   is what actually matches the reference screenshots. IBM Plex Mono is
-   kept only for ticket order codes (not part of the handoff spec, but a
-   small carryover that doesn't conflict with it).
+   TYPE SYSTEM — v9: native system-font stack, matching how Uber,
+   Instagram, and Airbnb's apps actually render (SF Pro on iOS, Roboto on
+   Android/Windows) rather than a single distinctive display face bundled
+   as a webfont — product UI disappearing into the OS, not asserting a
+   brand voice through type. One family for headings through data, tight
+   (-0.02em) tracking on headings, 400/regular body weight (system faces
+   read correctly at regular weight, unlike Jakarta's lighter cut). IBM
+   Plex Mono is kept only for ticket order codes.
    ============================================================ */
 :root {
   --fw-regular: 400;
-  --fw-medium:  500;   /* metadata, secondary UI, and now body copy too */
+  --fw-medium:  500;   /* metadata, secondary UI */
   --fw-semibold: 600;  /* card titles, buttons, labels */
   --fw-bold:    700;   /* hero + section headings only */
 
-  --f-display: "Plus Jakarta Sans", -apple-system, sans-serif;
+  --f-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
   --f-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
 
-  --t-hero:    800 28px/1.14 "Plus Jakarta Sans", sans-serif; /* ~28px effective on key screens; bumps to 40px on desktop (see @media 900px) */
-  --t-section: 700 18px/1.25 "Plus Jakarta Sans", sans-serif;
-  --t-card:    600 15px/1.3  "Plus Jakarta Sans", sans-serif;
-  --t-meta:    500 13px/1.4  "Plus Jakarta Sans", sans-serif;
-  --t-caption: 600 11px/1.3  "Plus Jakarta Sans", sans-serif;
+  --t-hero:    700 28px/1.14 -apple-system, sans-serif; /* ~28px effective on key screens; bumps to 40px on desktop (see @media 900px) */
+  --t-section: 700 18px/1.25 -apple-system, sans-serif;
+  --t-card:    600 15px/1.3  -apple-system, sans-serif;
+  --t-meta:    500 13px/1.4  -apple-system, sans-serif;
+  --t-caption: 600 11px/1.3  -apple-system, sans-serif;
   /* genuine body-reading text (descriptions, blurbs) — NOT metadata/captions */
-  --t-body:    500 16px/1.6  "Plus Jakarta Sans", sans-serif;
+  --t-body:    400 16px/1.6  -apple-system, sans-serif;
   --t-data:    600 14px/1.3  "IBM Plex Mono", monospace;
 }
 
@@ -479,7 +472,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   width: 30px; height: 30px; border-radius: 50%;
   display: grid; place-items: center; font-size: 14px;
   background: rgba(10,13,18,0.5); color: #fff; backdrop-filter: blur(6px);
-  transition: transform .16s cubic-bezier(.2,.9,.3,1.6), background-color .2s;
+  transition: transform .16s cubic-bezier(.25,1,.5,1), background-color .2s;
 }
 .ec-save.on { color: var(--danger); }
 .ec-save.on i { font-weight: 700; }
@@ -741,14 +734,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .tab {
   position: relative; z-index: 2; flex: 1 1 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   min-height: 44px;
-  font-size: 11px; font-weight: 600; color: var(--text-3); padding: 4px;
+  font-size: 10.5px; font-weight: 600; color: var(--text-3); padding: 4px;
   transition: color .15s ease;
 }
-.tab [class^="icon-"] { font-size: 22px; }
-.tab.on { color: var(--accent); }
-.tab.on [class^="icon-"] { color: var(--accent); }
+.tab [class^="icon-"] { font-size: 22px; display: inline-block; transition: transform .18s cubic-bezier(.25,1,.5,1); }
+.tab.on { color: var(--text); }
+.tab.on [class^="icon-"] { color: var(--accent); transform: scale(1.08); }
 .sidebar-brand { display: none; }
 .tabs-right { display: none; }
 
@@ -816,7 +809,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    style it to sit above our modals/sheets and roughly match the app's type. */
 .pac-container {
   z-index: 9999 !important;
-  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif !important;
   border-radius: var(--radius-sm) !important;
   margin-top: 4px !important;
   box-shadow: 0 10px 30px rgba(0,0,0,0.18) !important;
@@ -1109,15 +1102,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    absolutely-positioned icons floating over it at hand-tuned pixel
    offsets — that approach was exactly what drifted out of alignment
    whenever type/spacing changed elsewhere. Flex + gap centers every child
-   on the same baseline for free. Fully pill-shaped per the design
-   handoff ("search bar, pill, grooved/inset shadow"), with the input's
-   own background pulled in a shade so the whole bar reads as one grooved
-   trough your fingertip drops into, not a bordered rectangle. */
+   on the same baseline for free. Fully pill-shaped, flat surface + hairline
+   border (the old handoff's "grooved/inset shadow" search bar has been
+   replaced — the flat system uses borders to read as a boundary, not
+   embossing to read as a trough). */
 .search {
   display: flex; align-items: center; gap: 4px;
   padding: 10px 10px 10px 16px; margin: 16px 16px 0; border-radius: var(--radius-pill);
   background: var(--surface-hover);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,.10), inset 0 0 0 1px var(--border);
+  border: 1px solid var(--border);
 }
 .search-icon-slot { display: grid; place-items: center; width: 20px; height: 20px; font-size: 18px; color: var(--text-3); flex: 0 0 auto; }
 .search input {
@@ -1127,7 +1120,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .search input::placeholder { color: var(--text-3); }
-.search:focus-within { box-shadow: inset 0 1px 3px rgba(0,0,0,.10), 0 0 0 3px var(--accent-soft); }
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .search input:focus { outline: none; }
 .search .clearx {
   flex: 0 0 auto; width: 30px; height: 30px; display: grid; place-items: center;
@@ -1183,9 +1176,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .filter-sheet-actions { display: flex; gap: 10px; margin-top: 8px; }
 .filter-sheet-actions .btn { flex: 1; }
 
-/* Price range slider — "grooved track (inset shadow) with glossy round
-   thumbs" per the design handoff. A native <input type="range"> styled
-   rather than hand-rolled, so keyboard/touch drag behavior comes free. */
+/* Price range slider — flat groove track, flat solid thumb with a thin
+   accent ring (no inset "grooved" shadow, no glossy gradient thumb — that
+   was the old handoff's skeuomorphic slider spec). A native
+   <input type="range"> styled rather than hand-rolled, so keyboard/touch
+   drag behavior comes free. */
 .price-slider {
   -webkit-appearance: none; appearance: none; width: 100%; height: 24px;
   background: transparent; margin: 6px 0 2px; padding: 0;
@@ -1193,24 +1188,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .price-slider::-webkit-slider-runnable-track {
   height: 6px; border-radius: 999px;
   background: var(--surface-hover);
-  box-shadow: inset 0 1px 2px rgba(0,0,0,.18);
 }
 .price-slider::-moz-range-track {
   height: 6px; border-radius: 999px;
   background: var(--surface-hover);
-  box-shadow: inset 0 1px 2px rgba(0,0,0,.18);
 }
 .price-slider::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
   width: 20px; height: 20px; border-radius: 50%; margin-top: -7px;
-  background: linear-gradient(180deg, #fff, #efece7);
-  box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 2px 5px rgba(0,0,0,.18), 0 0 0 3px var(--accent-soft);
+  background: var(--primary);
+  box-shadow: 0 0 0 3px var(--accent-soft);
   cursor: pointer;
 }
 .price-slider::-moz-range-thumb {
   width: 20px; height: 20px; border-radius: 50%; border: none;
-  background: linear-gradient(180deg, #fff, #efece7);
-  box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 2px 5px rgba(0,0,0,.18), 0 0 0 3px var(--accent-soft);
+  background: var(--primary);
+  box-shadow: 0 0 0 3px var(--accent-soft);
   cursor: pointer;
 }
 
@@ -1258,7 +1251,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   width: 44px; height: 44px; border-radius: var(--radius-pill);
   background: rgba(0,0,0,0.35);
   display: grid; place-items: center; font-size: 18px; color: #fff;
-  transition: transform .15s cubic-bezier(.2,.9,.3,1.6), background-color .18s;
+  transition: transform .15s cubic-bezier(.25,1,.5,1), background-color .18s;
 }
 .icon-btn:active { transform: scale(.88); background: rgba(0,0,0,0.5); }
 .icon-btn.on { color: var(--danger); }
@@ -1317,32 +1310,32 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-family: inherit; font-size: 15px; font-weight: 600;
   border-radius: var(--radius-sm); padding: 14px 20px;
   min-height: var(--btn-h);
-  /* Per the design handoff: a vertical gradient (accent → accentDark) with
-     an inset top highlight and a soft drop shadow, not a flat fill — the
-     button should read as a glossy, slightly domed surface. Press state
-     is a small translateY(1px) + shrunk shadow, not the deep 3D "edge"
-     push from the previous pass. */
-  background: linear-gradient(180deg, var(--primary), var(--primary-pressed));
+  /* Flat solid fill, no gradient dome/inset highlight — the old handoff's
+     "glossy, slightly domed surface" was the coral-era skeuomorphic button
+     spec; the primary CTA now reads as one unmistakable solid block of
+     color, matching the flat surface language used everywhere else. Press
+     state is a small translateY(1px) + a slightly quieter shadow. */
+  background: var(--primary);
   color: var(--on-primary);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(0,0,0,.12), 0 6px 16px rgba(0,0,0,.14);
+  box-shadow: var(--shadow-sm);
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
   transform: translateY(0);
 }
 .btn.lg { min-height: var(--btn-h-lg); font-size: 16px; padding: 16px 24px; }
 /* .sm is the compact, repeated-inline-row-action variant (dashboard list
    rows: Confirm/Cancel/Seated/Assign, etc.) — several of these sit side by
-   side in one row, so the full gradient CTA treatment reads as visual
-   clutter at this size and frequency. Flat pill instead. */
+   side in one row, so the full CTA treatment reads as visual clutter at
+   this size and frequency. Flat pill instead. */
 .btn.sm {
   min-height: var(--btn-h-sm); padding: 8px 14px; font-size: 13px; width: auto;
   background: var(--surface-hover); box-shadow: none; color: var(--text);
 }
-.btn.sm:active { transform: none; box-shadow: inset 0 1px 3px rgba(0,0,0,.15); }
+.btn.sm:active { transform: none; box-shadow: none; }
 .btn:hover { filter: brightness(1.04); }
-.btn:active { transform: translateY(1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 1px 1px rgba(0,0,0,.1), 0 2px 6px rgba(0,0,0,.1); }
+.btn:active { transform: translateY(1px); box-shadow: none; }
 .btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; box-shadow: none; transform: translateY(0); }
-.btn.dark { background: linear-gradient(180deg, var(--text), color-mix(in srgb, var(--text) 85%, black)); color: var(--bg); }
-.btn.glass { background: var(--surface-2); color: var(--text); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 1px 2px rgba(0,0,0,.1), 0 4px 10px rgba(0,0,0,.12); }
+.btn.dark { background: var(--text); color: var(--bg); }
+.btn.glass { background: var(--surface-2); color: var(--text); box-shadow: var(--shadow-sm); }
 /* Row-action variants (Seated/Confirm vs No-show vs Cancel) — these used
    to be three identical .btn.glass.sm buttons in a row with nothing to
    tell a completing action from a destructive one apart except the word
@@ -1568,19 +1561,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .tier-opt.soldout { opacity: .5; cursor: not-allowed; }
 .tier-opt.soldout .tier-opt-price { text-decoration: line-through; }
 
-/* Quantity stepper — circular buttons with a subtle gradient per the
-   handoff's skeuomorphic spec (same glossy-thumb language as the theme
-   toggle/price slider), the "+" filled solid on the active tier so it
-   reads as the one live control in the card. */
+/* Quantity stepper — flat circular buttons, no gradient/inset-highlight
+   (the old handoff spec's glossy-thumb language has been replaced by the
+   flat surface system used everywhere else); the "+" gets a solid fill on
+   the active tier so it still reads as the one live control in the card. */
 .qty-stepper { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
 .qty-btn {
   width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
-  background: linear-gradient(180deg, var(--surface-hover), var(--surface-2));
-  box-shadow: 0 1px 2px rgba(0,0,0,.1), inset 0 1px 0 rgba(255,255,255,.05);
+  background: var(--surface-hover); border: 1px solid var(--border);
   color: var(--text); font-size: 15px;
 }
 .qty-btn:disabled { opacity: .4; }
-.qty-btn.accent { background: linear-gradient(180deg, var(--primary), var(--primary-pressed)); color: var(--on-primary); box-shadow: 0 1px 2px rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.25); }
+.qty-btn.accent { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
 .qty-val { font-size: 16px; font-weight: 700; min-width: 18px; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* ---------- Marketing sheet (Feature 2) ---------- */
@@ -1594,7 +1586,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
   font-size: 12px; font-weight: 600; color: var(--accent);
   padding: 5px 10px; border-radius: var(--radius-pill); background: var(--accent-soft);
-  transition: transform .15s cubic-bezier(.2,.9,.3,1.6), opacity .12s;
+  transition: transform .15s cubic-bezier(.25,1,.5,1), opacity .12s;
 }
 .copy-btn:active { transform: scale(.92); opacity: .85; }
 .copy-btn:disabled { opacity: .55; cursor: default; }
@@ -1623,7 +1615,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--glass-strong); box-shadow: var(--shadow-sm);
   color: var(--text); font-size: 12px; font-weight: 600;
   border: none; cursor: pointer; font-family: inherit;
-  transition: transform .15s cubic-bezier(.2,.9,.3,1.6), box-shadow .15s;
+  transition: transform .15s cubic-bezier(.25,1,.5,1), box-shadow .15s;
 }
 .quick-action:active { transform: scale(.95); }
 .quick-action [class^="icon-"] { font-size: 20px; color: var(--accent); }
@@ -1794,7 +1786,7 @@ body,
 
 /* press feedback across all the app's interactive buttons, not just .btn */
 .icon-btn, .copy-btn, .tab, .clearx, .rm, .tier-del, .dash-actions button {
-  transition: transform .16s cubic-bezier(.2,.9,.3,1.6), opacity .12s, background-color .2s, color .2s;
+  transition: transform .16s cubic-bezier(.25,1,.5,1), opacity .12s, background-color .2s, color .2s;
 }
 .icon-btn:active, .copy-btn:active, .tab:active, .clearx:active, .rm:active, .tier-del:active, .dash-actions button:active {
   transform: scale(.92);
@@ -1806,14 +1798,14 @@ body,
   40% { transform: scale(1.45) rotate(-8deg); }
   100% { transform: scale(1); }
 }
-.icon-btn.on [class^="icon-"], .btn.sq .icon-heart { animation: heart-pop .4s cubic-bezier(.2,.9,.3,1.4); }
+.icon-btn.on [class^="icon-"], .btn.sq .icon-heart { animation: heart-pop .4s cubic-bezier(.25,1,.5,1); }
 
 /* springy presses — .btn uses a fast translateY press (the 3D push-button
    effect defined above), NOT a scale, so keep its transition snappy on
    transform + box-shadow and don't re-declare a scale :active here. */
 .btn { transition: transform .09s ease, box-shadow .09s ease, filter .15s ease, background-color .35s; }
 .chip:active, .ticketing-opt:active, .theme-toggle:active, .segment button:active { transform: scale(.94); }
-.chip, .ticketing-opt, .segment button { transition: transform .2s cubic-bezier(.2,.9,.3,1.4), background-color .2s, color .2s, border-color .2s; }
+.chip, .ticketing-opt, .segment button { transition: transform .2s cubic-bezier(.25,1,.5,1), background-color .2s, color .2s, border-color .2s; }
 
 /* toast slides up */
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
@@ -1860,7 +1852,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @media (min-width: 900px) {
   :root {
     --maxw: 1080px;
-    --t-hero: 800 40px/1.1 "Plus Jakarta Sans", sans-serif;
+    --t-hero: 800 40px/1.1 -apple-system, sans-serif;
   }
 
   .shell {
@@ -2282,7 +2274,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   width: 76px; height: 76px; margin: 0 auto 20px; border-radius: 50%;
   display: grid; place-items: center; font-size: 34px; color: var(--success);
   background: var(--success-soft); border: 1px solid var(--success-soft);
-  animation: hv-check-in .5s cubic-bezier(.2,.9,.3,1.4) both;
+  animation: hv-check-in .5s cubic-bezier(.25,1,.5,1) both;
 }
 @keyframes hv-check-in { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) {

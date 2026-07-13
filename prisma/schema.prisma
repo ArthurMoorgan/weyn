@@ -55,6 +55,7 @@ model User {
   vendors         Vendor[]
   automationRules AutomationRule[]
   workflows       Workflow[]
+  eventWorkflows  EventWorkflow[]
   goals           OrganizerGoal[]
   messageTemplates MessageTemplate[]
   teamMemberships EventTeamMember[] @relation("TeamMembership")
@@ -275,6 +276,7 @@ model Event {
   vendors           Vendor[]
   feedback          EventFeedback[]
   automationRules   AutomationRule[]
+  eventWorkflows    EventWorkflow[]
   floorPlan         FloorPlan?
 
   @@index([organizer])
@@ -464,6 +466,12 @@ model Payment {
   id             String        @id @default(cuid())
   bookingId      String        @unique
   paytabsTranRef String?       @unique
+  // Pre-existing column on the live DB (added by a migration that never made
+  // it into this repo's migrations/ directory — discovered as drift while
+  // adding EventWorkflow/EventWorkflowRun below; documenting it here rather
+  // than dropping it is the non-destructive fix, not something new this pass
+  // introduces).
+  stripeSessionId String?      @unique
   amount         Float
   status         PaymentStatus @default(pending)
   rawWebhook     Json?
@@ -555,13 +563,16 @@ model WebPushSubscription {
 }
 
 model MarketingAsset {
-  eventId     String   @id
-  instagram   String
-  whatsapp    String
-  telegram    String
-  twitter     String
-  generatedAt DateTime @default(now())
-  aiGenerated Boolean  @default(false)
+  eventId           String   @id
+  instagram         String
+  whatsapp          String
+  telegram          String
+  twitter           String
+  instagramStory    String?
+  whatsappBroadcast String?
+  schedule          Json?
+  generatedAt       DateTime @default(now())
+  aiGenerated       Boolean  @default(false)
 }
 
 // ---- Reservations (tables/spots at restaurants, cafes, lounges, rooftops,
@@ -984,6 +995,10 @@ model WaitlistEntry {
   deviceId   String?
   createdAt  DateTime  @default(now())
   notifiedAt DateTime?
+  // Higher = notified first when capacity frees up. Written by the
+  // "add_to_waitlist_priority" Event Workflows action (server/event-workflows.js) —
+  // plain manual joins always default to 0.
+  priority   Int       @default(0)
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
@@ -1311,6 +1326,50 @@ model WorkflowRun {
   createdAt       DateTime @default(now())
 
   workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+}
+
+// ============================================================
+// Event Workflows — the organizer-dashboard equivalent of Workflow/
+// WorkflowRun above, for full parity with the venue side. Deliberately a
+// PARALLEL model, not a polymorphic reuse of Workflow: Workflow.venueId is
+// required with live prod rows, and the two domains (reservations/guests vs.
+// tickets/tiers/promo codes) share almost no vocabulary — see
+// server/event-workflows.js for the trigger/condition/action catalog and
+// execution shape (same DFS walk/prune/chain as server/venue-workflows.js).
+// ============================================================
+model EventWorkflow {
+  id          String   @id @default(cuid())
+  organizerId String
+  eventId     String
+  name        String
+  enabled     Boolean  @default(true)
+  // Node shape: {id, type: "trigger"|"condition"|"action", x, y, data: {...}}
+  nodes       Json
+  // Edge shape: {id, source, target}
+  edges       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizer User               @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  event     Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  runs      EventWorkflowRun[]
+
+  @@index([organizerId])
+  @@index([eventId])
+}
+
+model EventWorkflowRun {
+  id             String   @id @default(cuid())
+  workflowId     String
+  trigger        String
+  bookingId      String?
+  matchedActions Json // array of {nodeId, action, ok, error?}
+  status         String // "success" | "partial" | "failed"
+  createdAt      DateTime @default(now())
+
+  workflow EventWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
   @@index([workflowId])
 }

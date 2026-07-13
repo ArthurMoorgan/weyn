@@ -23,7 +23,7 @@ import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured, imageGe
 import { AGENT_TOOLS, buildToolExecutor, toolByName } from "./agent-tools.js";
 import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
 import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, requireEventAccessOrPermission, authConfigured } from "./auth.js";
-import { createEventSchema, updateEventSchema, validateBody } from "./validators.js";
+import { createEventSchema, updateEventSchema, eventWorkflowSchema, validateBody } from "./validators.js";
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature } from "./features.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
@@ -31,6 +31,7 @@ import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, 
 import { runModerationPipeline } from "./moderation.js";
 import { resolveVenueSegment } from "./venue-marketing.js";
 import { runVenueWorkflows, validateWorkflowGraph } from "./venue-workflows.js";
+import { runEventWorkflows, validateEventWorkflowGraph, redeemPromoCode } from "./event-workflows.js";
 
 // Module-scope (not inside createApp): runCampaignScan/runAutomationScan
 // below are top-level exports, called from a cron/interval outside any
@@ -70,7 +71,7 @@ function publicOrigin(req) {
 // subscription never blocks the others. Used wherever a server-side event
 // (e.g. venue approval) needs to reach a *person* rather than the one
 // deviceId a specific booking happened to be made from.
-async function notifyUser(userId, { title, body, data, url } = {}) {
+export async function notifyUser(userId, { title, body, data, url } = {}) {
   if (!userId) return { sent: 0 };
   let sent = 0;
   const [webSubs, nativeTokens] = await Promise.all([
@@ -225,6 +226,35 @@ export async function autoAssignTable(reservation) {
 // Automation Builder — only the "capacity_threshold" trigger is real today
 // (see db.dueCapacityThresholdRules's comment); notifies the organizer by
 // email/push once, then marks the rule run so it doesn't refire every scan.
+// The actual immediate bulk-send behind POST /api/events/:id/notify —
+// extracted to module scope so server/event-workflows.js's "send_campaign"
+// action can reuse the exact same fan-out instead of reimplementing it.
+export async function sendEventNotificationNow(event, { subject, message, actorId }) {
+  const bookings = await prisma.booking.findMany({ where: { eventId: event.id, status: "paid" }, select: { email: true, deviceId: true } });
+  let emailed = 0;
+  const safeSubject = escapeHtml(subject);
+  const safeMessage = escapeHtml(message);
+  const safeTitle = escapeHtml(event.title);
+  await Promise.all(bookings.filter((b) => b.email).map((b) =>
+    sendEmail({
+      to: b.email,
+      subject: `${event.title}: ${subject}`,
+      html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${safeSubject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${safeMessage}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you have a ticket to ${safeTitle}.</p></div>`,
+    }).then(() => emailed++).catch((err) => captureError(err, { route: "sendEventNotificationNow", eventId: event.id }))
+  ));
+  const deviceIds = [...new Set(bookings.filter((b) => b.deviceId).map((b) => b.deviceId))];
+  let pushed = 0;
+  await Promise.all(deviceIds.map(async (deviceId) => {
+    const token = await db.tokenForDevice(deviceId);
+    if (!token) return;
+    const result = await sendPush(token, { title: event.title, body: subject });
+    if (result.sent) pushed++;
+  }));
+  await db.audit("event.notify", { actorId: actorId || null, entityType: "event", entityId: event.id, metadata: { subject, emailed, pushed } });
+  await db.createCampaign({ organizerId: actorId || event.ownerId, eventId: event.id, subject, message, scheduledFor: null });
+  return { recipients: bookings.length, emailed, pushed };
+}
+
 export async function runAutomationScan() {
   const due = await db.dueCapacityThresholdRules();
   for (const rule of due) {
@@ -748,6 +778,7 @@ export function createApp(storage) {
     }
     const updated = await db.update(req.event.id, { isDraft: false, discoveryStatus: moderation.discoveryStatus, draftData: null });
     await db.recordModeration(updated.id, moderation.moderationResult);
+    runEventWorkflows("event_published", { eventId: updated.id }).catch(() => {});
     trackEvent(req.user.id, "event_publish", { eventId: updated.id });
     res.json(updated);
   });
@@ -934,6 +965,7 @@ export function createApp(storage) {
     }
 
     let bookedTier = null;
+    let remainingAfterClaim = null;
     const tierId = req.body?.tierId || null;
     if (Array.isArray(e.tiers) && e.tiers.length) {
       const tier = e.tiers.find((t) => t.id === tierId);
@@ -947,12 +979,14 @@ export function createApp(storage) {
       }
       await prisma.event.update({ where: { id: e.id }, data: { sold: { increment: qty } } });
       bookedTier = tier.name;
+      remainingAfterClaim = claimed.capacity - claimed.sold;
     } else {
       const claimed = await db.claimEventCapacity(e.id, qty);
       if (!claimed) {
         if (seatIds) await prisma.floorSeat.updateMany({ where: { id: { in: seatIds } }, data: { status: "available" } });
         return res.status(409).json({ error: "Not enough tickets left" });
       }
+      remainingAfterClaim = claimed.capacity - claimed.sold;
     }
 
     const deviceId = req.body?.deviceId;
@@ -963,6 +997,16 @@ export function createApp(storage) {
       await prisma.ticket.createMany({ data: seatIds.map((seatId) => ({ bookingId: booking.id, eventId: e.id, seatId })) });
     } else {
       await db.issueTickets(booking.id, e.id, qty);
+    }
+    {
+      const wfCtx = { eventId: e.id, bookingId: booking.id, tierId, tierName: bookedTier, email: account?.email || null, qty, quantityRemaining: remainingAfterClaim };
+      runEventWorkflows("ticket_sold", wfCtx).catch(() => {});
+      runEventWorkflows("low_inventory", wfCtx).catch(() => {});
+      if (req.body?.promoCode) {
+        redeemPromoCode(e.id, req.body.promoCode)
+          .then((promo) => { if (promo) runEventWorkflows("promo_code_used", { ...wfCtx, promoCode: promo.code }).catch(() => {}); })
+          .catch(() => {});
+      }
     }
     if (deviceId) {
       const token = await db.tokenForDevice(deviceId);
@@ -1025,6 +1069,11 @@ export function createApp(storage) {
       await prisma.payment.create({
         data: { bookingId: booking.id, paytabsTranRef: tranRef, amount: price * qty },
       });
+      if (req.body?.promoCode) {
+        redeemPromoCode(e.id, req.body.promoCode)
+          .then((promo) => { if (promo) runEventWorkflows("promo_code_used", { eventId: e.id, bookingId: booking.id, tierId, email: account?.email || null, qty, promoCode: promo.code }).catch(() => {}); })
+          .catch(() => {});
+      }
       trackEvent(req.user?.id || deviceId, "checkout_started", { eventId: e.id, qty, tierId, amount: price * qty });
       res.json({ checkoutUrl, bookingId: booking.id, accessToken: booking.accessToken });
     } catch (err) {
@@ -1061,6 +1110,11 @@ export function createApp(storage) {
     const account = { email: req.body.email, name: req.body.name };
     const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body) });
     await prisma.payment.create({ data: { bookingId: booking.id, amount: price * qty, status: "pending" } });
+    if (req.body?.promoCode) {
+      redeemPromoCode(e.id, req.body.promoCode)
+        .then((promo) => { if (promo) runEventWorkflows("promo_code_used", { eventId: e.id, bookingId: booking.id, tierId, email: account.email, qty, promoCode: promo.code }).catch(() => {}); })
+        .catch(() => {});
+    }
     trackEvent(req.user?.id || deviceId, "organizer_checkout_started", { eventId: e.id, qty, tierId, amount: price * qty });
 
     const redirectUrl = e.paymentLinkUrl
@@ -1149,6 +1203,12 @@ export function createApp(storage) {
     await prisma.booking.update({ where: { id: booking.id }, data: { status: "paid" } });
     if (booking.payment) await prisma.payment.update({ where: { id: booking.payment.id }, data: { status: "paid" } });
     await db.issueTickets(booking.id, booking.eventId, booking.qty);
+    {
+      const remaining = claimed.capacity - claimed.sold;
+      const wfCtx = { eventId: booking.eventId, bookingId: booking.id, tierId: booking.tierId, email: booking.email, qty: booking.qty, quantityRemaining: remaining };
+      runEventWorkflows("ticket_sold", wfCtx).catch(() => {});
+      runEventWorkflows("low_inventory", wfCtx).catch(() => {});
+    }
     await db.audit("booking.organizer_payment.confirm", { actorId: req.user.id, entityType: "booking", entityId: booking.id, metadata: { eventId: booking.eventId } });
     trackEvent(req.user.id, "organizer_checkout_completed", { eventId: booking.eventId, qty: booking.qty });
 
@@ -1434,6 +1494,12 @@ export function createApp(storage) {
 
     await prisma.booking.update({ where: { id: booking.id }, data: { status: "paid" } });
     await db.issueTickets(booking.id, booking.eventId, booking.qty);
+    {
+      const remaining = claimed.capacity - claimed.sold;
+      const wfCtx = { eventId: booking.eventId, bookingId: booking.id, tierId: booking.tierId, email: booking.email, qty: booking.qty, quantityRemaining: remaining };
+      runEventWorkflows("ticket_sold", wfCtx).catch(() => {});
+      runEventWorkflows("low_inventory", wfCtx).catch(() => {});
+    }
     trackEvent(booking.deviceId || "unknown", "checkout_completed", { eventId: booking.eventId, qty: booking.qty });
 
     const e = await db.get(booking.eventId);
@@ -1715,6 +1781,7 @@ export function createApp(storage) {
       const entry = await prisma.waitlistEntry.create({
         data: { eventId: e.id, email, name: req.body?.name ? String(req.body.name).trim() : null, deviceId: req.body?.deviceId || null },
       });
+      runEventWorkflows("waitlist_joined", { eventId: e.id, email }).catch(() => {});
       res.status(201).json({ id: entry.id });
     } catch (err) {
       if (err.code === "P2002") return res.status(409).json({ error: { code: "DUPLICATE", message: "You're already on the waitlist for this event" } });
@@ -1736,29 +1803,8 @@ export function createApp(storage) {
       const campaign = await db.createCampaign({ organizerId: req.user.id, eventId: req.event.id, subject, message, scheduledFor });
       return res.status(201).json({ ok: true, scheduled: true, campaign });
     }
-    const bookings = await prisma.booking.findMany({ where: { eventId: req.event.id, status: "paid" }, select: { email: true, deviceId: true } });
-    let emailed = 0;
-    const safeSubject = escapeHtml(subject);
-    const safeMessage = escapeHtml(message);
-    const safeTitle = escapeHtml(req.event.title);
-    await Promise.all(bookings.filter((b) => b.email).map((b) =>
-      sendEmail({
-        to: b.email,
-        subject: `${req.event.title}: ${subject}`,
-        html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${safeSubject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${safeMessage}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you have a ticket to ${safeTitle}.</p></div>`,
-      }).then(() => emailed++).catch((err) => captureError(err, { route: "POST /api/events/:id/notify", eventId: req.event.id }))
-    ));
-    const deviceIds = [...new Set(bookings.filter((b) => b.deviceId).map((b) => b.deviceId))];
-    let pushed = 0;
-    await Promise.all(deviceIds.map(async (deviceId) => {
-      const token = await db.tokenForDevice(deviceId);
-      if (!token) return;
-      const result = await sendPush(token, { title: req.event.title, body: subject });
-      if (result.sent) pushed++;
-    }));
-    await db.audit("event.notify", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { subject, emailed, pushed } });
-    await db.createCampaign({ organizerId: req.user.id, eventId: req.event.id, subject, message, scheduledFor: null });
-    res.json({ ok: true, recipients: bookings.length, emailed, pushed });
+    const { recipients, emailed, pushed } = await sendEventNotificationNow(req.event, { subject, message, actorId: req.user.id });
+    res.json({ ok: true, recipients, emailed, pushed });
   });
   app.get("/api/events/:id/campaigns", requireEventOwner(), requireFeature("bulkNotifications"), async (req, res) => {
     res.json(await db.listCampaigns(req.event.id));
@@ -1767,6 +1813,76 @@ export function createApp(storage) {
     const cancelled = await db.cancelCampaign(req.params.campaignId, req.user.id);
     if (!cancelled) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Nothing to cancel — it may already have sent." } });
     res.json(cancelled);
+  });
+
+  // ---- Event Workflows: the organizer-dashboard node-graph automation
+  // builder, full parity with the venue side's /api/venues/:id/workflows...
+  // (server/venue-workflows.js) but against the event/ticketing catalog in
+  // server/event-workflows.js. Executed immediately at the trigger, not
+  // polled — see that file's header comment. Cross-event listing lives at
+  // GET /api/organizer/workflows (mirrors GET /api/organizer/automations'
+  // optional eventId filter) for the Workflows tab's list view; per-event
+  // CRUD below backs the graph editor. ----
+  app.get("/api/organizer/workflows", requireAuth, requireFeature("eventWorkflows"), async (req, res) => {
+    res.json(await prisma.eventWorkflow.findMany({
+      where: { organizerId: req.user.id, ...(req.query.eventId ? { eventId: req.query.eventId } : {}) },
+      orderBy: { createdAt: "desc" },
+    }));
+  });
+
+  app.get("/api/events/:id/workflows", requireEventOwner(), requireFeature("eventWorkflows"), async (req, res) => {
+    res.json(await prisma.eventWorkflow.findMany({ where: { eventId: req.event.id }, orderBy: { createdAt: "desc" } }));
+  });
+
+  app.post("/api/events/:id/workflows", requireEventOwner(), requireFeature("eventWorkflows"), validateBody(eventWorkflowSchema), async (req, res) => {
+    try {
+      const { name, nodes, edges } = req.body;
+      const invalid = validateEventWorkflowGraph(nodes, edges);
+      if (invalid) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: invalid } });
+      const workflow = await prisma.eventWorkflow.create({ data: { organizerId: req.user.id, eventId: req.event.id, name, nodes, edges } });
+      res.status(201).json(workflow);
+    } catch (err) {
+      captureError(err, { route: "POST /api/events/:id/workflows", eventId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put("/api/events/:id/workflows/:workflowId", requireEventOwner(), requireFeature("eventWorkflows"), async (req, res) => {
+    try {
+      const existing = await prisma.eventWorkflow.findUnique({ where: { id: req.params.workflowId } });
+      if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+      const name = req.body?.name !== undefined ? String(req.body.name).trim() : existing.name;
+      const nodes = req.body?.nodes ?? existing.nodes;
+      const edges = req.body?.edges ?? existing.edges;
+      const invalid = validateEventWorkflowGraph(nodes, edges);
+      if (invalid) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: invalid } });
+      const updated = await prisma.eventWorkflow.update({ where: { id: existing.id }, data: { name, nodes, edges } });
+      res.json(updated);
+    } catch (err) {
+      captureError(err, { route: "PUT /api/events/:id/workflows/:workflowId", eventId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch("/api/events/:id/workflows/:workflowId", requireEventOwner(), requireFeature("eventWorkflows"), async (req, res) => {
+    const existing = await prisma.eventWorkflow.findUnique({ where: { id: req.params.workflowId } });
+    if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+    const updated = await prisma.eventWorkflow.update({ where: { id: existing.id }, data: { enabled: !!req.body?.enabled } });
+    res.json(updated);
+  });
+
+  app.delete("/api/events/:id/workflows/:workflowId", requireEventOwner(), requireFeature("eventWorkflows"), async (req, res) => {
+    const existing = await prisma.eventWorkflow.findUnique({ where: { id: req.params.workflowId } });
+    if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+    await prisma.eventWorkflow.delete({ where: { id: existing.id } });
+    res.json({ ok: true });
+  });
+
+  app.get("/api/events/:id/workflows/:workflowId/runs", requireEventOwner(), requireFeature("eventWorkflows"), async (req, res) => {
+    const existing = await prisma.eventWorkflow.findUnique({ where: { id: req.params.workflowId } });
+    if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
+    const runs = await prisma.eventWorkflowRun.findMany({ where: { workflowId: existing.id }, orderBy: { createdAt: "desc" }, take: 50 });
+    res.json(runs);
   });
 
   // ---- Team management: recurring events (lightweight — creates N future

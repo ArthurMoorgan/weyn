@@ -21,6 +21,10 @@ export const FEATURES = [
   "customOrganizerThemes", "customEventThemes", "customUrls", "customBranding", "reducedWeynBranding",
   // AI Studio (Gemini-powered — see server/ai.js)
   "aiStudio",
+  // Event Workflows (node-graph automation builder, organizer-dashboard
+  // parity with the venue side's Workflow/WorkflowRun) — see
+  // server/event-workflows.js.
+  "eventWorkflows",
 ];
 const FEATURE_SET = new Set(FEATURES);
 

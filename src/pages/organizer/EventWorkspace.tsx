@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, NavLink, useParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import QRCode from "qrcode";
-import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor, type FloorTable, type FloorTableInput } from "../../api";
+import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor, type FloorTable, type FloorTableInput, type MarketingScheduleItem } from "../../api";
 import { useAsync } from "../../hooks";
 import { getAuthToken } from "../../store";
 import FeatureLock from "../../components/FeatureLock";
@@ -579,10 +579,12 @@ function MarketingTab({ event, features }: { event: Weyn; features: Record<strin
 
   const channels = data ? [
     { key: "instagram", label: "Instagram caption", icon: "camera", text: data.instagram },
+    { key: "instagramStory", label: "Instagram / WhatsApp Story", icon: "camera", text: data.instagramStory },
     { key: "whatsapp", label: "WhatsApp message", icon: "message-circle", text: data.whatsapp },
+    { key: "whatsappBroadcast", label: "WhatsApp broadcast list", icon: "message-circle", text: data.whatsappBroadcast },
     { key: "telegram", label: "Telegram post", icon: "send", text: data.telegram },
     { key: "twitter", label: "X / Twitter post", icon: "at-sign", text: data.twitter },
-  ] : [];
+  ].filter((c) => c.text) : [];
 
   return (
     <>
@@ -604,6 +606,13 @@ function MarketingTab({ event, features }: { event: Weyn; features: Record<strin
         <i className="icon-refresh-cw" /> {regenerating ? "Regenerating…" : "Regenerate"}
       </button>
 
+      {!!data?.schedule?.length && (
+        <>
+          <p className="section-label">Posting schedule</p>
+          <PostingScheduleSection schedule={data.schedule} copy={copy} copiedKey={copiedKey} />
+        </>
+      )}
+
       <p className="section-label">Promo codes</p>
       <PromoCodesSection event={event} enabled={!!features.promoCodes} />
 
@@ -611,6 +620,34 @@ function MarketingTab({ event, features }: { event: Weyn; features: Record<strin
       <WaitlistSection event={event} enabled={!!features.waitlists} />
 
       <MoreEventTools event={event} />
+    </>
+  );
+}
+
+// One card per countdown stage — organizer copies each post and schedules it
+// themselves (Instagram/WhatsApp native scheduling or just a phone reminder).
+// Deliberately not auto-posted: same "AI drafts, human publishes" rule as the
+// rest of this tab.
+function PostingScheduleSection({ schedule, copy, copiedKey }: { schedule: MarketingScheduleItem[]; copy: (key: string, text: string) => void; copiedKey: string | null }) {
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 12px" }}>Four posts timed to build urgency — copy each one and post it (or schedule it) on the date shown.</p>
+      {schedule.map((s) => {
+        const key = `schedule-${s.stage}`;
+        const date = s.date ? new Date(s.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Muscat" }) : null;
+        return (
+          <div key={s.stage} className="marketing-card">
+            <div className="marketing-card-head">
+              <i className="icon-calendar" /> <b>{s.label}</b>
+              {date && <span className="hint" style={{ marginLeft: 6 }}>{date}</span>}
+              <button className="copy-btn" onClick={() => copy(key, s.text)}>
+                <i className={copiedKey === key ? "icon-check" : "icon-copy"} /> {copiedKey === key ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <pre className="marketing-text">{s.text}</pre>
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -764,6 +801,9 @@ function AutomationSection({ event }: { event: Weyn }) {
 
   return (
     <>
+      <p className="hint" style={{ margin: "0 0 10px", color: "var(--text-3)" }}>
+        Legacy — see the new <Link to="/organizer/workflows">Workflows</Link> tab for real trigger→condition→action automations (ticket sales, low inventory, waitlists, promo codes) across every event you run.
+      </p>
       <p className="hint" style={{ margin: "0 0 10px" }}>Get notified automatically when this event crosses a capacity threshold — fires once.</p>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Rule name, e.g. Almost sold out" style={{ flex: 2 }} />
@@ -1190,7 +1230,7 @@ function SettingsTab({ event, features, reload }: { event: Weyn; features: Recor
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(event.paymentLinkUrl || "");
   const [transferDetails, setTransferDetails] = useState(event.transferDetails || "");
   const [reminderSchedule, setReminderSchedule] = useState<number[]>(event.reminderSchedule || []);
-  const [accentColor, setAccentColor] = useState(event.accentColor || "#E1483D");
+  const [accentColor, setAccentColor] = useState(event.accentColor || "#7C3AED");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [saved, setSaved] = useState(false);

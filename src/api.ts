@@ -100,6 +100,35 @@ export interface WorkflowRun {
   createdAt: string;
 }
 
+// ---- event workflows: organizer-dashboard node-graph automation builder —
+// full parity with venue workflows above, against the event/ticketing
+// catalog (server/event-workflows.js) instead of reservations/guests. ----
+export type EventWorkflowTrigger = "ticket_sold" | "low_inventory" | "event_published" | "waitlist_joined" | "promo_code_used";
+export type EventConditionField = "ticketTier" | "quantityRemaining" | "attendeeEmailDomain";
+export type EventWorkflowAction = "notify_team" | "send_campaign" | "apply_promo_code" | "add_to_waitlist_priority";
+
+export interface EventWorkflow {
+  id: string;
+  organizerId: string;
+  eventId: string;
+  name: string;
+  enabled: boolean;
+  nodes: WFNode[];
+  edges: WFEdge[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EventWorkflowRun {
+  id: string;
+  workflowId: string;
+  trigger: string;
+  bookingId: string | null;
+  matchedActions: { nodeId: string; action: string; ok: boolean; error?: string }[];
+  status: "success" | "partial" | "failed";
+  createdAt: string;
+}
+
 export interface Weyn {
   id: string;
   title: string;
@@ -233,11 +262,21 @@ export interface WaitlistSignup {
   createdAt: string;
 }
 
+export interface MarketingScheduleItem {
+  stage: "T-7" | "T-3" | "T-1" | "Day-of";
+  label: string;
+  text: string;
+  date: string | null;
+}
+
 export interface MarketingCopy {
   instagram: string;
+  instagramStory: string;
   whatsapp: string;
+  whatsappBroadcast: string;
   telegram: string;
   twitter: string;
+  schedule: MarketingScheduleItem[];
   generatedAt: string;
   aiGenerated: boolean;
 }
@@ -1529,6 +1568,35 @@ export const api = {
   },
   async venueWorkflowRuns(venueId: string, workflowId: string): Promise<WorkflowRun[]> {
     return fetch(`${API_BASE}/api/venues/${venueId}/workflows/${workflowId}/runs`, { headers: await authHeaders() }).then((r) => json<WorkflowRun[]>(r));
+  },
+
+  // ---- event workflows: the organizer-dashboard node-graph automation builder ----
+  async organizerWorkflows(eventId?: string): Promise<EventWorkflow[]> {
+    return fetch(`${API_BASE}/api/organizer/workflows${eventId ? `?eventId=${eventId}` : ""}`, { headers: await authHeaders() }).then((r) => json<EventWorkflow[]>(r));
+  },
+  async eventWorkflows(eventId: string): Promise<EventWorkflow[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/workflows`, { headers: await authHeaders() }).then((r) => json<EventWorkflow[]>(r));
+  },
+  async createEventWorkflow(eventId: string, input: { name: string; nodes: WFNode[]; edges: WFEdge[] }): Promise<EventWorkflow> {
+    return fetch(`${API_BASE}/api/events/${eventId}/workflows`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json<EventWorkflow>(r));
+  },
+  async saveEventWorkflow(eventId: string, workflowId: string, input: { name?: string; nodes?: WFNode[]; edges?: WFEdge[] }): Promise<EventWorkflow> {
+    return fetch(`${API_BASE}/api/events/${eventId}/workflows/${workflowId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json<EventWorkflow>(r));
+  },
+  async setEventWorkflowEnabled(eventId: string, workflowId: string, enabled: boolean): Promise<EventWorkflow> {
+    return fetch(`${API_BASE}/api/events/${eventId}/workflows/${workflowId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ enabled }),
+    }).then((r) => json<EventWorkflow>(r));
+  },
+  async deleteEventWorkflow(eventId: string, workflowId: string): Promise<{ ok: true }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/workflows/${workflowId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json<{ ok: true }>(r));
+  },
+  async eventWorkflowRuns(eventId: string, workflowId: string): Promise<EventWorkflowRun[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/workflows/${workflowId}/runs`, { headers: await authHeaders() }).then((r) => json<EventWorkflowRun[]>(r));
   },
 
   // ---- floor plans: venue side (table/seat picking) ----

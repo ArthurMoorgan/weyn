@@ -311,7 +311,7 @@ export default function HostVenue() {
         </div>
         <style>{`
           @media (prefers-reduced-motion: no-preference) {
-            .hostvenue-success-mark { animation: hostvenue-pop .4s cubic-bezier(.2,.9,.3,1.6); }
+            .hostvenue-success-mark { animation: hostvenue-pop .4s cubic-bezier(.25,1,.5,1); }
           }
           @keyframes hostvenue-pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         `}</style>

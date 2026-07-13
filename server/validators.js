@@ -62,6 +62,18 @@ export const updateEventSchema = z.object({
   accentColor: z.string().trim().max(7).nullable().optional(),
 });
 
+// Event Workflows (organizer dashboard's node-graph automation builder) —
+// this layer only checks the request is shaped right (name is a string,
+// nodes/edges are arrays); the actual graph-semantics check (exactly one
+// trigger, valid trigger/condition/action keys, edges reference real node
+// ids) is validateEventWorkflowGraph in server/event-workflows.js, same
+// split as the venue side's workflow routes.
+export const eventWorkflowSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120),
+  nodes: z.array(z.record(z.string(), z.any())),
+  edges: z.array(z.record(z.string(), z.any())),
+});
+
 // Express middleware factory: validates `req.body` against `schema`, replaces
 // it with the parsed (coerced/defaulted) result, or 400s with field-level errors.
 export function validateBody(schema) {

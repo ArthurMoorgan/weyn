@@ -1,5 +1,15 @@
 # Weyn — Handoff / Continuation Guide
-*Last updated: 2026-07-08.*
+*Last updated: 2026-07-12 (see §19-§25 for everything since 2026-07-08 — a
+multi-pass redesign saga that landed on coral/Plus Jakarta Sans, VenueOS
+promoted to its own dashboard with a node-graph workflow builder, agentic AI
+Phase 1 ("AI Studio"), several critical bug fixes, a landing-page rebuild,
+in-progress uncommitted work on a marketing "social kit," and an Events-side
+workflow builder that's now feature-complete-but-uncommitted (§24.2) with its
+sibling Venue-side UX upgrade still unstarted (§25). §1-§18 below are
+unchanged from the 2026-07-08 pass and still accurate except where a §19-§25
+note says otherwise — read those sections' cross-references before trusting
+a color/palette/IA claim in the older text, since there were several reverts
+in between.*
 
 Read this whole file before touching anything. Large parts of the previous
 version of this doc (dated 2026-07-05) were stale — Google Sign-In was fully
@@ -983,3 +993,487 @@ backend) already happened in §4.
    preview tool and Chrome extension have not worked in this environment
    across multiple sessions; don't keep retrying them, just use
    Playwright.
+
+---
+
+# Everything since 2026-07-08 (73 commits, plus uncommitted work in progress)
+
+This section was written 2026-07-12 by a fresh session reconstructing 73
+commits (`git log --oneline --since="2026-07-08"`) plus the working tree's
+current uncommitted diff. §1-§18 above are the 2026-07-08 baseline and are
+still mostly accurate; where this section says a claim above is now wrong
+(mainly the color-palette description implicit in file paths/component names
+from that era), trust this section.
+
+A separate, narrower handoff file, `CLAUDE_LIMIT_HANDOFF.md`, was created
+2026-07-12 specifically to survive a Claude session-limit cutoff mid-way
+through the design-reference implementation (§21 below). It's a
+contingency doc, not a second source of truth — this section folds in
+everything from it that's still relevant. It's safe to leave in the repo
+(harmless if stale) or delete once §21 is fully wrapped up; don't delete the
+open checklist items in it without carrying them forward here first.
+
+## 19. The redesign saga — what actually shipped vs. what got reverted
+
+Between 2026-07-08 and 2026-07-12 there were, by commit-subject count, at
+least five distinct full-app visual redesign passes, several of which were
+reverted same-day (sometimes reverted, then that revert itself reverted).
+**Do not replay this whole history in code or in your head — here is only
+where it landed, plus the one or two lessons worth keeping.**
+
+**Sequence, compressed:**
+1. Indigo/violet brand color (pre-existing, per §1-§18) → replaced with
+   "warm terracotta/sand" (`d630e8f`).
+2. Navigation IA reworked (Tickets tab replaces Host, Profile slimmed —
+   `cd79c6e`), then an "Airbnb-inspired system" pass introduced a "real
+   coral brand color" (`1be1741`), then a second redesign pass (flat tab
+   bar, Discover events/venues toggle, 3D buttons — `8206e57`).
+3. A full palette swing away from coral into an amber/khanjar-terracotta
+   "Muscat-grounded" system (night/limestone/amber — `67947b0`), tuned
+   twice more (`7320774` desaturate amber/drop serif hero, `f0e0b79` reduce
+   amber overuse), then **explicitly dropped entirely** back to
+   terracotta-as-primary (`7eb2a4f`, "Drop amber/yellow entirely — khanjar
+   terracotta as primary").
+4. Separately, the whole-app "colour and life" pass (bottom bar, chips,
+   cards, More hub — `95a68ce`) went through four
+   revert/revert-the-revert/revert-that-too cycles in immediate succession
+   (`04c0d28` → `bbe79dd` → `11a659c` → `9b60421` → `086dd4a`) before a
+   final pass (`01393e4`, "Analyze competitor app, revert multi-hue colour,
+   redesign bottom bar") settled it back down to a restrained palette.
+5. **Where it actually landed**: a design-reference package the user
+   supplied 2026-07-12 (`design_handoff_ticketing_app` — see §21)
+   specified, independently of all the above churn, almost exactly the
+   same coral the "Airbnb-inspired" pass had tried back in step 2:
+   `#E1483D` light / `#FF6B5B` dark. The user's own explicit direction at
+   that point (recorded in `CLAUDE_LIMIT_HANDOFF.md`) was "move away from
+   the amber/khanjar-terracotta palette (tried and rejected across several
+   iterations earlier this session) back to the original Airbnb-style
+   coral." `b9584f8` ("Implement design-handoff spec: coral system + Plus
+   Jakarta Sans") is the commit that actually shipped this, and it is
+   **current production state** — verified directly in
+   `src/index.css` (both `:root` and `:root[data-theme="light"]` blocks),
+   not just inferred from the commit message.
+
+**Final, current visual system (verified against `src/index.css` as of
+this pass):**
+- Font: **Plus Jakarta Sans** everywhere (`--f-display`, all `--t-*` type
+  tokens), loaded via Google Fonts.
+- Light theme: `--primary: #E1483D` (coral), `--primary-hover: #EA5B50`,
+  `--primary-pressed: #C93A30`, `--on-primary: #FFFFFF`, true-white
+  surfaces (`--bg: #FFFFFF`, `--card-bg: #FFFFFF`) on a barely-off-white
+  page bg, depth from shadow (`--card-shadow`) not from a tinted
+  background — explicitly modeled on how Airbnb/Stripe/Linear's light
+  modes work, not a "dye everything the brand color" approach.
+- Dark theme: `--primary: #FF6B5B`, `--primary-hover: #FF8577`,
+  `--primary-pressed: #E1483D`, `--on-primary: #1C1B1A`, near-black
+  surfaces (`--bg: #1C1B1A`).
+- `--khanjar` and `--gulf` variables **still exist** in `src/index.css`
+  but are explicitly commented as legacy/no-longer-load-bearing —
+  `--khanjar` is now just `var(--primary)`, `--gulf` is a teal kept only
+  because a handful of venue/category call sites still reference it. If
+  you see `--khanjar` or `--gulf` referenced somewhere, it does **not**
+  mean the terracotta/amber system is still active; it's a back-compat
+  alias.
+- Variable *names* (`--bg`, `--primary`, `--card-bg`, `--accent`, etc.)
+  were deliberately kept stable across every single one of these passes so
+  the ~300 existing call sites across the app never needed touching — only
+  hex values changed. This is a real, working pattern; keep doing it if
+  the palette ever moves again.
+- Category colors (`--cat-music`, `--cat-sports`, etc.) are a separate
+  7-hue set, none purple, none competing with coral — untouched by the
+  redesign churn above.
+
+**Do not revert back to amber/khanjar-terracotta or attempt another
+whole-app "colour and life" saturation pass without explicit new user
+direction** — both were tried, both were explicitly walked back, and the
+coral/Plus-Jakarta-Sans system is what an external, independently-authored
+design reference converged on too. If a future ask is "make it more
+colorful," treat that as a genuinely new request, not a reason to resurrect
+either of the earlier failed directions.
+
+Also shipped in this window, unrelated to color: a signature animated
+"W" loading mark (`LoadingMark`, `3a59a67`) now used in every
+`.route-loading` Suspense fallback across the app (indigo→violet→pink
+gradient stroke animation — this one small piece of the old indigo
+palette survives on purpose, as a loading-state accent, not the brand
+color).
+
+## 20. VenueOS — venue management promoted to its own dashboard
+
+`2d1e42b` moved venue management out of `You.tsx`'s buried "Your venues"
+profile tab into a real top-level dashboard: `src/pages/venue-os/
+VenueList.tsx` (index) and `src/pages/venue-os/Workspace.tsx` (per-venue,
+routes `/venue-os/:venueId/:tab`), mirroring the same pattern
+`/organizer` already used (deep-linkable NavLink sidebar, not modal
+sheets or internal `useState` tabs). Existing functionality (Reservations,
+Calendar, Tables, Guests, Analytics, Hours) moved verbatim — that step was
+pure restructuring, not new features.
+
+New feature work stacked on top of the promotion, same session:
+- **Table/seat picking** for both venues and events (`b6b8bb0`) —
+  `FloorPlan`/`FloorTable` models, a canvas editor with auto-seat-
+  assignment; `6e6b3ec` later fixed a `FloorPlanCanvas` scaling bug and
+  unstyled inputs.
+- **Expanded reservation dashboard** (`107d363`): calendar, guest history,
+  analytics, walk-ins.
+- **VenueOS Marketing** (`4012c1a`): segment-targeted campaigns to venue
+  guests, via `server/venue-marketing.js`'s `resolveVenueSegment`; `3b32ff0`
+  later wired marketing-copywriting principles into the AI assistant/agent
+  prompts used to draft this copy.
+- **VenueOS Venue tab** (`a7449fb`): business-profile editing.
+- **Visual node-graph workflow automation builder** (`1c9d9d3`) —
+  this is the single largest piece of new VenueOS scope this window.
+  Replaced a flat trigger+action rules form with a real node-graph editor:
+  draggable trigger/condition/action nodes, click-to-connect edges (live
+  SVG lines), a per-node properties panel. Backed by new `Workflow`/
+  `WorkflowRun` Prisma models (separate from the pre-existing
+  `AutomationRule`, which stays as-is for its own event-side triggers —
+  this was a deliberate parallel-model choice, not a migration/replacement).
+  Execution (`server/venue-workflows.js`) walks the graph depth-first from
+  the trigger node the instant it fires (reservation
+  created/cancelled/no-show) — a failing condition prunes its whole branch,
+  actions chain/fan out to multiple children — and every run is logged to
+  `WorkflowRun` (matched/executed nodes, success/partial/failed), viewable
+  per-workflow via a "Run history" toggle. This is the same execution
+  pattern the in-progress Event Workflows work (§23) explicitly copies for
+  parity on the organizer/event side.
+- A dedicated `weyn-venue-dashboard` subagent now owns this surface (see
+  `.claude/agents/` — pre-existing per the memory note on this repo).
+
+Known small fixes along the way, not otherwise noteworthy: venue dashboard
+needing multiple refreshes to appear (`a1123ed`), broken icons/conflicting
+icon fonts (`ba2bd63`), an unstyled "new list" input and dark-mode-invisible
+clear-x on Profile (`927fa14`).
+
+## 21. Agentic AI Phase 1 → "AI Studio"
+
+`b4b9e31` ("Add agentic AI Phase 1: tool-calling + approval-gated actions")
+gave Weyn's AI assistant real tool-calling instead of only generating text:
+Gemini's function-calling API drives a multi-turn loop
+(`server/ai.js`'s `runAgentTurn`) over a small tool registry
+(`server/agent-tools.js`).
+
+- **Read-only tools** (`mutates: false` — `getUpcomingReservations`,
+  `getRevenue`, `getCustomerHistory`, `findAvailableTables`, and their
+  organizer-side equivalents) execute immediately during the chat turn.
+- **Mutating tools** (`assignTable`, `createReservation`,
+  `sendCampaignEmail`, etc.) **never** execute during the chat turn.
+  Instead a new `AgentAction` row is created with `status: "proposed"`,
+  and the tool's real `execute` only runs from
+  `POST /api/organizer/ai/actions/:id/approve` (and the venue-side
+  equivalent) after the owner explicitly reviews the exact arguments and
+  the model's stated reasoning — mirrors the pre-existing Campaign
+  "create as pending → approve/cancel → execute" pattern already in this
+  codebase, not a new mechanism invented from scratch.
+- Every tool executor **re-validates ownership server-side** regardless of
+  what id the model supplies as an argument (see `ownedVenueIds()` in
+  `server/agent-tools.js` for the pattern) — the model's own tool-call
+  arguments are never trusted as proof of access, same rule every other
+  route in this app already follows for client input.
+- Explicitly scoped **down** from a much larger agentic vision the commit
+  message itself lists as out of scope for Phase 1: 200+ tools,
+  multi-agent specialization, an AI inbox, a command bar, cross-session
+  memory. Don't assume any of that exists — it doesn't.
+- The frontend surface for this is `src/pages/organizer/AiStudio.tsx`
+  (and a venue-side equivalent under `venue-os/`) — later commits refer to
+  this whole feature as **"AI Studio"** rather than "agentic AI Phase 1";
+  same feature, renamed in later commit messages/UI copy as it matured, not
+  two different things.
+- Backing model: `AgentAction` in `prisma/schema.prisma` (~line 1039) —
+  confirmed present in the current schema.
+
+## 22. Landing page rebuild (waitlist.weynevents.com)
+
+Beyond §1-§18's original landing-page build, this window did a substantial
+rebuild pass, largely reusing/iterating on the same React Bits component
+strategy already described in §12 (Ferrofluid/SplitText/RotatingText, all
+lazy-loaded, all confined to the waitlist page's own chunk):
+
+- **`9b89de2`**: integrated `GlassSurface` (frosted-glass panel over the
+  Ferrofluid hero, with the library's own non-Safari/Firefox SVG
+  backdrop-filter fallback), `CardSwap` (replaced a ScrollStack
+  "What you get" section with an auto-cycling 3D card stack — ScrollStack
+  removed entirely), and `FloatingLines` (a moving line accent above the
+  "How Weyn was created" section, deliberately masked to a short band
+  rather than full-height — full-height caused a bright beam to sweep
+  across and obscure body text).
+- **`32167e8`** ("Redesign waitlist landing: glassmorphism, fixed rotating
+  text, proper CardSwap"): replaced the GlassSurface SVG-displacement
+  experiment with a plain-CSS `.glass-panel` recipe (translucent surface +
+  backdrop blur + hairline + inner highlight) — theme-aware for free since
+  it mixes from existing tokens, and actually works in Safari/Firefox
+  where the SVG filter silently fell back anyway. Also fixed
+  `RotatingText` breaking onto its own left-aligned line when inlined
+  mid-sentence (it's a block-level flex container; now sits on its own
+  flex-centered line). **A pre-rebuild backup lives on git branch
+  `backup/landing-v1`** if any of this needs to be compared against or
+  rolled back.
+- Real AI-generated cover art added to "Cover Art Concepts" (`60150c9`).
+- Brand story/vision copy expanded multiple times (`3df7b87`, `b2d7049`)
+  and outdated marketing screenshots refreshed.
+- Waitlist emails added, plus mobile/copy fixes (`6d725fa`); a PWA
+  bottom-space bug and a redundant top branding bar removed (`cc90f09`).
+- Admin dashboard gained visibility into waitlist signups (`2dbb2d6`).
+- **PostHog deferred**: `0c24f42` ("Defer PostHog init and disable unused
+  feature-flag fetch") — PostHog itself was already live per §9 of the
+  2026-07-08 baseline, but its init was deferred further and an unused
+  feature-flag fetch disabled, presumably for load-time reasons. Not a
+  reversal of §9, an optimization on top of it.
+
+## 23. Critical bugs fixed this window
+
+Beyond the redesign work, several real production bugs were found and
+fixed, three of which turned out to be **layers of the same underlying
+"reload the site" bug** on `/e/:id` (event detail), fixed in sequence:
+
+1. **`f9799d0` — private-beta gate broke every direct page navigation.**
+   The `PRIVATE_BETA` allowlist middleware ran globally and only
+   recognized auth via a Bearer token; a plain top-level page load (shared
+   event link, browser refresh, return from a payment redirect) never
+   carries one, so every direct visit to `/e/:id` — the core "share this
+   event" loop, and where ticket booking lives — hit the gate with no
+   token and got a raw JSON 403 instead of the app. Fixed by scoping the
+   gate to `req.path.startsWith("/api/")` (its actual intent), not by
+   removing it.
+2. **`e62db1c` — Clerk failing to load on server-rendered routes (CSP
+   `scriptSrc`).** Second half of the same bug: once the 403 was fixed,
+   the page still blanked forever because Clerk's React SDK lazy-loads
+   its actual JS at runtime via a dynamically injected `<script>` tag from
+   Clerk's Frontend API host, and this app's Helmet CSP only allow-listed
+   Clerk's hosts in `connectSrc` (for XHR/fetch), not `scriptSrc` — silently
+   blocked. Root `"/"` never showed this because Vercel serves it as a
+   static file, bypassing this Express app (and its CSP header) entirely;
+   `/e/:id` is deliberately routed through the app for OG-tag injection, so
+   it was the one page that actually hit the restriction.
+3. **`12f5ad1` — the actual crash underneath: hooks called after a
+   conditional early return.** Once the two fixes above got `/e/:id`
+   rendering again, this exposed `EventDetail` calling `useAsync` and
+   `useState` **after** its loading/error early returns — a textbook React
+   error #310 ("Rendered more hooks than during the previous render"),
+   caught by `ErrorBoundary` and shown as "Something went wrong —
+   reloading usually fixes it" on every single event-page view once data
+   finished loading. **Lesson for future hook-order bugs**: check for
+   early returns positioned before hook calls in the same component,
+   especially in components that render a loading state.
+4. **`a512834` — private-beta gate bypass via `waitlist.weynevents.com`
+   hostname, CRITICAL, confirmed exploitable in production.** The gate's
+   exemption for the waitlist hostname (§10 of the 2026-07-08 baseline)
+   checked only `req.hostname` and waived the 403 for **every** `/api/*`
+   route on that hostname, not just `POST /api/waitlist` — since Express
+   dispatches purely by path (the Host header doesn't change which
+   handler runs), any route reachable on `weynevents.com` was equally
+   reachable via a one-word hostname swap with no spoofing needed (that
+   hostname is already public DNS). Verified live before fixing:
+   `GET /api/events` returned real data and `POST /api/events/:id/book`
+   reached live booking logic via the waitlist hostname while identical
+   requests 403'd on the main domain. Fixed by scoping the exemption to
+   exactly `POST /api/waitlist`. **If §10's waitlist-hostname exemption is
+   ever touched again, scope any new exemption to the specific route(s)
+   that need it — never to "this hostname, all routes."**
+
+Also: `Onboarding`'s Social-preference step (solo/friends/date night) was
+cut entirely (6 steps → 5, `c9d901a`) — nothing downstream consumed it,
+only Interests fed the personalized preview — and PostHog funnel
+instrumentation was added across every onboarding step
+(`onboarding_step_viewed`/`_completed`, `onboarding_location_granted`/
+`denied`, `onboarding_signup_clicked`, `tonight_view_opened`) per an
+explicit "Business Plan §13" prerequisite referenced in that commit — that
+business-plan doc wasn't located during this pass; if you need it, ask
+whoever wrote that commit or check for it outside this repo.
+
+## 24. Uncommitted / in progress right now — do not describe as shipped
+
+**Everything in this section is sitting in the working tree, uncommitted,
+as of 2026-07-12.** It has not been deployed. Treat it as a checkpoint a
+session left mid-task, not a finished feature — verify it's still there
+(`git status --short`) before trusting this description, and don't assume
+it's live in production.
+
+Modified: `prisma/schema.prisma`, `server/app.js`, `server/marketing.js`,
+`src/api.ts`, `src/pages/organizer/EventWorkspace.tsx`. New/untracked:
+`server/event-workflows.js`, `prisma/migrations/
+20260712210000_marketing_social_kit/`, `prisma/migrations/
+20260712210500_add_event_workflows/`.
+
+### 24.1 Marketing "social kit" — appears functionally complete
+
+Extends the existing per-event AI marketing-copy generator
+(`server/marketing.js`) with:
+- **Instagram/WhatsApp Story text** (`instagramStory` — short, no
+  hashtags, ends with a call to tap the link) and a **warmer WhatsApp
+  broadcast-list variant** (`whatsappBroadcast`, distinct tone from the
+  existing group-chat message) — both nullable additions on
+  `MarketingAsset`.
+- **A T-7/T-3/T-1/day-of countdown posting schedule** (`schedule`, JSONB
+  array) — dates are computed in plain arithmetic off `event.startsAt`
+  (`scheduleDates()`/`withScheduleDates()` in `server/marketing.js`),
+  **never** by the AI/template copy generator, specifically so the dates
+  stay correct regardless of which copy source (AI or template fallback)
+  supplied the post text.
+- Frontend: `EventWorkspace.tsx`'s `MarketingTab` renders a new
+  "Posting schedule" section (`PostingScheduleSection`) — one card per
+  countdown stage with a copy button, same "AI drafts, human publishes"
+  pattern as the rest of this tab (deliberately not auto-posted).
+- Migration `20260712210000_marketing_social_kit` adds the three new
+  `MarketingAsset` columns — additive/nullable, existing rows stay valid
+  until next regenerate. **Not yet applied to any database** (uncommitted
+  migration file only) — run `prisma migrate deploy` (or `db execute`,
+  matching this repo's established pattern of hand-applying migrations
+  against the live DB) before this can work against real data.
+- This slice looks close to done: schema, backend copy generation, API
+  types (`MarketingScheduleItem` in `src/api.ts`), and frontend rendering
+  are all present and appear to line up end-to-end. What's unverified: it
+  hasn't been run against a live/dev database (migration unapplied) or
+  visually checked in a browser.
+
+### 24.2 Event Workflows — organizer-side node-graph builder, now feature-complete end-to-end (updated 2026-07-12, later same day)
+
+**Correction to the previous version of this note**, which described this
+as "engine-only, no UI yet, CRUD routes not written." That was accurate at
+the time it was written; a later pass the same day finished it. Re-verified
+just now by reading the actual diff/files (not by trusting the old note) —
+`git status --short` in this repo, plus a clean `npx tsc -b` (zero errors),
+is what this section is based on.
+
+This is **explicitly modeled on VenueOS's node-graph workflow builder**
+(§20), full parity per the plan at (whichever session builds this next
+should check whether `~/.claude/plans/sharded-scribbling-otter.md` still
+exists on the machine that ran this — it has the full original spec for
+both the organizer build below and the still-unstarted venue-side upgrade
+in §25) — a deliberate parallel model, not a polymorphic reuse of the
+existing `Workflow`/`WorkflowRun` tables (those require a `venueId`; the
+two domains share almost no vocabulary).
+
+**What exists and appears done:**
+- Prisma models `EventWorkflow`/`EventWorkflowRun` (migration
+  `20260712210500_add_event_workflows`) — same node/edge JSON shape as the
+  venue side. Per `npx prisma migrate status`, this migration is **not**
+  in the "not yet applied" list (only the unrelated
+  `20260712210000_marketing_social_kit` is) — meaning it looks like it's
+  already applied to the live Neon DB. Couldn't confirm by direct query
+  from this session (no DB network access in this environment,
+  `ECONNREFUSED`) — **verify with a real query before assuming**, e.g.
+  `psql` or a Prisma script from a machine that can actually reach Neon.
+- `server/event-workflows.js` — trigger catalog (`ticket_sold`,
+  `low_inventory`, `event_published`, `waitlist_joined`,
+  `promo_code_used`), condition fields (`ticketTier`, `quantityRemaining`,
+  `attendeeEmailDomain`), action catalog (`notify_team`, `send_campaign`,
+  `apply_promo_code`, `add_to_waitlist_priority`), `validateEventWorkflowGraph`,
+  and the same DFS walk/prune/chain execution engine as
+  `server/venue-workflows.js`. Also exports `redeemPromoCode()` — closes a
+  real pre-existing gap (`POST /api/promo-codes/validate` only ever
+  checked a code; nothing incremented `PromoCode.usedCount` anywhere) using
+  the same atomic conditional-UPDATE pattern as `db.claimTierCapacity`.
+  Deliberately doesn't touch checkout pricing (promo codes were never
+  wired into `priceFor()` — a separate, still-open gap, out of scope here).
+- All five triggers are wired as fire-and-forget (`.catch(() => {})`)
+  calls in `server/app.js`: `event_published` after the publish route's
+  `isDraft: false` update; `ticket_sold`/`low_inventory` after all three
+  `issueTickets`-adjacent booking-confirmation paths (free RSVP,
+  organizer-payment confirm, PayTabs webhook confirm); `waitlist_joined`
+  after waitlist entry creation; `promo_code_used` from `redeemPromoCode()`
+  called at actual booking creation (not at validate-time).
+- **CRUD routes exist** (grep-confirmed, not dead code):
+  `GET /api/organizer/workflows` (cross-event list, mirrors
+  `GET /api/organizer/automations`'s optional `eventId` filter),
+  `GET/POST/PUT/PATCH/DELETE /api/events/:id/workflows[...]`, and
+  `GET /api/events/:id/workflows/:workflowId/runs` — all gated with
+  `requireEventOwner()` + `requireFeature("eventWorkflows")`.
+  `validateEventWorkflowGraph` is called from the POST and PUT handlers.
+- **Frontend UI exists**: `src/pages/organizer/Workflows.tsx` (380 lines),
+  a new "Workflows" nav entry in `Layout.tsx` (sibling of
+  Overview/Events/Attendees/AI Studio/Settings — cross-event, not nested
+  under a single event, per the plan's reasoning), and the route wired in
+  `main.tsx`.
+- `AutomationSection` in `EventWorkspace.tsx` (the old flat
+  `capacity_threshold` rule form) got a "Legacy — see the new Workflows
+  tab" note linking to `/organizer/workflows`, and was otherwise left
+  fully intact — `AutomationRule`/`runAutomationScan`/its cron are
+  untouched, per the plan's "run in parallel, don't auto-migrate"
+  decision.
+- `"eventWorkflows"` added to `FEATURES` in `server/features.js`; the
+  migration seeds `FeatureAccess` rows (`plan_free: false`,
+  `plan_pro: true`) matching the existing pattern.
+- `server/app.js` gained `sendEventNotificationNow()`, extracted to module
+  scope from the existing `POST /api/events/:id/notify` handler so
+  `send_campaign` reuses the exact bulk-notify fan-out — the route itself
+  was refactored to call this shared function, behavior unchanged.
+- `WaitlistEntry` gained a `priority` column (int, default 0), written by
+  `add_to_waitlist_priority`.
+- A pre-existing DB drift item was discovered and documented (not
+  introduced) while building this: `Payment.stripeSessionId` exists on
+  the live DB but was undeclared in `schema.prisma` — same category as
+  §4.1's note about orphaned trigram indexes. Now declared as a
+  comment-flagged legacy column; **do not let `prisma migrate diff` drop
+  it.**
+
+**Still worth checking before calling this fully shipped:**
+- Nothing here has been committed — it's all working-tree changes
+  (`git status --short` still shows the same modified/untracked file list
+  as before). Review the diff and commit deliberately, don't assume a
+  commit already happened.
+- Never exercised end-to-end against a live/dev DB from a real browser —
+  build/typecheck are clean, but nobody has actually created an
+  `EventWorkflow`, sold a ticket against it, and watched an
+  `EventWorkflowRun` row + real email land. Do that before trusting this
+  in production.
+- `npx prisma migrate status` also shows unrelated pre-existing drift:
+  the DB has a `20260705190000_add_stripe_payment_field` migration applied
+  that isn't in this repo's `prisma/migrations/` folder at all. Not
+  introduced by this work, but worth resolving (`prisma migrate resolve`
+  or regenerating the missing migration file) before anyone runs
+  `prisma migrate dev` again in this repo — an unresolved drift can make
+  `migrate dev` prompt to reset the dev database.
+- The optional "Convert existing AutomationRule → EventWorkflow" button
+  described in the original plan was deliberately skipped as out of scope
+  for this pass — still not built, still a reasonable follow-up.
+
+## 25. Venue Workflows UX upgrade — planned, not started
+
+The other half of the same effort that produced §24.2 above. Full spec
+lives in a plan file written during that planning session:
+`~/.claude/plans/sharded-scribbling-otter.md` (on whichever machine ran
+that Claude Code session — check it's still there; if not, this section
+is the fallback summary). Nothing in this section has been touched — no
+venue-os files appear in `git status` beyond what's listed in §24.
+
+Goal: usability upgrades to the **already-shipped** Venue OS Workflows
+tab (§20) — auto-layout, templates, guidance, and an expanded
+trigger/condition/action catalog. Four areas, in priority order:
+
+1. **Auto-layout & cleaner canvas** — a BFS-depth "layered" auto-arrange
+   (new `src/lib/workflowLayout.ts`, `layoutGraph()`), one-click button in
+   `WorkflowEditor` (`src/pages/venue-os/Workspace.tsx`), not automatic on
+   every edit. Snap-to-grid in `WorkflowCanvas.tsx`'s drag handler. Zoom
+   via a simple scale multiplier + native scroll-to-pan (skip true
+   pan/zoom state — not worth the complexity for graphs this small).
+2. **Workflow templates** — a hardcoded array of ~6 starter graphs (e.g.
+   "notify me on large parties," "auto-tag VIP no-shows," "cancellation
+   follow-up" demonstrating action-chaining) using only the existing
+   catalog. Requires loosening `WorkflowEditor` to accept an
+   un-persisted `initial` graph (currently assumes a saved `workflow.id`
+   always exists) so a template can seed the editor before the first
+   save.
+3. **Guidance/empty states** — description maps for triggers/conditions/
+   actions shown contextually in the node detail panel; a real onboarding
+   empty state instead of the current one-liner; and a client-side
+   "this node isn't connected to the trigger yet" warning (reusing
+   `layoutGraph`'s reachability computation) — the one actual gap found
+   in an otherwise-working validation-error-surfacing path.
+4. **Expanded catalog** — honest split: `reservationSource` and
+   `reservationNotes` condition fields are same-day additions (real
+   columns already on `Reservation`); a `send_guest_sms` action should be
+   added as a visible-but-stubbed catalog entry (`ok:false, "not set up
+   yet"`) since **no SMS provider exists anywhere in this codebase**
+   (grepped, zero hits) — don't fabricate a working send. A time-based
+   `reservation_upcoming` trigger needs a genuine scheduler (the current
+   engine is explicitly event-driven only) — follow the existing 5-min
+   Cloudflare cron pattern (`runReminderScan`-style) plus a
+   `@@unique([workflowId, trigger, reservationId])` migration on
+   `WorkflowRun` for idempotency; sequence this last, or ship it behind a
+   disabled "coming soon" state.
+
+Two project-scoped Claude Code subagents exist for this kind of work —
+`weyn-organizer-dashboard` and `weyn-venue-dashboard` (`.claude/agents/` in
+the marketing-assets folder at `~/Downloads/dhairya`, not this repo) — use
+`weyn-venue-dashboard` for this section.
