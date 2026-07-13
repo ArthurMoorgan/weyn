@@ -77,7 +77,7 @@ export default function OrganizerLayout() {
           <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "9px 14px" }}><i className="icon-plus" /> New event</Link>
         </div>
       </header>
-      <DashboardShell navItems={NAV} ariaLabel="Organizer sections">
+      <DashboardShell navItems={NAV} ariaLabel="Organizer sections" primary>
         <Outlet context={{ isHost, reloadEvents: dashEvents.reload, eventsLoading: dashEvents.loading } satisfies OrganizerCtx} />
       </DashboardShell>
     </section>

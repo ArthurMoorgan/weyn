@@ -20,6 +20,20 @@ import SplitText from "../components/landing/SplitText";
 // is still derived client-side from one events fetch — no extra
 // endpoints — so there's a single source of truth.
 
+// Editorial handoff: category shortcuts are circular icon selectors, not
+// text pills — one icon per real CATS entry (src/api.ts), not the mockup's
+// illustrative Music/Sports/Dining/Arts labels.
+const CAT_ICON: Record<Cat | "all", string> = {
+  all: "layout-grid",
+  music: "music",
+  sports: "trophy",
+  food: "utensils",
+  culture: "theater",
+  cars: "car",
+  workshop: "hammer",
+  community: "users",
+};
+
 const startTs = (e: Weyn) => new Date(e.startsAt).getTime();
 const bySoonest = (a: Weyn, b: Weyn) => startTs(a) - startTs(b);
 const byPopular = (a: Weyn, b: Weyn) => (b.sold || 0) - (a.sold || 0);
@@ -288,10 +302,18 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
       )}
 
       {!searching && (
-        <div className="chips">
+        <div className="cat-circles">
           {CATS.map((c) => (
-            <button key={c.key} className={"chip" + (cat === c.key ? " on" : "")} onClick={() => setCat(c.key as Cat | "all")}>
-              {c.label}
+            <button
+              key={c.key}
+              className={"cat-circle" + (cat === c.key ? " on" : "")}
+              onClick={() => setCat(c.key as Cat | "all")}
+              aria-pressed={cat === c.key}
+            >
+              <span className="cat-circle-ring">
+                <i className={"icon-" + CAT_ICON[c.key]} />
+              </span>
+              <span className="cat-circle-label">{c.label}</span>
             </button>
           ))}
         </div>

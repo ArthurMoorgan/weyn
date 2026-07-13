@@ -1047,9 +1047,9 @@ export function createApp(storage) {
     }
     const qty = Math.min(MAX_TICKETS_PER_BOOKING, Math.max(1, Number(req.body?.qty) || 1));
     const tierId = req.body?.tierId || null;
-    const price = priceFor(e, tierId);
-    if (price === null) return res.status(400).json({ error: "Please choose a ticket type" });
-    if (price <= 0) return res.status(400).json({ error: "This ticket is free — use POST /api/events/:id/book instead" });
+    const basePrice = priceFor(e, tierId);
+    if (basePrice === null) return res.status(400).json({ error: "Please choose a ticket type" });
+    if (basePrice <= 0) return res.status(400).json({ error: "This ticket is free — use POST /api/events/:id/book instead" });
 
     const tier = tierId ? e.tiers.find((t) => t.id === tierId) : null;
     const remaining = tier ? tier.capacity - tier.sold : e.capacity - e.sold;
@@ -1057,6 +1057,23 @@ export function createApp(storage) {
 
     const deviceId = req.body?.deviceId;
     const account = req.body?.email ? { email: req.body.email, name: req.body.name } : null;
+
+    // Redeemed (atomically, validity-checked) up front so the discounted
+    // amount is what actually gets charged — previously this only fired
+    // fire-and-forget *after* the session was created at the original
+    // price, so a promo code validated in the UI never actually reduced
+    // what the buyer paid.
+    let unitPrice = basePrice;
+    let appliedPromo = null;
+    if (req.body?.promoCode) {
+      appliedPromo = await redeemPromoCode(e.id, req.body.promoCode);
+      if (appliedPromo) {
+        unitPrice = appliedPromo.discountType === "percent"
+          ? +(basePrice * (1 - Number(appliedPromo.discountValue) / 100)).toFixed(3)
+          : Math.max(0, +(basePrice - Number(appliedPromo.discountValue)).toFixed(3));
+      }
+    }
+
     const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body), refCode: req.body?.refCode });
 
     const origin = publicOrigin(req);
@@ -1065,19 +1082,18 @@ export function createApp(storage) {
         booking,
         event: e,
         tier,
+        unitPrice,
         successUrl: `${origin}/checkout/success?booking=${booking.id}&accessToken=${booking.accessToken}`,
         callbackUrl: `${origin}/api/payments/webhook`,
         customerIp: req.ip,
       });
       await prisma.payment.create({
-        data: { bookingId: booking.id, paytabsTranRef: tranRef, amount: price * qty },
+        data: { bookingId: booking.id, paytabsTranRef: tranRef, amount: unitPrice * qty },
       });
-      if (req.body?.promoCode) {
-        redeemPromoCode(e.id, req.body.promoCode)
-          .then((promo) => { if (promo) runEventWorkflows("promo_code_used", { eventId: e.id, bookingId: booking.id, tierId, email: account?.email || null, qty, promoCode: promo.code }).catch(() => {}); })
-          .catch(() => {});
+      if (appliedPromo) {
+        runEventWorkflows("promo_code_used", { eventId: e.id, bookingId: booking.id, tierId, email: account?.email || null, qty, promoCode: appliedPromo.code }).catch(() => {});
       }
-      trackEvent(req.user?.id || deviceId, "checkout_started", { eventId: e.id, qty, tierId, amount: price * qty });
+      trackEvent(req.user?.id || deviceId, "checkout_started", { eventId: e.id, qty, tierId, amount: unitPrice * qty });
       res.json({ checkoutUrl, bookingId: booking.id, accessToken: booking.accessToken });
     } catch (err) {
       captureError(err, { route: "POST /api/events/:id/checkout", eventId: e.id });

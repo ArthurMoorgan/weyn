@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 
 // The nav+content grid (.organizer-shell / .profile-tabs.organizer-nav /
@@ -25,28 +25,82 @@ export interface DashboardShellNavItem {
   active?: boolean;
 }
 
+function NavItem({ item }: { item: DashboardShellNavItem }) {
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      className={({ isActive }) => "profile-tab" + ((item.active ?? isActive) ? " on" : "")}
+    >
+      <i className={`icon-${item.icon}`} /> {item.label}
+    </NavLink>
+  );
+}
+
 export default function DashboardShell({
   navItems,
   ariaLabel,
   children,
+  primary,
 }: {
   navItems: DashboardShellNavItem[];
   ariaLabel: string;
   children: ReactNode;
+  /**
+   * Top-level section nav (e.g. organizer/Layout.tsx's 7 sections) gets a
+   * mobile-only floating "primary 4 + More" treatment (per the Editorial
+   * handoff's mobile organizer nav) without dropping any real sections —
+   * the rest stay one tap away in the More popover. Desktop is unaffected
+   * (full sidebar, unchanged). Workspace sub-navs (per-event/per-venue tabs)
+   * don't pass this — they keep the existing horizontal-scroll strip.
+   */
+  primary?: boolean;
 }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const primaryItems = navItems.slice(0, 4);
+  const moreItems = navItems.slice(4);
+
   return (
     <div className="organizer-shell">
-      <nav className="profile-tabs organizer-nav" aria-label={ariaLabel}>
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) => "profile-tab" + ((item.active ?? isActive) ? " on" : "")}
-          >
-            <i className={`icon-${item.icon}`} /> {item.label}
-          </NavLink>
-        ))}
+      {primary && (
+        <div className="organizer-nav-compact">
+          <nav className="organizer-nav-primary" aria-label={ariaLabel}>
+            {primaryItems.map((item) => <NavItem key={item.to} item={item} />)}
+          </nav>
+          {moreItems.length > 0 && (
+            <div className="organizer-more">
+              <button
+                type="button"
+                className={"organizer-more-btn" + (moreOpen ? " on" : "")}
+                aria-haspopup="menu"
+                aria-expanded={moreOpen}
+                aria-label="More sections"
+                onClick={() => setMoreOpen((v) => !v)}
+              >
+                <i className="icon-more-horizontal" />
+              </button>
+              {moreOpen && (
+                <div className="organizer-more-menu" role="menu">
+                  {moreItems.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      role="menuitem"
+                      onClick={() => setMoreOpen(false)}
+                      className={({ isActive }) => "tab-host-item" + ((item.active ?? isActive) ? " on" : "")}
+                    >
+                      <i className={`icon-${item.icon}`} /> <strong>{item.label}</strong>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      <nav className={"profile-tabs organizer-nav" + (primary ? " organizer-nav-desktop-only" : "")} aria-label={ariaLabel}>
+        {navItems.map((item) => <NavItem key={item.to} item={item} />)}
       </nav>
       <div className="organizer-content">{children}</div>
     </div>

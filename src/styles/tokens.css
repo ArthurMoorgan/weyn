@@ -7,37 +7,38 @@
 
 :root {
   color-scheme: dark;
-  --bg:             #0D0D0F;
-  --bg-elevated:    #060607;
-  --surface:        #18181B;
-  --surface-hover:  #212124;
-  --border:         rgba(255,255,255,.09);
-  --border-strong:  rgba(255,255,255,.18);
-  /* Editorial coral — warm accent replacing the old Uber-style red. */
-  --primary:        #FF6B4A;
-  --primary-hover:  #FF8567;
-  --primary-pressed:#E85433;
+  /* Editorial handoff dark tokens — exact hex from design_handoff_weyn_ticketing/README.md */
+  --bg:             #0A0A0A;
+  --bg-elevated:    #131313;
+  --surface:        #141414;
+  --surface-hover:  #1C1C1F;
+  --border:         #232328;
+  --border-strong:  #2C2C33;
+  /* Editorial coral accent — same hex in both themes per handoff spec. */
+  --primary:        #FF5A3C;
+  --primary-hover:  #FF7057;
+  --primary-pressed:#E84E30;
   --on-primary:     #FFFFFF;
   /* CTA buttons are a distinct concept from the accent color: black-on-white
      in light mode, coral in dark mode (Editorial direction). */
   --cta-bg:         var(--primary);
   --cta-on-cta:     var(--on-primary);
-  --success:        #32D583;
+  --success:        #3FBE7C;
   --warning:        #F0B429;
   --error:          #FF453A;
   --info:           #5EC8D8;
-  --text:           #F4F4F5;
-  --text-2:         #9F9FA6;
-  --text-3:         #67676D;
-  --text-disabled:  #3F3F44;
-  --icon:           #F4F4F5;
-  --icon-2:         #9F9FA6;
-  --divider:        rgba(255,255,255,.09);
-  --card-bg:        #18181B;
-  --card-border:    rgba(255,255,255,.09);
+  --text:           #F5F5F6;
+  --text-2:         #9A9AA0;
+  --text-3:         #77777D;
+  --text-disabled:  #54545A;
+  --icon:           #F5F5F6;
+  --icon-2:         #9A9AA0;
+  --divider:        #232328;
+  --card-bg:        #141414;
+  --card-border:    #232328;
   --card-shadow:    0 1px 2px rgba(0,0,0,.4);
-  --accent-soft:    rgba(255,59,48,.16);
-  --success-soft:   rgba(50,213,131,0.15);
+  --accent-soft:    rgba(255,90,60,.16);
+  --success-soft:   rgba(63,190,124,.14);
   --scrim: rgba(0,0,0,0.6);
   /* Not part of the new system — kept only because a couple of venue/
      category call sites still reference these; no longer load-bearing
@@ -64,7 +65,10 @@
   --shadow-lg: 0 2px 6px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.4);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
   --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm);
-  --shadow-float: var(--shadow-md); --lens: none;
+  /* Floating elements (pill nav, tickets) per handoff spec: soft, large,
+     low-opacity — dark shadow on both surfaces, lower opacity on light. */
+  --shadow-float: 0 20px 50px rgba(0,0,0,.4);
+  --lens: none;
   --card-alt: var(--surface-hover);
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-8: 48px;
@@ -110,19 +114,20 @@
    shadow rather than dyeing the background a "theme color". */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #FFFFFF; --bg-elevated: #F6F6F7; --surface: #FFFFFF; --surface-hover: #F6F6F7;
-  --border: #E7E7E9; --border-strong: #D6D6D9;
-  --primary: #F0552F; --primary-hover: #FF6B4A; --primary-pressed: #D6431F;
+  /* Editorial handoff light tokens — exact hex from design_handoff_weyn_ticketing/README.md */
+  --bg: #FAFAFA; --bg-elevated: #F1F1F3; --surface: #FFFFFF; --surface-hover: #F4F4F5;
+  --border: #E6E6E9; --border-strong: #D6D6D9;
+  --primary: #FF5A3C; --primary-hover: #FF7057; --primary-pressed: #E84E30;
   --on-primary: #FFFFFF;
   /* Light mode CTAs are black, not coral — coral stays reserved for accents. */
   --cta-bg: var(--text);
   --cta-on-cta: var(--bg);
-  --success: #178A4C; --warning: #97650E; --error: #C21E23; --info: #2678A8;
-  --text: #131316; --text-2: #5E5E66; --text-3: #98989F; --text-disabled: #D3D3D7;
-  --icon: #131316; --icon-2: #5E5E66; --divider: #E7E7E9;
-  --card-bg: #FFFFFF; --card-border: #E7E7E9;
+  --success: #2E9E5B; --warning: #97650E; --error: #C21E23; --info: #2678A8;
+  --text: #0A0A0A; --text-2: #5B5B63; --text-3: #8A8A90; --text-disabled: #ABABB2;
+  --icon: #0A0A0A; --icon-2: #5B5B63; --divider: #E6E6E9;
+  --card-bg: #FFFFFF; --card-border: #E6E6E9;
   --card-shadow: 0 1px 2px rgba(0,0,0,.05);
-  --accent-soft: #FDECEC; --success-soft: rgba(23,138,76,0.10);
+  --accent-soft: #FFF3F0; --success-soft: #EAF7EF;
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
   --chip-soft: var(--surface-hover);
@@ -131,7 +136,8 @@
   --shadow-md: 0 1px 3px rgba(0,0,0,.05), 0 4px 10px rgba(0,0,0,.06);
   --shadow-lg: 0 2px 6px rgba(0,0,0,.06), 0 12px 28px rgba(0,0,0,.08);
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
-  --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
+  --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm);
+  --shadow-float: 0 20px 50px rgba(0,0,0,.16);
   --card-alt: var(--surface-hover);
   --fallback-scrim: rgba(0,0,0,0.1);
 
@@ -153,14 +159,32 @@
   --gradient-accent-top: linear-gradient(90deg, var(--primary), var(--gulf));
 }
 
+/* Editorial handoff typeface — self-hosted variable Geist fonts (see
+   public/fonts/, copied from the `geist` npm package's raw woff2 files
+   since that package's JS exports are Next.js `next/font`-only and don't
+   work in this Vite app). Fallback stack matches the handoff spec exactly
+   for browsers where the font fails to load. */
+@font-face {
+  font-family: "Geist";
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/fonts/Geist-Variable.woff2') format('woff2');
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/fonts/GeistMono-Variable.woff2') format('woff2');
+}
+
 :root {
   --fw-regular: 400;
   --fw-medium:  500;   /* metadata, secondary UI */
   --fw-semibold: 600;  /* card titles, buttons, labels */
   --fw-bold:    700;   /* hero + section headings only */
 
-  --f-display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
-  --f-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  --f-display: "Geist", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --f-mono:    "Geist Mono", ui-monospace, "SF Mono", monospace;
 
   --t-hero:    700 28px/1.14 var(--f-display); /* ~28px effective on key screens; bumps to 40px on desktop (see @media 900px) */
   --t-section: 700 18px/1.25 var(--f-display);
@@ -169,5 +193,5 @@
   --t-caption: 600 11px/1.3  var(--f-display);
   /* genuine body-reading text (descriptions, blurbs) — NOT metadata/captions */
   --t-body:    400 16px/1.6  var(--f-display);
-  --t-data:    600 14px/1.3  "IBM Plex Mono", monospace;
+  --t-data:    600 14px/1.3  var(--f-mono);
 }

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { NavLink, Outlet, Link, useLocation } from "react-router-dom";
 import Discover from "./pages/Discover";
 import LoadingMark from "./components/LoadingMark";
@@ -85,37 +85,13 @@ export default function App() {
           <span className="en">Weyn</span>
           <span className="ar">وين؟</span>
         </div>
-        {/* NavLink sets aria-current="page" on the active link automatically */}
-        {TABS.map((t, i) => (
-          <Fragment key={t.to}>
-            {i === 2 && (
-              <div className="tab-host" ref={hostRef}>
-                <button
-                  type="button"
-                  className={"tab" + (onHostRoute ? " on" : "")}
-                  aria-haspopup="menu"
-                  aria-expanded={hostOpen}
-                  onClick={() => setHostOpen((v) => !v)}
-                >
-                  <i className="icon-circle-plus" />
-                  <span>Host</span>
-                </button>
-                {hostOpen && (
-                  <div className="tab-host-menu" role="menu">
-                    {HOST_OPTIONS.map((o) => (
-                      <Link key={o.to} to={o.to} className="tab-host-item" role="menuitem" onClick={() => setHostOpen(false)}>
-                        <i className={"icon-" + o.icon} />
-                        <div>
-                          <strong>{o.label}</strong>
-                          <span>{o.hint}</span>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+        {/* Floating pill group — Discover/Tickets/Profile, icon-only on
+            mobile (see .tabs-pill/.tab span in components.css). NavLink
+            sets aria-current="page" on the active link automatically. */}
+        <div className="tabs-pill">
+          {TABS.map((t) => (
             <NavLink
+              key={t.to}
               to={t.to}
               end={t.to === "/"}
               className={({ isActive }) => "tab" + (isActive ? " on" : "")}
@@ -123,8 +99,36 @@ export default function App() {
               <i className={"icon-" + t.icon} />
               <span>{t.label}</span>
             </NavLink>
-          </Fragment>
-        ))}
+          ))}
+        </div>
+        {/* Host — its own separate floating circle, same glass/pill styling,
+            aligned next to the main tab pill instead of interleaved as a tab. */}
+        <div className="tab-host" ref={hostRef}>
+          <button
+            type="button"
+            className={"tab" + (onHostRoute ? " on" : "")}
+            aria-haspopup="menu"
+            aria-expanded={hostOpen}
+            aria-label="Host"
+            onClick={() => setHostOpen((v) => !v)}
+          >
+            <i className="icon-circle-plus" />
+            <span>Host</span>
+          </button>
+          {hostOpen && (
+            <div className="tab-host-menu" role="menu">
+              {HOST_OPTIONS.map((o) => (
+                <Link key={o.to} to={o.to} className="tab-host-item" role="menuitem" onClick={() => setHostOpen(false)}>
+                  <i className={"icon-" + o.icon} />
+                  <div>
+                    <strong>{o.label}</strong>
+                    <span>{o.hint}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
         {/* Desktop-only (see .tabs-right in index.css, hidden below 900px) —
             once the bar moves to the top on wide layouts, these are the
             chrome that top bar earns: city, theme, and account. Host lives

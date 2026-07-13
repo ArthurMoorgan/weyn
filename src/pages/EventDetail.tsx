@@ -263,7 +263,7 @@ export default function EventDetail() {
       {ticketSheet && (() => {
         const rec = ticketFor(ev.id);
         return rec?.bookingId ? (
-          <TicketSheet eventTitle={ev.title} bookingId={rec.bookingId} accessToken={rec.accessToken} venue={ev.venue} lat={ev.lat} lng={ev.lng} onClose={() => setTicketSheet(false)} />
+          <TicketSheet eventTitle={ev.title} bookingId={rec.bookingId} accessToken={rec.accessToken} venue={ev.venue} dateLabel={`${dayLabel(ev)} · ${timeLabel(ev)}`} lat={ev.lat} lng={ev.lng} onClose={() => setTicketSheet(false)} />
         ) : null;
       })()}
 
@@ -354,13 +354,18 @@ export default function EventDetail() {
         )}
 
         {seatMapQuery.data && !booked && (
-          <div className="tier-picker">
+          <div className="seat-picker">
             <h3 className="tier-picker-title">Pick your seat</h3>
             <FloorPlanCanvas
               tables={seatMapQuery.data.tables} mode="pick" seatMode
               selectedSeatIds={selectedSeatId ? [selectedSeatId] : []}
               onSeatClick={(seatId) => { setSelectedSeatId(seatId); setBookErr(""); }}
             />
+            <div className="seat-legend">
+              <span className="seat-legend-item"><i className="seat-legend-dot available" /> Available</span>
+              <span className="seat-legend-item"><i className="seat-legend-dot selected" /> Selected</span>
+              <span className="seat-legend-item"><i className="seat-legend-dot sold" /> Sold</span>
+            </div>
           </div>
         )}
 
@@ -432,7 +437,21 @@ export default function EventDetail() {
               <div className="p">{hasTiers && !selectedTier ? `From ${Math.min(...tiers.map((t) => t.price))} OMR` : payPrice === 0 ? "Free" : `${(payPrice + payFee).toFixed(2)} OMR`}</div>
               <div className="s">{hasTiers && !selectedTier ? "Pick a ticket type" : payPrice === 0 ? "RSVP to reserve" : "incl. 8% fee"}</div>
             </div>
-            <button className="btn lg" style={{ width: "auto" }} onClick={book} disabled={booking || (hasTiers && !selectedTier) || !!(seatMapQuery.data && !selectedSeatId)}>
+            <button
+              className="btn lg" style={{ width: "auto" }}
+              onClick={() => {
+                // Paid Weyn-hosted tickets go through the in-app checkout
+                // review screen (order summary, promo code, pay) instead of
+                // redirecting straight out — everything else (free RSVP,
+                // organizer_payment's own external flow) keeps booking directly.
+                if (ev.ticketingType === "weyn" && payPrice > 0) {
+                  nav(`/e/${ev.id}/checkout`, { state: { tierId, qty, selectedSeatId, inviteCode } });
+                } else {
+                  book();
+                }
+              }}
+              disabled={booking || (hasTiers && !selectedTier) || !!(seatMapQuery.data && !selectedSeatId)}
+            >
               {booking ? "Booking…" : payPrice === 0 ? "RSVP" : "Get ticket"}
             </button>
           </>

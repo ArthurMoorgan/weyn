@@ -31,8 +31,10 @@ function headers() {
 }
 
 // booking: Prisma Booking row (status "pending"). event/tier: for name + price.
-export async function createCheckoutSession({ booking, event, tier, successUrl, callbackUrl, customerIp }) {
-  const price = tier ? tier.price : event.price;
+// unitPrice: optional override (e.g. after a valid promo-code discount) —
+// defaults to the tier/event's own price when not given.
+export async function createCheckoutSession({ booking, event, tier, unitPrice, successUrl, callbackUrl, customerIp }) {
+  const price = unitPrice ?? (tier ? tier.price : event.price);
   const name = tier ? `${event.title} — ${tier.name}` : event.title;
   const body = {
     profile_id: PROFILE_ID,

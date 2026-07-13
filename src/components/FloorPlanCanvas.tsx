@@ -154,8 +154,12 @@ export default function FloorPlanCanvas({
                         onClick={(e) => { e.stopPropagation(); if (seatClickable) onSeatClick?.(s.id, t); }}
                         style={{
                           width: 10, height: 10, borderRadius: "50%",
-                          background: seatSelected ? "var(--on-primary)" : s.status === "available" ? "var(--accent)" : "var(--text-3)",
-                          border: seatSelected ? "2px solid var(--accent)" : "none",
+                          /* Editorial handoff seat states: available = light
+                             gray fill, selected = solid coral, sold = same
+                             gray fill dimmed to 50% opacity (not a separate
+                             color) — see the seat legend below the grid. */
+                          background: seatSelected ? "var(--primary)" : "var(--border-strong)",
+                          opacity: !seatSelected && s.status !== "available" ? 0.5 : 1,
                           cursor: seatClickable ? "pointer" : "default",
                         }}
                         title={s.label || `Seat ${s.index}`}

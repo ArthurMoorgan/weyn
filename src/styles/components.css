@@ -42,13 +42,13 @@
   min-height: 100%;
   position: relative;
   padding-top: env(safe-area-inset-top);
-  /* Must mirror .tabs's own floating-pill footprint exactly: its bottom
-     offset (max(14px, safe-area+2px)) + its own height (6px+6px padding +
-     46px tab content = 58px) + a little clearance so page content doesn't
+  /* Must mirror .tabs-pill's own floating-pill footprint exactly: its bottom
+     offset (max(20px, safe-area+10px)) + its own height (8px+8px padding +
+     48px tab content = 64px) + a little clearance so page content doesn't
      touch the pill — using a flat estimate here left a real gap (or an
      overlap) on notched/PWA-installed devices where the safe-area inset is
      non-zero. */
-  padding-bottom: calc(max(14px, calc(env(safe-area-inset-bottom) + 2px)) + 58px + 12px);
+  padding-bottom: calc(max(20px, calc(env(safe-area-inset-bottom) + 10px)) + 64px + 12px);
 }
 
 /* ---------- top bar ---------- flat, minimal-height, not a floating pill */
@@ -157,6 +157,9 @@
 :root[data-theme="dark"] { --seg-thumb: rgba(255,255,255,0.14); }
 :root[data-theme="dark"] .segment button.on { box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 
+/* Past tickets (Tickets.tsx Upcoming/Past tabs) render at reduced opacity. */
+.ticket-past { opacity: .55; }
+
 /* ---------- category chips ---------- */
 .chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 6px; scrollbar-width: none; overscroll-behavior-x: contain; }
 .chips::-webkit-scrollbar { display: none; }
@@ -175,6 +178,41 @@
    actually read as the primary action (Get ticket / Host). Color marks
    the selection; it doesn't shout it. */
 .chip.on { background: var(--accent-soft); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+
+/* ---------- category circle shortcuts (Editorial handoff) ---------- */
+/* Structural replacement for the old text-only .chips category row: 64px
+   icon circles with a label underneath, horizontally scrollable, active
+   category gets a coral gradient ring — matches
+   design_handoff_weyn_ticketing/screenshots/01-screens.png exactly. */
+.cat-circles {
+  display: flex; gap: 16px; overflow-x: auto; padding: 14px 16px 6px;
+  scrollbar-width: none; overscroll-behavior-x: contain;
+}
+.cat-circles::-webkit-scrollbar { display: none; }
+.cat-circle {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: 64px;
+}
+.cat-circle-ring {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--surface-hover); border: 2px solid transparent;
+  font-size: 24px; color: var(--text-2);
+  transition: border-color .15s, background .15s, color .15s;
+}
+.cat-circle.on .cat-circle-ring {
+  color: var(--primary);
+  background: var(--accent-soft);
+  border-color: transparent;
+  /* coral gradient ring via a padding-box/border-box double background,
+     so the ring itself is a gradient, not a flat coral stroke */
+  background-image: linear-gradient(var(--accent-soft), var(--accent-soft)), linear-gradient(135deg, var(--primary), var(--primary-hover));
+  background-origin: border-box; background-clip: padding-box, border-box;
+}
+.cat-circle-label {
+  font: var(--t-caption); font-weight: 600; color: var(--text-2); white-space: nowrap;
+}
+.cat-circle.on .cat-circle-label { color: var(--text); }
 
 /* ---------- date section header ---------- */
 .date-head {
@@ -538,36 +576,53 @@
 }
 
 
-/* ---------- tab bar ---------- flat full-width bottom bar (Airbnb style):
-   sits flush against the bottom edge, solid surface, a single hairline on
-   top, no floating pill / backdrop blur / drop-shadow glow. The active tab
-   is picked out purely by coloring its icon + label in the brand coral —
-   no filled highlight, no glow. */
+/* ---------- tab bar ---------- Editorial handoff: a floating, icon-only
+   pill nav (not docked/full-width) — translucent blurred surface, floating
+   above the bottom edge, plus a separate circular "Host" pill in the same
+   glass style, aligned next to it (per design_handoff_weyn_ticketing). */
 .tabs {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
-  display: flex; align-items: stretch;
-  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
-  background: var(--surface);
-  border-top: 1px solid var(--border);
+  position: fixed;
+  bottom: max(20px, calc(env(safe-area-inset-bottom) + 10px));
+  left: 50%; transform: translateX(-50%); z-index: 40;
+  display: flex; align-items: center; gap: 10px;
+  width: auto; max-width: calc(100vw - 32px);
+  background: transparent; border: none; padding: 0;
+}
+.tabs-pill {
+  display: flex; align-items: center; gap: 2px;
+  padding: 8px; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-float);
 }
 .tab {
-  position: relative; z-index: 2; flex: 1 1 0;
+  position: relative; z-index: 2; flex: 0 0 auto;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  min-height: 44px;
+  width: 48px; min-height: 48px;
   font-size: 10.5px; font-weight: 600; color: var(--text-3); padding: 4px;
   transition: color .15s ease;
 }
+/* Icon-only on the floating mobile pill — labels come back at the 900px
+   desktop top-bar breakpoint (see below), where this is a normal inline nav. */
+.tab span { display: none; }
 .tab [class^="icon-"] { font-size: 22px; display: inline-block; transition: transform .18s cubic-bezier(.25,1,.5,1); }
 .tab.on { color: var(--text); }
 .tab.on [class^="icon-"] { color: var(--accent); transform: scale(1.08); }
 .sidebar-brand { display: none; }
 .tabs-right { display: none; }
 
-/* Host tab — a button (not a link) that opens a two-item popover instead of
-   navigating straight to one flow. Sized and positioned to match a normal
-   .tab so swapping it in doesn't shift anything around it. */
-.tab-host { position: relative; flex: 1 1 0; display: flex; }
-.tab-host > .tab { flex: 1 1 0; width: 100%; }
+/* Host — its own separate floating circle, a button (not a link) that opens
+   a two-item popover instead of navigating straight to one flow. Same
+   glass/blur/shadow treatment as .tabs-pill, just circular and standalone. */
+.tab-host { position: relative; flex: 0 0 auto; display: flex; }
+.tab-host > .tab {
+  width: 52px; height: 52px; min-height: 52px; border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-float);
+}
 .tab-host-menu {
   position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
   width: 260px; max-width: calc(100vw - 24px);
@@ -700,7 +755,44 @@
   white-space: nowrap; transition: background-color .15s, color .15s;
 }
 .profile-tab [class^="icon-"] { font-size: 15px; }
-.profile-tab.on { color: var(--text); background: var(--surface-2); }
+/* Editorial handoff: active nav item gets the coral tint treatment
+   (accent-soft fill + coral text/icon), not a neutral gray fill. */
+.profile-tab.on { color: var(--primary); background: var(--accent-soft); }
+
+/* Mobile-only "primary 4 + More" compact nav for top-level section navs
+   (see DashboardShell's `primary` prop) — floating pill in the same glass
+   language as the attendee bottom nav, but inline in the page flow rather
+   than fixed to the viewport. Hidden entirely at the 900px+ breakpoint,
+   where the full .organizer-nav sidebar (all items) takes over. */
+.organizer-nav-compact { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; }
+.organizer-nav-primary {
+  display: flex; align-items: center; gap: 2px; flex: 1 1 auto; min-width: 0;
+  overflow-x: auto; scrollbar-width: none;
+  padding: 6px; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.organizer-nav-primary::-webkit-scrollbar { display: none; }
+.organizer-nav-primary .profile-tab { flex: 0 0 auto; }
+.organizer-more { position: relative; flex: 0 0 auto; }
+.organizer-more-btn {
+  width: 40px; height: 40px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3); background: var(--surface-hover); border: 1px solid var(--border);
+}
+.organizer-more-btn.on { color: var(--primary); background: var(--accent-soft); }
+.organizer-more-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 50;
+  width: 220px; background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 6px;
+}
+.organizer-more-menu .tab-host-item.on { color: var(--primary); background: var(--accent-soft); }
+.organizer-nav-desktop-only { display: none; }
+@media (min-width: 900px) {
+  .organizer-nav-compact { display: none; }
+  .organizer-nav-desktop-only { display: flex; }
+}
 
 /* Workspace sub-nav (per-event / per-venue tabs: Reservations/Calendar/
    Tables/…, Overview/Attendees/Marketing/…) — a single horizontally
@@ -895,7 +987,33 @@
 }
 
 /* ---------- ticket QR sheet (components/TicketSheet.tsx) ---------- */
-.ticket-qr-card { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 0; }
+/* Editorial handoff ticket stub: dark header band (intentionally near-black
+   in BOTH themes — a printed physical ticket, not a themed UI surface),
+   then a perforated divider with two circular cutouts, then the QR body. */
+.ticket-stub {
+  border-radius: var(--radius-lg); overflow: hidden; margin: 16px 0;
+  box-shadow: var(--shadow-float);
+  background: var(--card-bg);
+}
+.ticket-stub-header {
+  background: #0A0A0A; color: #F5F5F6;
+  padding: 20px 20px 16px; text-align: left;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.ticket-stub-type { font: var(--t-caption); letter-spacing: .06em; text-transform: uppercase; color: var(--primary); }
+.ticket-stub-event { font-size: 17px; font-weight: 700; color: #fff; }
+.ticket-stub-meta { font-size: 12.5px; color: #9A9AA0; }
+.ticket-stub-divider {
+  position: relative; height: 0; border-top: 2px dashed #0A0A0A;
+}
+.ticket-stub-notch {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--surface); /* punches through to the sheet's own bg */
+}
+.ticket-stub-notch.left { left: -12px; }
+.ticket-stub-notch.right { right: -12px; }
+.ticket-stub-body { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 16px 22px; }
 /* "White sticker-like card with a soft shadow and a diagonal glossy
    highlight overlay" per the design handoff — the ::after is a diagonal
    white gradient band blended with soft-light so it reads as a sheen
@@ -926,6 +1044,7 @@
    embossing to read as a trough). */
 .search {
   display: flex; align-items: center; gap: 4px;
+  min-height: 48px; box-sizing: border-box;
   padding: 10px 10px 10px 16px; margin: 16px 16px 0; border-radius: var(--radius-pill);
   background: var(--surface-hover);
   border: 1px solid var(--border);
@@ -1106,6 +1225,24 @@
 .fee-box { margin-top: 20px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--surface); font-size: 13.5px; }
 .fee-box .ln { display: flex; justify-content: space-between; padding: 3px 0; color: var(--text-2); }
 .fee-box .ln.total { color: var(--text); font-weight: 600; border-top: 1px solid var(--hair); margin-top: 6px; padding-top: 9px; }
+
+/* ---------- checkout order line + payment row (Editorial handoff) ---------- */
+.order-line { display: flex; align-items: center; gap: 12px; }
+.order-line-thumb {
+  width: 56px; height: 56px; border-radius: var(--radius-sm); flex: 0 0 auto;
+  background-size: cover; background-position: center;
+}
+.order-line-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.order-line-info b { font-size: 15px; font-weight: 700; color: var(--text); }
+.order-line-info span { font-size: 12.5px; color: var(--text-2); }
+.payment-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: var(--radius-sm);
+  background: var(--card-bg); border: 1px solid var(--card-border);
+}
+.payment-row [class^="icon-"] { font-size: 20px; color: var(--text-2); flex: 0 0 auto; }
+.payment-row b { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
+.payment-row span { font-size: 12.5px; color: var(--text-2); }
 
 /* minimal native sticky CTA bar — full-width, flat, not a floating pill */
 .buybar {
@@ -1356,21 +1493,33 @@
 .tier-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--accent); padding: 8px 4px; }
 
 /* ---------- ticket tiers: buyer picker (event detail) ---------- */
-.tier-picker { margin-top: 20px; }
-.tier-picker-title { font-size: 17px; font-weight: 700; margin-bottom: 12px; }
-/* Ticket tier cards — per the design reference's "Select tickets" panel:
-   a plain card per tier, selected state gets a tinted background AND a
-   colored border (not just one or the other), with its own quantity
-   stepper appearing inline once selected. Only one tier can be active at
-   a time (the booking API takes one tier + a quantity, not a multi-tier
-   cart) — the stepper still lets a buyer grab more than one of that tier
-   in one go, which is the part that was completely missing before. */
+.tier-picker-title { font-size: 17px; font-weight: 700; margin-bottom: 12px; grid-column: 1 / -1; }
+.seat-picker { margin-top: 20px; }
+/* Seat legend (Editorial handoff) — key below the grid explaining the three
+   seat states; didn't exist before this pass. Dot colors mirror
+   FloorPlanCanvas.tsx's actual per-seat inline styles exactly. */
+.seat-legend { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 14px; }
+.seat-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--text-2); }
+.seat-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+.seat-legend-dot.available { background: var(--border-strong); }
+.seat-legend-dot.selected { background: var(--primary); }
+.seat-legend-dot.sold { background: var(--border-strong); opacity: .5; }
+/* Ticket tier cards — per the Editorial handoff's 2-column tier picker: a
+   plain card per tier, selected state gets a tinted background AND a
+   coral border (1.5px per spec, not just one or the other), with its own
+   quantity stepper appearing inline once selected. Only one tier can be
+   active at a time (the booking API takes one tier + a quantity, not a
+   multi-tier cart) — the stepper still lets a buyer grab more than one of
+   that tier in one go. The picker itself is a 2-col grid (per spec); a
+   selected card spans both columns so its quantity stepper has room. */
+.tier-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
 .tier-opt {
-  width: 100%; text-align: left; padding: 14px 16px; margin-bottom: 10px; border-radius: var(--radius);
+  width: 100%; text-align: left; padding: 14px 16px; border-radius: var(--radius);
   background: var(--card-bg); border: 1.5px solid var(--card-border);
   box-shadow: var(--card-shadow); cursor: pointer;
   transition: border-color .18s, background .18s;
 }
+.tier-opt.on { grid-column: 1 / -1; }
 .tier-opt-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .tier-opt-main b { display: block; font-size: 15px; font-weight: 700; color: var(--text); }
 .tier-opt-main span { font-size: 12.5px; color: var(--text-2); }
@@ -1742,14 +1891,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   }
   .sidebar-brand .en { font: 700 18px/1 var(--f-display); letter-spacing: -0.2px; }
   .sidebar-brand [class^="icon-"] { align-self: center; color: var(--accent); }
+  /* .tabs-pill was a translucent floating group on mobile — on desktop it's
+     just an inline run of nav links inside the flat top bar, no pill chrome. */
+  .tabs-pill {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0; border-radius: 0; background: none; backdrop-filter: none;
+    border: none; box-shadow: none;
+  }
   .tab {
     flex: 0 0 auto; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px;
-    min-height: auto;
+    width: auto; min-height: auto;
     padding: 9px 14px; border-radius: var(--radius-pill);
     font-size: 14.5px;
   }
+  .tab span { display: inline; }
   .tab [class^="icon-"] { font-size: 19px; }
   .tab.on { background: var(--accent-soft); }
+  /* Host reverts from the mobile floating circle to a normal inline nav item. */
+  .tab-host > .tab {
+    width: auto; height: auto; min-height: auto; border-radius: var(--radius-pill);
+    background: none; backdrop-filter: none; border: none; box-shadow: none;
+  }
+  .tab-host > .tab.on { background: var(--accent-soft); }
   .tab-host { flex: 0 0 auto; }
   .tab-host > .tab { flex: 0 0 auto; width: auto; }
   .tab-host-menu { bottom: auto; top: calc(100% + 10px); left: 0; transform: none; }

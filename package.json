@@ -40,6 +40,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "express-rate-limit": "^8.5.2",
+    "geist": "^1.7.2",
     "gsap": "^3.15.0",
     "helmet": "^8.2.0",
     "html5-qrcode": "^2.3.8",

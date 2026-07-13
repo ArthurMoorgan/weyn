@@ -12,8 +12,8 @@ import { useClosing } from "../hooks";
 type TicketRow = { code: string; checkedInAt: string | null };
 
 export default function TicketSheet({
-  eventTitle, bookingId, accessToken, venue, lat, lng, onClose,
-}: { eventTitle: string; bookingId: string; accessToken?: string; venue?: string; lat?: number; lng?: number; onClose: () => void }) {
+  eventTitle, bookingId, accessToken, venue, dateLabel, lat, lng, onClose,
+}: { eventTitle: string; bookingId: string; accessToken?: string; venue?: string; dateLabel?: string; lat?: number; lng?: number; onClose: () => void }) {
   const { closing, close } = useClosing(onClose);
   const [tickets, setTickets] = useState<TicketRow[] | null>(null);
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
@@ -38,30 +38,39 @@ export default function TicketSheet({
   return (
     <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
       <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 4 }}>{eventTitle}</h3>
-        <p className="sub" style={{ marginBottom: 16 }}>Show this at the door</p>
+        <h3 style={{ marginBottom: 4 }}>My ticket</h3>
+        {tickets && tickets.length > 1 && <p className="sub" style={{ marginBottom: 16 }}>1 of {tickets.length} · swipe for more</p>}
 
         {err && <p className="errline">{err}</p>}
 
         {!err && tickets === null && (
-          <div className="detail-skel-cover" style={{ height: 200, borderRadius: 12, margin: "0 auto" }} />
+          <div className="detail-skel-cover" style={{ height: 320, borderRadius: 26, margin: "0 auto" }} />
         )}
 
         {tickets?.map((t) => (
-          <div key={t.code} className="ticket-qr-card">
-            {qrDataUrls[t.code] ? (
-              <div className="qr-sticker">
-                <img src={qrDataUrls[t.code]} alt="Ticket QR code" width={220} height={220} />
-              </div>
-            ) : (
-              <div className="detail-skel-cover" style={{ height: 220, width: 220, borderRadius: 12, margin: "0 auto" }} />
-            )}
-            <div className="ticket-qr-code">{t.code}</div>
-            {t.checkedInAt ? (
-              <span className="ec-badge confirmed"><i className="icon-circle-check" /> Checked in</span>
-            ) : (
-              <span className="ec-badge featured"><i className="icon-ticket" /> Valid</span>
-            )}
+          <div key={t.code} className="ticket-stub">
+            {/* Dark header band — intentionally near-black in both themes
+                (the Editorial handoff's ticket stub reads as a printed
+                physical ticket, not a themed UI surface). */}
+            <div className="ticket-stub-header">
+              <span className="ticket-stub-type">{t.checkedInAt ? "Checked in" : "General Admission"}</span>
+              <b className="ticket-stub-event">{eventTitle}</b>
+              <span className="ticket-stub-meta">{[dateLabel, venue].filter(Boolean).join(" · ")}</span>
+            </div>
+            <div className="ticket-stub-divider" aria-hidden="true">
+              <span className="ticket-stub-notch left" /><span className="ticket-stub-notch right" />
+            </div>
+            <div className="ticket-stub-body">
+              {qrDataUrls[t.code] ? (
+                <div className="qr-sticker">
+                  <img src={qrDataUrls[t.code]} alt="Ticket QR code" width={220} height={220} />
+                </div>
+              ) : (
+                <div className="detail-skel-cover" style={{ height: 220, width: 220, borderRadius: 12, margin: "0 auto" }} />
+              )}
+              <div className="ticket-qr-code">{t.code}</div>
+              {t.checkedInAt && <span className="ec-badge confirmed"><i className="icon-circle-check" /> Checked in</span>}
+            </div>
           </div>
         ))}
 

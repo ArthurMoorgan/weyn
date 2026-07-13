@@ -967,11 +967,11 @@ export const api = {
   },
   // paid tickets: returns a hosted Thawani checkout URL to redirect to — the
   // ticket isn't actually booked until Thawani confirms payment (see BookingStatus)
-  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string, inviteCode?: string): Promise<{ checkoutUrl: string; bookingId: string; accessToken?: string }> {
+  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string, inviteCode?: string, promoCode?: string): Promise<{ checkoutUrl: string; bookingId: string; accessToken?: string }> {
     return fetch(`${API_BASE}/api/events/${id}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, ...getStoredUtm(id) }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, promoCode, ...getStoredUtm(id) }),
     }).then((r) => json(r));
   },
   getBooking(bookingId: string): Promise<BookingStatus> {

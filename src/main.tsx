@@ -26,6 +26,7 @@ import { markSplashShown, dismissSplash } from "./splash";
 import { initPostHog, identifyPostHog, resetPostHog } from "./posthog";
 
 const EventDetail = lazy(() => import("./pages/EventDetail"));
+const Checkout = lazy(() => import("./pages/Checkout"));
 const Saved = lazy(() => import("./pages/Saved"));
 const Organizer = lazy(() => import("./pages/Organizer"));
 const CheckoutSuccess = lazy(() => import("./pages/CheckoutSuccess"));
@@ -230,6 +231,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route path="/venue-os/:venueId/:tab" element={<VenueWorkspace />} />
               </Route>
               <Route path="/e/:id" element={<EventDetail />} />
+              <Route path="/e/:id/checkout" element={<Checkout />} />
               <Route path="/reservations/:id" element={<VenueDetail />} />
               <Route path="/organizer/:id" element={<OrganizerProfile />} />
               <Route path="/checkout/success" element={<CheckoutSuccess />} />
