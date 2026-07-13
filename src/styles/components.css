@@ -799,9 +799,23 @@
 }
 .organizer-more-menu .tab-host-item.on { color: var(--primary); background: var(--accent-soft); }
 .organizer-nav-desktop-only { display: none; }
+/* Desktop sidebar brand block (handoff spec: logo + "For business" caption
+   above the nav) — mobile has its own brand chrome in the topbar already,
+   so this stays desktop-only, same breakpoint as the sidebar itself. */
+.organizer-sidebar-brand { display: none; }
 @media (min-width: 900px) {
   .organizer-nav-compact { display: none; }
   .organizer-nav-desktop-only { display: flex; }
+  .organizer-sidebar-brand {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    padding: 4px 10px 16px;
+  }
+  .organizer-sidebar-brand .wm { font-size: 16px; font-weight: 700; }
+  .organizer-sidebar-brand-caption {
+    margin-left: 30px;
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-3);
+  }
 }
 
 /* Workspace sub-nav (per-event / per-venue tabs: Reservations/Calendar/
@@ -1202,6 +1216,13 @@
 }
 .icon-btn:active { transform: scale(.88); background: rgba(0,0,0,0.5); }
 .icon-btn.on { color: var(--danger); }
+/* Photo-header context (EventDetail/VenueDetail cover) — handoff spec shows
+   solid white circles with dark icons floating over the photo, not dark
+   translucent circles with white icons. Scoped to .cover only; every other
+   .icon-btn (flat topbars on Checkout/Account/Admin/etc) is unaffected. */
+.cover .icon-btn { background: #fff; color: #131316; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.cover .icon-btn:active { background: #fff; }
+.cover .icon-btn.on { color: var(--primary); }
 .detail .sheet {
   position: relative; z-index: 2;
   background: var(--bg);
@@ -1606,6 +1627,11 @@
    has 3; a fixed 2-col grid leaves an orphaned half-width tile at the end
    of an odd count. auto-fit fills the row cleanly at any count. */
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; padding: 6px 0 6px; }
+
+/* Organizer mobile dashboard's prominent 2-up action row (handoff spec):
+   solid CTA + outline secondary, side by side. */
+.ov-primary-actions { display: flex; gap: 10px; padding: 4px 0 6px; }
+.ov-primary-actions .btn { width: auto; flex: 1 1 0; }
 
 /* ---------- Overview's "quick actions" tile grid ---------- */
 /* 7 tiles ÷ 3 cols orphaned one tile alone on its own row on mobile —

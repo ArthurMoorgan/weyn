@@ -68,6 +68,15 @@ export default function OrganizerOverview() {
         {o?.reputationScore && <div className="stat"><div className="k">Reputation score</div><div className="v">{o.reputationScore.score} <small>/ 100</small></div></div>}
       </div>
 
+      {/* Editorial handoff's mobile dashboard: a solid black/coral "Scan
+          tickets" CTA + an outline "Create event" button, side by side —
+          was missing entirely; the rest of QuickActions below still covers
+          the other real shortcuts (Attendees, AI Studio, Venues, Team…). */}
+      <div className="ov-primary-actions">
+        <Link to="/organizer/events" className="btn"><i className="icon-scan" /> Scan tickets</Link>
+        <Link to="/host/events" className="btn glass"><i className="icon-plus" /> Create event</Link>
+      </div>
+
       <QuickActions onShowMore={() => setShowMore(true)} />
 
       <div className="date-head"><h2>Needs attention</h2>{o && <span>{o.needsAttention.length}</span>}</div>

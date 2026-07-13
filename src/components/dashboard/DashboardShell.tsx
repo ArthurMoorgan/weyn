@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
+import Logo from "../Logo";
 
 // The nav+content grid (.organizer-shell / .profile-tabs.organizer-nav /
 // .organizer-content) was copy-pasted three times — organizer/Layout.tsx,
@@ -97,6 +98,12 @@ export default function DashboardShell({
               )}
             </div>
           )}
+        </div>
+      )}
+      {primary && (
+        <div className="organizer-sidebar-brand">
+          <Logo size={22} />
+          <span className="organizer-sidebar-brand-caption">For business</span>
         </div>
       )}
       <nav className={"profile-tabs organizer-nav" + (primary ? " organizer-nav-desktop-only" : "")} aria-label={ariaLabel}>
