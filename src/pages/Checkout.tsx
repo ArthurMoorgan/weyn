@@ -104,7 +104,9 @@ export default function Checkout() {
             <span>{ev.venue}</span>
           </div>
         </div>
-        <div className="fee-box" style={{ marginTop: 0 }}>
+        {/* Plain rows, no card/box background — pixel-checked against the
+            handoff, which has no fee-box surface around these lines. */}
+        <div className="checkout-lines" style={{ borderTop: "1px solid var(--hair)", paddingTop: 14, marginTop: 14 }}>
           <div className="ln"><span>{qty} × {selectedTier ? selectedTier.name : "Ticket"}</span><span>{subtotal.toFixed(2)} OMR</span></div>
           {appliedPromo && (
             <div className="ln"><span>Promo · {appliedPromo.code}</span><span>−{discount.toFixed(2)} OMR</span></div>
@@ -145,10 +147,9 @@ export default function Checkout() {
           </div>
         </div>
 
-        <div className="fee-box">
+        <div className="checkout-lines" style={{ marginTop: 20 }}>
           <div className="ln"><span>Subtotal</span><span>{discountedSubtotal.toFixed(2)} OMR</span></div>
-          <div className="ln"><span>Weyn service fee (8%)</span><span>{fee.toFixed(2)} OMR</span></div>
-          <div className="ln total"><span>Total</span><span>{total.toFixed(2)} OMR</span></div>
+          <div className="ln"><span>Service fee</span><span>{fee.toFixed(2)} OMR</span></div>
         </div>
         {payErr && <p className="errline" style={{ marginTop: 14 }}>{payErr}</p>}
       </div>

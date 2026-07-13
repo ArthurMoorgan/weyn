@@ -159,6 +159,14 @@
 
 /* Past tickets (Tickets.tsx Upcoming/Past tabs) render at reduced opacity. */
 .ticket-past { opacity: .55; }
+/* Two independent pills, no shared track — active is the standard CTA
+   treatment (black light / coral dark), inactive is a plain surface pill. */
+.ticket-tabs { display: flex; gap: 8px; }
+.ticket-tab {
+  font-size: 14px; font-weight: 600; padding: 9px 18px; border-radius: var(--radius-pill);
+  background: var(--surface-hover); color: var(--text-2);
+}
+.ticket-tab.on { background: var(--cta-bg); color: var(--cta-on-cta); }
 
 /* ---------- category chips ---------- */
 .chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 6px; scrollbar-width: none; overscroll-behavior-x: contain; }
@@ -1256,6 +1264,8 @@
 .fee-box { margin-top: 20px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--surface); font-size: 13.5px; }
 .fee-box .ln { display: flex; justify-content: space-between; padding: 3px 0; color: var(--text-2); }
 .fee-box .ln.total { color: var(--text); font-weight: 600; border-top: 1px solid var(--hair); margin-top: 6px; padding-top: 9px; }
+/* Checkout price rows — plain, no card/box surface (per handoff screens). */
+.checkout-lines .ln { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14.5px; color: var(--text-2); }
 
 /* ---------- checkout order line + payment row (Editorial handoff) ---------- */
 .order-line { display: flex; align-items: center; gap: 12px; }
@@ -1739,8 +1749,17 @@
 .dash-banner-metric .v small { font-size: 13px; font-weight: 500; color: var(--text-2); }
 
 .dash-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.dash-row-pct { flex: 0 0 auto; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 .dash-row-progress .bar { margin-top: 6px; }
+/* Organizer "Upcoming events" status pill — On sale (green tint), Sold out
+   (solid black), per the handoff spec. No "Draft" state here since this
+   summary's data doesn't carry isDraft — only real sold/capacity states shown. */
+.status-pill {
+  flex: 0 0 auto; font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: var(--radius-pill);
+}
+.status-pill.onsale { color: var(--success); background: var(--success-soft); }
+/* Solid near-black in both themes (per spec), not theme-relative --text
+   which flips to near-white in dark mode. */
+.status-pill.soldout { color: #fff; background: #0A0A0A; }
 .bar { height: 6px; border-radius: 99px; background: var(--hair); overflow: hidden; margin-top: 7px; }
 .bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
 .bar i.full { background: var(--danger); }

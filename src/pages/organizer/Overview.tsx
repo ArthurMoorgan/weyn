@@ -112,6 +112,9 @@ export default function OrganizerOverview() {
             // percent bar would be meaningless — falls back to a plain count.
             const hasCapacity = e.capacity > 0 && e.capacity < 9000;
             const pct = hasCapacity ? Math.min(100, Math.round((e.sold / e.capacity) * 100)) : null;
+            // Real status pill (handoff spec) derived from real sold/capacity —
+            // no "Draft" state here since this summary doesn't carry isDraft.
+            const soldOut = hasCapacity && e.sold >= e.capacity;
             return (
               <Link key={e.id} to={`/organizer/events/${e.id}`} className="dash-row dash-row-progress">
                 <div className="thumb" style={e.image ? { backgroundImage: `url(${e.image})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: e.color }}>
@@ -120,7 +123,7 @@ export default function OrganizerOverview() {
                 <div className="info">
                   <div className="dash-row-top">
                     <b>{e.title}</b>
-                    <span className="dash-row-pct">{pct != null ? `${pct}%` : `${e.sold} sold`}</span>
+                    <span className={"status-pill" + (soldOut ? " soldout" : " onsale")}>{soldOut ? "Sold out" : "On sale"}</span>
                   </div>
                   <span>{dayLabel({ startsAt: e.startsAt } as any)} · {timeLabel({ startsAt: e.startsAt } as any)}</span>
                   {pct != null && <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${pct}%` }} /></div>}

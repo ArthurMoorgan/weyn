@@ -45,10 +45,13 @@ export default function Tickets() {
         <h1>Tickets</h1>
       </section>
 
+      {/* Pixel-checked against the handoff: two independent pills (no
+          shared track/thumb like .segment elsewhere) — active is solid
+          black/coral via --cta-bg, inactive is plain white/surface. */}
       {myTickets.length > 0 && (
-        <div className="segment" style={{ margin: "0 16px 4px" }}>
-          <button className={"segment-opt" + (tab === "upcoming" ? " on" : "")} onClick={() => setTab("upcoming")}>Upcoming</button>
-          <button className={"segment-opt" + (tab === "past" ? " on" : "")} onClick={() => setTab("past")}>Past</button>
+        <div className="ticket-tabs" style={{ margin: "0 16px 4px" }}>
+          <button className={"ticket-tab" + (tab === "upcoming" ? " on" : "")} onClick={() => setTab("upcoming")}>Upcoming</button>
+          <button className={"ticket-tab" + (tab === "past" ? " on" : "")} onClick={() => setTab("past")}>Past</button>
         </div>
       )}
 
