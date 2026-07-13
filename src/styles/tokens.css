@@ -1,0 +1,134 @@
+/* ============================================================
+   WEYN — design tokens
+   Extracted from the original monolithic index.css (Phase 0 of
+   the visual redesign) — pure mechanical extraction, no rule
+   changes. See src/index.css for the v9 overhaul history.
+   ============================================================ */
+
+:root {
+  color-scheme: dark;
+  --bg:             #0D0D0F;
+  --bg-elevated:    #060607;
+  --surface:        #18181B;
+  --surface-hover:  #212124;
+  --border:         rgba(255,255,255,.09);
+  --border-strong:  rgba(255,255,255,.18);
+  /* Sharp Uber-style red, brightened one step for dark surfaces. */
+  --primary:        #FF3B30;
+  --primary-hover:  #FF564C;
+  --primary-pressed:#E0281E;
+  --on-primary:     #FFFFFF;
+  --success:        #32D583;
+  --warning:        #F0B429;
+  --error:          #FF453A;
+  --info:           #5EC8D8;
+  --text:           #F4F4F5;
+  --text-2:         #9F9FA6;
+  --text-3:         #67676D;
+  --text-disabled:  #3F3F44;
+  --icon:           #F4F4F5;
+  --icon-2:         #9F9FA6;
+  --divider:        rgba(255,255,255,.09);
+  --card-bg:        #18181B;
+  --card-border:    rgba(255,255,255,.09);
+  --card-shadow:    0 1px 2px rgba(0,0,0,.4);
+  --accent-soft:    rgba(255,59,48,.16);
+  --success-soft:   rgba(50,213,131,0.15);
+  --scrim: rgba(0,0,0,0.6);
+  /* Not part of the new system — kept only because a couple of venue/
+     category call sites still reference these; no longer load-bearing
+     for the primary brand color. */
+  --gulf:           #2C6E6B;
+  --gulf-soft:      rgba(44,110,107,0.18);
+  --khanjar:        var(--primary);
+
+  /* back-compat aliases so existing ~300 call sites keep working unchanged */
+  --surface-2:   var(--surface-hover);
+  --accent:      var(--primary);
+  --accent-2:    var(--primary-hover);
+  --danger:      var(--error);
+  --ink:         var(--text);
+  --hair:        var(--divider);
+  --line:        var(--border);
+  --chip-soft:   var(--surface-hover);
+
+  /* Sharper, flatter than the previous pass — Uber/Instagram read as
+     crisp rectangles with modest rounding, not soft "bubble" cards. */
+  --radius: 12px; --radius-sm: 8px; --radius-pill: 999px; --maxw: 468px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.35);
+  --shadow-md: 0 1px 3px rgba(0,0,0,.4), 0 4px 10px rgba(0,0,0,.3);
+  --shadow-lg: 0 2px 6px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.4);
+  --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
+  --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm);
+  --shadow-float: var(--shadow-md); --lens: none;
+  --card-alt: var(--surface-hover);
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-8: 48px;
+  --btn-h: 48px; --btn-h-lg: 56px; --btn-h-sm: 40px;
+
+  /* Category colors — 7 distinct hues, none red so none compete with
+     the new --primary accent. */
+  --cat-music: #4C8DF5; --cat-sports: #16A34A; --cat-food: #F97316;
+  --cat-culture: #DB2777; --cat-cars: #64748B; --cat-workshop: #CA8A04;
+  --cat-community: #14B8A6;
+
+  /* fallback scrim used by Stub.tsx cover gradients */
+  --fallback-scrim: rgba(0,0,0,0.35);
+
+  /* Tab-switch spark burst (see .tab-spark below) */
+  --spark-color-1: var(--primary);
+  --spark-color-2: var(--primary-hover);
+  --spark-color-3: #fff;
+}
+
+/* Light mode — Uber/Instagram/Airbnb-style: white cards on a faint
+   neutral-gray page (not pure white, not warm-tinted), near-black
+   (not true-black) text, depth from a hairline border + a near-invisible
+   shadow rather than dyeing the background a "theme color". */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #FFFFFF; --bg-elevated: #F6F6F7; --surface: #FFFFFF; --surface-hover: #F6F6F7;
+  --border: #E7E7E9; --border-strong: #D6D6D9;
+  --primary: #E0272D; --primary-hover: #EB3E43; --primary-pressed: #C21E23;
+  --on-primary: #FFFFFF;
+  --success: #178A4C; --warning: #97650E; --error: #C21E23; --info: #2678A8;
+  --text: #131316; --text-2: #5E5E66; --text-3: #98989F; --text-disabled: #D3D3D7;
+  --icon: #131316; --icon-2: #5E5E66; --divider: #E7E7E9;
+  --card-bg: #FFFFFF; --card-border: #E7E7E9;
+  --card-shadow: 0 1px 2px rgba(0,0,0,.05);
+  --accent-soft: #FDECEC; --success-soft: rgba(23,138,76,0.10);
+  --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
+  --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);
+  --chip-soft: var(--surface-hover);
+  --gulf: #235957; --gulf-soft: rgba(35,89,87,0.10); --khanjar: var(--primary);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 1px 3px rgba(0,0,0,.05), 0 4px 10px rgba(0,0,0,.06);
+  --shadow-lg: 0 2px 6px rgba(0,0,0,.06), 0 12px 28px rgba(0,0,0,.08);
+  --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
+  --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm); --shadow-float: var(--shadow-md);
+  --card-alt: var(--surface-hover);
+  --fallback-scrim: rgba(0,0,0,0.1);
+
+  --spark-color-1: var(--primary);
+  --spark-color-2: var(--primary-hover);
+  --spark-color-3: var(--text);
+}
+
+:root {
+  --fw-regular: 400;
+  --fw-medium:  500;   /* metadata, secondary UI */
+  --fw-semibold: 600;  /* card titles, buttons, labels */
+  --fw-bold:    700;   /* hero + section headings only */
+
+  --f-display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+  --f-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  --t-hero:    700 28px/1.14 var(--f-display); /* ~28px effective on key screens; bumps to 40px on desktop (see @media 900px) */
+  --t-section: 700 18px/1.25 var(--f-display);
+  --t-card:    600 15px/1.3  var(--f-display);
+  --t-meta:    500 13px/1.4  var(--f-display);
+  --t-caption: 600 11px/1.3  var(--f-display);
+  /* genuine body-reading text (descriptions, blurbs) — NOT metadata/captions */
+  --t-body:    400 16px/1.6  var(--f-display);
+  --t-data:    600 14px/1.3  "IBM Plex Mono", monospace;
+}

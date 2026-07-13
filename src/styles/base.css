@@ -1,0 +1,49 @@
+/* ============================================================
+   WEYN — base resets, body, headings, utility classes
+   Extracted from the original monolithic index.css (Phase 0)
+   ============================================================ */
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body, #root { height: 100%; }
+/* At the 900px+ breakpoint `body` becomes a flex container (for the
+   sidebar layout — see .shell below) — without an explicit width, #root
+   (its sole child) shrinks to fit whatever page is mounted inside it
+   instead of filling the viewport. App-shell routes are fine (.shell sets
+   flex:1), but any standalone route (Onboarding, EventDetail, invite
+   accept, etc.) that isn't wrapped in .shell would otherwise get pinned to
+   the left edge instead of centering, since a shrunk container leaves
+   nothing for an inner `margin: 0 auto` to center within. */
+#root { width: 100%; }
+
+/* Lock both axes against rubber-band-into-blank-space (iOS Safari + standalone
+   PWA), and kill any horizontal drift — the app is a single vertical column, so
+   nothing should ever scroll sideways at the page level. overscroll-behavior is
+   set on html AND body because iOS applies it to whichever is the scroller. */
+html, body {
+  overscroll-behavior: none;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  font-family: var(--f-display);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  background: var(--bg);
+}
+
+h1, h2, h3, h4 { margin: 0; }
+h1 { font: var(--t-hero);    letter-spacing: -0.02em; }
+h2 { font: var(--t-section); letter-spacing: -0.02em; }
+h3 { font: var(--t-card);    letter-spacing: -0.01em; }
+
+/* utility roles — use on non-heading elements that still need scale identity */
+.t-eyebrow { font: var(--t-caption); letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-3); }
+.t-meta    { font: var(--t-meta); color: var(--text-2); }
+.t-caption { font: var(--t-caption); letter-spacing: 0.2px; color: var(--text-3); }
+.t-data    { font: var(--t-data); font-variant-numeric: tabular-nums; letter-spacing: 0.2px; }
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
