@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType } from "../../api";
+import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType, type WinBackStats, type VenueLoyaltyGuest, type VenueMarketingLink, type VenueMarketingCalendarItem, type VenueBrandKit } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
@@ -23,6 +23,7 @@ const VENUE_TABS = [
   { key: "venue", label: "Venue", icon: "store" },
   { key: "guests", label: "Guests", icon: "user" },
   { key: "marketing", label: "Marketing", icon: "megaphone" },
+  { key: "marketing-hub", label: "Marketing Hub", icon: "sparkles" },
   { key: "workflows", label: "Workflows", icon: "zap" },
   { key: "analytics", label: "Analytics", icon: "bar-chart" },
   { key: "hours", label: "Hours", icon: "clock" },
@@ -96,6 +97,7 @@ function VenueBody({ tab, venue }: { tab: VenueTabKey; venue: OwnedVenue }) {
   if (tab === "venue") return <VenueProfileEditor venue={venue} />;
   if (tab === "guests") return <VenueGuests venueId={venue.id} rows={rows} />;
   if (tab === "marketing") return <VenueMarketing venueId={venue.id} />;
+  if (tab === "marketing-hub") return <VenueMarketingHub venueId={venue.id} />;
   if (tab === "workflows") return <VenueWorkflows venueId={venue.id} />;
   if (tab === "analytics") return <VenueAnalyticsPanel venueId={venue.id} />;
   return <VenueAvailabilityEditor venue={venue} />;
@@ -537,6 +539,342 @@ function VenueMarketing({ venueId }: { venueId: string }) {
           ))}
         </ul>
       )}
+    </>
+  );
+}
+
+// ---- Marketing Hub: win-back tracking, loyalty/referral, UTM link
+// builder, cross-campaign calendar, brand kit. A sub-tabbed section
+// (separate top-level nav entry from the plain "Marketing" send-a-campaign
+// tab above) since these are five distinct standalone tools, not one form.
+const HUB_SECTIONS = [
+  { key: "winback", label: "Win-back" },
+  { key: "loyalty", label: "Loyalty" },
+  { key: "links", label: "UTM Links" },
+  { key: "calendar", label: "Calendar" },
+  { key: "brand", label: "Brand Kit" },
+] as const;
+type HubSectionKey = typeof HUB_SECTIONS[number]["key"];
+
+function VenueMarketingHub({ venueId }: { venueId: string }) {
+  const [section, setSection] = useState<HubSectionKey>("winback");
+  return (
+    <>
+      <div className="chips" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+        {HUB_SECTIONS.map((s) => (
+          <button key={s.key} className={"chip" + (section === s.key ? " on" : "")} onClick={() => setSection(s.key)}>{s.label}</button>
+        ))}
+      </div>
+      {section === "winback" && <VenueWinBack venueId={venueId} />}
+      {section === "loyalty" && <VenueLoyalty venueId={venueId} />}
+      {section === "links" && <VenueMarketingLinks venueId={venueId} />}
+      {section === "calendar" && <VenueMarketingCalendar venueId={venueId} />}
+      {section === "brand" && <VenueBrandKitEditor venueId={venueId} />}
+    </>
+  );
+}
+
+// ---- Win-back: identify lapsed guests (reuses the existing "inactive"
+// segment + AI-draft), send from here, and see how many of the guests that
+// specific past campaign was sent to actually booked again since.
+function VenueWinBack({ venueId }: { venueId: string }) {
+  const { data: campaigns, loading } = useAsync(() => api.venueCampaigns(venueId), [venueId]);
+  const [days, setDays] = useState("60");
+  const [preview, setPreview] = useState<{ count: number; sample: string[] } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [goal, setGoal] = useState("Bring back guests who haven't visited in a while");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [drafting, setDrafting] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState("");
+  const [result, setResult] = useState("");
+  const [stats, setStats] = useState<Record<string, WinBackStats>>({});
+  const [statsWindow, setStatsWindow] = useState("30");
+
+  const segment: VenueSegment = { type: "inactive", days: Number(days) || 60 };
+
+  async function loadPreview() {
+    setPreviewing(true);
+    try { setPreview(await api.venueSegmentPreview(venueId, segment)); } finally { setPreviewing(false); }
+  }
+  useEffect(() => { loadPreview(); }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function aiDraft() {
+    if (!goal.trim()) { setErr("Describe the goal first."); return; }
+    setDrafting(true); setErr("");
+    try {
+      const draft = await api.aiDraftVenueCampaign(venueId, goal.trim(), `guests who haven't visited in ${days} days`);
+      setSubject(draft.subject); setMessage(draft.message);
+    } catch (e: any) {
+      setErr(e.message || "Couldn't draft that right now.");
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  async function send() {
+    if (!subject.trim() || !message.trim()) { setErr("Subject and message are required."); return; }
+    setSending(true); setErr(""); setResult("");
+    try {
+      const res = await api.createVenueCampaign(venueId, { subject: subject.trim(), message: message.trim(), segment });
+      setResult(`Sent to ${res.emailed ?? 0} of ${res.recipients ?? 0} lapsed guests.`);
+      setSubject(""); setMessage("");
+    } catch (e: any) {
+      setErr(e.message || "Couldn't send that campaign.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const winBackCampaigns = (campaigns || []).filter((c) => c.segment?.type === "inactive" && c.status === "sent");
+
+  async function loadStats(campaignId: string) {
+    const s = await api.venueWinBackStats(venueId, campaignId, Number(statsWindow) || 30);
+    setStats((prev) => ({ ...prev, [campaignId]: s }));
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "4px 0 8px" }}><i className="icon-megaphone" /> Win back lapsed guests</p>
+      <div className="dash-card" style={{ padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 13 }}>Haven't visited in</span>
+          <input className="toolbar-field" type="number" style={{ width: 70 }} value={days} onChange={(e) => setDays(e.target.value)} />
+          <span style={{ fontSize: 13 }}>days</span>
+        </div>
+        <p style={{ fontSize: 12.5, color: "var(--text-2)" }}>
+          {previewing ? "Checking…" : preview ? `${preview.count} lapsed guest${preview.count === 1 ? "" : "s"}${preview.sample.length ? ` — e.g. ${preview.sample.join(", ")}` : ""}` : "—"}
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input className="toolbar-field" style={{ flex: 1 }} value={goal} onChange={(e) => setGoal(e.target.value)} />
+          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={aiDraft} disabled={drafting}>
+            <i className="icon-sparkles" /> {drafting ? "Drafting…" : "AI draft"}
+          </button>
+        </div>
+        <input className="toolbar-field" placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+        <textarea className="toolbar-field" rows={4} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
+        {err && <p className="errline">{err}</p>}
+        {result && <p className="hint">{result}</p>}
+        <button className="btn glass" onClick={send} disabled={sending || !preview?.count}>
+          {sending ? "Sending…" : `Send win-back to ${preview?.count ?? 0} guest${preview?.count === 1 ? "" : "s"}`}
+        </button>
+      </div>
+
+      <p className="hint" style={{ margin: "4px 0 8px" }}>Past win-back campaigns · conversion within</p>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <input className="toolbar-field" type="number" style={{ width: 70 }} value={statsWindow} onChange={(e) => setStatsWindow(e.target.value)} />
+        <span style={{ fontSize: 13 }}>days of send</span>
+      </div>
+      {loading ? (
+        <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+      ) : !winBackCampaigns.length ? (
+        <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No win-back campaigns sent yet.</p>
+      ) : (
+        <ul className="steps">
+          {winBackCampaigns.map((c) => (
+            <li key={c.id}>
+              <i className="icon-megaphone" />
+              <span style={{ flex: 1 }}>
+                {c.subject || "(no subject)"}
+                <br />
+                <small style={{ color: "var(--text-3)" }}>
+                  Sent {new Date(c.sentAt!).toLocaleDateString()} · {c.recipientCount ?? "?"} recipients
+                  {stats[c.id] && ` · ${stats[c.id].converted} of ${stats[c.id].targeted} booked again (${stats[c.id].rate != null ? Math.round(stats[c.id].rate! * 100) : "—"}%)`}
+                </small>
+              </span>
+              <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => loadStats(c.id)}>Check conversion</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+// ---- Loyalty: punch-card visit tiers (bronze/silver/gold), computed live
+// from reservation history, plus a per-guest referral code the owner can
+// issue and share. No payment/discount processing.
+const TIER_BADGE_CLASS: Record<string, string> = { gold: "confirmed", silver: "", bronze: "" };
+function VenueLoyalty({ venueId }: { venueId: string }) {
+  const { data, loading, reload } = useAsync(() => api.venueLoyalty(venueId), [venueId]);
+  const [issuing, setIssuing] = useState<string | null>(null);
+
+  async function issue(email: string) {
+    setIssuing(email);
+    try { await api.issueVenueReferralCode(venueId, email); reload(); } finally { setIssuing(null); }
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "4px 0 8px" }}><i className="icon-user" /> Loyalty & referrals</p>
+      {data?.tiers && (
+        <p style={{ fontSize: 12.5, color: "var(--text-2)", marginBottom: 10 }}>
+          {data.tiers.map((t) => `${t.label} at ${t.minVisits}+ visits`).join(" · ")}
+        </p>
+      )}
+      {loading ? (
+        <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+      ) : !data?.guests.length ? (
+        <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No guests yet.</p>
+      ) : (
+        <ul className="steps">
+          {data.guests.map((g: VenueLoyaltyGuest) => (
+            <li key={g.email}>
+              <i className="icon-user" />
+              <span style={{ flex: 1 }}>
+                {g.name} <small style={{ color: "var(--text-3)" }}>· {g.email}</small>
+                {g.tier && <span className={"ec-badge " + TIER_BADGE_CLASS[g.tier]} style={{ marginLeft: 6, textTransform: "capitalize" }}>{g.tier}</span>}
+                <br />
+                <small style={{ color: "var(--text-3)" }}>
+                  {g.visits} visit{g.visits === 1 ? "" : "s"}
+                  {g.referralCode ? ` · referral code ${g.referralCode} (${g.referralCount} referral${g.referralCount === 1 ? "" : "s"})` : ""}
+                </small>
+              </span>
+              {!g.referralCode && (
+                <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => issue(g.email)} disabled={issuing === g.email}>
+                  {issuing === g.email ? "Issuing…" : "Issue referral code"}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+// ---- UTM link builder: trackable links per venue/campaign source ----
+function VenueMarketingLinks({ venueId }: { venueId: string }) {
+  const { data: links, loading, reload } = useAsync(() => api.venueMarketingLinks(venueId), [venueId]);
+  const [label, setLabel] = useState("");
+  const [utmSource, setUtmSource] = useState("");
+  const [utmMedium, setUtmMedium] = useState("instagram");
+  const [utmCampaign, setUtmCampaign] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function create() {
+    if (!label.trim() || !utmSource.trim() || !utmMedium.trim() || !utmCampaign.trim()) {
+      setErr("Label, source, medium, and campaign are all required.");
+      return;
+    }
+    setSaving(true); setErr("");
+    try {
+      await api.createVenueMarketingLink(venueId, { label: label.trim(), utmSource: utmSource.trim(), utmMedium: utmMedium.trim(), utmCampaign: utmCampaign.trim() });
+      setLabel(""); setUtmSource(""); setUtmCampaign("");
+      reload();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't create that link.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(id: string) {
+    await api.deleteVenueMarketingLink(venueId, id);
+    reload();
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "4px 0 8px" }}><i className="icon-link" /> New trackable link</p>
+      <div className="dash-card" style={{ padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <input className="toolbar-field" placeholder="Label (e.g. Instagram bio link)" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input className="toolbar-field" style={{ flex: 1, minWidth: 120 }} placeholder="utm_source (e.g. instagram)" value={utmSource} onChange={(e) => setUtmSource(e.target.value)} />
+          <input className="toolbar-field" style={{ flex: 1, minWidth: 120 }} placeholder="utm_medium (e.g. social)" value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} />
+          <input className="toolbar-field" style={{ flex: 1, minWidth: 120 }} placeholder="utm_campaign (e.g. summer-launch)" value={utmCampaign} onChange={(e) => setUtmCampaign(e.target.value)} />
+        </div>
+        {err && <p className="errline">{err}</p>}
+        <button className="btn glass" onClick={create} disabled={saving}>{saving ? "Creating…" : "Create link"}</button>
+      </div>
+
+      {loading ? (
+        <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+      ) : !links?.length ? (
+        <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No links yet.</p>
+      ) : (
+        <ul className="steps">
+          {links.map((l: VenueMarketingLink) => (
+            <li key={l.id} style={{ alignItems: "flex-start" }}>
+              <i className="icon-link" />
+              <span style={{ flex: 1 }}>
+                {l.label} <small style={{ color: "var(--text-3)" }}>· {l.utmSource}/{l.utmMedium}/{l.utmCampaign}</small>
+                <br />
+                <small style={{ color: "var(--text-3)", wordBreak: "break-all" }}>{l.url}</small>
+              </span>
+              <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => remove(l.id)}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+// ---- Marketing calendar: every scheduled/sent campaign for this venue in
+// one timeline. ----
+function VenueMarketingCalendar({ venueId }: { venueId: string }) {
+  const { data: items, loading } = useAsync(() => api.venueMarketingCalendar(venueId), [venueId]);
+  return (
+    <>
+      <p className="hint" style={{ margin: "4px 0 8px" }}><i className="icon-calendar" /> Marketing calendar</p>
+      {loading ? (
+        <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+      ) : !items?.length ? (
+        <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>Nothing scheduled or sent yet — campaigns you create in Win-back or Marketing show up here.</p>
+      ) : (
+        <ul className="steps">
+          {items.map((it: VenueMarketingCalendarItem) => (
+            <li key={it.id}>
+              <i className="icon-calendar" />
+              <span>
+                {it.subject || "(no subject)"} <span className={"ec-badge " + (it.status === "sent" ? "confirmed" : "")}>{it.status}</span>
+                <br />
+                <small style={{ color: "var(--text-3)" }}>{it.date ? new Date(it.date).toLocaleString() : "—"}</small>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+// ---- Brand kit: feeds the AI campaign-copy prompt so drafts stay on-brand ----
+function VenueBrandKitEditor({ venueId }: { venueId: string }) {
+  const { data, loading, reload } = useAsync(() => api.venueBrandKit(venueId), [venueId]);
+  const [logoUrl, setLogoUrl] = useState("");
+  const [primaryColor, setPrimaryColor] = useState("");
+  const [toneOfVoice, setToneOfVoice] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (data) { setLogoUrl(data.logoUrl || ""); setPrimaryColor(data.primaryColor || ""); setToneOfVoice(data.toneOfVoice || ""); }
+  }, [data]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.setVenueBrandKit(venueId, { logoUrl: logoUrl.trim() || null, primaryColor: primaryColor.trim() || null, toneOfVoice: toneOfVoice.trim() || null });
+      reload();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>;
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "4px 0 8px" }}><i className="icon-sparkles" /> Brand kit</p>
+      <p style={{ fontSize: 12.5, color: "var(--text-2)", marginBottom: 10 }}>Feeds every AI-drafted campaign for this venue — the AI will follow this tone and mention your color where relevant.</p>
+      <div className="dash-card" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <input className="toolbar-field" placeholder="Logo URL" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
+        <input className="toolbar-field" placeholder="Primary brand color (e.g. #E63946)" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} />
+        <input className="toolbar-field" placeholder="Tone of voice (e.g. playful and casual)" value={toneOfVoice} onChange={(e) => setToneOfVoice(e.target.value)} />
+        <button className="btn glass" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save brand kit"}</button>
+      </div>
     </>
   );
 }

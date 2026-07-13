@@ -693,6 +693,9 @@ model Venue {
   automationRules AutomationRule[]
   workflows     Workflow[]
   floorPlan     FloorPlan?
+  marketingLinks  VenueMarketingLink[]
+  loyaltyProfiles VenueLoyalty[]
+  brandKit        VenueBrandKit?
 
   @@index([ownerId])
   @@index([category])
@@ -1217,11 +1220,30 @@ model Campaign {
   organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
   event     Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
   venue     Venue? @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  recipients VenueCampaignRecipient[]
 
   @@index([organizerId])
   @@index([eventId])
   @@index([venueId])
   @@index([status, scheduledFor])
+}
+
+// Snapshot of exactly which guest emails a venue campaign was sent to, at
+// the moment it sent — needed for win-back conversion tracking (did this
+// specific guest book again after this specific send). Only populated for
+// venue campaigns (Campaign.venueId set); the guest list resolved fresh at
+// send time via resolveVenueSegment() would otherwise be un-recoverable
+// after the fact since guest history keeps changing.
+model VenueCampaignRecipient {
+  id         String   @id @default(cuid())
+  campaignId String
+  guestEmail String
+  createdAt  DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([guestEmail])
 }
 
 // Reusable subject/message pairs for the bulk-notify form — saved on demand
@@ -1472,4 +1494,73 @@ model OrganizerGoal {
   organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
 
   @@unique([organizerId, month])
+}
+
+// ============================================================
+// Venue Marketing Hub — the venue-dashboard counterpart to the organizer
+// side's MarketingLink/ReferralCode/OrganizerBrandKit (see those models'
+// comments above). Deliberately separate models rather than reusing the
+// organizer ones: those are FK'd to Event/organizerId, these are FK'd to
+// Venue, and the two domains' feature flags are distinct keys in
+// server/features.js (venue* prefix) so a venue owner's plan and an
+// organizer's plan can differ independently. See server/app.js's
+// "/api/venues/:id/marketing-links" etc. and server/venue-marketing.js.
+// ============================================================
+
+// UTM link builder — mirrors MarketingLink but points at a venue's public
+// page instead of an event's. clicks starts at 0 and isn't incremented by
+// anything yet (no redirect-through route exists), same as the organizer
+// side's link builder today — the table exists so a venue owner has one
+// place to keep the trackable links they've handed out.
+model VenueMarketingLink {
+  id          String   @id @default(cuid())
+  venueId     String
+  label       String
+  utmSource   String
+  utmMedium   String
+  utmCampaign String
+  url         String
+  clicks      Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId])
+}
+
+// Loyalty/referral tracking per (venue, guest) — a punch-card-style tier
+// (bronze/silver/gold) computed live from Reservation history at read time
+// (see server/venue-marketing.js's loyaltyTierForVisits) rather than stored
+// here, so it never drifts from the real reservation ledger; only the
+// referral code itself (which must be stable/shareable once issued) is
+// persisted. No payment/discount processing — this is tracking + a badge
+// shown in the guest CRM, nothing more.
+model VenueLoyalty {
+  id            String   @id @default(cuid())
+  venueId       String
+  guestEmail    String
+  referralCode  String   @unique
+  referralCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, guestEmail])
+  @@index([venueId])
+}
+
+// Per-venue branding preferences feeding into the AI campaign-copy prompt
+// (server/venue-marketing.js's brandKitLine, reused from server/marketing.js's
+// organizer equivalent) — same shape as OrganizerBrandKit, keyed by venueId
+// instead of organizerId since one owner can run several venues with
+// different branding each.
+model VenueBrandKit {
+  venueId      String   @id
+  logoUrl      String?
+  primaryColor String?
+  toneOfVoice  String?
+  updatedAt    DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
 }

@@ -17,7 +17,7 @@ import { db, prisma } from "./db.js";
 import { sendPush, pushConfigured } from "./push.js";
 import { sendWebPush, webPushConfigured } from "./webpush.js";
 import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./instagram-import.js";
-import { generateMarketingCopy, scheduleDates } from "./marketing.js";
+import { generateMarketingCopy, scheduleDates, brandKitLine } from "./marketing.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
 import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured, imageGenConfigured, generateImage, runAgentTurn, agentToolsConfigured } from "./ai.js";
 import { AGENT_TOOLS, buildToolExecutor, toolByName } from "./agent-tools.js";
@@ -29,7 +29,7 @@ import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature }
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail, organizerTeamInviteEmail, reminderEmail, waitlistWelcomeEmail, waitlistOwnerNotifyEmail } from "./email.js";
 import { runModerationPipeline } from "./moderation.js";
-import { resolveVenueSegment } from "./venue-marketing.js";
+import { resolveVenueSegment, LOYALTY_TIERS, loyaltyTierForVisits, venueGuestVisitCounts, winBackConversion } from "./venue-marketing.js";
 import { runVenueWorkflows, validateWorkflowGraph } from "./venue-workflows.js";
 import { runEventWorkflows, validateEventWorkflowGraph, redeemPromoCode } from "./event-workflows.js";
 
@@ -165,6 +165,9 @@ export async function runCampaignScan() {
           html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${safeSubject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${safeMessage}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you've booked with ${safeVenueName}.</p></div>`,
         }).then(() => emailed++).catch((err) => captureError(err, { route: "runCampaignScan", campaignId: c.id }))
       ));
+      if (guests.length) {
+        await prisma.venueCampaignRecipient.createMany({ data: guests.map((g) => ({ campaignId: c.id, guestEmail: g.email })) }).catch((err) => captureError(err, { route: "runCampaignScan:recipients", campaignId: c.id }));
+      }
       await db.markCampaignSent(c.id, emailed);
       continue;
     }
@@ -2537,6 +2540,9 @@ export function createApp(storage) {
         }).then(() => emailed++).catch((err) => captureError(err, { route: "POST /api/venues/:id/campaigns", venueId: req.venue.id }))
       ));
       const campaign = await db.createCampaign({ organizerId: req.user.id, venueId: req.venue.id, subject, message, segment, scheduledFor: null, recipientCount: emailed });
+      if (guests.length) {
+        await prisma.venueCampaignRecipient.createMany({ data: guests.map((g) => ({ campaignId: campaign.id, guestEmail: g.email })) }).catch((err) => captureError(err, { route: "POST /api/venues/:id/campaigns:recipients", venueId: req.venue.id }));
+      }
       res.status(201).json({ ok: true, scheduled: false, recipients: guests.length, emailed, campaign });
     } catch (err) {
       captureError(err, { route: "POST /api/venues/:id/campaigns", venueId: req.params.id });
@@ -2559,11 +2565,13 @@ export function createApp(storage) {
     const goal = String(req.body?.goal || "").trim();
     if (!goal) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Describe what this campaign should achieve." } });
     const segmentLabel = String(req.body?.segmentLabel || "your guests").trim();
+    const brandKit = await prisma.venueBrandKit.findUnique({ where: { venueId: req.venue.id } });
     const prompt = `You are an expert direct-response copywriter, writing one short marketing email on behalf of a real venue.
 
 Venue: ${req.venue.name}, a ${req.venue.category.replace("_", " ")} in ${req.venue.area}, Oman.
 Audience: ${segmentLabel} (an existing guest list — not cold outreach).
 Goal: ${goal}
+${brandKitLine(brandKit)}
 
 Rules, non-negotiable:
 - Benefit-first, not feature-first — lead with what's in it for the guest, not a description of the venue.
@@ -2587,6 +2595,164 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     const cancelled = await db.cancelCampaign(req.params.campaignId, req.user.id);
     if (!cancelled) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Nothing to cancel — it may already have sent." } });
     res.json(cancelled);
+  });
+
+  // ---- Venue Marketing Hub: win-back conversion tracking ----
+  // "Did a guest we targeted with a lapsed-guest win-back campaign actually
+  // book again" — computed from the VenueCampaignRecipient snapshot taken
+  // at send time (see the campaigns routes above), not re-resolved from the
+  // segment (which would drift as guest history keeps changing).
+  app.get("/api/venues/:id/campaigns/:campaignId/winback-stats", requireAuth, requireVenueOwner, requireFeature("venueWinBackCampaigns"), async (req, res) => {
+    try {
+      const campaign = await prisma.campaign.findUnique({ where: { id: req.params.campaignId } });
+      if (!campaign || campaign.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
+      const windowDays = req.query.windowDays ? Math.max(1, Number(req.query.windowDays)) : 30;
+      const recipients = await prisma.venueCampaignRecipient.findMany({ where: { campaignId: campaign.id } });
+      const stats = await winBackConversion(req.venue.id, campaign, recipients, windowDays);
+      res.json(stats);
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/campaigns/:campaignId/winback-stats", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- Venue Marketing Hub: loyalty / referral tracking ----
+  // Punch-card-style visit tiers (bronze/silver/gold), computed live from
+  // Reservation history — never stored, so it can't drift. Only the
+  // referral code (needs to stay stable once shared) is persisted, in
+  // VenueLoyalty. No payment/discount processing.
+  app.get("/api/venues/:id/loyalty", requireAuth, requireVenueOwner, requireFeature("venueLoyaltyProgram"), async (req, res) => {
+    try {
+      const [visits, loyaltyRows] = await Promise.all([
+        venueGuestVisitCounts(req.venue.id),
+        prisma.venueLoyalty.findMany({ where: { venueId: req.venue.id } }),
+      ]);
+      const byEmail = new Map(loyaltyRows.map((l) => [l.guestEmail.toLowerCase(), l]));
+      const guests = visits
+        .map((g) => {
+          const loyalty = byEmail.get(g.email.toLowerCase());
+          return {
+            email: g.email,
+            name: g.name,
+            visits: g.visits,
+            lastVisit: g.lastVisit,
+            tier: loyaltyTierForVisits(g.visits),
+            referralCode: loyalty?.referralCode || null,
+            referralCount: loyalty?.referralCount || 0,
+          };
+        })
+        .sort((a, b) => b.visits - a.visits);
+      res.json({ tiers: LOYALTY_TIERS, guests });
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/loyalty", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Issue (or return the existing) referral code for a guest — idempotent,
+  // short URL-safe code, same collision-retry pattern as the organizer
+  // side's ReferralCode.
+  app.post("/api/venues/:id/loyalty/:email/referral-code", requireAuth, requireVenueOwner, requireFeature("venueLoyaltyProgram"), async (req, res) => {
+    try {
+      const guestEmail = String(req.params.email || "").trim().toLowerCase();
+      if (!guestEmail) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "guestEmail is required" } });
+      const existing = await prisma.venueLoyalty.findUnique({ where: { venueId_guestEmail: { venueId: req.venue.id, guestEmail } } });
+      if (existing) return res.json(existing);
+      let code;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        code = crypto.randomBytes(4).toString("hex").toUpperCase();
+        const clash = await prisma.venueLoyalty.findUnique({ where: { referralCode: code } });
+        if (!clash) break;
+      }
+      const created = await prisma.venueLoyalty.create({ data: { venueId: req.venue.id, guestEmail, referralCode: code } });
+      res.status(201).json(created);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/loyalty/:email/referral-code", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- Venue Marketing Hub: UTM link builder ----
+  app.post("/api/venues/:id/marketing-links", requireAuth, requireVenueOwner, requireFeature("venueUtmLinkBuilder"), async (req, res) => {
+    try {
+      const b = req.body || {};
+      const label = String(b.label || "").trim();
+      const utmSource = String(b.utmSource || "").trim();
+      const utmMedium = String(b.utmMedium || "").trim();
+      const utmCampaign = String(b.utmCampaign || "").trim();
+      if (!label || !utmSource || !utmMedium || !utmCampaign) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "label, utmSource, utmMedium, and utmCampaign are all required" } });
+      }
+      const params = new URLSearchParams({ utm_source: utmSource, utm_medium: utmMedium, utm_campaign: utmCampaign });
+      const url = `${req.protocol}://${req.get("host")}/venues/${req.venue.id}?${params.toString()}`;
+      const created = await prisma.venueMarketingLink.create({
+        data: { venueId: req.venue.id, label, utmSource, utmMedium, utmCampaign, url },
+      });
+      res.status(201).json(created);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/marketing-links", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+  app.get("/api/venues/:id/marketing-links", requireAuth, requireVenueOwner, requireFeature("venueUtmLinkBuilder"), async (req, res) => {
+    res.json(await prisma.venueMarketingLink.findMany({ where: { venueId: req.venue.id }, orderBy: { createdAt: "desc" } }));
+  });
+  app.delete("/api/venues/:id/marketing-links/:linkId", requireAuth, requireVenueOwner, requireFeature("venueUtmLinkBuilder"), async (req, res) => {
+    const existing = await prisma.venueMarketingLink.findUnique({ where: { id: req.params.linkId } });
+    if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Link not found" } });
+    await prisma.venueMarketingLink.delete({ where: { id: existing.id } });
+    res.json({ ok: true });
+  });
+
+  // ---- Venue Marketing Hub: marketing calendar ----
+  // Every venue this owner manages, one combined calendar of sent/scheduled
+  // campaigns plus a recurring weekly promo reminder ("happy hour every
+  // Friday") the owner can add — purely a client-visible reminder list
+  // (VenueRecurringPromo), no automatic send; if they want it to actually
+  // go out on a schedule, that's what Workflows/scheduled campaigns are for.
+  app.get("/api/venues/:id/marketing-calendar", requireAuth, requireVenueOwner, requireFeature("venueMarketingCalendar"), async (req, res) => {
+    try {
+      const campaigns = await prisma.campaign.findMany({
+        where: { venueId: req.venue.id, status: { in: ["scheduled", "sent"] } },
+        orderBy: [{ scheduledFor: "asc" }, { sentAt: "asc" }],
+      });
+      const items = campaigns.map((c) => ({
+        id: c.id,
+        kind: "campaign",
+        subject: c.subject,
+        status: c.status,
+        date: c.status === "sent" ? c.sentAt : c.scheduledFor,
+      }));
+      items.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+      res.json(items);
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/marketing-calendar", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- Venue Marketing Hub: brand kit ----
+  // Same shape/pattern as the organizer side's /api/me/brand-kit, keyed by
+  // venueId instead of organizerId (see prisma/schema.prisma's
+  // VenueBrandKit comment for why). Feeds into the venue AI campaign-draft
+  // prompt below.
+  app.get("/api/venues/:id/brand-kit", requireAuth, requireVenueOwner, requireFeature("venueBrandKit"), async (req, res) => {
+    const kit = await prisma.venueBrandKit.findUnique({ where: { venueId: req.venue.id } });
+    res.json(kit || { venueId: req.venue.id, logoUrl: null, primaryColor: null, toneOfVoice: null });
+  });
+  app.put("/api/venues/:id/brand-kit", requireAuth, requireVenueOwner, requireFeature("venueBrandKit"), async (req, res) => {
+    const b = req.body || {};
+    const data = {
+      logoUrl: b.logoUrl ? String(b.logoUrl).trim() : null,
+      primaryColor: b.primaryColor ? String(b.primaryColor).trim() : null,
+      toneOfVoice: b.toneOfVoice ? String(b.toneOfVoice).trim() : null,
+    };
+    const kit = await prisma.venueBrandKit.upsert({
+      where: { venueId: req.venue.id },
+      create: { venueId: req.venue.id, ...data },
+      update: data,
+    });
+    res.json(kit);
   });
 
   // ---- Venue Workflows: the visual node-graph automation builder,

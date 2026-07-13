@@ -86,7 +86,7 @@ function templateCopy(e) {
 // Brand kit is optional — a null/empty kit renders as nothing extra in the
 // prompt, so an organizer who hasn't set one up gets exactly the same copy
 // as before this feature existed.
-function brandKitLine(brandKit) {
+export function brandKitLine(brandKit) {
   if (!brandKit) return "";
   const tone = brandKit.toneOfVoice ? `Tone of voice: ${brandKit.toneOfVoice}.` : "";
   const color = brandKit.primaryColor ? `Brand color (mention only if writing something like a poster/ad description that references color): ${brandKit.primaryColor}.` : "";

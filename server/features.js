@@ -29,6 +29,15 @@ export const FEATURES = [
   // /api/events/:id/marketing-links, /api/events/:id/referral-codes,
   // /api/organizer/marketing-calendar routes in server/app.js.
   "adCopyGeneration", "utmLinkBuilder", "referralPrograms", "marketingCalendar", "brandKit",
+  // Venue Marketing Hub — the venue-dashboard counterpart to the flags
+  // above, distinctly named (venue* prefix) so a venue owner's plan and an
+  // organizer's plan gate independently even though FEATURES is one flat
+  // catalog shared by both dashboards. See server/venue-marketing.js and
+  // the /api/venues/:id/marketing-links, /api/venues/:id/loyalty,
+  // /api/venues/:id/campaigns/:campaignId/winback-stats,
+  // /api/venues/:id/brand-kit, and /api/venues/:id/marketing-calendar
+  // routes in server/app.js.
+  "venueWinBackCampaigns", "venueLoyaltyProgram", "venueUtmLinkBuilder", "venueMarketingCalendar", "venueBrandKit",
 ];
 const FEATURE_SET = new Set(FEATURES);
 

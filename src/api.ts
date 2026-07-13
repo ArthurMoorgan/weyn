@@ -59,6 +59,57 @@ export interface VenueSegment {
   days?: number;
 }
 
+// ---- Venue Marketing Hub: win-back, loyalty, UTM links, calendar, brand kit ----
+export interface WinBackStats {
+  targeted: number;
+  converted: number;
+  rate: number | null;
+  windowDays?: number;
+}
+
+export interface VenueLoyaltyTier {
+  key: "bronze" | "silver" | "gold";
+  label: string;
+  minVisits: number;
+}
+
+export interface VenueLoyaltyGuest {
+  email: string;
+  name: string;
+  visits: number;
+  lastVisit: string;
+  tier: "bronze" | "silver" | "gold" | null;
+  referralCode: string | null;
+  referralCount: number;
+}
+
+export interface VenueMarketingLink {
+  id: string;
+  venueId: string;
+  label: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  url: string;
+  clicks: number;
+  createdAt: string;
+}
+
+export interface VenueMarketingCalendarItem {
+  id: string;
+  kind: "campaign";
+  subject: string | null;
+  status: "scheduled" | "sent";
+  date: string | null;
+}
+
+export interface VenueBrandKit {
+  venueId: string;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  toneOfVoice: string | null;
+}
+
 // ---- venue workflows: the node-graph automation builder ----
 export type WFNodeType = "trigger" | "condition" | "action";
 export type VenueWorkflowTrigger = "reservation_created" | "reservation_cancelled" | "guest_no_show";
@@ -1640,6 +1691,48 @@ export const api = {
   },
   async cancelVenueCampaign(venueId: string, campaignId: string): Promise<Campaign> {
     return fetch(`${API_BASE}/api/venues/${venueId}/campaigns/${campaignId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json<Campaign>(r));
+  },
+  async venueWinBackStats(venueId: string, campaignId: string, windowDays?: number): Promise<WinBackStats> {
+    const qs = windowDays ? `?windowDays=${windowDays}` : "";
+    return fetch(`${API_BASE}/api/venues/${venueId}/campaigns/${campaignId}/winback-stats${qs}`, { headers: await authHeaders() }).then((r) => json<WinBackStats>(r));
+  },
+
+  // ---- venue marketing hub: loyalty / referral tracking ----
+  async venueLoyalty(venueId: string): Promise<{ tiers: VenueLoyaltyTier[]; guests: VenueLoyaltyGuest[] }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/loyalty`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async issueVenueReferralCode(venueId: string, guestEmail: string): Promise<{ referralCode: string; referralCount: number }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/loyalty/${encodeURIComponent(guestEmail)}/referral-code`, {
+      method: "POST", headers: await authHeaders(),
+    }).then((r) => json(r));
+  },
+
+  // ---- venue marketing hub: UTM link builder ----
+  async venueMarketingLinks(venueId: string): Promise<VenueMarketingLink[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing-links`, { headers: await authHeaders() }).then((r) => json<VenueMarketingLink[]>(r));
+  },
+  async createVenueMarketingLink(venueId: string, input: { label: string; utmSource: string; utmMedium: string; utmCampaign: string }): Promise<VenueMarketingLink> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing-links`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json<VenueMarketingLink>(r));
+  },
+  async deleteVenueMarketingLink(venueId: string, linkId: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing-links/${linkId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- venue marketing hub: cross-campaign calendar ----
+  async venueMarketingCalendar(venueId: string): Promise<VenueMarketingCalendarItem[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/marketing-calendar`, { headers: await authHeaders() }).then((r) => json<VenueMarketingCalendarItem[]>(r));
+  },
+
+  // ---- venue marketing hub: brand kit ----
+  async venueBrandKit(venueId: string): Promise<VenueBrandKit> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/brand-kit`, { headers: await authHeaders() }).then((r) => json<VenueBrandKit>(r));
+  },
+  async setVenueBrandKit(venueId: string, input: { logoUrl?: string | null; primaryColor?: string | null; toneOfVoice?: string | null }): Promise<VenueBrandKit> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/brand-kit`, {
+      method: "PUT", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json<VenueBrandKit>(r));
   },
 
   // ---- venue workflows: the node-graph automation builder ----
