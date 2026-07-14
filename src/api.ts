@@ -1129,14 +1129,6 @@ export const api = {
       method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ notes }),
     }).then((r) => json(r));
   },
-  async aiCoverConcept(eventId: string): Promise<{ concepts: { name: string; description: string; palette: string[] }[] }> {
-    return fetch(`${API_BASE}/api/events/${eventId}/ai/cover-concept`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
-  },
-  async aiCoverImage(eventId: string, prompt: string): Promise<{ url: string }> {
-    return fetch(`${API_BASE}/api/events/${eventId}/ai/cover-image`, {
-      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ prompt }),
-    }).then((r) => json(r)).then((d: any) => ({ url: API_BASE && d.url.startsWith("/") ? API_BASE + d.url : d.url }));
-  },
   async aiPricingSuggestion(eventId: string): Promise<{ suggestedPrice: number | null; reasoning: string; sampleSize: number }> {
     return fetch(`${API_BASE}/api/events/${eventId}/ai/pricing-suggestion`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
   },

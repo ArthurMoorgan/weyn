@@ -182,19 +182,6 @@ export async function suggestImageFocalPoint(imageBuffer, mimeType) {
   }
 }
 
-// ---- real image generation (AI Studio's "Cover art concepts") ----
-// Gemini-only: neither Anthropic nor Groq (the other two providers in the
-// PROVIDERS table above) offer an image-generation model, and this is the
-// one place in the app that actually needs one, so it's not routed through
-// the generic multi-provider `call()` table. Returns null (never throws)
-// when GEMINI_API_KEY isn't set — every caller already has a text-only
-// fallback (the concept's description/palette), same pattern as vision above.
-export function imageGenConfigured() {
-  return !!process.env.GEMINI_API_KEY;
-}
-
-const GEMINI_IMAGE_MODEL = () => process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
-
 // ---- agentic tool-calling (Weyn AI assistant) ----
 // Gemini-only for now, deliberately: it's the provider actually configured
 // in this deployment (see server/agent-tools.js's caller — GEMINI_API_KEY
@@ -267,22 +254,3 @@ export async function runAgentTurn({ systemPrompt, history, userMessage, tools, 
   return { text: "I wasn't able to finish that within the usual number of steps — try breaking it into a smaller ask.", toolCalls: toolCallsMade, history: contents };
 }
 
-export async function generateImage(prompt) {
-  if (!process.env.GEMINI_API_KEY) throw new Error("No GEMINI_API_KEY set on this server yet.");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL()}:generateContent`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseModalities: ["IMAGE"] },
-    }),
-  });
-  if (!res.ok) throw new Error(`Gemini image API error (${res.status}): ${await res.text()}`);
-  const data = await res.json();
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  const imagePart = parts.find((p) => p.inlineData || p.inline_data);
-  const inline = imagePart?.inlineData || imagePart?.inline_data;
-  if (!inline?.data) throw new Error("Gemini didn't return an image for this prompt.");
-  return { buffer: Buffer.from(inline.data, "base64"), mimeType: inline.mimeType || inline.mime_type || "image/png" };
-}

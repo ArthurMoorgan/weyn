@@ -20,7 +20,7 @@ import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./ins
 import { generateMarketingCopy, scheduleDates, brandKitLine, generateAngledCopy, PERSUASION_ANGLE_KEYS, generateBulkAdVariants, generateGrowthIdeas, generateFreeToolIdeas } from "./marketing.js";
 import { metaConfigured, buildMetaOAuthUrl, exchangeCodeForConnection, publishInstagramPost, IntegrationNotConfiguredError } from "./social-posting.js";
 import { refineEventDraft, cleanEventTitle } from "./refine.js";
-import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured, imageGenConfigured, generateImage, runAgentTurn, agentToolsConfigured } from "./ai.js";
+import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured, runAgentTurn, agentToolsConfigured } from "./ai.js";
 import { AGENT_TOOLS, buildToolExecutor, toolByName } from "./agent-tools.js";
 import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
 import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, requireEventAccessOrPermission, authConfigured } from "./auth.js";
@@ -1261,44 +1261,6 @@ export function createApp(storage) {
     } catch (err) {
       captureError(err, { route: "POST /api/events/:id/ai/description", eventId: req.event.id });
       res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't generate a description right now — try again shortly." } });
-    }
-  });
-
-  app.post("/api/events/:id/ai/cover-concept", requireEventOwner(), requireFeature("aiStudio"), async (req, res) => {
-    if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
-    // Text concepts (name/mood/palette) a designer or the "Generate image"
-    // button below can act on — see POST .../ai/cover-image for the actual
-    // pixels.
-    const prompt = `Suggest 3 distinct visual directions for a cover image/poster for "${req.event.title}" (category: ${req.event.cat}, venue: ${req.event.area}). For each: a short name, a 1-sentence mood/composition description, and a 3-color palette (hex codes). Respond as strict JSON: {"concepts": [{"name": "...", "description": "...", "palette": ["#hex","#hex","#hex"]}]}`;
-    try {
-      const parsed = await askClaudeJson(prompt, { maxTokens: 500 });
-      await db.logAiGeneration({ organizerId: req.user.id, eventId: req.event.id, feature: "cover-concept", prompt, output: JSON.stringify(parsed) });
-      res.json(parsed);
-    } catch (err) {
-      captureError(err, { route: "POST /api/events/:id/ai/cover-concept", eventId: req.event.id });
-      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't generate concepts right now — try again shortly." } });
-    }
-  });
-
-  // Real pixels, generated from one of the cover-concept briefs above (or
-  // any free-text prompt) — Gemini-only, see ai.js's generateImage comment.
-  // Saved through the same storage abstraction (R2 in prod, disk in dev) as
-  // a real upload, so the organizer just gets a normal /uploads/ URL back
-  // to preview and download — never auto-set as the event's live cover.
-  app.post("/api/events/:id/ai/cover-image", requireEventOwner(), requireFeature("aiStudio"), async (req, res) => {
-    if (!imageGenConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No Gemini API key is set on this server yet." } });
-    const concept = String(req.body?.prompt || "").trim().slice(0, 500);
-    if (!concept) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Pick a concept or describe what you want first." } });
-    const prompt = `A professional event cover photo for "${req.event.title}", a ${req.event.cat} event in Muscat, Oman. Visual direction: ${concept}. Wide banner composition (16:9), photorealistic or high-quality illustrated style, no text or logos overlaid on the image.`;
-    try {
-      const { buffer, mimeType } = await generateImage(prompt);
-      const ext = mimeType === "image/jpeg" ? "jpg" : mimeType === "image/webp" ? "webp" : "png";
-      const { url } = await storage.saveImage(buffer, ext);
-      await db.logAiGeneration({ organizerId: req.user.id, eventId: req.event.id, feature: "cover-image", prompt, output: url });
-      res.json({ url });
-    } catch (err) {
-      captureError(err, { route: "POST /api/events/:id/ai/cover-image", eventId: req.event.id });
-      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't generate an image right now — try again shortly." } });
     }
   });
 

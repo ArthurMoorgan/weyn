@@ -3,13 +3,14 @@ import { api, isPast, type Weyn, type AgentTurn, type AgentAction } from "../../
 import { useAsync } from "../../hooks";
 import FeatureLock from "../../components/FeatureLock";
 
-// Gemini-powered tools (server/ai.js auto-picks whichever provider key is
-// configured — Gemini preferred). Every output lands here for the organizer
-// to review/edit/copy/download — nothing generated here ever gets
-// auto-published or auto-set as an event's live cover. Cover art concepts
-// generate a real image now (Gemini-only, see ai.js's generateImage); an
-// auto-FAQ chatbot and predictive attendance forecasting from the original
-// plan are deliberately not built yet — flagged honestly rather than faked.
+// Text-generation tools (server/ai.js auto-picks whichever provider key is
+// configured). Every output lands here for the organizer to review/edit/
+// copy — nothing generated here ever gets auto-published. There is
+// deliberately no image-generation tool (removed — no image-gen API is
+// currently configured/paid for; re-add here + server/ai.js if that
+// changes). An auto-FAQ chatbot and predictive attendance forecasting from
+// the original plan are also deliberately not built yet — flagged honestly
+// rather than faked.
 export default function AiStudio() {
   const events = useAsync(() => api.dashboardEvents(), []);
   const sub = useAsync(() => api.mySubscription(), []);
@@ -21,7 +22,7 @@ export default function AiStudio() {
 
   return (
     <>
-      <p className="hint" style={{ margin: "0 0 14px" }}>Generate a description, cover-art concept, pricing suggestion, or post-event summary for any of your events. Always editable — nothing here publishes itself.</p>
+      <p className="hint" style={{ margin: "0 0 14px" }}>Generate a description, pricing suggestion, or post-event summary for any of your events. Always editable — nothing here publishes itself.</p>
 
       {events.loading && <p className="hint">Loading…</p>}
       {!events.loading && list.length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>Host an event first, then come back here.</p>}
@@ -43,7 +44,6 @@ export default function AiStudio() {
       {selected && (
         <FeatureLock feature="aiStudio" enabled={enabled}>
           <DescriptionTool event={selected} />
-          <CoverConceptTool event={selected} />
           <PricingTool event={selected} />
           {isPast(selected) && <SummaryTool event={selected} />}
         </FeatureLock>
@@ -264,75 +264,6 @@ function DescriptionTool({ event }: { event: Weyn }) {
           <pre className="marketing-text">{result}</pre>
         </div>
       )}
-    </ToolCard>
-  );
-}
-
-function CoverConceptTool({ event }: { event: Weyn }) {
-  const [concepts, setConcepts] = useState<{ name: string; description: string; palette: string[] }[] | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [images, setImages] = useState<Record<number, string>>({});
-  const [imageBusy, setImageBusy] = useState<number | null>(null);
-  const [imageErr, setImageErr] = useState<Record<number, string>>({});
-
-  async function generate() {
-    setBusy(true); setErr(""); setImages({}); setImageErr({});
-    try {
-      const res = await api.aiCoverConcept(event.id);
-      setConcepts(res.concepts);
-    } catch (e: any) {
-      setErr(e.message || "Couldn't generate concepts");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function generateImage(i: number, description: string) {
-    setImageBusy(i);
-    setImageErr((prev) => ({ ...prev, [i]: "" }));
-    try {
-      const { url } = await api.aiCoverImage(event.id, description);
-      setImages((prev) => ({ ...prev, [i]: url }));
-    } catch (e: any) {
-      setImageErr((prev) => ({ ...prev, [i]: e.message || "Couldn't generate an image" }));
-    } finally {
-      setImageBusy(null);
-    }
-  }
-
-  return (
-    <ToolCard title="Cover art concepts" icon="palette">
-      <p className="hint" style={{ margin: "0 0 10px" }}>Pick a visual direction, then generate a real cover image from it — always a preview to download, never auto-set as your event's live cover.</p>
-      {err && <p className="errline">{err}</p>}
-      <button className="btn" onClick={generate} disabled={busy}>{busy ? "Generating…" : "Generate concepts"}</button>
-      {concepts && concepts.map((c, i) => (
-        <div key={i} className="marketing-card" style={{ marginTop: 12 }}>
-          <div className="marketing-card-head"><b>{c.name}</b></div>
-          <p style={{ fontSize: 13.5, color: "var(--text-2)", margin: "4px 0 8px" }}>{c.description}</p>
-          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-            {c.palette.map((hex, j) => (
-              <div key={j} title={hex} style={{ width: 28, height: 28, borderRadius: 6, background: hex, border: "1px solid var(--border)" }} />
-            ))}
-          </div>
-          {imageErr[i] && <p className="errline">{imageErr[i]}</p>}
-          {images[i] ? (
-            <>
-              <img src={images[i]} alt={`Generated cover for "${c.name}"`} style={{ width: "100%", borderRadius: 10, marginBottom: 8, display: "block" }} />
-              <div style={{ display: "flex", gap: 8 }}>
-                <a href={images[i]} download className="btn glass sm"><i className="icon-download" /> Download</a>
-                <button className="btn glass sm" onClick={() => generateImage(i, c.description)} disabled={imageBusy === i}>
-                  {imageBusy === i ? "Regenerating…" : "Regenerate"}
-                </button>
-              </div>
-            </>
-          ) : (
-            <button className="btn glass sm" onClick={() => generateImage(i, c.description)} disabled={imageBusy === i}>
-              <i className="icon-image" /> {imageBusy === i ? "Generating image…" : "Generate image"}
-            </button>
-          )}
-        </div>
-      ))}
     </ToolCard>
   );
 }
