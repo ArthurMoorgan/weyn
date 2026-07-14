@@ -530,6 +530,33 @@
 .ex-hero-card-price { font: var(--t-body); font-size: 14px; color: rgba(255,255,255,0.85); }
 .ex-hero-card-price b { color: #fff; font-weight: 700; }
 
+/* Swipeable spotlight wrapping N .ex-hero-card slides — plain native
+   scroll-snap (same mechanism as the event-detail cover carousel), so swipe
+   physics/momentum are the browser's own rather than a hand-rolled drag
+   handler. Scrolling the page down past this *is* the "return to normal
+   UI" motion — no separate collapse/dismiss state to track. */
+.ex-hero-carousel { position: relative; }
+.ex-hero-carousel-track {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+}
+.ex-hero-carousel-track::-webkit-scrollbar { display: none; }
+.ex-hero-carousel-slide { flex: 0 0 100%; min-width: 100%; scroll-snap-align: start; }
+/* Stories-style segmented progress, overlaid at the top of the photo —
+   filled-so-far / empty-ahead reads as "there are a few of these" at a
+   glance, the way Instagram/TikTok Stories communicate position in a set
+   without needing numbered dots. */
+.ex-hero-carousel-progress {
+  position: absolute; top: 14px; left: 28px; right: 28px; z-index: 2;
+  display: flex; gap: 4px; pointer-events: none;
+}
+.ex-hero-carousel-seg {
+  flex: 1; height: 3px; padding: 0; border: none; border-radius: 2px;
+  background: rgba(255,255,255,0.35); pointer-events: auto;
+  transition: background-color .25s ease;
+}
+.ex-hero-carousel-seg.filled { background: #fff; }
+
 .ex-section { margin-top: 28px; }
 .ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 10px; }
 .ex-head h2 { font: var(--t-section); letter-spacing: -0.4px; }

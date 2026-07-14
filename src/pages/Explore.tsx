@@ -48,11 +48,10 @@ function heroTimeLabel(e: Weyn): string {
   return "This " + new Date(e.startsAt).toLocaleDateString("en-GB", { month: "long" });
 }
 
-// Full-bleed hero for the single best "featured" event (falls back to most
-// popular — see featPool below), replacing the old MagazineHero/mobile
-// spotlight split with one implementation that scales across breakpoints
-// instead of swapping between two.
-function HeroCard({ e }: { e: Weyn }) {
+// One card's worth of the spotlight carousel's content — pulled out of the
+// old single-slide HeroCard so HeroCarousel below can render N of these in
+// a swipeable track instead of one static card.
+function HeroSlide({ e }: { e: Weyn }) {
   const catLabel = CATS.find((c) => c.key === e.cat)?.label || e.cat;
   const coverStyle: React.CSSProperties = e.image
     ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
@@ -77,6 +76,61 @@ function HeroCard({ e }: { e: Weyn }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+// Full-bleed, swipeable spotlight — the single static hero card read as flat
+// against the rest of the app; this is the "some life in it" version:
+// several featured events as full-bleed slides you swipe between (like a
+// Stories rail), with segmented progress bars up top instead of plain dots
+// so it reads as "a few things to see," not just a carousel. There's no
+// custom dismiss gesture — it's simply the top of the normal page scroll,
+// so scrolling down past it *is* "sliding up to return to the normal UI,"
+// no separate modal/overlay state to manage.
+function HeroCarousel({ events }: { events: Weyn[] }) {
+  const [active, setActive] = useState(0);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  function onScroll() {
+    const el = trackRef.current;
+    if (!el) return;
+    setActive(Math.round(el.scrollLeft / el.clientWidth));
+  }
+
+  function goTo(i: number) {
+    const el = trackRef.current;
+    if (!el) return;
+    el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+  }
+
+  if (events.length <= 1) return events[0] ? <HeroSlide e={events[0]} /> : null;
+
+  return (
+    <div className="ex-hero-carousel">
+      <div className="ex-hero-carousel-track" ref={trackRef} onScroll={onScroll}>
+        {events.map((e) => (
+          <div className="ex-hero-carousel-slide" key={e.id}>
+            <HeroSlide e={e} />
+          </div>
+        ))}
+      </div>
+      {/* Segmented progress bars (Stories-style) rather than dots — each
+          segment fills solid for a past/current slide, empty for one not
+          reached yet, communicating "N of these, you're on #2" at a glance. */}
+      <div className="ex-hero-carousel-progress" role="tablist" aria-label="Featured events">
+        {events.map((e, i) => (
+          <button
+            key={e.id}
+            type="button"
+            role="tab"
+            aria-selected={i === active}
+            aria-label={`Featured event ${i + 1} of ${events.length}`}
+            className={"ex-hero-carousel-seg" + (i <= active ? " filled" : "")}
+            onClick={() => goTo(i)}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -214,11 +268,15 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
 
     const featured = [...catFiltered].filter((e) => e.featured).slice(0, 6);
     const featPool = featured.length ? featured : [...catFiltered].sort(byPopular).slice(0, 5);
-    const hero = featPool[0];
+    // Up to 4 swipeable spotlight slides instead of one static hero — see
+    // HeroCarousel below. Still just "the best few of featPool," not a
+    // second data source.
+    const heroPool = featPool.slice(0, 4);
+    const heroIds = new Set(heroPool.map((e) => e.id));
     // Every other event, one flat chronological list — see the comment
     // above on why this replaced day/weekend sectioning.
-    const rest = catFiltered.filter((e) => e.id !== hero?.id);
-    return { mode: "browse" as const, all: catFiltered, hero, rest };
+    const rest = catFiltered.filter((e) => !heroIds.has(e.id));
+    return { mode: "browse" as const, all: catFiltered, heroPool, rest };
   }, [data, cat, when, q, searching, maxPrice]);
 
   return (
@@ -425,7 +483,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
           <>
-            {S.hero && <HeroCard e={S.hero} />}
+            {S.heroPool.length > 0 && <HeroCarousel events={S.heroPool} />}
             {S.rest.length > 0 && (
               <section className="ex-section">
                 <div className="ex-head">
