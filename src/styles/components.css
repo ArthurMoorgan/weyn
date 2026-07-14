@@ -187,48 +187,41 @@
    the selection; it doesn't shout it. */
 .chip.on { background: var(--accent-soft); color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
 
-/* ---------- category circle shortcuts (Editorial handoff) ---------- */
-/* Structural replacement for the old text-only .chips category row: 64px
-   icon circles with a label underneath, horizontally scrollable. Pixel-
-   checked against design_handoff_weyn_ticketing/screenshots/01 & 02: the
-   active state is a plain coral OUTLINE ring floating outside the circle
-   (an offset outline, not a filled/tinted background) — the circle's own
-   fill and icon color never change, only the ring appears and the label
-   goes from regular to bold/dark. */
+/* ---------- category filter chips ---------- */
+/* Monochrome Apple-style filter chips (designer review): a bare circular
+   icon on a hairline outline; the SELECTED one fills solid accent and grows
+   an inline label to its right. The previous per-category rainbow circles
+   read as playful against the cinematic event photography — restraint is
+   the whole point of this pass, so color is spent only on the one selected
+   chip, nothing else. Row is shorter now (no permanent labels under every
+   icon), reclaiming vertical space for the events themselves. */
 .cat-circles {
-  display: flex; gap: 16px; overflow-x: auto; padding: 14px 16px 6px;
-  scrollbar-width: none; overscroll-behavior-x: contain;
-  /* Fades the last ~40px to transparent so the row reads as "more to
-     scroll" rather than the last circle looking abruptly clipped by the
-     viewport edge. Masked on the scroll container itself (not a child), so
-     the fade always sits at the actual right edge regardless of scroll
-     position — a fixed overlay would either scroll away with the content or
-     have to be repositioned on every scroll event. */
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
+  display: flex; gap: 10px; overflow-x: auto; padding: 4px 20px 4px;
+  scrollbar-width: none; overscroll-behavior-x: contain; align-items: center;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
 }
 .cat-circles::-webkit-scrollbar { display: none; }
 .cat-circle {
-  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 6px;
-  width: 64px;
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px; background: none;
+  padding: 0; border: none;
 }
 .cat-circle-ring {
-  width: 64px; height: 64px; border-radius: 50%;
-  display: grid; place-items: center;
-  /* --cat-color is set inline per-circle (see Explore.tsx) from the same
-     brand-color tokens already used for catpills elsewhere — a tinted
-     background + colored icon per real category, gray fallback for "All".
-     Adds color without introducing any new palette. */
-  background: color-mix(in srgb, var(--cat-color, var(--text-2)) 16%, var(--surface-hover));
-  font-size: 24px; color: var(--cat-color, var(--text-2));
-  outline: 2px solid transparent; outline-offset: 3px;
-  transition: outline-color .15s;
+  width: 46px; height: 46px; border-radius: 50%;
+  display: grid; place-items: center; flex: 0 0 auto;
+  background: transparent; border: 1.5px solid var(--border-strong);
+  /* White outline icon (per instruction), no fill — the selected state adds
+     the fill. --text is the theme ink (white in dark, near-black in light). */
+  font-size: 21px; color: var(--text);
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
 }
-.cat-circle.on .cat-circle-ring { outline-color: var(--cat-color, var(--primary)); }
+.cat-circle.on .cat-circle-ring {
+  background: var(--accent); border-color: var(--accent); color: var(--on-primary);
+}
 .cat-circle-label {
-  font: var(--t-caption); font-weight: 500; color: var(--text-2); white-space: nowrap;
+  font: var(--t-meta); font-weight: 600; color: var(--text); white-space: nowrap;
+  padding-right: 4px;
 }
-.cat-circle.on .cat-circle-label { color: var(--text); font-weight: 700; }
 
 /* ---------- date section header ---------- */
 .date-head {
@@ -359,9 +352,20 @@
   background-size: cover; background-position: center; background-color: var(--card-bg);
   display: grid; place-items: center;
   box-shadow: var(--shadow-sm);
-  transition: transform .18s ease;
+  /* depth on interaction (review point 14): the photo itself zooms slightly
+     while the card lifts, the Airbnb/Apple "the image is alive" feel. Kept
+     to background-size + shadow (compositor-cheap) rather than animating
+     layout. Pointer-only so touch devices keep the flat press below. */
+  transition: transform .35s cubic-bezier(.16,1,.3,1), box-shadow .35s ease, background-size .5s cubic-bezier(.16,1,.3,1);
+}
+@media (hover: hover) {
+  .ec-card:hover .ec-card-cover { transform: translateY(-4px); box-shadow: var(--shadow-lg); background-size: 108%; }
 }
 .ec-card:active .ec-card-cover { transform: scale(0.985); }
+@media (prefers-reduced-motion: reduce) {
+  .ec-card-cover { transition: box-shadow .2s ease; }
+  .ec-card:hover .ec-card-cover { transform: none; background-size: cover; }
+}
 .ec-card-cover > .ec-badge { position: absolute; top: 10px; left: 10px; z-index: 1; backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
 .ec-card-scarce {
   position: absolute; left: 10px; bottom: 10px; z-index: 1;
@@ -506,40 +510,59 @@
 .ex-hero-card {
   display: block; position: relative; overflow: hidden;
   /* signature one-corner-tucked shape (Phase 4) — distinguishes the app's
-     single "look at this" moment from every other uniformly-rounded card */
-  margin: 4px 16px 0; border-radius: var(--radius-asym); aspect-ratio: 4/5;
-  box-shadow: var(--shadow-tint-lg);
+     single "look at this" moment from every other uniformly-rounded card;
+     kept as Weyn's card signature per the review's "unique card layout" note. */
+  margin: 16px 16px 0; border-radius: var(--radius-asym);
+  /* Taller than the old 4/5 — the review's core note was "let the event
+     image dominate," so the photo now owns more of the first screen. */
+  aspect-ratio: 5/7;
+  box-shadow: var(--shadow-lg);
   background-size: cover; background-position: center; background-color: var(--card-bg);
   animation: rise-in .5s cubic-bezier(.16,1,.3,1) both;
 }
-.ex-hero-card::after { content: ""; position: absolute; inset: -1px; background: linear-gradient(to top, rgba(6,8,12,0.92) 0%, rgba(6,8,12,0.4) 45%, transparent 75%); }
-/* "FEATURED" pill badge, top-left over the photo — dark translucent chip,
-   uppercase white text, per the handoff spec. */
+/* Smooth multi-stop scrim (not a flat 92%-black slab) — stays fully clear
+   over the top ~55% so the photography reads at full fidelity, then ramps
+   only where text sits. Per review point 10: transparent → light → dark
+   toward the bottom, so the image pops instead of being dimmed everywhere. */
+.ex-hero-card::after {
+  content: ""; position: absolute; inset: -1px;
+  background: linear-gradient(to top,
+    rgba(0,0,0,0.80) 0%,
+    rgba(0,0,0,0.55) 18%,
+    rgba(0,0,0,0.22) 38%,
+    transparent 62%);
+}
 .ex-hero-card-featured {
   position: absolute; top: 16px; left: 16px; z-index: 1;
   font: var(--t-caption); letter-spacing: 0.5px; text-transform: uppercase; color: #fff;
-  background: rgba(20,20,20,0.55); backdrop-filter: blur(6px);
+  background: rgba(20,20,20,0.5); backdrop-filter: blur(8px);
   padding: 6px 12px; border-radius: var(--radius-pill);
 }
-.ex-hero-card-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 20px; }
+.ex-hero-card-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 24px 22px 26px; }
+/* Eyebrow demoted to plain small caps — the loud translucent-pill eyebrow
+   competed with the title for the eye. Now it's quiet supporting text so the
+   title clearly wins the hierarchy (review point 9). */
 .ex-hero-card-eyebrow {
-  display: inline-flex; align-items: center; font: var(--t-caption); letter-spacing: 0.5px; text-transform: uppercase;
-  color: #fff; background: rgba(255,255,255,0.14); backdrop-filter: blur(6px);
-  padding: 5px 11px; border-radius: var(--radius-pill); margin-bottom: 12px;
+  display: block; font: var(--t-caption); letter-spacing: 0.6px; text-transform: uppercase;
+  color: rgba(255,255,255,0.72); margin-bottom: 8px;
 }
-.ex-hero-card-title { font: var(--t-hero); font-size: 28px; color: #fff; letter-spacing: -0.7px; margin: 0 0 10px; max-width: 22ch; }
-.ex-hero-card-meta { display: flex; flex-direction: column; gap: 6px; font: var(--t-body); font-size: 14px; color: rgba(255,255,255,0.85); margin-bottom: 18px; }
-.ex-hero-card-meta span { display: flex; align-items: center; gap: 7px; }
-.ex-hero-card-meta [class^="icon-"] { font-size: 17px; opacity: 0.85; }
+/* Title is the dominant element now — bigger, tighter, heavier. This is the
+   ~48% of the visual weight the review's hierarchy called for. */
+.ex-hero-card-title { font: var(--t-hero); font-size: 34px; font-weight: 700; color: #fff; letter-spacing: -0.9px; line-height: 1.08; text-wrap: balance; margin: 0 0 14px; max-width: 18ch; }
+/* Single clean metadata row (venue · date) with subtle icons, not a stacked
+   two-line block — the review asked for one calm row. */
+.ex-hero-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13.5px; font-weight: 500; color: rgba(255,255,255,0.82); margin-bottom: 20px; }
+.ex-hero-card-meta span { display: inline-flex; align-items: center; gap: 6px; }
+.ex-hero-card-meta [class^="icon-"] { font-size: 15px; opacity: 0.7; }
 .ex-hero-card-cta { display: flex; align-items: center; gap: 16px; }
-/* Handoff spec: a white pill CTA over the photo, not the app's standard
-   black/coral .btn — solid white bg, near-black text, no border. */
+/* One solid white pill CTA — the single unambiguous action. Price sits
+   beside it as plain text, never a button (review point 6). */
 .ex-hero-card-btn {
-  display: inline-flex; align-items: center; font-size: 14.5px; font-weight: 700;
+  display: inline-flex; align-items: center; font-size: 15px; font-weight: 700;
   color: #131316; background: #fff;
-  padding: 11px 20px; border-radius: var(--radius-pill);
+  padding: 13px 24px; border-radius: var(--radius-pill);
 }
-.ex-hero-card-price { font: var(--t-body); font-size: 14px; color: rgba(255,255,255,0.85); }
+.ex-hero-card-price { font-size: 13.5px; color: rgba(255,255,255,0.78); }
 .ex-hero-card-price b { color: #fff; font-weight: 700; }
 
 /* Swipeable spotlight wrapping N .ex-hero-card slides — real spring-physics
@@ -571,8 +594,11 @@
 }
 .ex-hero-carousel-seg.filled { background: #fff; }
 
-.ex-section { margin-top: 28px; }
-.ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 10px; }
+/* More air between the spotlight and the list, and between the category row
+   and everything — the review's "nothing feels cramped" note. Restraint is
+   carried by whitespace here, not decoration. */
+.ex-section { margin-top: 40px; }
+.ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 14px; }
 .ex-head h2 { font: var(--t-section); letter-spacing: -0.4px; }
 .ex-sub { font: var(--t-meta); color: var(--text-3); flex: 0 0 auto; }
 .ex-rail {
@@ -658,8 +684,11 @@
    contact shadow that reads as the glass's underside/thickness). */
 .tabs-pill {
   position: relative;
-  display: flex; align-items: center; gap: 2px;
-  padding: 6px; border-radius: var(--radius-pill);
+  /* Larger, airier bar per feedback — the old 6px/gap-2 pill felt cramped
+     and toy-sized. Bigger touch targets + real breathing room read as a
+     confident primary surface, not a widget. */
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px; border-radius: var(--radius-pill);
   background: var(--glass-tint);
   /* url(#liquid-glass-distortion) is the actual per-pixel refraction (see
      the <filter> defined once in App.tsx's shell) — blur+saturate alone is
@@ -712,8 +741,8 @@
    between positions rather than a background swapping per-tab, which is
    what makes it read as "moving" instead of just toggling on/off. */
 .tab-indicator {
-  position: absolute; top: 6px; left: 6px; z-index: 1;
-  width: 48px; height: 48px; border-radius: var(--radius-pill);
+  position: absolute; top: 8px; left: 8px; z-index: 1;
+  width: 56px; height: 56px; border-radius: var(--radius-pill);
   /* Solid accent fill, not the soft tint — a light-blue icon on a barely-
      tinted-blue pill (the previous version) had less contrast than a plain
      white icon has against the dark glass behind it, which is the opposite
@@ -729,20 +758,24 @@
 .tab {
   position: relative; z-index: 2; flex: 0 0 auto;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  width: 48px; min-height: 48px;
+  width: 56px; min-height: 56px;
   font-size: 10.5px; font-weight: 600; color: var(--text); padding: 4px;
   border-radius: var(--radius-pill);
-  transition: color .15s ease, background-color .15s ease;
+  transition: color .18s ease, background-color .15s ease;
 }
 /* Icon-only on the floating mobile pill — labels come back at the 900px
    desktop top-bar breakpoint (see below), where this is a normal inline nav.
-   Full-strength --text (not a dimmed --text-3) and a bumped-up size so
-   inactive icons read as bold/white, not muted gray — only the selected tab
-   picks up the accent color. */
+   Inactive icons ride the theme's ink color (--text: near-white in dark,
+   near-black in light) so they always contrast the frosted glass material,
+   which itself flips tint with the theme — the "black or white against the
+   background" ask, done the reliable way real tab bars do it (the material
+   sets a consistent local backdrop; per-pixel content inversion goes muddy
+   over mid-tones). The active tab sits on the solid accent capsule, so its
+   icon uses --on-primary. */
 .tab span { display: none; }
-.tab [class^="icon-"] { font-size: 23px; display: inline-block; transition: transform .18s cubic-bezier(.25,1,.5,1); }
+.tab [class^="icon-"] { font-size: 24px; display: inline-block; transition: transform .18s cubic-bezier(.25,1,.5,1); }
 .tab.on { color: var(--accent); }
-.tab.on [class^="icon-"] { color: var(--on-primary); transform: scale(1.08); }
+.tab.on [class^="icon-"] { color: var(--on-primary); transform: scale(1.06); }
 .sidebar-brand { display: none; }
 .tabs-right { display: none; }
 
@@ -1193,15 +1226,20 @@
    embossing to read as a trough). */
 .search {
   display: flex; align-items: center; gap: 4px;
-  min-height: 48px; box-sizing: border-box;
-  padding: 10px 10px 10px 16px; margin: 16px 16px 0; border-radius: var(--radius-pill);
+  min-height: 40px; box-sizing: border-box;
+  /* ~20% shorter than before (48→40) per the review — users came to browse
+     events, not admire the search box. Sits flush closer to the edges
+     (12px gutter, tighter than the 16px cards below) so it reads as chrome
+     under the status bar rather than another floating tile competing for
+     attention. */
+  padding: 6px 8px 6px 14px; margin: 8px 12px 0; border-radius: var(--radius-pill);
   background: var(--surface-hover);
   border: 1px solid var(--border);
 }
-.search-icon-slot { display: grid; place-items: center; width: 20px; height: 20px; font-size: 18px; color: var(--text-3); flex: 0 0 auto; }
+.search-icon-slot { display: grid; place-items: center; width: 18px; height: 18px; font-size: 17px; color: var(--text-3); flex: 0 0 auto; }
 .search input {
-  flex: 1 1 auto; min-width: 0; width: auto; font-family: inherit; font-size: 16px;
-  padding: 8px 4px; border-radius: 0; color: var(--text);
+  flex: 1 1 auto; min-width: 0; width: auto; font-family: inherit; font-size: 15px;
+  padding: 6px 4px; border-radius: 0; color: var(--text);
   background: none; border: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }

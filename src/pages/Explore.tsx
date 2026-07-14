@@ -431,26 +431,26 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 className={"cat-circle" + (isOn ? " on" : "")}
                 onClick={() => setCat(c.key as Cat | "all")}
                 aria-pressed={isOn}
-                whileTap={{ scale: 0.86 }}
-                /* Each real category already has its own brand color token
-                   (--cat-music/--cat-sports/etc, used elsewhere for catpills) —
-                   threading it in here gives the row some color without
-                   touching the app's actual palette. "All" isn't a real
-                   category, so it keeps the neutral gray fallback below. */
-                style={c.key === "all" ? undefined : ({ "--cat-color": `var(--cat-${c.key})` } as React.CSSProperties)}
+                aria-label={c.label}
+                whileTap={{ scale: 0.9 }}
               >
-                {/* Underdamped spring (not a linear tween) — selecting a
-                    category overshoots past its resting size and settles
-                    back, the tactile "pop" a flat outline-color swap can't
-                    give, matching the press feedback (whileTap) above it. */}
+                {/* Monochrome by design (per designer review): plain outline
+                    icon on a bare pill; only the SELECTED chip fills with the
+                    accent — the per-category rainbow colors read as playful
+                    against the cinematic photography, so they're gone.
+                    Underdamped spring keeps the tactile pop on selection. */}
                 <motion.span
                   className="cat-circle-ring"
-                  animate={{ scale: isOn ? 1.08 : 1 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 12 }}
+                  animate={{ scale: isOn ? 1 : 1 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 14 }}
                 >
                   <i className={"icon-" + CAT_ICON[c.key]} />
                 </motion.span>
-                <span className="cat-circle-label">{c.label}</span>
+                {/* Label only under the selected chip (Apple filter-chip
+                    pattern) — collapses the row's vertical footprint and
+                    kills the "every item shouting" uniformity the review
+                    flagged. */}
+                {isOn && <motion.span layout className="cat-circle-label">{c.label}</motion.span>}
               </motion.button>
             );
           })}

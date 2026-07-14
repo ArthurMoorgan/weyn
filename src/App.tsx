@@ -147,7 +147,9 @@ export default function App() {
               whichever tab is active instead of just appearing/disappearing. */}
           <span
             className="tab-indicator"
-            style={{ transform: `translateX(${activeTabIndex * 50}px)`, opacity: activeTabIndex < 0 ? 0 : 1 }}
+            /* 62px = tab width (56) + inter-tab gap (6); keep in sync with
+               .tab / .tabs-pill in components.css. */
+            style={{ transform: `translateX(${activeTabIndex * 62}px)`, opacity: activeTabIndex < 0 ? 0 : 1 }}
             aria-hidden="true"
           />
           {TABS.map((t) => (
