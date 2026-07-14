@@ -1477,3 +1477,262 @@ Two project-scoped Claude Code subagents exist for this kind of work —
 `weyn-organizer-dashboard` and `weyn-venue-dashboard` (`.claude/agents/` in
 the marketing-assets folder at `~/Downloads/dhairya`, not this repo) — use
 `weyn-venue-dashboard` for this section.
+
+## 26. §25 actually shipped, plus Marketing Hub + growth suite (organizer & venue)
+
+Contrary to §25's "not started," `9eb0157` shipped all four Venue Workflows
+areas as planned (`src/lib/workflowLayout.ts`, template picker, guidance
+maps, `send_guest_sms` stub, `reservationSource`/`reservationNotes`
+conditions). No migration needed for B4 (existing nullable columns).
+
+Marketing Hub landed as two parallel builds, organizer then venue mirror:
+- `0d73e6c` — organizer Marketing Hub (`/organizer/marketing`): ad-copy gen
+  (Google/Meta/press/influencer DM), UTM builder, referral leaderboard,
+  cross-event calendar, brand kit. New tables (`MarketingLink`,
+  `ReferralCode`, `OrganizerBrandKit`) via hand-written migration
+  `20260713090000_marketing_hub` — **not yet applied to the DB** per its
+  own migration comment (confirmed still parked as of the current
+  uncommitted migration notes below).
+- `3cf0c5c` — venue mirror: win-back tracking, loyalty/referral tiers
+  (`VenueLoyalty`), UTM links, calendar, brand kit. Migration
+  `20260713100000_venue_marketing_hub`, also unapplied.
+- `fa038b0` / `d9f0a7b` — real growth suite on both sides: Meta
+  (Instagram+Facebook) OAuth connect with AES-256-GCM token encryption
+  (`server/crypto-secrets.js`) and real Instagram Graph API posting, plus
+  an owned email-subscriber list with real one-click unsubscribe and
+  batched Resend campaign sends. Every Meta/encryption path is gated on
+  unset env vars (`META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`,
+  `SOCIAL_TOKEN_ENC_KEY`) — dormant by design, nothing fires. Their
+  migrations (`organizer_social_connections`, `venue_social_connections`)
+  are likewise unapplied. `d9f0a7b` also makes `SocialAccountConnection`
+  dual-owned (userId/venueId).
+
+No Playwright or manual click-through evidence found in any of these
+commit messages — verification claims in the messages themselves are
+scoped to "additive migration," "gated behind env vars," etc., not to
+actually exercising the UI. Treat all Marketing Hub / growth-suite UI as
+build-verified only unless someone confirms otherwise.
+
+## 27. Editorial design pivot saga — net result is Editorial, recolored
+
+Three commits, same evening (Jul 13, ~21:37-21:46), do NOT each represent a
+shipped state — only the last one reflects what's live:
+
+1. `5c778bd` — swapped the whole design system from the coral "Editorial"
+   direction to a "Premium Utilitarian Minimalism" system: warm off-white/
+   near-black canvas, muted pastel-blue accent, Instrument Serif for
+   headings only, radii capped at 12px. Backed up first (`backup-pre-
+   minimalist-ui` branch/tag + a filesystem tarball, per the commit
+   message) — a sign the author expected this might get reverted.
+2. `17cdaf1` — reverted `5c778bd` wholesale (`git revert`), same evening,
+   5 minutes later. Commit message is just the auto-generated revert text;
+   no stated reason in-repo, but the timing (reverted within minutes of
+   landing) reads as an immediate "no, go back" call after seeing it,
+   not a bug. Touches only `index.html`, `LoadingMark.tsx`,
+   `styles/components.css`, `styles/tokens.css`.
+3. `1e92479` — on top of the revert (i.e. back on Editorial), recolored
+   the accent from coral (`#FF5A3C`) to muted blue (`#1F6C9F` light /
+   `#6FB6E0` dark) — the one piece of the minimalist palette that survived.
+   Explicitly framed as "kept the Editorial layout/shapes... just a
+   different hue."
+
+**Net effect**: the app runs the Editorial layout (pill nav, hero card,
+12px+ radii were never capped since the cap reverted too) with a blue
+accent instead of coral or the minimalist pastel-blue. If anyone reads
+`5c778bd` in isolation they'll think Premium Utilitarian Minimalism
+shipped — it didn't stay. No visual/Playwright verification cited for any
+of the three.
+
+## 28. UI overhaul, CSS split, redesign passes (Uber/Instagram/Airbnb pivot)
+
+Before the Editorial pivot above, a separate visual system was built and
+partially superseded by it — worth knowing this history exists even though
+Editorial is what's live now:
+
+- `9d9ebc2` — "Uber/Instagram/Airbnb-inspired" overhaul: sharp red accent
+  on near-black/near-white, flatter elevation (hairline borders, tighter
+  radii), native system-font stack replacing bundled Plus Jakarta Sans,
+  non-bounce easing. Also folded in two previously-uncommitted features:
+  per-event marketing social kit and organizer-side Event Workflows
+  (parity with VenueOS's builder).
+- `52beac4` — mechanical split of the 2708-line `src/index.css` into
+  `src/styles/{tokens,base,components}.css` (commit claims diff-verified
+  content-identical, zero rule changes) plus a real bug fix: `--f-display`
+  was hardcoding the system-font stack despite Plus Jakarta Sans being
+  loaded, and a brand-red mismatch between favicon/manifest (`#E1483D`)
+  and the `--primary` token (`#FF3B30`) was reconciled to one color.
+- `e675d87` — tinted-shadow/asymmetric-radius/gradient-accent tokens,
+  hover polish on dashboard surfaces, Explore hero SplitText reveal, and
+  extraction of a shared `DashboardShell` out of three copy-pasted nav
+  implementations (`organizer/Layout.tsx`, `organizer/EventWorkspace.tsx`,
+  `venue-os/Workspace.tsx`).
+- `d272ee0` — hero-stat tile (net-revenue tile gets tinted bg, larger
+  figure, spans 2 cols) and `.dash-banner` gradient-accent border.
+
+This whole red/flat system was largely obsoleted by the Editorial pivot
+(§27) and its later coral→blue recolor — current live styling is Editorial
++ blue, not this red/flat system. `src/styles/tokens.css` and
+`components.css` are the files to check for what's actually active.
+
+## 29. Onboarding funnel cut + Discover/nav visual work
+
+- `c9d901a` — cut the Social-prefs (solo/friends/date-night) onboarding
+  step entirely (6 steps → 5): nothing downstream read it, only Interests
+  fed the preview filter. Added PostHog instrumentation across
+  `Onboarding.tsx`, `Explore.tsx`, `EventDetail.tsx`,
+  `CheckoutSuccess.tsx`: `onboarding_step_viewed/_completed`,
+  `onboarding_location_granted/denied`, `onboarding_signup_clicked`,
+  `tonight_view_opened`, `ticket_booked` (fired on real paid status, not
+  the checkout redirect).
+- `3aece8f` → `474e8aa` (10 commits) — Discover page + navbar visual
+  pass: real SVG-refraction "liquid glass" navbar, spring-physics hero
+  carousel and category selector (`baa491c`), single rotating featured
+  spotlight replacing a static hero (`3c5398f`, later simplified further
+  in `0d34058`), colorized category circles, filled-vs-outline icon swap
+  on tab selection, sliding highlight pill behind the active tab. `65646d5`
+  is explicitly framed as a "restraint redesign pass... per pro design
+  review" — i.e. a walk-back of some of the earlier glass/motion
+  intensity. The tail end (`c2f9be6`, `f3fe183`, `474e8aa`) is bug-fixing
+  against a reference recording: veil opacity too transparent, ticket icon
+  changing shape on fill, sparkles icon using the wrong glyph (4-point
+  diamond instead of the real 5-point star — fixed with the correct
+  polygon), and tab icons dimming when inactive when they should always
+  stay full-white with only the label dimming. No Playwright/automated
+  visual check cited — these read as manual comparison against "the
+  reference recording" mentioned repeatedly in commit messages, not
+  automated verification.
+
+## 30. AI Studio image-generation removed (not added)
+
+`70667a7` — this is a **removal**, not a feature. Gemini's prepaid image
+credits are depleted, so rather than ship a broken "Generate image" button,
+the Cover-art-concepts tool was deleted outright: `server/ai.js` drops
+`generateImage()`/`imageGenConfigured()`/`GEMINI_IMAGE_MODEL`; `server/
+app.js` drops the `.../ai/cover-concept` and `.../ai/cover-image` routes;
+`src/api.ts` drops the two client calls; `AiStudio.tsx` drops the
+`CoverConceptTool` component. Vision-based tools (focal-point suggestion
+on uploaded photos) are unaffected — that's analysis, not generation, and
+doesn't share the billing dependency.
+
+## 31. Organizer Pro cancel flow
+
+`406ed03` — SubscriptionCard → survey → dynamic save offer → confirmation,
+per the churn-prevention playbook. Offer branches by stated cancel reason:
+`too_expensive`/`switching` → 25% discount, `not_using`/`temporary` →
+pause (1-3 months, auto-resumes), `missing_feature` → feature-unlock nudge,
+`technical_issues` → routed to support first, `other` → straight to
+confirmation. No real billing exists yet (`Subscription.stripeSubscriptionId`
+is still a null placeholder) — built against the existing model so it can
+wire into Stripe later without a shape change: cancel sets
+`cancelAtPeriodEnd`, pause flips `status` to `SUSPENDED` with a
+`pausedUntil` that `ensureSubscription()` lazily auto-resumes past (no
+cron), save-offer acceptance is logged but doesn't yet apply a real
+discount/downgrade (flagged as the one piece to wire once Stripe exists).
+`cancelReason`/`cancelFeedback` are recorded on every path for
+reason-distribution reporting.
+
+## 32. UNCOMMITTED — venue waitlist + check-in/shifts/budget/transfers/sponsor-ROI
+
+**Not committed, not reviewed, not verified. This is working-tree state
+only** — `git status --short` on 2026-07-14 shows modified: `prisma/
+schema.prisma`, `server/app.js`, `server/db.js`, `server/event-workflows.js`,
+`server/index.js`, `server/worker.js`, `src/api.ts`, `src/pages/organizer/
+EventWorkspace.tsx`, `src/pages/organizer/MarketingHub.tsx`, `src/pages/
+venue-os/Workspace.tsx`; untracked: `prisma/migrations/
+20260714090000_venue_waitlist/`, `prisma/migrations/
+20260714100000_checkin_shifts_budget_transfers_sponsor_roi/`, `.agents/`,
+`.claude/skills/`, `skills-lock.json`.
+
+From the migration files and schema diff, this looks like two batches:
+
+- **Venue reservation waitlist** (`VenueWaitlistEntry` model, new
+  `VenueWaitlistStatus` enum: WAITING/NOTIFIED/CONVERTED/EXPIRED/
+  CANCELLED) — a guest joins a waitlist for a fully-booked slot, can be
+  promoted into a real `Reservation`. Migration note says it was applied
+  directly via `prisma db execute` + `migrate resolve --applied` (Neon
+  pooled connection can't do shadow-DB `migrate dev`) and explicitly does
+  **not** touch the four already-parked-unapplied migrations from §26
+  (marketing_hub, venue_marketing_hub, organizer_social_connections,
+  venue_social_connections) — those stay parked.
+- **Organizer batch** — QR check-in scanning (new `CheckIn` model +
+  `CheckInStatus` enum: VALID/DUPLICATE/INVALID, distinct from
+  `Ticket.checkedInAt` which only tracks current state — this is an
+  append-only scan log), ticket transfers (`Ticket.transferredToEmail/
+  transferredAt/transferredBy` — relabeling only, same ticket code still
+  admits), staff shift scheduling (`EventShift` linked to
+  `EventTeamMember`), budget tracking with per-category alerts (`Budget`
+  model, loosely tied to `Expense` by matching `category` strings, not an
+  FK). The migration's own header says this covers 5 of 9 planned
+  features — group discounts (`PromoCode.minQuantity`, already in this
+  same migration despite the header text), QR flyer generator, NPS survey,
+  and birthday automation (`MarketingContact.birthday` column added to
+  schema but the table doesn't exist in the DB yet — parked behind
+  marketing_hub). "Sponsor ROI" is named in the migration folder but not
+  yet visible in the schema diff reviewed here — check `server/app.js`'s
+  diff directly for that piece before assuming it's done.
+
+None of this has been typechecked, tested, or clicked through in this
+review — it's a description of intent inferred from the diff, not a
+verification. Before committing: confirm the actual routes exist for each
+model in `server/app.js`, run `npx prisma migrate status` to check what's
+really applied vs parked (§26 already has four migrations sitting
+unapplied — don't let this be a fifth without tracking it), and do at
+least a build/typecheck pass.
+
+## 33. OneSignal replaces the hand-rolled APNs/VAPID push system (2026-07-14)
+
+App ID `12d86179-e14e-4257-8575-2b11e272cc8a`. Note: this app is a Vite/
+React web PWA + **Capacitor** iOS wrapper, NOT React Native — OneSignal's
+React Native doc/package (`react-native-onesignal`) does not apply here;
+used `onesignal-cordova-plugin` (native/Capacitor) + `react-onesignal`
+(web) instead.
+
+- **Targeting model changed**: server now sends by Weyn's own `User.id`
+  as an OneSignal *external ID*, not by raw device token/VAPID
+  subscription. OneSignal owns subscription management client-side; the
+  app no longer needs to collect or store tokens itself.
+- **New**: `server/onesignal.js` — `sendOneSignalPush(externalUserId,
+  {title,body,data,url})` + `oneSignalConfigured()`. Same dry-run
+  convention as the code it replaced: with `ONESIGNAL_REST_API_KEY`
+  unset, logs `[onesignal:dry-run] would notify...` and returns
+  `{sent:false, reason:"not-configured"}` — nothing breaks with zero
+  OneSignal credentials configured, which is the current state.
+- **Deleted**: `server/push.js` (raw APNs/`@parse/node-apn`),
+  `server/webpush.js` (raw VAPID/`web-push`). Removed from `server/app.js`:
+  `POST /api/push/register`, `GET /api/push/vapid-public-key`,
+  `POST /api/push/web-subscribe`, `POST /api/push/web-unsubscribe`;
+  `notifyUser(userId, ...)` now calls OneSignal directly.
+  Anonymous/device-only booking flows (no Weyn `userId` available) had
+  their push calls dropped — email confirmation already covers those,
+  not a regression.
+- **Client**: `src/push.ts` rewritten — native branch uses
+  `onesignal-cordova-plugin`, web branch uses `react-onesignal`, same
+  `Capacitor.isNativePlatform()` branch point as before. Exports
+  `initPush()`, `requestWebPushPermission()`, `identifyPushUser(userId)`,
+  `clearPushUser()`. `src/main.tsx`'s `ClerkAuthBridge` now fetches
+  `/api/me` and calls `identifyPushUser`/`clearPushUser` on sign-in/out —
+  `src/store.ts`'s `Account`/`useAccount()` gained an `id` field (Weyn's
+  own id, distinct from Clerk's) to make this possible.
+- **`PushToken`/`WebPushSubscription` Prisma models kept but now dead** —
+  deliberately not migrated away, no schema change. Fine to drop in a
+  later cleanup pass once OneSignal is confirmed working in production.
+- **Env vars**: `.env.example` gained `VITE_ONESIGNAL_APP_ID` +
+  `ONESIGNAL_APP_ID` (both pre-filled with the real App ID above) and
+  `ONESIGNAL_REST_API_KEY=` (empty — **needs a real key from the
+  OneSignal dashboard before any push actually sends**, everything ships
+  in dry-run mode until then). CSP/helmet in `server/app.js` updated to
+  allow OneSignal's domains.
+- **Verified**: `npx tsc -b` and `npm run build` both pass; grepped clean
+  for leftover `@parse/node-apn`/`push.js`/`webpush.js`/old routes.
+  **Not verified**: no real `ONESIGNAL_REST_API_KEY` or physical iOS
+  device available in this environment, so actual push delivery was never
+  exercised end-to-end — do that before trusting this in production.
+- **Still needed, manual, not done here**: `npx cap sync ios` to pull the
+  Cordova plugin's native pod into the Xcode project, and confirm the
+  existing Push Notifications + Background Modes capabilities (left over
+  from the old `@capacitor/push-notifications` setup) still satisfy
+  OneSignal's native requirements.
+- **Uncommitted**: like §32, none of this is committed — it lands on top
+  of an already-dirty working tree (venue waitlist / check-in / budget
+  work from §32 is still sitting there too). Review and commit
+  deliberately, don't assume either is already landed.

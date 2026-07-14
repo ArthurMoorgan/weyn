@@ -89,6 +89,7 @@ export function setOrganizer(name: string) { if (name.trim()) localStorage.setIt
 // this just adapts it to the {name,email,picture,role} shape the rest of
 // the app already expects, so call sites didn't need a rewrite.
 export interface Account {
+  id?: string; // Weyn's own User.id (from /api/me), NOT Clerk's user.id — this is what OneSignal.login() targets (see src/push.ts)
   name: string;
   email: string;
   picture: string | null;
@@ -129,13 +130,14 @@ export function getAuthToken(): Promise<string | null> {
 export function useAccount(): Account | null {
   const { user, isLoaded } = useUser();
   const [role, setRole] = useState<Account["role"]>(undefined);
+  const [id, setId] = useState<string | undefined>(undefined);
   useEffect(() => {
-    if (!user) { setRole(undefined); return; }
+    if (!user) { setRole(undefined); setId(undefined); return; }
     let cancelled = false;
     getAuthToken()
       .then((token) => fetch("/api/me", { headers: token ? { Authorization: `Bearer ${token}` } : {} }))
       .then((r) => (r.ok ? r.json() : null))
-      .then((me) => { if (!cancelled) setRole(me?.role); })
+      .then((me) => { if (!cancelled) { setRole(me?.role); setId(me?.id); } })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [user?.id]);
@@ -153,8 +155,8 @@ export function useAccount(): Account | null {
   // network, more likely to trip a rate limiter) versus a dev's warm cache.
   return useMemo(() => {
     if (!isLoaded || !user) return null;
-    return { name, email, picture, role };
-  }, [isLoaded, user, name, email, picture, role]);
+    return { id, name, email, picture, role };
+  }, [isLoaded, user, id, name, email, picture, role]);
 }
 
 // ---- theme ----

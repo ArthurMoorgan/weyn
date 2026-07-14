@@ -21,7 +21,8 @@ import Onboarding from "./pages/Onboarding";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AuthGate from "./components/AuthGate";
 import LoadingMark from "./components/LoadingMark";
-import { initPush } from "./push";
+import { initPush, identifyPushUser, clearPushUser } from "./push";
+import { getAuthToken } from "./store";
 import { markSplashShown, dismissSplash } from "./splash";
 import { initPostHog, identifyPostHog, resetPostHog } from "./posthog";
 
@@ -103,6 +104,22 @@ function ClerkAuthBridge() {
     if (user) identifyPostHog(user.id, { email: user.primaryEmailAddress?.emailAddress });
     else resetPostHog();
   }, [user?.id]);
+  // Link this device's OneSignal subscription to Weyn's own userId (not
+  // Clerk's user.id — see /api/me) on sign-in, and unlink on sign-out, so
+  // server-side notifyUser(userId) calls can reach this device. Fetches
+  // /api/me itself rather than useAccount() so this stays a plain effect
+  // independent of that hook's render lifecycle.
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!user) { clearPushUser(); return; }
+    let cancelled = false;
+    getAuthToken()
+      .then((token) => fetch("/api/me", { headers: token ? { Authorization: `Bearer ${token}` } : {} }))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => { if (!cancelled && me?.id) identifyPushUser(me.id); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isLoaded, user?.id]);
   return null;
 }
 
