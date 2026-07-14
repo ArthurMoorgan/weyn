@@ -76,6 +76,11 @@
   --glass-sheen-top: rgba(255,255,255,.14);
   --glass-sheen-bottom: rgba(255,255,255,.03);
   --glass-tint: color-mix(in srgb, var(--surface) 55%, transparent);
+  /* Contact-shadow + hotspot blend for the liquid-glass nav (dark theme):
+     a soft dark pool under the rim (thickness cue) and 'screen' blending so
+     the specular hotspot brightens instead of muddying the dark tint. */
+  --glass-shadow-inner: rgba(0,0,0,.35);
+  --glass-blend: screen;
   --lens: none;
   --card-alt: var(--surface-hover);
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -154,6 +159,10 @@
   --glass-sheen-top: rgba(255,255,255,.75);
   --glass-sheen-bottom: rgba(255,255,255,.1);
   --glass-tint: color-mix(in srgb, var(--surface) 45%, transparent);
+  /* Contact shadow reads as a real shadow (not a glow) against a light
+     backdrop, so no blend-mode trick is needed here — plain overlay. */
+  --glass-shadow-inner: rgba(0,0,0,.1);
+  --glass-blend: normal;
   --card-alt: var(--surface-hover);
   --fallback-scrim: rgba(0,0,0,0.1);
 

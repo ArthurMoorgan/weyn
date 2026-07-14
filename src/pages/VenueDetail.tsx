@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, VENUE_CATS, type Reservation, type VenueAvailabilitySlot } from "../api";
 import { useAsync } from "../hooks";
@@ -28,6 +28,23 @@ export default function VenueDetail() {
   const [submitErr, setSubmitErr] = useState("");
   const [capacityFull, setCapacityFull] = useState(false);
   const [confirmed, setConfirmed] = useState<Reservation | null>(null);
+  const [shared, setShared] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  async function shareVenue() {
+    if (!venue) return;
+    const url = window.location.href;
+    const shareData = { title: venue.name, text: `${venue.name} — ${venue.venue}, ${venue.area}`, url };
+    if (navigator.share) {
+      try { await navigator.share(shareData); return; } catch { /* user cancelled — not an error */ }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShared(true);
+      setTimeout(() => setShared(false), 1800);
+    } catch { /* clipboard blocked (e.g. insecure context) — nothing more we can do */ }
+  }
 
   const catLabel = useMemo(() => {
     if (!venue) return "";
@@ -61,6 +78,16 @@ export default function VenueDetail() {
     ? { backgroundImage: `url(${cover})` }
     : { background: "var(--surface-2)" };
 
+  const slides = [venue.coverImage, ...(venue.photos || [])].filter((s, i, arr): s is string => !!s && arr.indexOf(s) === i);
+  const hasCarousel = slides.length > 1;
+
+  function onTrackScroll() {
+    const el = trackRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    setActiveSlide(idx);
+  }
+
   async function submitReservation() {
     setSubmitErr("");
     setCapacityFull(false);
@@ -93,9 +120,30 @@ export default function VenueDetail() {
   return (
     <div className="detail">
       <div className="detail-grid">
-        <div className="cover" style={coverStyle}>
+        <div className={"cover" + (hasCarousel ? " has-carousel" : "")} style={hasCarousel ? undefined : coverStyle}>
+          {hasCarousel && (
+            <>
+              <div className="cover-carousel-track" ref={trackRef} onScroll={onTrackScroll}>
+                {slides.map((src, i) => (
+                  <div className="cover-carousel-slide" key={src + i} style={{ backgroundImage: `url(${src})` }} />
+                ))}
+              </div>
+              <div className="cover-carousel-dots">
+                {slides.map((_, i) => (
+                  <span key={i} className={"cover-carousel-dot" + (i === activeSlide ? " on" : "")} />
+                ))}
+              </div>
+            </>
+          )}
           <Tooltip text="Back"><button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button></Tooltip>
-          {!cover && <span className="glyph"><i className="icon-map-pin" /></span>}
+          <div style={{ position: "relative", zIndex: 2, display: "flex", gap: 8 }}>
+            <Tooltip text="Share">
+              <button className="icon-btn" onClick={shareVenue} aria-label="Share">
+                <i className={shared ? "icon-check" : "icon-share-2"} />
+              </button>
+            </Tooltip>
+          </div>
+          {!hasCarousel && !cover && <span className="glyph"><i className="icon-map-pin" /></span>}
         </div>
 
         <div className="sheet glass">
@@ -118,14 +166,6 @@ export default function VenueDetail() {
           </div>
 
           <p className="blurb">{venue.description}</p>
-
-          {venue.photos.length > 1 && (
-            <div className="ex-rail dense" style={{ padding: 0, marginTop: 14 }}>
-              {venue.photos.map((p, i) => (
-                <div key={i} className="ec-rail-cover" style={{ backgroundImage: `url(${p})`, minHeight: 120 }} />
-              ))}
-            </div>
-          )}
 
           <div style={{ marginTop: 18 }}>
             <MiniMap lat={venue.lat} lng={venue.lng} />

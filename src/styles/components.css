@@ -605,35 +605,49 @@
   width: auto; max-width: calc(100vw - 32px);
   background: transparent; border: none; padding: 0;
 }
-/* Liquid glass: strong blur + saturate boost (the "frosted, refracting"
-   look, not just a translucent flat tint) + a bright rim highlight along
-   the top inner edge where light would catch real glass, fading to almost
-   nothing at the bottom edge. Works in both themes off the --glass-sheen-*
-   tokens (much brighter/more opaque on the light theme, barely-there but
-   still present on dark — real glass keeps a rim highlight regardless of
-   what's behind it). */
+/* Apple-style liquid glass, not flat "glassmorphism": glassmorphism is a
+   uniform blurred tint with a single flat highlight line. Real (iOS/visionOS)
+   liquid glass reads as an actual lens sitting on top of content — a crisp,
+   less-fogged blur, a bright *rounded* specular hotspot (light catching a
+   curved surface, not a straight gradient sweep), a hairline-bright edge all
+   the way around the rim (not just the top), and a dark contact shadow right
+   under the rim that gives it physical thickness. Layered as three pieces:
+   the element itself (blur/tint/outer float shadow + full rim highlight),
+   ::before (the rounded specular hotspot, upper-left), ::after (the inset
+   contact shadow that reads as the glass's underside/thickness). */
 .tabs-pill {
   position: relative;
   display: flex; align-items: center; gap: 2px;
   padding: 6px; border-radius: var(--radius-pill);
   background: var(--glass-tint);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid var(--border);
+  backdrop-filter: blur(20px) saturate(160%) contrast(1.05);
+  -webkit-backdrop-filter: blur(20px) saturate(160%) contrast(1.05);
+  border: 1px solid var(--glass-sheen-bottom);
   box-shadow:
     var(--shadow-float),
-    inset 0 1px 0 var(--glass-sheen-top),
-    inset 0 -1px 0 var(--glass-sheen-bottom);
+    inset 0 0 0 1px var(--glass-sheen-top),
+    inset 0 1px 1px var(--glass-sheen-top);
   isolation: isolate;
 }
-/* A soft diagonal sheen sweeping across the glass — subtle, static (no
-   distracting shimmer loop), just enough to read as a curved refractive
-   surface rather than a flat tinted rectangle. */
+/* Rounded specular hotspot — a soft radial highlight sitting near the top
+   edge, the way light pools on a curved lens rather than sweeping flat
+   across a pane. Positioned off-center so it doesn't read as a symmetric
+   "screen glare" cliché. */
 .tabs-pill::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit;
   pointer-events: none; z-index: -1;
-  background: linear-gradient(120deg, var(--glass-sheen-top) 0%, transparent 32%, transparent 68%, var(--glass-sheen-bottom) 100%);
-  opacity: .5;
+  background:
+    radial-gradient(120% 90% at 30% -20%, var(--glass-sheen-top) 0%, transparent 55%),
+    radial-gradient(90% 70% at 82% 118%, var(--glass-sheen-top) 0%, transparent 50%);
+  opacity: .55;
+  mix-blend-mode: var(--glass-blend, normal);
+}
+/* Contact shadow along the bottom inner rim — the cue that the glass has
+   real thickness and is sitting slightly proud of the bar behind it. */
+.tabs-pill::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  pointer-events: none; z-index: -1;
+  box-shadow: inset 0 -6px 10px -6px var(--glass-shadow-inner);
 }
 .tab {
   position: relative; z-index: 2; flex: 0 0 auto;
@@ -2004,6 +2018,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
     padding: 0; border-radius: 0; background: none; backdrop-filter: none;
     border: none; box-shadow: none;
   }
+  .tabs-pill::before, .tabs-pill::after { display: none; }
   .tab {
     flex: 0 0 auto; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px;
     width: auto; min-height: auto;

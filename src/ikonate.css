@@ -6,12 +6,23 @@
    so the default luminance mask mode shows the shape (white = opaque)
    against a transparent icon background (transparent = hidden). */
 
+/* Any element whose class starts with "icon-" (or contains " icon-") but has
+   no matching .icon-name{mask-image:...} rule below — an unknown/renamed
+   icon, or a dynamically-built name (organizer nav, AI Studio, activity feed
+   icons are all `icon-${var}` from data, not a fixed enum) — used to fall
+   through with mask-image at its default `none`, which means NO masking is
+   applied and the full 1em box paints solid `currentColor`: a filled square.
+   Defaulting the mask to fully transparent here makes an unrecognized icon
+   render as nothing (a graceful gap) instead of a visible box; every real
+   .icon-name rule below still overrides this with its actual glyph. */
 [class^="icon-"], [class*=" icon-"] {
   display: inline-block;
   width: 1em;
   height: 1em;
   vertical-align: -0.125em;
   background-color: currentColor;
+  -webkit-mask-image: linear-gradient(transparent, transparent);
+  mask-image: linear-gradient(transparent, transparent);
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-position: center;
