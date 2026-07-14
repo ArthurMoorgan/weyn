@@ -4,6 +4,11 @@ import { getAuthToken, type Account } from "./store";
 export type Cat = "sports" | "music" | "food" | "culture" | "cars" | "workshop" | "community";
 export type TicketingType = "weyn" | "external" | "cash" | "registration" | "organizer_payment";
 
+// Cancel flow (see CancelSubscriptionFlow.tsx) — must match server/app.js's
+// CANCEL_REASONS / RETENTION_OFFERS sets exactly.
+export type CancelReason = "too_expensive" | "not_using" | "missing_feature" | "switching" | "technical_issues" | "temporary" | "other";
+export type RetentionOffer = "discount" | "downgrade" | "feature_unlock";
+
 export interface Tier {
   id: string;
   name: string;      // "General", "VIP", "Early Bird"…
@@ -1772,11 +1777,33 @@ export const api = {
   // ---- Organizer Pro ----
   async mySubscription(): Promise<{
     plan: { key: string; name: string; priceOmr: number; billingPeriod: string };
-    status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean;
+    status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean; pausedUntil: string | null;
     features: Record<string, boolean>;
     paymentHistory: { id: string; amountOmr: number; status: string; paidAt: string | null; createdAt: string }[];
   }> {
     return fetch(`${API_BASE}/api/me/subscription`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  // ---- Cancel flow ----
+  async cancelSubscription(reason: CancelReason, feedback?: string): Promise<{ cancelAtPeriodEnd: boolean; currentPeriodEnd: string | null }> {
+    return fetch(`${API_BASE}/api/me/subscription/cancel`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ reason, feedback }),
+    }).then((r) => json(r));
+  },
+  async acceptRetentionOffer(reason: CancelReason, offer: RetentionOffer, feedback?: string): Promise<{ ok: true; offer: RetentionOffer }> {
+    return fetch(`${API_BASE}/api/me/subscription/save`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ reason, offer, feedback }),
+    }).then((r) => json(r));
+  },
+  async pauseSubscription(reason: CancelReason, months: number, feedback?: string): Promise<{ status: string; pausedUntil: string | null }> {
+    return fetch(`${API_BASE}/api/me/subscription/pause`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ reason, months, feedback }),
+    }).then((r) => json(r));
+  },
+  async resumeSubscription(): Promise<{ status: string }> {
+    return fetch(`${API_BASE}/api/me/subscription/resume`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
   },
   async setEventFeatured(eventId: string, featured: boolean): Promise<{ id: string; featured: boolean }> {
     return fetch(`${API_BASE}/api/events/${eventId}/featured`, {

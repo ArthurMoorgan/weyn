@@ -4135,12 +4135,126 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
         status: sub.status,
         currentPeriodEnd: sub.currentPeriodEnd,
         cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+        pausedUntil: sub.pausedUntil,
         features,
         paymentHistory,
       });
     } catch (err) {
       captureError(err, { route: "GET /api/me/subscription", userId: req.user.id });
       res.status(500).json({ error: "Couldn't load subscription info" });
+    }
+  });
+
+  // ---- Cancel flow: Trigger -> Survey -> Dynamic Offer -> Confirmation ----
+  // No real billing wired yet (see Subscription.stripeSubscriptionId's
+  // comment) — these routes update the same Subscription row the eventual
+  // Stripe webhook handler will also write to (cancelAtPeriodEnd, status),
+  // so nothing else needs to change when that lands. The exit-survey reason
+  // is logged on every one of these three routes, not just a hard cancel,
+  // so "reason distribution" and "offer acceptance rate" are measurable even
+  // for saved customers.
+  const CANCEL_REASONS = new Set(["too_expensive", "not_using", "missing_feature", "switching", "technical_issues", "temporary", "other"]);
+
+  function validateCancelReason(req, res) {
+    const reason = String(req.body?.reason || "").trim();
+    if (!CANCEL_REASONS.has(reason)) {
+      res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Pick a reason from the list." } });
+      return null;
+    }
+    return { reason, feedback: String(req.body?.feedback || "").trim().slice(0, 1000) || null };
+  }
+
+  // Confirmation step — organizer clicked through the survey and any save
+  // offer and still wants to cancel. Sets cancelAtPeriodEnd rather than an
+  // immediate status change: they keep Pro access through
+  // currentPeriodEnd, same "cancel, don't lose what you paid for" behavior
+  // Stripe's own subscription-cancel API gives you for free once wired up.
+  app.post("/api/me/subscription/cancel", requireAuth, async (req, res) => {
+    const parsed = validateCancelReason(req, res);
+    if (!parsed) return;
+    try {
+      const sub = await ensureSubscription(req.user.id);
+      const updated = await prisma.subscription.update({
+        where: { id: sub.id },
+        data: { cancelReason: parsed.reason, cancelFeedback: parsed.feedback, cancelAtPeriodEnd: true },
+      });
+      res.json({ cancelAtPeriodEnd: updated.cancelAtPeriodEnd, currentPeriodEnd: updated.currentPeriodEnd });
+    } catch (err) {
+      captureError(err, { route: "POST /api/me/subscription/cancel", userId: req.user.id });
+      res.status(500).json({ error: { code: "SERVER_ERROR", message: "Couldn't process the cancellation — try again shortly." } });
+    }
+  });
+
+  // Save-offer accept path for "too expensive" / "missing feature" /
+  // "switching" reasons — discount and downgrade aren't real billing
+  // actions yet (no Stripe), so this just records which offer was accepted
+  // and keeps the subscription active; wiring the actual discount/downgrade
+  // into Stripe is the one thing left for when billing goes live.
+  const RETENTION_OFFERS = new Set(["discount", "downgrade", "feature_unlock"]);
+  app.post("/api/me/subscription/save", requireAuth, async (req, res) => {
+    const parsed = validateCancelReason(req, res);
+    if (!parsed) return;
+    const offer = String(req.body?.offer || "").trim();
+    if (!RETENTION_OFFERS.has(offer)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Unknown offer." } });
+    try {
+      const sub = await ensureSubscription(req.user.id);
+      await prisma.subscription.update({
+        where: { id: sub.id },
+        data: { cancelReason: parsed.reason, cancelFeedback: parsed.feedback, retentionOfferAccepted: offer, cancelAtPeriodEnd: false },
+      });
+      res.json({ ok: true, offer });
+    } catch (err) {
+      captureError(err, { route: "POST /api/me/subscription/save", userId: req.user.id });
+      res.status(500).json({ error: { code: "SERVER_ERROR", message: "Couldn't apply that offer — try again shortly." } });
+    }
+  });
+
+  // Save-offer accept path for "not using enough" / "temporary" reasons —
+  // pauses Pro access (status flips to SUSPENDED, which features.js's
+  // isActive() already treats as "no access") until pausedUntil, then
+  // features.js's ensureSubscription() auto-resumes it on next read — no
+  // cron needed.
+  app.post("/api/me/subscription/pause", requireAuth, async (req, res) => {
+    const parsed = validateCancelReason(req, res);
+    if (!parsed) return;
+    const months = Number(req.body?.months);
+    if (!Number.isInteger(months) || months < 1 || months > 3) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Pick a pause length between 1 and 3 months." } });
+    }
+    try {
+      const sub = await ensureSubscription(req.user.id);
+      const pausedUntil = new Date();
+      pausedUntil.setMonth(pausedUntil.getMonth() + months);
+      const updated = await prisma.subscription.update({
+        where: { id: sub.id },
+        data: {
+          cancelReason: parsed.reason, cancelFeedback: parsed.feedback,
+          retentionOfferAccepted: "pause", cancelAtPeriodEnd: false,
+          status: "SUSPENDED", pausedUntil,
+        },
+      });
+      res.json({ status: updated.status, pausedUntil: updated.pausedUntil });
+    } catch (err) {
+      captureError(err, { route: "POST /api/me/subscription/pause", userId: req.user.id });
+      res.status(500).json({ error: { code: "SERVER_ERROR", message: "Couldn't pause the subscription — try again shortly." } });
+    }
+  });
+
+  // Post-cancel / early-unpause path — "I changed my mind" before
+  // currentPeriodEnd, or resuming early from a pause. Doesn't touch
+  // cancelReason/retentionOfferAccepted — those stay as the historical
+  // record of what happened last time, for cohort analysis.
+  app.post("/api/me/subscription/resume", requireAuth, async (req, res) => {
+    try {
+      const sub = await ensureSubscription(req.user.id);
+      const updated = await prisma.subscription.update({
+        where: { id: sub.id },
+        data: { status: "ACTIVE", pausedUntil: null, cancelAtPeriodEnd: false },
+      });
+      res.json({ status: updated.status });
+    } catch (err) {
+      captureError(err, { route: "POST /api/me/subscription/resume", userId: req.user.id });
+      res.status(500).json({ error: { code: "SERVER_ERROR", message: "Couldn't resume the subscription — try again shortly." } });
     }
   });
 

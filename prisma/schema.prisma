@@ -1167,6 +1167,23 @@ model Subscription {
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
   cancelAtPeriodEnd  Boolean            @default(false)
+  // Cancel-flow exit survey (see /api/me/subscription/cancel) — captured
+  // whether or not a save offer is ultimately accepted, so reason
+  // distribution can be tracked even for saved customers, not just
+  // completed cancellations.
+  cancelReason   String?
+  cancelFeedback String?
+  // Which save offer (if any) the organizer accepted last time they went
+  // through the cancel flow — "pause" | "discount" | "downgrade" | null.
+  // Analytics only today (offer-acceptance rate); once real billing exists,
+  // "discount"/"downgrade" acceptance should also trigger the matching
+  // Stripe action.
+  retentionOfferAccepted String?
+  // Set by the "pause" save offer — subscription.status flips to SUSPENDED
+  // (see server/features.js's isActive(), unchanged: SUSPENDED already
+  // reads as "not active" there) until this date, then ensureSubscription()
+  // auto-resumes it back to ACTIVE on next read.
+  pausedUntil DateTime?
   // Populated once real billing is wired — null for every row created by
   // the current free-grant path. stripeSubscriptionId is the natural
   // dedup/idempotency key for webhook-driven updates (see BillingEvent).

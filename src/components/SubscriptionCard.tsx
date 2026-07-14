@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { FEATURE_LABELS } from "./featureCatalog";
+import CancelSubscriptionFlow from "./CancelSubscriptionFlow";
 
 // Organizer Pro's "Subscription Dashboard" deliverable: current plan,
 // renewal date, billing history, active features. Every organizer
@@ -11,10 +12,24 @@ export default function SubscriptionCard() {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.mySubscription>> | null>(null);
   const [err, setErr] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [showCancelFlow, setShowCancelFlow] = useState(false);
+  const [resuming, setResuming] = useState(false);
 
-  useEffect(() => {
+  function reload() {
     api.mySubscription().then(setData).catch((e) => setErr(e.message || "Couldn't load subscription"));
-  }, []);
+  }
+
+  useEffect(reload, []);
+
+  async function resume() {
+    setResuming(true);
+    try {
+      await api.resumeSubscription();
+      reload();
+    } finally {
+      setResuming(false);
+    }
+  }
 
   if (err) return null; // signed-out / not an organizer yet — nothing to show
   if (!data) return <div className="sub-card sub-card-skel" />;
@@ -61,6 +76,35 @@ export default function SubscriptionCard() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Pending-cancel / paused banners — both have the same "undo before
+          it takes effect" shape, so one Resume action covers either. */}
+      {data.cancelAtPeriodEnd && (
+        <div className="marketing-card" style={{ marginTop: 14 }}>
+          <p style={{ fontSize: 13.5, color: "var(--text-2)", margin: "0 0 10px" }}>
+            Your subscription is set to cancel{data.currentPeriodEnd ? ` on ${new Date(data.currentPeriodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : " at the end of this billing period"}.
+          </p>
+          <button className="btn glass sm" onClick={resume} disabled={resuming}>{resuming ? "Undoing…" : "Undo cancellation"}</button>
+        </div>
+      )}
+      {data.status === "SUSPENDED" && data.pausedUntil && (
+        <div className="marketing-card" style={{ marginTop: 14 }}>
+          <p style={{ fontSize: 13.5, color: "var(--text-2)", margin: "0 0 10px" }}>
+            Paused until {new Date(data.pausedUntil).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} — Pro features are off until then.
+          </p>
+          <button className="btn glass sm" onClick={resume} disabled={resuming}>{resuming ? "Resuming…" : "Resume now"}</button>
+        </div>
+      )}
+
+      {!data.cancelAtPeriodEnd && data.status !== "SUSPENDED" && data.plan.priceOmr > 0 && (
+        <button className="sub-card-toggle" style={{ marginTop: 10, color: "var(--text-3)" }} onClick={() => setShowCancelFlow(true)}>
+          Cancel subscription
+        </button>
+      )}
+
+      {showCancelFlow && (
+        <CancelSubscriptionFlow onClose={() => setShowCancelFlow(false)} onChanged={reload} />
       )}
     </div>
   );

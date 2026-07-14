@@ -63,9 +63,22 @@ const FEATURE_SET = new Set(FEATURES);
 // handler (see handoff.md's parked integration) be what upgrades someone
 // to "pro". Nothing else in this file, or any caller of hasFeature(),
 // needs to change.
+// Cancel flow's "pause" save offer (see /api/me/subscription/pause) sets
+// status=SUSPENDED + pausedUntil in the future; this is the lazy-resolve
+// check that flips it back once that date passes — same "resolve at read
+// time" pattern as this file's other expiry check (isActive() below),
+// rather than needing a cron job to run on a schedule.
+async function maybeAutoResume(sub) {
+  if (sub.status !== "SUSPENDED" || !sub.pausedUntil || sub.pausedUntil.getTime() > Date.now()) return sub;
+  return prisma.subscription.update({
+    where: { id: sub.id },
+    data: { status: "ACTIVE", pausedUntil: null },
+  });
+}
+
 export async function ensureSubscription(userId) {
   const existing = await prisma.subscription.findUnique({ where: { userId } });
-  if (existing) return existing;
+  if (existing) return maybeAutoResume(existing);
   const proPlan = await prisma.subscriptionPlan.findUniqueOrThrow({ where: { key: "pro" } });
   try {
     return await prisma.subscription.create({
