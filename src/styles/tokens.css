@@ -70,6 +70,12 @@
   /* Floating elements (pill nav, tickets) per handoff spec: soft, large,
      low-opacity — dark shadow on both surfaces, lower opacity on light. */
   --shadow-float: 0 20px 50px rgba(0,0,0,.4);
+  /* Liquid-glass nav: a bright top inner-edge highlight (the "light
+     catching the rim of the glass" cue) and a faint bottom edge — dark
+     surfaces still want a highlight, just a much dimmer one. */
+  --glass-sheen-top: rgba(255,255,255,.14);
+  --glass-sheen-bottom: rgba(255,255,255,.03);
+  --glass-tint: color-mix(in srgb, var(--surface) 55%, transparent);
   --lens: none;
   --card-alt: var(--surface-hover);
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -125,7 +131,10 @@
   --cta-bg: var(--text);
   --cta-on-cta: var(--bg);
   --success: #2E9E5B; --warning: #97650E; --error: #C21E23; --info: #2678A8;
-  --text: #0A0A0A; --text-2: #5B5B63; --text-3: #8A8A90; --text-disabled: #ABABB2;
+  /* --text-3 darkened from the handoff's #8A8A90 (3.29:1 on this bg, fails
+     WCAG AA body-text contrast) to #727278 (4.58:1) — same hue, just meets
+     the 4.5:1 threshold for the timestamps/captions/placeholders it's used on. */
+  --text: #0A0A0A; --text-2: #5B5B63; --text-3: #727278; --text-disabled: #ABABB2;
   --icon: #0A0A0A; --icon-2: #5B5B63; --divider: #E6E6E9;
   --card-bg: #FFFFFF; --card-border: #E6E6E9;
   --card-shadow: 0 1px 2px rgba(0,0,0,.05);
@@ -140,6 +149,11 @@
   --glass: var(--surface); --glass-strong: var(--surface-hover); --glass-soft: var(--surface);
   --glass-edge: var(--border); --glass-line: var(--border); --glass-shadow: var(--shadow-sm);
   --shadow-float: 0 20px 50px rgba(0,0,0,.16);
+  /* Liquid-glass nav — bright rim highlight reads much stronger against
+     a light backdrop, so it's more opaque here than the dark variant. */
+  --glass-sheen-top: rgba(255,255,255,.75);
+  --glass-sheen-bottom: rgba(255,255,255,.1);
+  --glass-tint: color-mix(in srgb, var(--surface) 45%, transparent);
   --card-alt: var(--surface-hover);
   --fallback-scrim: rgba(0,0,0,0.1);
 
