@@ -75,6 +75,47 @@ export default function App() {
 
   useEffect(() => { setHostOpen(false); }, [location.pathname]);
 
+  // Edge refraction reacts to movement: real glass bends light more as
+  // whatever's behind it moves, not a fixed amount at rest. Tracks scroll
+  // velocity (capture-phase listener so it catches scrolling inside any
+  // nested container, not just window) and drives the SVG filter's
+  // feDisplacementMap `scale` up on fast movement, decaying back to the
+  // calm resting value the instant scrolling stops. rAF-driven, not a scroll
+  // handler doing the writing directly, so the decay stays smooth between
+  // scroll events instead of snapping.
+  const displacementRef = useRef<SVGFEDisplacementMapElement>(null);
+  useEffect(() => {
+    const REST_SCALE = 16;
+    const MAX_EXTRA = 34;
+    let lastY = window.scrollY;
+    let lastT = performance.now();
+    let velocity = 0;
+    let raf = 0;
+
+    function onScroll() {
+      const now = performance.now();
+      const dt = Math.max(1, now - lastT);
+      const y = window.scrollY;
+      velocity = Math.max(velocity, Math.min(1, Math.abs(y - lastY) / dt / 3));
+      lastY = y;
+      lastT = now;
+    }
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+
+    function tick() {
+      velocity *= 0.88; // decays to ~0 in a few frames once movement stops
+      const el = displacementRef.current;
+      if (el) el.setAttribute("scale", String(REST_SCALE + velocity * MAX_EXTRA));
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll, { capture: true });
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   return (
     <div className="shell">
       {/* SVG filter def for the nav's liquid-glass refraction (see .tabs-pill
@@ -108,12 +149,13 @@ export default function App() {
             result="edgeMap"
           />
           <feGaussianBlur in="edgeMap" stdDeviation="3" result="edgeMapSmooth" />
-          {/* scale dropped from 38 — the reference screenshot's own glass
-              card (the "Buy" ticket pill) reads as soft, even frosting with
-              only a faint edge liveliness, not a visibly melted/warped rim.
-              16 keeps the rim-only lensing signature without it looking like
-              a distortion effect in its own right. */}
-          <feDisplacementMap in="SourceGraphic" in2="edgeMapSmooth" scale="16" xChannelSelector="R" yChannelSelector="G" />
+          {/* scale starts at 16 (rest) and is driven up to ~50 on fast
+              scroll by the rAF loop above (ref, not React state — this
+              repaints every frame while moving, which would be far too
+              expensive as a re-render). 16 alone is the "reference
+              screenshot's soft, even frosting" resting look; the extra
+              kicks in only while something's actually moving past the bar. */}
+          <feDisplacementMap ref={displacementRef} in="SourceGraphic" in2="edgeMapSmooth" scale="16" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </svg>
       {MAIN_TABS.map(({ path, Component }) =>
@@ -159,8 +201,15 @@ export default function App() {
               end={t.to === "/"}
               className={({ isActive }) => "tab" + (isActive ? " on" : "")}
             >
-              <i className={"icon-" + t.icon} />
-              <span>{t.label}</span>
+              {({ isActive }) => (
+                <>
+                  {/* Outline glyph when inactive, solid fill when selected
+                      (iOS tab-bar convention) — the *-fill variants live in
+                      ikonate.css. */}
+                  <i className={"icon-" + t.icon + (isActive ? "-fill" : "")} />
+                  <span>{t.label}</span>
+                </>
+              )}
             </NavLink>
           ))}
           <div className="tab-host" ref={hostRef}>
@@ -172,7 +221,7 @@ export default function App() {
               aria-label="Host"
               onClick={() => setHostOpen((v) => !v)}
             >
-              <i className="icon-circle-plus" />
+              <i className={"icon-circle-plus" + (onHostRoute ? "-fill" : "")} />
               <span>Host</span>
             </button>
             {hostOpen && (

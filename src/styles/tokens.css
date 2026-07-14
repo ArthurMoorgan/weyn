@@ -76,6 +76,12 @@
   --glass-sheen-top: rgba(255,255,255,.14);
   --glass-sheen-bottom: rgba(255,255,255,.03);
   --glass-tint: color-mix(in srgb, var(--surface) 55%, transparent);
+  /* Nav-specific: a paler, more-opaque wash than --glass-tint — the plain
+     tint let bright content underneath wash out the white tab icons.
+     A near-white veil at low opacity keeps the icons legible against
+     anything scrolling behind, while the backdrop-filter blur/refraction
+     still reads through it. */
+  --glass-veil: color-mix(in srgb, #fff 8%, var(--glass-tint));
   /* Contact-shadow + hotspot blend for the liquid-glass nav (dark theme):
      a soft dark pool under the rim (thickness cue) and 'screen' blending so
      the specular hotspot brightens instead of muddying the dark tint. */
@@ -159,6 +165,10 @@
   --glass-sheen-top: rgba(255,255,255,.75);
   --glass-sheen-bottom: rgba(255,255,255,.1);
   --glass-tint: color-mix(in srgb, var(--surface) 45%, transparent);
+  /* Paler/more-opaque nav wash — see the dark theme's own comment above.
+     Icons here are dark-ink, so the veil leans white too (keeps the icon
+     always meeting the wash at real contrast, not the tint's own hue). */
+  --glass-veil: color-mix(in srgb, #fff 30%, var(--glass-tint));
   /* Contact shadow reads as a real shadow (not a glow) against a light
      backdrop, so no blend-mode trick is needed here — plain overlay. */
   --glass-shadow-inner: rgba(0,0,0,.1);

@@ -669,7 +669,12 @@
      active one. */
   display: flex; align-items: stretch; gap: 6px;
   padding: 8px; border-radius: 30px;
-  background: var(--glass-tint);
+  /* Pale frost overlay OVER the refraction (per feedback: the bar was too
+     see-through, icons vanished over bright content). --glass-veil is a
+     more-opaque tint than the old --glass-tint — enough of a pale wash that
+     white icons always read, while the blur/refraction still shows the
+     content moving underneath. */
+  background: var(--glass-veil);
   /* url(#liquid-glass-distortion) is the actual per-pixel refraction (see
      the <filter> defined once in App.tsx's shell) — blur+saturate alone is
      the "flat glassmorphism" look the user explicitly rejected. Safari
