@@ -746,12 +746,13 @@
   transition: color .18s ease;
 }
 /* Label always visible under the icon (matching the reference nav) — not
-   icon-only. Inactive tabs sit at the dimmer --text-2; the active tab
-   brightens to full --text ink and gets the frosted highlight behind it
-   (the .tab-indicator). No accent color on the tab itself — the selection
-   cue is the frosted rect + the brightness step, exactly like the recording. */
+   icon-only. The LABEL dims when inactive for a touch of hierarchy, but the
+   ICON itself is always full --text ink (white in dark theme) regardless of
+   state — selection is communicated by outline->fill (see App.tsx's
+   *-fill glyph swap) and the frosted highlight behind it, never by dimming
+   the icon. Dimming it was the "icons aren't white" bug. */
 .tab span { display: block; font-size: 11px; font-weight: 600; line-height: 1; }
-.tab [class^="icon-"] { font-size: 24px; display: inline-block; transition: transform .18s cubic-bezier(.25,1,.5,1); }
+.tab [class^="icon-"] { font-size: 24px; display: inline-block; color: var(--text); transition: transform .18s cubic-bezier(.25,1,.5,1); }
 .tab.on { color: var(--text); }
 .tab.on [class^="icon-"] { transform: scale(1.02); }
 .sidebar-brand { display: none; }
