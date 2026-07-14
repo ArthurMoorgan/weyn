@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion, MotionConfig, useMotionValue, useTransform, animate } from "motion/react";
+import { motion, MotionConfig, AnimatePresence } from "motion/react";
 import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
@@ -84,105 +84,43 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
   );
 }
 
-// Full-bleed, swipeable spotlight — the single static hero card read as flat
-// against the rest of the app; this is the "some life in it" version:
-// several featured events as full-bleed slides you swipe between (like a
-// Stories rail), with segmented progress bars up top instead of plain dots
-// so it reads as "a few things to see," not just a carousel. There's no
-// custom dismiss gesture — it's simply the top of the normal page scroll,
-// so scrolling down past it *is* "sliding up to return to the normal UI,"
-// no separate modal/overlay state to manage.
-function HeroCarousel({ events }: { events: Weyn[] }) {
-  const [active, setActive] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [slideWidth, setSlideWidth] = useState(0);
-  // Real drag physics (motion's spring, not the browser's native scroll-snap)
-  // — x is the track's live offset in px, so every slide can read its own
-  // distance from center off the same shared value while the finger is still
-  // moving, not just snap to a final rest position.
-  const x = useMotionValue(0);
+// One big featured spotlight that rotates over time (not a swipeable
+// carousel — removed per direct request). It cycles through the events that
+// paid for the featured tag (see `heroPool` in the memo below: `.featured`
+// events first, most-popular only as a fallback when none are featured), one
+// at a time, with a soft cross-dissolve on each change. Rotation pauses on
+// a single-event pool and for reduced-motion users.
+const SPOTLIGHT_INTERVAL_MS = 6000;
+
+function FeaturedSpotlight({ events }: { events: Weyn[] }) {
+  const [idx, setIdx] = useState(0);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const measure = () => setSlideWidth(el.clientWidth);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+    if (events.length <= 1) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return; // don't auto-advance if the user asked for less motion
+    const t = setInterval(() => setIdx((i) => (i + 1) % events.length), SPOTLIGHT_INTERVAL_MS);
+    return () => clearInterval(t);
+  }, [events.length]);
 
-  useEffect(() => {
-    if (!slideWidth) return;
-    const controls = animate(x, -active * slideWidth, { type: "spring", stiffness: 380, damping: 38, mass: 0.9 });
-    return () => controls.stop();
-  }, [active, slideWidth, x]);
-
-  function goTo(i: number) {
-    setActive(Math.max(0, Math.min(events.length - 1, i)));
-  }
-
-  function onDragEnd(_: unknown, info: { offset: { x: number }; velocity: { x: number } }) {
-    if (!slideWidth) return;
-    const flicked = Math.abs(info.velocity.x) > 500;
-    const passedThreshold = Math.abs(info.offset.x) > slideWidth * 0.22;
-    if (!flicked && !passedThreshold) { goTo(active); return; } // snap back to where it was
-    goTo(info.offset.x < 0 ? active + 1 : active - 1);
-  }
-
-  if (events.length <= 1) return events[0] ? <HeroSlide e={events[0]} /> : null;
+  const ev = events[Math.min(idx, events.length - 1)];
+  if (!ev) return null;
 
   return (
-    <div className="ex-hero-carousel" ref={containerRef}>
-      <motion.div
-        className="ex-hero-carousel-track"
-        style={{ x, width: slideWidth ? slideWidth * events.length : undefined }}
-        drag="x"
-        dragConstraints={{ left: -slideWidth * (events.length - 1), right: 0 }}
-        dragElastic={0.12}
-        onDragEnd={onDragEnd}
-      >
-        {events.map((e, i) => (
-          <HeroCarouselSlide key={e.id} e={e} index={i} x={x} slideWidth={slideWidth} />
-        ))}
-      </motion.div>
-      {/* Segmented progress bars (Stories-style) rather than dots — each
-          segment fills solid for a past/current slide, empty for one not
-          reached yet, communicating "N of these, you're on #2" at a glance. */}
-      <div className="ex-hero-carousel-progress" role="tablist" aria-label="Featured events">
-        {events.map((e, i) => (
-          <button
-            key={e.id}
-            type="button"
-            role="tab"
-            aria-selected={i === active}
-            aria-label={`Featured event ${i + 1} of ${events.length}`}
-            className={"ex-hero-carousel-seg" + (i <= active ? " filled" : "")}
-            onClick={() => goTo(i)}
-          />
-        ))}
-      </div>
+    <div className="ex-spotlight">
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.div
+          key={ev.id}
+          className="ex-spotlight-layer"
+          initial={{ opacity: 0, scale: 1.015 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <HeroSlide e={ev} showBadge />
+        </motion.div>
+      </AnimatePresence>
     </div>
-  );
-}
-
-// One slide's depth response to the shared drag position — scales/dims as it
-// moves away from center, so the transition itself reads as physical depth
-// (a card lifting toward you as it centers) rather than a flat slide-across.
-// Purely a function of the live `x` value, so it's just as expressive
-// mid-drag as it is on a spring-settled rest position.
-function HeroCarouselSlide({ e, index, x, slideWidth }: { e: Weyn; index: number; x: ReturnType<typeof useMotionValue<number>>; slideWidth: number }) {
-  const distance = useTransform(x, (v) => (slideWidth ? index + v / slideWidth : 0));
-  const scale = useTransform(distance, [-1, 0, 1], [0.94, 1, 0.94]);
-  const opacity = useTransform(distance, [-1, 0, 1], [0.7, 1, 0.7]);
-  return (
-    // Explicit pixel width, not the old 100%-of-container CSS — the track
-    // now has an explicit total width (slideWidth * count) for the drag
-    // constraints to work against, so a percentage basis here would resolve
-    // against that total instead of one slide's share of it.
-    <motion.div className="ex-hero-carousel-slide" style={{ flex: `0 0 ${slideWidth}px`, width: slideWidth, scale, opacity }}>
-      <HeroSlide e={e} showBadge={false} />
-    </motion.div>
   );
 }
 
@@ -357,7 +295,6 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               rootMargin="0px"
             />
           </div>
-          <Link to="/host/events" className="ex-hero-host">Host an event <i className="icon-arrow-right" /></Link>
         </section>
       )}
 
@@ -558,7 +495,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
           <>
-            {S.heroPool.length > 0 && <HeroCarousel events={S.heroPool} />}
+            {S.heroPool.length > 0 && <FeaturedSpotlight events={S.heroPool} />}
             {S.rest.length > 0 && (
               <section className="ex-section">
                 <div className="ex-head">

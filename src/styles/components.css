@@ -565,34 +565,13 @@
 .ex-hero-card-price { font-size: 13.5px; color: rgba(255,255,255,0.78); }
 .ex-hero-card-price b { color: #fff; font-weight: 700; }
 
-/* Swipeable spotlight wrapping N .ex-hero-card slides — real spring-physics
-   drag (motion's useMotionValue + drag gesture, see HeroCarousel in
-   Explore.tsx), not native scroll-snap: the previous native version could
-   rest mid-swipe showing a sliver of two slides at once, and had no depth
-   response while your finger was still moving. Each slide reads its own
-   distance from center off the same shared drag value and scales/dims
-   accordingly (see HeroCarouselSlide), so the carousel itself has physical
-   depth instead of being a flat pane sliding sideways. Scrolling the page
-   down past this *is* the "return to normal UI" motion — no separate
-   collapse/dismiss state to track. */
-.ex-hero-carousel { position: relative; overflow: hidden; touch-action: pan-y; }
-.ex-hero-carousel-track { display: flex; cursor: grab; }
-.ex-hero-carousel-track:active { cursor: grabbing; }
-.ex-hero-carousel-slide { will-change: transform; } /* width/flex-basis set inline from the JS-measured slideWidth */
-/* Stories-style segmented progress, overlaid at the top of the photo —
-   filled-so-far / empty-ahead reads as "there are a few of these" at a
-   glance, the way Instagram/TikTok Stories communicate position in a set
-   without needing numbered dots. */
-.ex-hero-carousel-progress {
-  position: absolute; top: 14px; left: 28px; right: 28px; z-index: 2;
-  display: flex; gap: 4px; pointer-events: none;
-}
-.ex-hero-carousel-seg {
-  flex: 1; height: 3px; padding: 0; border: none; border-radius: 2px;
-  background: rgba(255,255,255,0.35); pointer-events: auto;
-  transition: background-color .25s ease;
-}
-.ex-hero-carousel-seg.filled { background: #fff; }
+/* Single rotating featured spotlight (the swipeable carousel was removed by
+   request). One big hero at a time, cross-dissolving to the next featured
+   event every few seconds — see FeaturedSpotlight in Explore.tsx. The
+   grid stacks both layers in one cell so the outgoing/incoming cards
+   crossfade in place; each layer is a full .ex-hero-card. */
+.ex-spotlight { display: grid; }
+.ex-spotlight-layer { grid-area: 1 / 1; }
 
 /* More air between the spotlight and the list, and between the category row
    and everything — the review's "nothing feels cramped" note. Restraint is
@@ -684,11 +663,12 @@
    contact shadow that reads as the glass's underside/thickness). */
 .tabs-pill {
   position: relative;
-  /* Larger, airier bar per feedback — the old 6px/gap-2 pill felt cramped
-     and toy-sized. Bigger touch targets + real breathing room read as a
-     confident primary surface, not a widget. */
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px; border-radius: var(--radius-pill);
+  /* Wide rounded-RECTANGLE bar (not a full stadium pill) matching the
+     reference recording — taller, airier, with each tab a fixed-width
+     icon+label column and a soft frosted highlight sliding behind the
+     active one. */
+  display: flex; align-items: stretch; gap: 6px;
+  padding: 8px; border-radius: 30px;
   background: var(--glass-tint);
   /* url(#liquid-glass-distortion) is the actual per-pixel refraction (see
      the <filter> defined once in App.tsx's shell) — blur+saturate alone is
@@ -742,40 +722,33 @@
    what makes it read as "moving" instead of just toggling on/off. */
 .tab-indicator {
   position: absolute; top: 8px; left: 8px; z-index: 1;
-  width: 56px; height: 56px; border-radius: var(--radius-pill);
-  /* Solid accent fill, not the soft tint — a light-blue icon on a barely-
-     tinted-blue pill (the previous version) had less contrast than a plain
-     white icon has against the dark glass behind it, which is the opposite
-     of what a "selected" state should do. Paired with --on-primary on the
-     icon below (the token already meant for "what color goes on top of a
-     solid --primary fill"), same solid-capsule/contrasting-icon pattern as
-     the Uber/Platinumlist reference. */
-  background: var(--accent);
-  box-shadow: inset 0 1px 0 var(--glass-sheen-top), 0 1px 2px rgba(0,0,0,.12);
-  transition: transform .38s cubic-bezier(0.22, 1, 0.36, 1), opacity .2s ease;
+  /* Soft frosted rounded-RECT highlight (matching the reference), spanning
+     one tab's full icon+label column — not a bright accent circle. Neutral
+     ink-tint so it reads as "lit glass" against the material in both themes
+     rather than a colored chip; the accent is spent elsewhere, not here. */
+  width: 74px; height: 62px; border-radius: 20px;
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-sheen-top);
+  transition: transform .4s cubic-bezier(0.22, 1, 0.36, 1), opacity .2s ease;
   pointer-events: none;
 }
 .tab {
   position: relative; z-index: 2; flex: 0 0 auto;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  width: 56px; min-height: 56px;
-  font-size: 10.5px; font-weight: 600; color: var(--text); padding: 4px;
-  border-radius: var(--radius-pill);
-  transition: color .18s ease, background-color .15s ease;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  width: 74px; min-height: 62px;
+  font-size: 11px; font-weight: 600; color: var(--text-2); padding: 4px;
+  border-radius: 20px;
+  transition: color .18s ease;
 }
-/* Icon-only on the floating mobile pill — labels come back at the 900px
-   desktop top-bar breakpoint (see below), where this is a normal inline nav.
-   Inactive icons ride the theme's ink color (--text: near-white in dark,
-   near-black in light) so they always contrast the frosted glass material,
-   which itself flips tint with the theme — the "black or white against the
-   background" ask, done the reliable way real tab bars do it (the material
-   sets a consistent local backdrop; per-pixel content inversion goes muddy
-   over mid-tones). The active tab sits on the solid accent capsule, so its
-   icon uses --on-primary. */
-.tab span { display: none; }
+/* Label always visible under the icon (matching the reference nav) — not
+   icon-only. Inactive tabs sit at the dimmer --text-2; the active tab
+   brightens to full --text ink and gets the frosted highlight behind it
+   (the .tab-indicator). No accent color on the tab itself — the selection
+   cue is the frosted rect + the brightness step, exactly like the recording. */
+.tab span { display: block; font-size: 11px; font-weight: 600; line-height: 1; }
 .tab [class^="icon-"] { font-size: 24px; display: inline-block; transition: transform .18s cubic-bezier(.25,1,.5,1); }
-.tab.on { color: var(--accent); }
-.tab.on [class^="icon-"] { color: var(--on-primary); transform: scale(1.06); }
+.tab.on { color: var(--text); }
+.tab.on [class^="icon-"] { transform: scale(1.02); }
 .sidebar-brand { display: none; }
 .tabs-right { display: none; }
 
