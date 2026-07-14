@@ -376,6 +376,12 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               className={"cat-circle" + (cat === c.key ? " on" : "")}
               onClick={() => setCat(c.key as Cat | "all")}
               aria-pressed={cat === c.key}
+              /* Each real category already has its own brand color token
+                 (--cat-music/--cat-sports/etc, used elsewhere for catpills) —
+                 threading it in here gives the row some color without
+                 touching the app's actual palette. "All" isn't a real
+                 category, so it keeps the neutral gray fallback below. */
+              style={c.key === "all" ? undefined : ({ "--cat-color": `var(--cat-${c.key})` } as React.CSSProperties)}
             >
               <span className="cat-circle-ring">
                 <i className={"icon-" + CAT_ICON[c.key]} />
