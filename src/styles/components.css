@@ -628,8 +628,12 @@
      -webkit-backdrop-filter, so it's included in both properties, not just
      the standard one — dropping it from the -webkit- line would mean iOS
      Safari never showed the refraction at all. */
-  backdrop-filter: blur(7px) saturate(180%) contrast(1.08) url(#liquid-glass-distortion);
-  -webkit-backdrop-filter: blur(7px) saturate(180%) contrast(1.08) url(#liquid-glass-distortion);
+  /* Softer/more diffused than the first pass — the reference card's own
+     glass reads as smooth, even frosting (colors of whatever's behind bleed
+     through softly) rather than a sharp, barely-blurred window with a
+     distortion effect layered on top. */
+  backdrop-filter: blur(16px) saturate(190%) contrast(1.05) url(#liquid-glass-distortion);
+  -webkit-backdrop-filter: blur(16px) saturate(190%) contrast(1.05) url(#liquid-glass-distortion);
   border: 1px solid var(--glass-sheen-bottom);
   box-shadow:
     var(--shadow-float),

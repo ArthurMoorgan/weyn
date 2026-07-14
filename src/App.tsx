@@ -108,7 +108,12 @@ export default function App() {
             result="edgeMap"
           />
           <feGaussianBlur in="edgeMap" stdDeviation="3" result="edgeMapSmooth" />
-          <feDisplacementMap in="SourceGraphic" in2="edgeMapSmooth" scale="38" xChannelSelector="R" yChannelSelector="G" />
+          {/* scale dropped from 38 — the reference screenshot's own glass
+              card (the "Buy" ticket pill) reads as soft, even frosting with
+              only a faint edge liveliness, not a visibly melted/warped rim.
+              16 keeps the rim-only lensing signature without it looking like
+              a distortion effect in its own right. */}
+          <feDisplacementMap in="SourceGraphic" in2="edgeMapSmooth" scale="16" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </svg>
       {MAIN_TABS.map(({ path, Component }) =>
