@@ -198,6 +198,14 @@
 .cat-circles {
   display: flex; gap: 16px; overflow-x: auto; padding: 14px 16px 6px;
   scrollbar-width: none; overscroll-behavior-x: contain;
+  /* Fades the last ~40px to transparent so the row reads as "more to
+     scroll" rather than the last circle looking abruptly clipped by the
+     viewport edge. Masked on the scroll container itself (not a child), so
+     the fade always sits at the actual right edge regardless of scroll
+     position — a fixed overlay would either scroll away with the content or
+     have to be repositioned on every scroll event. */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent 100%);
 }
 .cat-circles::-webkit-scrollbar { display: none; }
 .cat-circle {
@@ -699,7 +707,14 @@
 .tab-indicator {
   position: absolute; top: 6px; left: 6px; z-index: 1;
   width: 48px; height: 48px; border-radius: var(--radius-pill);
-  background: var(--accent-soft);
+  /* Solid accent fill, not the soft tint — a light-blue icon on a barely-
+     tinted-blue pill (the previous version) had less contrast than a plain
+     white icon has against the dark glass behind it, which is the opposite
+     of what a "selected" state should do. Paired with --on-primary on the
+     icon below (the token already meant for "what color goes on top of a
+     solid --primary fill"), same solid-capsule/contrasting-icon pattern as
+     the Uber/Platinumlist reference. */
+  background: var(--accent);
   box-shadow: inset 0 1px 0 var(--glass-sheen-top), 0 1px 2px rgba(0,0,0,.12);
   transition: transform .38s cubic-bezier(0.22, 1, 0.36, 1), opacity .2s ease;
   pointer-events: none;
@@ -720,7 +735,7 @@
 .tab span { display: none; }
 .tab [class^="icon-"] { font-size: 23px; display: inline-block; transition: transform .18s cubic-bezier(.25,1,.5,1); }
 .tab.on { color: var(--accent); }
-.tab.on [class^="icon-"] { color: var(--accent); transform: scale(1.08); }
+.tab.on [class^="icon-"] { color: var(--on-primary); transform: scale(1.08); }
 .sidebar-brand { display: none; }
 .tabs-right { display: none; }
 
@@ -2090,7 +2105,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   }
   .tab span { display: inline; }
   .tab [class^="icon-"] { font-size: 19px; }
+  /* Desktop's active state is still a soft tint (not the mobile pill's solid
+     fill), so the mobile-only --on-primary icon override above would be
+     wrong here (e.g. near-white on a barely-tinted light background) —
+     revert to --accent, which has always been correct against this tint. */
   .tab.on { background: var(--accent-soft); }
+  .tab.on [class^="icon-"] { color: var(--accent); }
   /* Host reverts from the mobile floating circle to a normal inline nav item. */
   .tab-host > .tab {
     width: auto; height: auto; min-height: auto; border-radius: var(--radius-pill);

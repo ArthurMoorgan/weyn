@@ -51,7 +51,7 @@ function heroTimeLabel(e: Weyn): string {
 // One card's worth of the spotlight carousel's content — pulled out of the
 // old single-slide HeroCard so HeroCarousel below can render N of these in
 // a swipeable track instead of one static card.
-function HeroSlide({ e }: { e: Weyn }) {
+function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
   const catLabel = CATS.find((c) => c.key === e.cat)?.label || e.cat;
   const coverStyle: React.CSSProperties = e.image
     ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
@@ -59,8 +59,12 @@ function HeroSlide({ e }: { e: Weyn }) {
   return (
     <Link to={`/e/${e.id}`} viewTransition className="ex-hero-card" style={coverStyle}>
       {/* Editorial handoff: a "FEATURED" pill badge top-left — pixel-checked
-          against screenshots/01, was missing entirely. */}
-      <span className="ex-hero-card-featured">Featured</span>
+          against screenshots/01, was missing entirely. Suppressed when
+          HeroCarousel is showing its own progress bar in the same top-left
+          corner (the "top lines thing" overlapping this badge was the bug
+          report) — the progress bar already signals "these are featured,"
+          the badge would be redundant right on top of it. */}
+      {showBadge && <span className="ex-hero-card-featured">Featured</span>}
       <div className="ex-hero-card-body">
         <span className="ex-hero-card-eyebrow">{catLabel} · {heroTimeLabel(e)}</span>
         <h2 className="ex-hero-card-title">{e.title}</h2>
@@ -110,7 +114,7 @@ function HeroCarousel({ events }: { events: Weyn[] }) {
       <div className="ex-hero-carousel-track" ref={trackRef} onScroll={onScroll}>
         {events.map((e) => (
           <div className="ex-hero-carousel-slide" key={e.id}>
-            <HeroSlide e={e} />
+            <HeroSlide e={e} showBadge={false} />
           </div>
         ))}
       </div>
