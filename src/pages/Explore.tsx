@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { motion, MotionConfig, useMotionValue, useTransform, animate } from "motion/react";
 import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
@@ -93,31 +94,58 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
 // no separate modal/overlay state to manage.
 function HeroCarousel({ events }: { events: Weyn[] }) {
   const [active, setActive] = useState(0);
-  const trackRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [slideWidth, setSlideWidth] = useState(0);
+  // Real drag physics (motion's spring, not the browser's native scroll-snap)
+  // — x is the track's live offset in px, so every slide can read its own
+  // distance from center off the same shared value while the finger is still
+  // moving, not just snap to a final rest position.
+  const x = useMotionValue(0);
 
-  function onScroll() {
-    const el = trackRef.current;
+  useEffect(() => {
+    const el = containerRef.current;
     if (!el) return;
-    setActive(Math.round(el.scrollLeft / el.clientWidth));
-  }
+    const measure = () => setSlideWidth(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!slideWidth) return;
+    const controls = animate(x, -active * slideWidth, { type: "spring", stiffness: 380, damping: 38, mass: 0.9 });
+    return () => controls.stop();
+  }, [active, slideWidth, x]);
 
   function goTo(i: number) {
-    const el = trackRef.current;
-    if (!el) return;
-    el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+    setActive(Math.max(0, Math.min(events.length - 1, i)));
+  }
+
+  function onDragEnd(_: unknown, info: { offset: { x: number }; velocity: { x: number } }) {
+    if (!slideWidth) return;
+    const flicked = Math.abs(info.velocity.x) > 500;
+    const passedThreshold = Math.abs(info.offset.x) > slideWidth * 0.22;
+    if (!flicked && !passedThreshold) { goTo(active); return; } // snap back to where it was
+    goTo(info.offset.x < 0 ? active + 1 : active - 1);
   }
 
   if (events.length <= 1) return events[0] ? <HeroSlide e={events[0]} /> : null;
 
   return (
-    <div className="ex-hero-carousel">
-      <div className="ex-hero-carousel-track" ref={trackRef} onScroll={onScroll}>
-        {events.map((e) => (
-          <div className="ex-hero-carousel-slide" key={e.id}>
-            <HeroSlide e={e} showBadge={false} />
-          </div>
+    <div className="ex-hero-carousel" ref={containerRef}>
+      <motion.div
+        className="ex-hero-carousel-track"
+        style={{ x, width: slideWidth ? slideWidth * events.length : undefined }}
+        drag="x"
+        dragConstraints={{ left: -slideWidth * (events.length - 1), right: 0 }}
+        dragElastic={0.12}
+        onDragEnd={onDragEnd}
+      >
+        {events.map((e, i) => (
+          <HeroCarouselSlide key={e.id} e={e} index={i} x={x} slideWidth={slideWidth} />
         ))}
-      </div>
+      </motion.div>
       {/* Segmented progress bars (Stories-style) rather than dots — each
           segment fills solid for a past/current slide, empty for one not
           reached yet, communicating "N of these, you're on #2" at a glance. */}
@@ -135,6 +163,26 @@ function HeroCarousel({ events }: { events: Weyn[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+// One slide's depth response to the shared drag position — scales/dims as it
+// moves away from center, so the transition itself reads as physical depth
+// (a card lifting toward you as it centers) rather than a flat slide-across.
+// Purely a function of the live `x` value, so it's just as expressive
+// mid-drag as it is on a spring-settled rest position.
+function HeroCarouselSlide({ e, index, x, slideWidth }: { e: Weyn; index: number; x: ReturnType<typeof useMotionValue<number>>; slideWidth: number }) {
+  const distance = useTransform(x, (v) => (slideWidth ? index + v / slideWidth : 0));
+  const scale = useTransform(distance, [-1, 0, 1], [0.94, 1, 0.94]);
+  const opacity = useTransform(distance, [-1, 0, 1], [0.7, 1, 0.7]);
+  return (
+    // Explicit pixel width, not the old 100%-of-container CSS — the track
+    // now has an explicit total width (slideWidth * count) for the drag
+    // constraints to work against, so a percentage basis here would resolve
+    // against that total instead of one slide's share of it.
+    <motion.div className="ex-hero-carousel-slide" style={{ flex: `0 0 ${slideWidth}px`, width: slideWidth, scale, opacity }}>
+      <HeroSlide e={e} showBadge={false} />
+    </motion.div>
   );
 }
 
@@ -284,6 +332,11 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   }, [data, cat, when, q, searching, maxPrice]);
 
   return (
+    // reducedMotion="user" makes every motion.* component below (the hero
+    // carousel's spring drag, the category circles' spring pop) respect the
+    // OS-level "reduce motion" setting automatically — instant snaps instead
+    // of springs, without a bespoke @media check on every one of them.
+    <MotionConfig reducedMotion="user">
     <>
       {/* Hero title is suppressed when embedded in Discover — the Discover
           shell owns the header (the Events/Venues segmented toggle + host
@@ -370,25 +423,37 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
 
       {!searching && (
         <div className="cat-circles">
-          {CATS.map((c) => (
-            <button
-              key={c.key}
-              className={"cat-circle" + (cat === c.key ? " on" : "")}
-              onClick={() => setCat(c.key as Cat | "all")}
-              aria-pressed={cat === c.key}
-              /* Each real category already has its own brand color token
-                 (--cat-music/--cat-sports/etc, used elsewhere for catpills) —
-                 threading it in here gives the row some color without
-                 touching the app's actual palette. "All" isn't a real
-                 category, so it keeps the neutral gray fallback below. */
-              style={c.key === "all" ? undefined : ({ "--cat-color": `var(--cat-${c.key})` } as React.CSSProperties)}
-            >
-              <span className="cat-circle-ring">
-                <i className={"icon-" + CAT_ICON[c.key]} />
-              </span>
-              <span className="cat-circle-label">{c.label}</span>
-            </button>
-          ))}
+          {CATS.map((c) => {
+            const isOn = cat === c.key;
+            return (
+              <motion.button
+                key={c.key}
+                className={"cat-circle" + (isOn ? " on" : "")}
+                onClick={() => setCat(c.key as Cat | "all")}
+                aria-pressed={isOn}
+                whileTap={{ scale: 0.86 }}
+                /* Each real category already has its own brand color token
+                   (--cat-music/--cat-sports/etc, used elsewhere for catpills) —
+                   threading it in here gives the row some color without
+                   touching the app's actual palette. "All" isn't a real
+                   category, so it keeps the neutral gray fallback below. */
+                style={c.key === "all" ? undefined : ({ "--cat-color": `var(--cat-${c.key})` } as React.CSSProperties)}
+              >
+                {/* Underdamped spring (not a linear tween) — selecting a
+                    category overshoots past its resting size and settles
+                    back, the tactile "pop" a flat outline-color swap can't
+                    give, matching the press feedback (whileTap) above it. */}
+                <motion.span
+                  className="cat-circle-ring"
+                  animate={{ scale: isOn ? 1.08 : 1 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 12 }}
+                >
+                  <i className={"icon-" + CAT_ICON[c.key]} />
+                </motion.span>
+                <span className="cat-circle-label">{c.label}</span>
+              </motion.button>
+            );
+          })}
         </div>
       )}
 
@@ -511,5 +576,6 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
         <p className="ex-footnote">Sign in on the <strong>You</strong> tab to save events and follow organizers.</p>
       )}
     </>
+    </MotionConfig>
   );
 }

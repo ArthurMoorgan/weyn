@@ -542,23 +542,20 @@
 .ex-hero-card-price { font: var(--t-body); font-size: 14px; color: rgba(255,255,255,0.85); }
 .ex-hero-card-price b { color: #fff; font-weight: 700; }
 
-/* Swipeable spotlight wrapping N .ex-hero-card slides — plain native
-   scroll-snap (same mechanism as the event-detail cover carousel), so swipe
-   physics/momentum are the browser's own rather than a hand-rolled drag
-   handler. Scrolling the page down past this *is* the "return to normal
-   UI" motion — no separate collapse/dismiss state to track. */
-.ex-hero-carousel { position: relative; }
-.ex-hero-carousel-track {
-  display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  overscroll-behavior-x: contain;
-}
-.ex-hero-carousel-track::-webkit-scrollbar { display: none; }
-/* scroll-snap-stop:always forces a fast flick to land on the very next
-   slide instead of skipping past it — without it, a quick swipe could rest
-   between two slides, showing a sliver of the previous one next to the
-   next one (the "looks weird mid-swipe" bug report). */
-.ex-hero-carousel-slide { flex: 0 0 100%; min-width: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
+/* Swipeable spotlight wrapping N .ex-hero-card slides — real spring-physics
+   drag (motion's useMotionValue + drag gesture, see HeroCarousel in
+   Explore.tsx), not native scroll-snap: the previous native version could
+   rest mid-swipe showing a sliver of two slides at once, and had no depth
+   response while your finger was still moving. Each slide reads its own
+   distance from center off the same shared drag value and scales/dims
+   accordingly (see HeroCarouselSlide), so the carousel itself has physical
+   depth instead of being a flat pane sliding sideways. Scrolling the page
+   down past this *is* the "return to normal UI" motion — no separate
+   collapse/dismiss state to track. */
+.ex-hero-carousel { position: relative; overflow: hidden; touch-action: pan-y; }
+.ex-hero-carousel-track { display: flex; cursor: grab; }
+.ex-hero-carousel-track:active { cursor: grabbing; }
+.ex-hero-carousel-slide { will-change: transform; } /* width/flex-basis set inline from the JS-measured slideWidth */
 /* Stories-style segmented progress, overlaid at the top of the photo —
    filled-so-far / empty-ahead reads as "there are a few of these" at a
    glance, the way Instagram/TikTok Stories communicate position in a set
