@@ -72,16 +72,35 @@ export default function App() {
       {/* SVG filter def for the nav's liquid-glass refraction (see .tabs-pill
           in components.css) — backdrop-filter: url(#liquid-glass-distortion)
           needs a live filter element in the DOM to reference; a plain CSS
-          file can't define one. feTurbulence generates an irregular noise
-          field, feDisplacementMap uses it to warp what's behind the pill
-          per-pixel — the actual lensing/refraction real glass produces,
-          which blur+saturate alone (flat "glassmorphism") can't fake. Hidden
-          and zero-sized: it renders nothing itself, just holds the filter. */}
+          file can't define one. Real Apple Liquid Glass concentrates its
+          refraction at the *rim* of the shape and stays calm/undistorted in
+          the middle — a uniform noise field (the previous version here)
+          warps evenly everywhere instead, which reads as static/foggy, not
+          glass. feImage draws a stadium matching the pill's own shape with a
+          blurred red/green ring traced right along its border (color
+          neutral-gray in the center, intense at the edge); feDisplacementMap
+          reads that ring as "how far to push each pixel," so only content
+          near the rim visibly bends — exactly the edge-lensing look, while
+          the center stays sharp. Hidden and zero-sized: renders nothing
+          itself, just holds the filter for backdrop-filter to reference. */}
       <svg aria-hidden="true" style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
-        <filter id="liquid-glass-distortion" x="-20%" y="-20%" width="140%" height="140%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="2" seed="7" result="noise" />
-          <feGaussianBlur in="noise" stdDeviation="2" result="smoothNoise" />
-          <feDisplacementMap in="SourceGraphic" in2="smoothNoise" scale="22" xChannelSelector="R" yChannelSelector="G" />
+        <filter id="liquid-glass-distortion" x="-25%" y="-25%" width="150%" height="150%" colorInterpolationFilters="sRGB">
+          <feImage
+            x="0" y="0" width="100%" height="100%" preserveAspectRatio="none"
+            href={
+              "data:image/svg+xml," +
+              encodeURIComponent(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60">' +
+                '<rect width="200" height="60" rx="30" fill="#808080"/>' +
+                '<rect x="1.5" y="1.5" width="197" height="57" rx="28.5" fill="none" stroke="#ff2a1a" stroke-width="14" filter="blur(5px)"/>' +
+                '<rect x="1.5" y="1.5" width="197" height="57" rx="28.5" fill="none" stroke="#1aff5a" stroke-width="8" filter="blur(2.5px)"/>' +
+                "</svg>"
+              )
+            }
+            result="edgeMap"
+          />
+          <feGaussianBlur in="edgeMap" stdDeviation="3" result="edgeMapSmooth" />
+          <feDisplacementMap in="SourceGraphic" in2="edgeMapSmooth" scale="38" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </svg>
       {MAIN_TABS.map(({ path, Component }) =>

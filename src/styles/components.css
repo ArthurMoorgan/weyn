@@ -622,12 +622,14 @@
   background: var(--glass-tint);
   /* url(#liquid-glass-distortion) is the actual per-pixel refraction (see
      the <filter> defined once in App.tsx's shell) — blur+saturate alone is
-     the "flat glassmorphism" look the user explicitly rejected. Composed in
-     the same filter-function list as the blur so a browser that doesn't
-     support the SVG-filter reference (older Safari) still gets the blurred
-     tint rather than losing backdrop-filter entirely. */
-  backdrop-filter: blur(11px) saturate(160%) contrast(1.05) url(#liquid-glass-distortion);
-  -webkit-backdrop-filter: blur(11px) saturate(160%) contrast(1.05);
+     the "flat glassmorphism" look the user explicitly rejected. Safari
+     (the engine that matters most here — this is explicitly meant to look
+     like Apple's own material) DOES support an SVG filter reference inside
+     -webkit-backdrop-filter, so it's included in both properties, not just
+     the standard one — dropping it from the -webkit- line would mean iOS
+     Safari never showed the refraction at all. */
+  backdrop-filter: blur(7px) saturate(180%) contrast(1.08) url(#liquid-glass-distortion);
+  -webkit-backdrop-filter: blur(7px) saturate(180%) contrast(1.08) url(#liquid-glass-distortion);
   border: 1px solid var(--glass-sheen-bottom);
   box-shadow:
     var(--shadow-float),
