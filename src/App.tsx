@@ -49,6 +49,14 @@ export default function App() {
   const [hostOpen, setHostOpen] = useState(false);
   const hostRef = useRef<HTMLDivElement>(null);
   const onHostRoute = location.pathname.startsWith("/host");
+  // Which slot the sliding highlight pill (.tab-indicator) sits behind —
+  // TABS' own order (Discover/Tickets/Profile), with Host as the 4th slot
+  // since it renders after them in the same row. -1 means nothing in the
+  // row is active (e.g. a route inside neither, like /saved) — the
+  // indicator just hides itself rather than resting on a wrong tab.
+  const activeTabIndex = onHostRoute
+    ? TABS.length
+    : TABS.findIndex((t) => (t.to === "/" ? location.pathname === "/" : location.pathname.startsWith(t.to)));
 
   useEffect(() => {
     if (activeMainTab && !visited.has(activeMainTab.path)) {
@@ -125,6 +133,18 @@ export default function App() {
             .tabs-pill/.tab span in components.css). NavLink sets
             aria-current="page" on the active link automatically. */}
         <div className="tabs-pill">
+          {/* Sliding highlight capsule — the liquid-glass blur/refraction
+              behind the icons (see .tabs-pill's backdrop-filter) means a
+              bare icon can lose contrast against whatever's scrolling
+              underneath. This sits just above the glass and below the icon,
+              giving the active tab a solid-ish backing to read against —
+              and, like Uber/Platinumlist's tab bars, slides to track
+              whichever tab is active instead of just appearing/disappearing. */}
+          <span
+            className="tab-indicator"
+            style={{ transform: `translateX(${activeTabIndex * 50}px)`, opacity: activeTabIndex < 0 ? 0 : 1 }}
+            aria-hidden="true"
+          />
           {TABS.map((t) => (
             <NavLink
               key={t.to}
