@@ -5,6 +5,7 @@ import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isP
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import Stub from "../components/Stub";
+import Icon3D, { type Icon3DName } from "../components/Icon3D";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
 import { capture } from "../posthog";
@@ -381,7 +382,9 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                   animate={{ scale: isOn ? 1 : 1 }}
                   transition={{ type: "spring", stiffness: 500, damping: 14 }}
                 >
-                  <i className={"icon-" + CAT_ICON[c.key]} />
+                  {/* Pseudo-3D graphite icon (Icon3D) instead of the flat
+                      glyph font — Uber-style dimensional tile marks. */}
+                  <Icon3D name={c.key as Icon3DName} size={26} />
                 </motion.span>
                 {/* Label only under the selected chip (Apple filter-chip
                     pattern) — collapses the row's vertical footprint and

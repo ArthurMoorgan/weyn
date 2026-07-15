@@ -24,7 +24,7 @@
     <meta name="twitter:title" content="Weyn — discover what's on near you" />
     <meta name="twitter:description" content="Discover events near you in Muscat, tonight and in the weeks ahead." />
     <meta name="twitter:image" content="https://weynevents.com/og-image.png" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 124 124'%3E%3Crect width='124' height='124' rx='30' fill='%23FF3B30'/%3E%3Cg transform='translate(14 22)' fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 29 C27 52 32 67 43 72 C52 76 57 61 60 46' stroke-width='12.5'/%3E%3Cpath d='M60 46 C64 63 70 77 81 73 C93 69 98 50 101 32' stroke-width='22'/%3E%3C/g%3E%3Ccircle cx='115' cy='52' r='12.5' fill='white'/%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 124 124'%3E%3Crect width='124' height='124' rx='30' fill='%23161616'/%3E%3Cg transform='translate(14 22)' fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 29 C27 52 32 67 43 72 C52 76 57 61 60 46' stroke-width='12.5'/%3E%3Cpath d='M60 46 C64 63 70 77 81 73 C93 69 98 50 101 32' stroke-width='22'/%3E%3C/g%3E%3Ccircle cx='115' cy='52' r='12.5' fill='white'/%3E%3C/svg%3E" />
     <!-- PWA: installable on iOS / Android / macOS -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -40,10 +40,11 @@
           if (t !== "light" && t !== "dark")
             t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
           document.documentElement.dataset.theme = t;
-          document.querySelector('meta[name="theme-color"]').setAttribute("content", t === "dark" ? "#1C1B1A" : "#FFFFFF");
-          if (!localStorage.getItem("weyn.hasLaunched")) {
-            document.documentElement.classList.add("show-splash");
-          }
+          document.querySelector('meta[name="theme-color"]').setAttribute("content", t === "dark" ? "#0A0A0A" : "#FFFFFF");
+          /* Splash shows on every cold boot (native-app convention), not
+             just first launch — dismissed by SplashDismisser once React
+             mounts, with a minimum on-screen time set in src/splash.ts. */
+          document.documentElement.classList.add("show-splash");
         } catch (e) {}
       })();
     </script>
@@ -52,9 +53,16 @@
       html.show-splash #splash {
         display: flex; align-items: center; justify-content: center;
         position: fixed; inset: 0; z-index: 9999;
-        background: #1C1B1A;
+        background: #0A0A0A; color: #F5F5F5;
       }
-      html.show-splash[data-theme="light"] #splash { background: #FFFFFF; }
+      html.show-splash[data-theme="light"] #splash { background: #FAFAFA; color: #0A0A0A; }
+      #splash-word {
+        position: absolute; bottom: max(48px, env(safe-area-inset-bottom, 0px) + 40px);
+        font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        letter-spacing: 0.35em; text-transform: uppercase; opacity: 0;
+        animation: splash-word-in .7s ease .35s forwards;
+      }
+      @keyframes splash-word-in { to { opacity: .45; } }
       html.show-splash #splash svg { animation: splash-in 0.6s cubic-bezier(.16,1,.3,1) both; overflow: visible; }
       html.show-splash.splash-exit #splash svg { animation: splash-out 0.5s cubic-bezier(.4,0,1,1) both; }
       html.show-splash.splash-exit #splash { animation: splash-fade-out 0.5s ease both; pointer-events: none; }
@@ -104,18 +112,15 @@
   <body>
     <div id="root"></div>
     <div id="splash" aria-hidden="true">
-      <svg width="72" height="58" viewBox="0 6 124 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="splashGrad" x1="12" y1="12" x2="112" y2="92" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#175680" />
-            <stop offset="55%" stop-color="#1F6C9F" />
-            <stop offset="100%" stop-color="#6FB6E0" />
-          </linearGradient>
-        </defs>
-        <path id="splash-s1" d="M22 29 C27 52 32 67 43 72 C52 76 57 61 60 46" stroke="url(#splashGrad)" stroke-width="12.5" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/>
-        <path id="splash-s2" d="M60 46 C64 63 70 77 81 73 C93 69 98 50 101 32" stroke="url(#splashGrad)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/>
-        <circle id="splash-dot" cx="101" cy="30" r="12.5" fill="url(#splashGrad)"/>
+      <!-- Monochrome W mark, sized as a real brand moment (not a favicon
+           floating in a void) — currentColor follows the theme set on
+           #splash above: white-on-off-black dark, black-on-off-white light. -->
+      <svg width="119" height="96" viewBox="0 6 124 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path id="splash-s1" d="M22 29 C27 52 32 67 43 72 C52 76 57 61 60 46" stroke="currentColor" stroke-width="12.5" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/>
+        <path id="splash-s2" d="M60 46 C64 63 70 77 81 73 C93 69 98 50 101 32" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/>
+        <circle id="splash-dot" cx="101" cy="30" r="12.5" fill="currentColor"/>
       </svg>
+      <span id="splash-word">Weyn</span>
     </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

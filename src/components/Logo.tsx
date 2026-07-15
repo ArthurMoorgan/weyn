@@ -7,9 +7,12 @@ export function Mark({ size = 26, gradient = false }: { size?: number; gradient?
     <svg width={size * 1.24} height={size} viewBox="0 6 124 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
       {gradient && (
         <defs>
+          {/* Monochrome system: "gradient" mode is now a subtle ink ramp,
+              not a hue — kept so existing gradient={true} call sites don't
+              break, while nothing renders purple anymore. */}
           <linearGradient id="weynGrad" x1="12" y1="12" x2="112" y2="92" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#9D7BFF" />
-            <stop offset="1" stopColor="#7C3AED" />
+            <stop stopColor="currentColor" stopOpacity="0.7" />
+            <stop offset="1" stopColor="currentColor" />
           </linearGradient>
         </defs>
       )}

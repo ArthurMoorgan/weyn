@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { type Weyn, ticketsLeft, isSoldOut, isTonight, dayLabel, timeLabel } from "../api";
 import { isSaved, toggleSave, useSaved } from "../store";
+import Icon3D from "./Icon3D";
 
 // Card variants — one component, four densities, so different surfaces get
 // genuinely different visual treatments:
@@ -15,11 +16,12 @@ import { isSaved, toggleSave, useSaved } from "../store";
 //             Featured rail / mobile spotlight.
 type Variant = "list" | "card" | "rail" | "feature";
 
-// The trailing stop uses the theme-aware --fallback-scrim CSS var (defined in
-// src/index.css for both dark/light :root blocks) instead of a hardcoded hex,
-// so this reads correctly in light mode too.
-function fallbackGradient(color: string): string {
-  return `linear-gradient(150deg, ${color}, ${color}B0 60%, var(--fallback-scrim))`;
+// Monochrome fallback covers: the server still stores a per-event hue in
+// e.color, but the greyscale system ignores it — covers without photos get
+// the category's grey (--cat-* tokens, all de-hued) with a soft diagonal
+// ramp so the surface still reads as lit, not flat.
+function fallbackGradient(cat: string): string {
+  return `linear-gradient(150deg, var(--cat-${cat}, #3A3A3A), var(--fallback-scrim))`;
 }
 
 const catLabel = (c: string) => c.charAt(0).toUpperCase() + c.slice(1);
@@ -52,7 +54,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
 
   const coverStyle: React.CSSProperties = e.image
     ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
-    : { background: fallbackGradient(e.color) };
+    : { background: fallbackGradient(e.cat) };
 
   const statusBadge = ticket ? (
     <span className="ec-badge confirmed"><i className="icon-circle-check" />{e.cancelled ? "Cancelled" : "Confirmed"}</span>
@@ -68,7 +70,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   if (variant === "list") {
     return (
       <Link to={`/e/${e.id}`} viewTransition className={"ec-row" + (ticket ? " ticket" : "")}>
-        <div className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph">{e.glyph}</span>}</div>
+        <div className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={34} /></span>}</div>
         <div className="ec-main">
           <div className="ec-top">
             <span className="ec-when">{dayLabel(e)} · {timeLabel(e)}</span>
@@ -99,7 +101,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
         <div className="ec-card-cover" style={coverStyle}>
           {statusBadge}
           <SaveHeart id={e.id} />
-          {!e.image && <span className="ec-glyph big">{e.glyph}</span>}
+          {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={56} /></span>}
           {scarce && <span className="ec-card-scarce">{left} left</span>}
         </div>
         <div className="ec-card-body">
@@ -123,7 +125,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
         <div className="ec-rail-cover" style={coverStyle}>
           {statusBadge}
           <SaveHeart id={e.id} />
-          {!e.image && <span className="ec-glyph">{e.glyph}</span>}
+          {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={34} /></span>}
         </div>
         <h3 className="ec-title">{e.title}</h3>
         <div className="ec-meta">
@@ -141,7 +143,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
       <div className="ec-feature-cover" style={coverStyle}>
         {statusBadge}
         <SaveHeart id={e.id} className="ec-save-lg" />
-        {!e.image && <span className="ec-glyph big">{e.glyph}</span>}
+        {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={56} /></span>}
         <div className="ec-feature-body">
           <div className="ec-feature-toprow">
             <span className="ec-feature-organizer">{e.organizer}</span>

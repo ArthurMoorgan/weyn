@@ -75,89 +75,34 @@ export default function App() {
 
   useEffect(() => { setHostOpen(false); }, [location.pathname]);
 
-  // Edge refraction reacts to movement: real glass bends light more as
-  // whatever's behind it moves, not a fixed amount at rest. Tracks scroll
-  // velocity (capture-phase listener so it catches scrolling inside any
-  // nested container, not just window) and drives the SVG filter's
-  // feDisplacementMap `scale` up on fast movement, decaying back to the
-  // calm resting value the instant scrolling stops. rAF-driven, not a scroll
-  // handler doing the writing directly, so the decay stays smooth between
-  // scroll events instead of snapping.
-  const displacementRef = useRef<SVGFEDisplacementMapElement>(null);
+  // Auto-hiding nav (Uber/Apple convention): slides away while scrolling
+  // down (content gets the full screen), returns the instant the user
+  // scrolls up, reaches the top, or changes route. Capture-phase listener so
+  // scrolling inside any nested container counts, not just window. A 6px
+  // dead-zone filters out sub-pixel jitter and iOS rubber-banding; the
+  // 64px top guard keeps the bar pinned while the page has barely moved.
+  const [navHidden, setNavHidden] = useState(false);
+  const lastYRef = useRef(0);
   useEffect(() => {
-    const REST_SCALE = 16;
-    const MAX_EXTRA = 34;
-    let lastY = window.scrollY;
-    let lastT = performance.now();
-    let velocity = 0;
-    let raf = 0;
-
-    function onScroll() {
-      const now = performance.now();
-      const dt = Math.max(1, now - lastT);
-      const y = window.scrollY;
-      velocity = Math.max(velocity, Math.min(1, Math.abs(y - lastY) / dt / 3));
-      lastY = y;
-      lastT = now;
+    function scrollTopOf(e: Event): number {
+      const t = e.target;
+      if (t instanceof Element) return t.scrollTop;
+      return window.scrollY;
+    }
+    function onScroll(e: Event) {
+      const y = scrollTopOf(e);
+      const dy = y - lastYRef.current;
+      lastYRef.current = y;
+      if (y < 64 || dy < -6) setNavHidden(false);
+      else if (dy > 6) setNavHidden(true);
     }
     window.addEventListener("scroll", onScroll, { capture: true, passive: true });
-
-    function tick() {
-      velocity *= 0.88; // decays to ~0 in a few frames once movement stops
-      const el = displacementRef.current;
-      if (el) el.setAttribute("scale", String(REST_SCALE + velocity * MAX_EXTRA));
-      raf = requestAnimationFrame(tick);
-    }
-    raf = requestAnimationFrame(tick);
-
-    return () => {
-      window.removeEventListener("scroll", onScroll, { capture: true });
-      cancelAnimationFrame(raf);
-    };
+    return () => window.removeEventListener("scroll", onScroll, { capture: true });
   }, []);
+  useEffect(() => { setNavHidden(false); lastYRef.current = 0; }, [location.pathname]);
 
   return (
     <div className="shell">
-      {/* SVG filter def for the nav's liquid-glass refraction (see .tabs-pill
-          in components.css) — backdrop-filter: url(#liquid-glass-distortion)
-          needs a live filter element in the DOM to reference; a plain CSS
-          file can't define one. Real Apple Liquid Glass concentrates its
-          refraction at the *rim* of the shape and stays calm/undistorted in
-          the middle — a uniform noise field (the previous version here)
-          warps evenly everywhere instead, which reads as static/foggy, not
-          glass. feImage draws a stadium matching the pill's own shape with a
-          blurred red/green ring traced right along its border (color
-          neutral-gray in the center, intense at the edge); feDisplacementMap
-          reads that ring as "how far to push each pixel," so only content
-          near the rim visibly bends — exactly the edge-lensing look, while
-          the center stays sharp. Hidden and zero-sized: renders nothing
-          itself, just holds the filter for backdrop-filter to reference. */}
-      <svg aria-hidden="true" style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
-        <filter id="liquid-glass-distortion" x="-25%" y="-25%" width="150%" height="150%" colorInterpolationFilters="sRGB">
-          <feImage
-            x="0" y="0" width="100%" height="100%" preserveAspectRatio="none"
-            href={
-              "data:image/svg+xml," +
-              encodeURIComponent(
-                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60">' +
-                '<rect width="200" height="60" rx="30" fill="#808080"/>' +
-                '<rect x="1.5" y="1.5" width="197" height="57" rx="28.5" fill="none" stroke="#ff2a1a" stroke-width="14" filter="blur(5px)"/>' +
-                '<rect x="1.5" y="1.5" width="197" height="57" rx="28.5" fill="none" stroke="#1aff5a" stroke-width="8" filter="blur(2.5px)"/>' +
-                "</svg>"
-              )
-            }
-            result="edgeMap"
-          />
-          <feGaussianBlur in="edgeMap" stdDeviation="3" result="edgeMapSmooth" />
-          {/* scale starts at 16 (rest) and is driven up to ~50 on fast
-              scroll by the rAF loop above (ref, not React state — this
-              repaints every frame while moving, which would be far too
-              expensive as a re-render). 16 alone is the "reference
-              screenshot's soft, even frosting" resting look; the extra
-              kicks in only while something's actually moving past the bar. */}
-          <feDisplacementMap ref={displacementRef} in="SourceGraphic" in2="edgeMapSmooth" scale="16" xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-      </svg>
       {MAIN_TABS.map(({ path, Component }) =>
         visited.has(path) ? (
           <div key={path} className="tab-page" data-active={location.pathname === path}>
@@ -168,7 +113,7 @@ export default function App() {
         ) : null
       )}
       {!activeMainTab && <Outlet />}
-      <nav className="tabs">
+      <nav className="tabs" data-hidden={navHidden}>
         <div className="sidebar-brand brand">
           <i className="icon-sparkles" />
           <span className="en">Weyn</span>
@@ -189,9 +134,9 @@ export default function App() {
               whichever tab is active instead of just appearing/disappearing. */}
           <span
             className="tab-indicator"
-            /* 80px = tab width (74) + inter-tab gap (6); keep in sync with
+            /* 70px = tab width (64) + inter-tab gap (6); keep in sync with
                .tab / .tabs-pill in components.css. */
-            style={{ transform: `translateX(${activeTabIndex * 80}px)`, opacity: activeTabIndex < 0 ? 0 : 1 }}
+            style={{ transform: `translateX(${activeTabIndex * 70}px)`, opacity: activeTabIndex < 0 ? 0 : 1 }}
             aria-hidden="true"
           />
           {TABS.map((t) => (

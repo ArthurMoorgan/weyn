@@ -41,6 +41,7 @@ const HostVenue = lazy(() => import("./pages/HostVenue"));
 const VenueDetail = lazy(() => import("./pages/VenueDetail"));
 const Support = lazy(() => import("./pages/Support"));
 const Account = lazy(() => import("./pages/Account"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 const OrganizerLayout = lazy(() => import("./pages/organizer/Layout"));
 const OrganizerOverview = lazy(() => import("./pages/organizer/Overview"));
 const OrganizerEvents = lazy(() => import("./pages/organizer/Events"));
@@ -258,6 +259,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               <Route path="/collections/:id" element={<CollectionPage />} />
               <Route path="/support" element={<Support />} />
               <Route path="/account" element={<Account />} />
+              {/* Catch-all — unknown paths used to render a bare black
+                  screen (no matching route, nothing mounted). */}
+              <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
           </Suspense>

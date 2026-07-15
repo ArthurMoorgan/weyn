@@ -4,10 +4,12 @@ export function dismissSplash() {
   const root = document.documentElement;
   if (!root.classList.contains("show-splash")) return;
   const elapsed = performance.now() - shownAt;
-  const wait = Math.max(0, 500 - elapsed);
+  // Min on-screen time: long enough to register as a brand moment on every
+  // cold boot (index.html shows it unconditionally now), short enough to
+  // never feel like a loading screen.
+  const wait = Math.max(0, 650 - elapsed);
   setTimeout(() => {
     root.classList.add("splash-exit");
-    try { localStorage.setItem("weyn.hasLaunched", "1"); } catch {}
     setTimeout(() => {
       document.getElementById("splash")?.remove();
       root.classList.remove("show-splash", "splash-exit");

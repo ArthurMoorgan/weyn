@@ -43,12 +43,12 @@
   position: relative;
   padding-top: env(safe-area-inset-top);
   /* Must mirror .tabs-pill's own floating-pill footprint exactly: its bottom
-     offset (max(20px, safe-area+10px)) + its own height (8px+8px padding +
-     48px tab content = 64px) + a little clearance so page content doesn't
+     offset (max(20px, safe-area+10px)) + its own height (6px+6px padding +
+     54px tab content = 66px) + a little clearance so page content doesn't
      touch the pill — using a flat estimate here left a real gap (or an
      overlap) on notched/PWA-installed devices where the safe-area inset is
      non-zero. */
-  padding-bottom: calc(max(20px, calc(env(safe-area-inset-bottom) + 10px)) + 64px + 12px);
+  padding-bottom: calc(max(20px, calc(env(safe-area-inset-bottom) + 10px)) + 66px + 12px);
 }
 
 /* ---------- top bar ---------- flat, minimal-height, not a floating pill */
@@ -207,17 +207,23 @@
   padding: 0; border: none;
 }
 .cat-circle-ring {
-  width: 46px; height: 46px; border-radius: 50%;
+  width: 40px; height: 40px; border-radius: 50%;
   display: grid; place-items: center; flex: 0 0 auto;
   background: transparent; border: 1.5px solid var(--border-strong);
   /* White outline icon (per instruction), no fill — the selected state adds
      the fill. --text is the theme ink (white in dark, near-black in light). */
-  font-size: 21px; color: var(--text);
+  font-size: 18px; color: var(--text);
   transition: background-color .2s ease, border-color .2s ease, color .2s ease;
 }
 .cat-circle.on .cat-circle-ring {
   background: var(--accent); border-color: var(--accent); color: var(--on-primary);
 }
+/* Icon3D's graphite material is tuned for dark backing — darken it whenever
+   the circle behind it is light (light theme's resting chips; dark theme's
+   selected white fill), and leave it silver when the backing is dark. */
+.cat-circle.on .cat-circle-ring svg { filter: brightness(0.68) }
+:root[data-theme="light"] .cat-circle-ring svg { filter: brightness(0.68); }
+:root[data-theme="light"] .cat-circle.on .cat-circle-ring svg { filter: none; }
 .cat-circle-label {
   font: var(--t-meta); font-weight: 600; color: var(--text); white-space: nowrap;
   padding-right: 4px;
@@ -270,9 +276,12 @@
 }
 .ec-glyph { font-size: 30px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
 .ec-glyph.big { font-size: 56px; }
+/* Icon3D on light-theme fallback covers (light grey surfaces) — darken the
+   silver material so the mark keeps contrast; see .cat-circle-ring note. */
+:root[data-theme="light"] .ec-glyph svg { filter: brightness(0.62); }
 .ec-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 2px 0; }
 .ec-top { display: flex; align-items: center; gap: 8px; }
-.ec-when { font: var(--t-caption); letter-spacing: 0.3px; text-transform: uppercase; color: var(--accent); }
+.ec-when { font: var(--t-caption); letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-2); }
 .ec-title {
   font: var(--t-card); letter-spacing: -0.2px; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -375,7 +384,7 @@
 }
 .ec-card-body { display: flex; flex-direction: column; gap: 3px; padding: 10px 4px 0; }
 .ec-card .ec-title {
-  font-size: 17px; letter-spacing: -0.3px;
+  font-size: 16px; letter-spacing: -0.3px;
   white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   line-height: 1.3;
 }
@@ -383,7 +392,7 @@
 .ec-card .ec-meta .ec-price { margin-left: auto; flex: 0 0 auto; }
 
 /* the agenda: one editorial card per event, stacked with real breathing room */
-.ex-agenda { display: flex; flex-direction: column; gap: 22px; padding: 0 16px; }
+.ex-agenda { display: flex; flex-direction: column; gap: 16px; padding: 0 16px; }
 
 
 /* ---- compact vertical rail card ---- */
@@ -446,7 +455,7 @@
 /* ---------- Discover header: Events/Venues segmented toggle ---------- */
 .discover-head {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 20px 16px 6px;
+  padding: 14px 16px 4px;
 }
 .seg-toggle {
   position: relative; display: inline-flex; background: var(--surface-hover); border-radius: var(--radius-pill);
@@ -466,17 +475,13 @@
 .seg-toggle-thumb.slot-2 { transform: translateX(calc(100% + 2px)); }
 .seg-btn {
   position: relative; z-index: 1;
-  font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text-2);
-  padding: 8px 20px; border-radius: var(--radius-pill);
+  font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--text-2);
+  padding: 7px 16px; border-radius: var(--radius-pill);
   transition: color .15s ease;
 }
+/* Monochrome: the active mode is full ink, inactive recedes to grey —
+   the sliding thumb carries the state, not a hue. */
 .seg-btn.on { color: var(--text); }
-/* The two modes get their own hue on the active label only (events = the
-   amber signature, venues = the gulf teal) — a small, legible use of color
-   as information (which mode you're in) rather than a repaint of the whole
-   toggle. */
-.seg-btn-events.on { color: var(--primary); }
-.seg-btn-venues.on { color: var(--gulf); }
 /* animation-fill-mode "both"/"forwards" never technically ends — a
    transform animation stays "in effect" forever, which per spec makes this
    element a containing block for any position:fixed descendant (the
@@ -512,10 +517,11 @@
   /* signature one-corner-tucked shape (Phase 4) — distinguishes the app's
      single "look at this" moment from every other uniformly-rounded card;
      kept as Weyn's card signature per the review's "unique card layout" note. */
-  margin: 16px 16px 0; border-radius: var(--radius-asym);
-  /* Taller than the old 4/5 — the review's core note was "let the event
-     image dominate," so the photo now owns more of the first screen. */
-  aspect-ratio: 5/7;
+  margin: 12px 16px 0; border-radius: var(--radius-lg);
+  /* 4/5, not the old 5/7 — the photo still leads, but it no longer swallows
+     the entire first screen; the feed below gets a visible head start
+     (density pass: "there should be enough screen space"). */
+  aspect-ratio: 4/5;
   box-shadow: var(--shadow-lg);
   background-size: cover; background-position: center; background-color: var(--card-bg);
   animation: rise-in .5s cubic-bezier(.16,1,.3,1) both;
@@ -538,7 +544,7 @@
   background: rgba(20,20,20,0.5); backdrop-filter: blur(8px);
   padding: 6px 12px; border-radius: var(--radius-pill);
 }
-.ex-hero-card-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 24px 22px 26px; }
+.ex-hero-card-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 18px 18px 20px; }
 /* Eyebrow demoted to plain small caps — the loud translucent-pill eyebrow
    competed with the title for the eye. Now it's quiet supporting text so the
    title clearly wins the hierarchy (review point 9). */
@@ -548,19 +554,19 @@
 }
 /* Title is the dominant element now — bigger, tighter, heavier. This is the
    ~48% of the visual weight the review's hierarchy called for. */
-.ex-hero-card-title { font: var(--t-hero); font-size: 34px; font-weight: 700; color: #fff; letter-spacing: -0.9px; line-height: 1.08; text-wrap: balance; margin: 0 0 14px; max-width: 18ch; }
+.ex-hero-card-title { font: var(--t-hero); font-size: 27px; font-weight: 700; color: #fff; letter-spacing: -0.7px; line-height: 1.1; text-wrap: balance; margin: 0 0 10px; max-width: 18ch; }
 /* Single clean metadata row (venue · date) with subtle icons, not a stacked
    two-line block — the review asked for one calm row. */
-.ex-hero-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13.5px; font-weight: 500; color: rgba(255,255,255,0.82); margin-bottom: 20px; }
+.ex-hero-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.82); margin-bottom: 14px; }
 .ex-hero-card-meta span { display: inline-flex; align-items: center; gap: 6px; }
 .ex-hero-card-meta [class^="icon-"] { font-size: 15px; opacity: 0.7; }
 .ex-hero-card-cta { display: flex; align-items: center; gap: 16px; }
 /* One solid white pill CTA — the single unambiguous action. Price sits
    beside it as plain text, never a button (review point 6). */
 .ex-hero-card-btn {
-  display: inline-flex; align-items: center; font-size: 15px; font-weight: 700;
+  display: inline-flex; align-items: center; font-size: 14px; font-weight: 700;
   color: #131316; background: #fff;
-  padding: 13px 24px; border-radius: var(--radius-pill);
+  padding: 11px 20px; border-radius: var(--radius-pill);
 }
 .ex-hero-card-price { font-size: 13.5px; color: rgba(255,255,255,0.78); }
 .ex-hero-card-price b { color: #fff; font-weight: 700; }
@@ -576,7 +582,7 @@
 /* More air between the spotlight and the list, and between the category row
    and everything — the review's "nothing feels cramped" note. Restraint is
    carried by whitespace here, not decoration. */
-.ex-section { margin-top: 40px; }
+.ex-section { margin-top: 30px; }
 .ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 14px; }
 .ex-head h2 { font: var(--t-section); letter-spacing: -0.4px; }
 .ex-sub { font: var(--t-meta); color: var(--text-3); flex: 0 0 auto; }
@@ -640,9 +646,11 @@
 }
 
 
-/* ---------- tab bar ---------- one joined floating liquid-glass pill —
-   Discover/Tickets/Profile/Host all live in the same bar (Host used to
-   float as its own separate circle; merged per follow-up request). */
+/* ---------- tab bar ---------- one floating frosted pill, bottom-fixed on
+   EVERY breakpoint (Uber convention — thumb-reach chrome lives at the
+   bottom, never the top). Auto-hides while scrolling down and returns on
+   scroll-up / top / route change — see App.tsx's navHidden state, which
+   sets data-hidden on this element. */
 .tabs {
   position: fixed;
   bottom: max(20px, calc(env(safe-area-inset-bottom) + 10px));
@@ -650,72 +658,33 @@
   display: flex; align-items: center; gap: 10px;
   width: auto; max-width: calc(100vw - 32px);
   background: transparent; border: none; padding: 0;
+  transition: transform .32s cubic-bezier(.32,.72,.28,1), opacity .25s ease;
 }
-/* Apple-style liquid glass, not flat "glassmorphism": glassmorphism is a
-   uniform blurred tint with a single flat highlight line. Real (iOS/visionOS)
-   liquid glass reads as an actual lens sitting on top of content — a crisp,
-   less-fogged blur, a bright *rounded* specular hotspot (light catching a
-   curved surface, not a straight gradient sweep), a hairline-bright edge all
-   the way around the rim (not just the top), and a dark contact shadow right
-   under the rim that gives it physical thickness. Layered as three pieces:
-   the element itself (blur/tint/outer float shadow + full rim highlight),
-   ::before (the rounded specular hotspot, upper-left), ::after (the inset
-   contact shadow that reads as the glass's underside/thickness). */
+.tabs[data-hidden="true"] {
+  /* Slide fully below the viewport edge, incl. its own bottom offset. */
+  transform: translateX(-50%) translateY(calc(100% + max(20px, env(safe-area-inset-bottom) + 10px) + 4px));
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabs { transition: opacity .2s ease; }
+  .tabs[data-hidden="true"] { transform: translateX(-50%); }
+}
+/* Quiet frosted material — a plain high-opacity veil + blur, hairline edge,
+   one soft float shadow. No refraction filter, no specular theatrics: the
+   minimal system reads better with calm chrome (the previous liquid-glass
+   SVG-displacement rig, and its per-frame scroll-velocity rAF loop in
+   App.tsx, were removed with it). */
 .tabs-pill {
   position: relative;
-  /* Wide rounded-RECTANGLE bar (not a full stadium pill) matching the
-     reference recording — taller, airier, with each tab a fixed-width
-     icon+label column and a soft frosted highlight sliding behind the
-     active one. */
   display: flex; align-items: stretch; gap: 6px;
-  padding: 8px; border-radius: 30px;
-  /* Pale frost overlay OVER the refraction (per feedback: the bar was too
-     see-through, icons vanished over bright content). --glass-veil is a
-     more-opaque tint than the old --glass-tint — enough of a pale wash that
-     white icons always read, while the blur/refraction still shows the
-     content moving underneath. */
+  padding: 6px; border-radius: 26px;
   background: var(--glass-veil);
-  /* url(#liquid-glass-distortion) is the actual per-pixel refraction (see
-     the <filter> defined once in App.tsx's shell) — blur+saturate alone is
-     the "flat glassmorphism" look the user explicitly rejected. Safari
-     (the engine that matters most here — this is explicitly meant to look
-     like Apple's own material) DOES support an SVG filter reference inside
-     -webkit-backdrop-filter, so it's included in both properties, not just
-     the standard one — dropping it from the -webkit- line would mean iOS
-     Safari never showed the refraction at all. */
-  /* Softer/more diffused than the first pass — the reference card's own
-     glass reads as smooth, even frosting (colors of whatever's behind bleed
-     through softly) rather than a sharp, barely-blurred window with a
-     distortion effect layered on top. */
-  /* +5% blur per feedback — nudged up from 16px, not a re-tune. */
-  backdrop-filter: blur(17px) saturate(190%) contrast(1.05) url(#liquid-glass-distortion);
-  -webkit-backdrop-filter: blur(17px) saturate(190%) contrast(1.05) url(#liquid-glass-distortion);
-  border: 1px solid var(--glass-sheen-bottom);
-  box-shadow:
-    var(--shadow-float),
-    inset 0 0 0 1px var(--glass-sheen-top),
-    inset 0 1px 1px var(--glass-sheen-top);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-float);
   isolation: isolate;
-}
-/* Rounded specular hotspot — a soft radial highlight sitting near the top
-   edge, the way light pools on a curved lens rather than sweeping flat
-   across a pane. Positioned off-center so it doesn't read as a symmetric
-   "screen glare" cliché. */
-.tabs-pill::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
-  pointer-events: none; z-index: -1;
-  background:
-    radial-gradient(120% 90% at 30% -20%, var(--glass-sheen-top) 0%, transparent 55%),
-    radial-gradient(90% 70% at 82% 118%, var(--glass-sheen-top) 0%, transparent 50%);
-  opacity: .55;
-  mix-blend-mode: var(--glass-blend, normal);
-}
-/* Contact shadow along the bottom inner rim — the cue that the glass has
-   real thickness and is sitting slightly proud of the bar behind it. */
-.tabs-pill::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
-  pointer-events: none; z-index: -1;
-  box-shadow: inset 0 -6px 10px -6px var(--glass-shadow-inner);
 }
 /* Sliding highlight capsule behind the active tab (Uber/Platinumlist-style
    bottom nav) — a near-opaque backing so the icon reads clearly against the
@@ -726,33 +695,29 @@
    between positions rather than a background swapping per-tab, which is
    what makes it read as "moving" instead of just toggling on/off. */
 .tab-indicator {
-  position: absolute; top: 8px; left: 8px; z-index: 1;
-  /* Soft frosted rounded-RECT highlight (matching the reference), spanning
-     one tab's full icon+label column — not a bright accent circle. Neutral
-     ink-tint so it reads as "lit glass" against the material in both themes
-     rather than a colored chip; the accent is spent elsewhere, not here. */
-  width: 74px; height: 62px; border-radius: 20px;
-  background: color-mix(in srgb, var(--text) 14%, transparent);
-  box-shadow: inset 0 1px 0 var(--glass-sheen-top);
+  position: absolute; top: 6px; left: 6px; z-index: 1;
+  /* Neutral ink-tint highlight behind the active tab — reads as "lit
+     glass" in both themes; no hue (monochrome system). */
+  width: 64px; height: 54px; border-radius: 20px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
   transition: transform .4s cubic-bezier(0.22, 1, 0.36, 1), opacity .2s ease;
   pointer-events: none;
 }
 .tab {
   position: relative; z-index: 2; flex: 0 0 auto;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-  width: 74px; min-height: 62px;
-  font-size: 11px; font-weight: 600; color: var(--text-2); padding: 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  width: 64px; min-height: 54px;
+  font-size: 10.5px; font-weight: 600; color: var(--text-2); padding: 4px;
   border-radius: 20px;
   transition: color .18s ease;
 }
-/* Label always visible under the icon (matching the reference nav) — not
-   icon-only. The LABEL dims when inactive for a touch of hierarchy, but the
-   ICON itself is always full --text ink (white in dark theme) regardless of
-   state — selection is communicated by outline->fill (see App.tsx's
-   *-fill glyph swap) and the frosted highlight behind it, never by dimming
-   the icon. Dimming it was the "icons aren't white" bug. */
-.tab span { display: block; font-size: 11px; font-weight: 600; line-height: 1; }
-.tab [class^="icon-"] { font-size: 24px; display: inline-block; color: var(--text); transition: transform .18s cubic-bezier(.25,1,.5,1); }
+/* Label always visible under the icon — not icon-only. The LABEL dims when
+   inactive for hierarchy, but the ICON itself is always full --text ink
+   regardless of state — selection is communicated by outline->fill (see
+   App.tsx's *-fill glyph swap) and the highlight behind it, never by
+   dimming the icon. */
+.tab span { display: block; font-size: 10.5px; font-weight: 600; line-height: 1; }
+.tab [class^="icon-"] { font-size: 22px; display: inline-block; color: var(--text); transition: transform .18s cubic-bezier(.25,1,.5,1); }
 .tab.on { color: var(--text); }
 .tab.on [class^="icon-"] { transform: scale(1.02); }
 .sidebar-brand { display: none; }
@@ -771,12 +736,12 @@
   width: 260px; max-width: calc(100vw - 24px);
   background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius);
   box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;
-  animation: tab-host-in .32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  /* Smooth decel (no overshoot) — the minimal system keeps motion quiet. */
+  animation: tab-host-in .26s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes tab-host-in {
-  0%   { opacity: 0; transform: translateX(-50%) translateY(10px) scale(.4); }
-  60%  { opacity: 1; transform: translateX(-50%) translateY(-3px) scale(1.04); }
-  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(.92); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }
 .tab-host-item {
   display: flex; align-items: flex-start; gap: 10px;
@@ -793,7 +758,7 @@
 .mappick { margin-top: 2px; }
 .map-canvas {
   height: 220px; border-radius: var(--radius-sm); overflow: hidden;
-  border: 1px solid var(--glass-line); background: #dfe7e9; z-index: 0;
+  border: 1px solid var(--glass-line); background: var(--surface-hover); z-index: 0;
 }
 .map-canvas.mini { height: 150px; }
 .leaflet-container { font-family: inherit; background: var(--surface-hover); }
@@ -975,7 +940,7 @@
 
 /* ---------- "More" hub (You tab) ---------- */
 .more-page { padding-bottom: 24px; }
-.more-head { padding: 20px 16px 10px; }
+.more-head { padding: 14px 16px 8px; }
 .more-head h1 { font: var(--t-hero); letter-spacing: -0.6px; }
 
 /* account identity card */
@@ -1006,12 +971,12 @@
 .more-pref-row .pill { background: var(--surface-hover); }
 
 /* the vertical dock */
-.more-dock { display: flex; flex-direction: column; gap: 8px; padding: 0 16px; }
-.more-dock + .more-dock-label { margin-top: 20px; }
+.more-dock { display: flex; flex-direction: column; gap: 6px; padding: 0 16px; }
+.more-dock + .more-dock-label { margin-top: 16px; }
 .more-dock-label { padding: 0 16px 8px; font: var(--t-caption); color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
 .more-row {
-  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
-  padding: 15px 16px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 11px 14px; border-radius: var(--radius-sm);
   background: var(--card-bg); box-shadow: var(--card-shadow); color: var(--text);
   transition: transform .12s ease, box-shadow .15s ease;
 }
@@ -1023,8 +988,8 @@
    typography now; color is reserved for .accent rows that are genuinely
    the primary action on the page (see You.tsx / Organizer.tsx call sites). */
 .more-row-ic {
-  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
-  background: var(--surface-hover); color: var(--text-2); font-size: 19px;
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--surface-hover); color: var(--text-2); font-size: 16px;
 }
 .more-row-ic.accent { background: var(--accent-soft); color: var(--accent); }
 .more-row-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -1637,7 +1602,7 @@
   background: var(--glass-strong); border: 1px solid var(--glass-line);
   
 }
-.ig-import-toggle .icon-camera { color: #E1306C; font-size: 18px; }
+.ig-import-toggle .icon-camera { color: var(--text-2); font-size: 18px; }
 .ig-import-body {
   padding: 14px; margin: -6px 0 18px; border-radius: var(--radius-sm);
   background: var(--glass-soft); border: 1px solid var(--glass-line);
@@ -2075,82 +2040,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @media (min-width: 900px) {
   :root {
     --maxw: 1080px;
-    --t-hero: 800 40px/1.1 var(--f-display);
+    --t-hero: 700 32px/1.1 var(--f-display);
   }
 
+  /* The nav stays a floating bottom pill on desktop too (Uber-style: one
+     nav, one place, every form factor) — the previous top-bar conversion
+     also never reset the mobile translateX(-50%), which left the desktop
+     bar's background spanning only half the viewport. Content just gets
+     the width back; no top chrome. .tabs-right (city/theme/avatar cluster)
+     stays hidden — those utilities live on the Profile tab. */
   .shell {
-    padding-top: calc(64px + env(safe-area-inset-top));
-    padding-bottom: 0;
     box-sizing: border-box;
   }
-
-  /* bottom tab bar -> top bar. Same nav element, same tab links, just
-     re-flowed to a horizontal row fixed to the top edge instead of a
-     floating pill at the bottom — this is the desktop reference layout's
-     chrome shape (logo + inline links + a right-aligned utility cluster),
-     not a sidebar. */
-  .tabs {
-    position: fixed; top: 0; left: 0; right: 0; bottom: auto; z-index: 40;
-    width: 100%; max-width: none; margin: 0;
-    flex-direction: row; align-items: center; justify-content: flex-start;
-    gap: 4px;
-    height: 64px;
-    padding: 0 32px;
-    padding-top: 0;
-    border-radius: 0;
-    border-top: none; border-bottom: 1px solid var(--hair);
-    background: var(--surface);
-  }
-  .sidebar-brand {
-    display: flex; align-items: baseline; gap: 9px;
-    padding: 0 24px 0 0;
-    flex: 0 0 auto;
-  }
-  .sidebar-brand .en { font: 700 18px/1 var(--f-display); letter-spacing: -0.2px; }
-  .sidebar-brand [class^="icon-"] { align-self: center; color: var(--accent); }
-  /* .tabs-pill was a translucent floating group on mobile — on desktop it's
-     just an inline run of nav links inside the flat top bar, no pill chrome. */
-  .tabs-pill {
-    display: flex; align-items: center; gap: 4px;
-    padding: 0; border-radius: 0; background: none; backdrop-filter: none;
-    border: none; box-shadow: none;
-  }
-  .tabs-pill::before, .tabs-pill::after { display: none; }
-  /* Desktop keeps its own per-tab active highlight (.tab.on's accent-soft
-     background, below) instead of the mobile pill's sliding capsule — tab
-     widths vary with label length here, so a fixed-width translateX
-     indicator wouldn't line up. */
-  .tab-indicator { display: none; }
-  .tab {
-    flex: 0 0 auto; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px;
-    width: auto; min-height: auto;
-    padding: 9px 14px; border-radius: var(--radius-pill);
-    font-size: 14.5px;
-  }
-  .tab span { display: inline; }
-  .tab [class^="icon-"] { font-size: 19px; }
-  /* Desktop's active state is still a soft tint (not the mobile pill's solid
-     fill), so the mobile-only --on-primary icon override above would be
-     wrong here (e.g. near-white on a barely-tinted light background) —
-     revert to --accent, which has always been correct against this tint. */
-  .tab.on { background: var(--accent-soft); }
-  .tab.on [class^="icon-"] { color: var(--accent); }
-  /* Host reverts from the mobile floating circle to a normal inline nav item. */
-  .tab-host > .tab {
-    width: auto; height: auto; min-height: auto; border-radius: var(--radius-pill);
-    background: none; backdrop-filter: none; border: none; box-shadow: none;
-  }
-  .tab-host > .tab.on { background: var(--accent-soft); }
-  .tab-host { flex: 0 0 auto; }
-  .tab-host > .tab { flex: 0 0 auto; width: auto; }
-  .tab-host-menu { bottom: auto; top: calc(100% + 10px); left: 0; transform-origin: top left; }
-  @keyframes tab-host-in {
-    0%   { opacity: 0; transform: translateY(-10px) scale(.4); }
-    60%  { opacity: 1; transform: translateY(3px) scale(1.04); }
-    100% { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  .tabs-right { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: 0 0 auto; }
-  .tabs-right .pill { color: var(--text-2); }
 
   /* dense row lists become a 3-column grid on desktop — uses the width
      instead of one long centered column, without shrinking each row */
@@ -2597,6 +2498,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
    rarely on screen for more than a frame — but when it does show, it's the
    same signature LoadingMark animation as everywhere else, not a blank box. */
 .route-loading { min-height: 60vh; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+
+/* ---------- 404 (catch-all route) ---------- */
+.notfound {
+  min-height: 70vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 24px; text-align: center; color: var(--text);
+}
+.notfound h1 { font: var(--t-section); font-size: 19px; margin-top: 6px; }
+.notfound p { font: var(--t-meta); color: var(--text-2); max-width: 34ch; margin: 0 0 8px; }
 
 /* ---------- LoadingMark — signature "flowing ink" loading animation ----------
    The logo's two swoosh strokes draw themselves in and out on a loop (via
