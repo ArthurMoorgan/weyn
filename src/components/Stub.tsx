@@ -70,7 +70,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   if (variant === "list") {
     return (
       <Link to={`/e/${e.id}`} viewTransition className={"ec-row" + (ticket ? " ticket" : "")}>
-        <div className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={34} /></span>}</div>
+        <div className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={48} /></span>}</div>
         <div className="ec-main">
           <div className="ec-top">
             <span className="ec-when">{dayLabel(e)} · {timeLabel(e)}</span>
@@ -101,7 +101,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
         <div className="ec-card-cover" style={coverStyle}>
           {statusBadge}
           <SaveHeart id={e.id} />
-          {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={56} /></span>}
+          {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={76} /></span>}
           {scarce && <span className="ec-card-scarce">{left} left</span>}
         </div>
         <div className="ec-card-body">
@@ -125,7 +125,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
         <div className="ec-rail-cover" style={coverStyle}>
           {statusBadge}
           <SaveHeart id={e.id} />
-          {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={34} /></span>}
+          {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={48} /></span>}
         </div>
         <h3 className="ec-title">{e.title}</h3>
         <div className="ec-meta">
@@ -143,7 +143,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
       <div className="ec-feature-cover" style={coverStyle}>
         {statusBadge}
         <SaveHeart id={e.id} className="ec-save-lg" />
-        {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={56} /></span>}
+        {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={76} /></span>}
         <div className="ec-feature-body">
           <div className="ec-feature-toprow">
             <span className="ec-feature-organizer">{e.organizer}</span>

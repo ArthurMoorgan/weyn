@@ -57,7 +57,9 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
   const catLabel = CATS.find((c) => c.key === e.cat)?.label || e.cat;
   const coverStyle: React.CSSProperties = e.image
     ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
-    : { background: e.color };
+    // Greyscale system: ignore the server-stored per-event hue — same
+    // category-grey treatment as Stub.tsx's fallback covers.
+    : { background: `linear-gradient(150deg, var(--cat-${e.cat}, #3A3A3A), var(--fallback-scrim))` };
   return (
     <Link to={`/e/${e.id}`} viewTransition className="ex-hero-card" style={coverStyle}>
       {/* Editorial handoff: a "FEATURED" pill badge top-left — pixel-checked
@@ -384,7 +386,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 >
                   {/* Pseudo-3D graphite icon (Icon3D) instead of the flat
                       glyph font — Uber-style dimensional tile marks. */}
-                  <Icon3D name={c.key as Icon3DName} size={26} />
+                  <Icon3D name={c.key as Icon3DName} size={38} />
                 </motion.span>
                 {/* Label only under the selected chip (Apple filter-chip
                     pattern) — collapses the row's vertical footprint and

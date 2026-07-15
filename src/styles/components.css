@@ -206,24 +206,23 @@
   flex: 0 0 auto; display: flex; align-items: center; gap: 8px; background: none;
   padding: 0; border: none;
 }
+/* Uber-style category tiles: solid grey circles with the 3D render sitting
+   inside (matching the reference's "For you" row) — not outline rings.
+   The renders are raster product shots with their own lighting/shadows, so
+   no color filters here; the tile provides the backing they were lit for. */
 .cat-circle-ring {
-  width: 40px; height: 40px; border-radius: 50%;
+  width: 52px; height: 52px; border-radius: 50%;
   display: grid; place-items: center; flex: 0 0 auto;
-  background: transparent; border: 1.5px solid var(--border-strong);
-  /* White outline icon (per instruction), no fill — the selected state adds
-     the fill. --text is the theme ink (white in dark, near-black in light). */
-  font-size: 18px; color: var(--text);
-  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+  background: var(--surface-hover); border: 1.5px solid transparent;
+  color: var(--text);
+  transition: background-color .2s ease, border-color .2s ease, transform .15s ease;
 }
+.cat-circle:active .cat-circle-ring { transform: scale(0.94); }
+/* Selected: an ink ring around the tile (the render stays untouched —
+   filling the tile white/black behind a photoreal object washes it out). */
 .cat-circle.on .cat-circle-ring {
-  background: var(--accent); border-color: var(--accent); color: var(--on-primary);
+  border-color: var(--text); background: var(--surface-hover);
 }
-/* Icon3D's graphite material is tuned for dark backing — darken it whenever
-   the circle behind it is light (light theme's resting chips; dark theme's
-   selected white fill), and leave it silver when the backing is dark. */
-.cat-circle.on .cat-circle-ring svg { filter: brightness(0.68) }
-:root[data-theme="light"] .cat-circle-ring svg { filter: brightness(0.68); }
-:root[data-theme="light"] .cat-circle.on .cat-circle-ring svg { filter: none; }
 .cat-circle-label {
   font: var(--t-meta); font-weight: 600; color: var(--text); white-space: nowrap;
   padding-right: 4px;
@@ -274,11 +273,11 @@
   background-size: cover; background-position: center; background-color: var(--surface-2);
   display: grid; place-items: center; overflow: hidden;
 }
-.ec-glyph { font-size: 30px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+/* Fallback-cover mark (Icon3D render). The renders carry their own
+   lighting and contact shadows — just a whisper of drop shadow for
+   separation from the cover surface, no color filters. */
+.ec-glyph { font-size: 30px; filter: drop-shadow(0 3px 8px rgba(0,0,0,.25)); }
 .ec-glyph.big { font-size: 56px; }
-/* Icon3D on light-theme fallback covers (light grey surfaces) — darken the
-   silver material so the mark keeps contrast; see .cat-circle-ring note. */
-:root[data-theme="light"] .ec-glyph svg { filter: brightness(0.62); }
 .ec-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 2px 0; }
 .ec-top { display: flex; align-items: center; gap: 8px; }
 .ec-when { font: var(--t-caption); letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-2); }

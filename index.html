@@ -49,37 +49,128 @@
       })();
     </script>
     <style>
+      /* ============================================================
+         Splash — a staged, choreographed brand moment (not a loading
+         loop). Timeline:
+           0ms    scrim + soft vignette fade up
+           80ms   fine left stroke draws on
+           240ms  bold right stroke draws on (overlapping the first)
+           620ms  the head dot pops as the second stroke arrives at it
+           700ms  wordmark settles in underneath (letter-spacing eases)
+           1.1s+  idle: the mark "breathes" (gentle scale) over a slow
+                  glow pulse — calm, not busy
+           exit   mark lifts + defocuses, glow collapses, scrim fades
+         Everything is transform/opacity/dashoffset — compositor-cheap.
+         Runs before React exists, so it's all hand-inlined here.
+         ============================================================ */
       #splash { display: none; }
       html.show-splash #splash {
         display: flex; align-items: center; justify-content: center;
         position: fixed; inset: 0; z-index: 9999;
         background: #0A0A0A; color: #F5F5F5;
+        animation: splash-scrim-in .45s ease both;
       }
       html.show-splash[data-theme="light"] #splash { background: #FAFAFA; color: #0A0A0A; }
+      @keyframes splash-scrim-in { from { opacity: 0; } }
+
+      /* Soft vignette so the field isn't dead-flat — barely-there light
+         pooled behind the mark, like a stage. */
+      #splash::before {
+        content: ""; position: absolute; inset: 0; pointer-events: none;
+        background: radial-gradient(56% 40% at 50% 44%, rgba(255,255,255,.055), transparent 70%);
+        opacity: 0; animation: splash-vignette-in 1s ease .1s forwards;
+      }
+      html.show-splash[data-theme="light"] #splash::before {
+        background: radial-gradient(56% 40% at 50% 44%, rgba(0,0,0,.045), transparent 70%);
+      }
+      @keyframes splash-vignette-in { to { opacity: 1; } }
+
+      /* Glow halo behind the mark — pulses slowly during idle. A separate
+         element (not a filter on the svg) so the mark itself stays crisp. */
+      #splash-glow {
+        position: absolute; width: 340px; height: 260px; border-radius: 50%;
+        background: radial-gradient(50% 50% at 50% 50%, currentColor, transparent 70%);
+        opacity: 0; pointer-events: none;
+        animation:
+          splash-glow-in 1.2s ease .5s forwards,
+          splash-glow-pulse 3.2s ease-in-out 1.8s infinite;
+      }
+      @keyframes splash-glow-in { to { opacity: .07; } }
+      @keyframes splash-glow-pulse {
+        0%, 100% { opacity: .07; transform: scale(1); }
+        50% { opacity: .11; transform: scale(1.08); }
+      }
+
+      /* The mark: settles in once, then breathes. Two stacked animations —
+         entry (runs once) and the idle breathe (starts after entry). */
+      html.show-splash #splash svg {
+        overflow: visible; position: relative;
+        animation:
+          splash-mark-in .9s cubic-bezier(.22,1,.36,1) both,
+          splash-breathe 3.2s ease-in-out 1.8s infinite;
+      }
+      @keyframes splash-mark-in { from { opacity: 0; transform: scale(.92) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+      @keyframes splash-breathe {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+      }
+
+      /* Strokes draw on ONCE, staggered and overlapping — an ink gesture,
+         not a loading spinner. (The old version looped draw-in/draw-out
+         forever, which read as "still waiting" rather than "arriving".) */
+      #splash-s1, #splash-s2 { stroke-dasharray: 1; stroke-dashoffset: 1; }
+      #splash-s1 { animation: splash-draw .62s cubic-bezier(.55,0,.15,1) .08s forwards; }
+      #splash-s2 { animation: splash-draw .66s cubic-bezier(.55,0,.15,1) .24s forwards; }
+      @keyframes splash-draw { to { stroke-dashoffset: 0; } }
+
+      /* The head dot pops right as the bold stroke lands on it — swells a
+         touch past rest then settles (smooth decel, no rubber bounce). */
+      #splash-dot {
+        transform-box: fill-box; transform-origin: center;
+        transform: scale(0); opacity: 0;
+        animation: splash-dot-pop .4s cubic-bezier(.22,1,.36,1) .62s forwards;
+      }
+      @keyframes splash-dot-pop {
+        0% { transform: scale(0); opacity: 0; }
+        65% { transform: scale(1.14); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+
+      /* Wordmark: rises in while its tracking tightens — type settling
+         into place rather than just fading on. */
       #splash-word {
         position: absolute; bottom: max(48px, env(safe-area-inset-bottom, 0px) + 40px);
         font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-        letter-spacing: 0.35em; text-transform: uppercase; opacity: 0;
-        animation: splash-word-in .7s ease .35s forwards;
+        letter-spacing: 0.6em; text-transform: uppercase; opacity: 0;
+        animation: splash-word-in .9s cubic-bezier(.22,1,.36,1) .7s forwards;
       }
-      @keyframes splash-word-in { to { opacity: .45; } }
-      html.show-splash #splash svg { animation: splash-in 0.6s cubic-bezier(.16,1,.3,1) both; overflow: visible; }
-      html.show-splash.splash-exit #splash svg { animation: splash-out 0.5s cubic-bezier(.4,0,1,1) both; }
-      html.show-splash.splash-exit #splash { animation: splash-fade-out 0.5s ease both; pointer-events: none; }
-      @keyframes splash-in { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
-      @keyframes splash-out { from { opacity: 1; transform: scale(1); filter: blur(0); } to { opacity: 0; transform: scale(1.06); filter: blur(4px); } }
-      @keyframes splash-fade-out { from { opacity: 1; } to { opacity: 0; } }
-      /* Same "flowing ink" loop as LoadingMark (src/components/LoadingMark.tsx)
-         — kept in sync by hand since this one has to run before React (and
-         its stylesheet) exists at all. */
-      #splash-s1, #splash-s2 { stroke-dasharray: 1; animation: splash-draw 1.8s cubic-bezier(.65,0,.35,1) infinite; }
-      #splash-s2 { animation-delay: .08s; }
-      #splash-dot { transform-box: fill-box; transform-origin: center; animation: splash-pulse 1.8s cubic-bezier(.65,0,.35,1) infinite; }
-      @keyframes splash-draw { 0% { stroke-dashoffset: 1; } 45%, 55% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1; } }
-      @keyframes splash-pulse { 0%, 100% { transform: scale(0.82); opacity: .5; } 50% { transform: scale(1.12); opacity: 1; } }
+      @keyframes splash-word-in {
+        from { opacity: 0; letter-spacing: .6em; transform: translateY(8px); }
+        to { opacity: .45; letter-spacing: .35em; transform: translateY(0); }
+      }
+
+      /* Exit: the mark lifts toward the viewer and defocuses while the
+         glow collapses — reads as the app surfacing up through it. */
+      html.show-splash.splash-exit #splash svg { animation: splash-mark-out .45s cubic-bezier(.4,0,.2,1) both; }
+      html.show-splash.splash-exit #splash-glow { animation: splash-glow-out .35s ease both; }
+      html.show-splash.splash-exit #splash-word { animation: splash-word-out .3s ease both; }
+      html.show-splash.splash-exit #splash { animation: splash-scrim-out .5s ease .05s both; pointer-events: none; }
+      @keyframes splash-mark-out { from { opacity: 1; transform: scale(1); filter: blur(0); } to { opacity: 0; transform: scale(1.08); filter: blur(8px); } }
+      @keyframes splash-glow-out { to { opacity: 0; transform: scale(.9); } }
+      @keyframes splash-word-out { to { opacity: 0; transform: translateY(6px); } }
+      @keyframes splash-scrim-out { from { opacity: 1; } to { opacity: 0; } }
+
       @media (prefers-reduced-motion: reduce) {
-        html.show-splash #splash svg, html.show-splash.splash-exit #splash svg, html.show-splash.splash-exit #splash,
-        #splash-s1, #splash-s2, #splash-dot { animation: none !important; opacity: 1 !important; }
+        html.show-splash #splash, html.show-splash #splash::before, html.show-splash #splash svg,
+        html.show-splash.splash-exit #splash, html.show-splash.splash-exit #splash svg,
+        #splash-glow, #splash-word, #splash-s1, #splash-s2, #splash-dot {
+          animation: none !important; opacity: 1 !important;
+        }
+        #splash-s1, #splash-s2 { stroke-dashoffset: 0 !important; }
+        #splash-dot { transform: scale(1) !important; }
+        #splash-glow { opacity: .07 !important; }
+        #splash-word { opacity: .45 !important; }
+        html.show-splash.splash-exit #splash { opacity: 0 !important; transition: opacity .2s ease; }
       }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -112,6 +203,8 @@
   <body>
     <div id="root"></div>
     <div id="splash" aria-hidden="true">
+      <!-- Soft halo behind the mark — see the splash <style> block. -->
+      <div id="splash-glow"></div>
       <!-- Monochrome W mark, sized as a real brand moment (not a favicon
            floating in a void) — currentColor follows the theme set on
            #splash above: white-on-off-black dark, black-on-off-white light. -->
