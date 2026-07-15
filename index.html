@@ -64,14 +64,15 @@
          Runs before React exists, so it's all hand-inlined here.
          ============================================================ */
       #splash { display: none; }
+      /* The scrim itself is opaque from the very first frame — fading the
+         container in let the app bleed through underneath on fast loads.
+         Only the mark/vignette/wordmark animate; the exit still fades. */
       html.show-splash #splash {
         display: flex; align-items: center; justify-content: center;
         position: fixed; inset: 0; z-index: 9999;
         background: #0A0A0A; color: #F5F5F5;
-        animation: splash-scrim-in .45s ease both;
       }
       html.show-splash[data-theme="light"] #splash { background: #FAFAFA; color: #0A0A0A; }
-      @keyframes splash-scrim-in { from { opacity: 0; } }
 
       /* Soft vignette so the field isn't dead-flat — barely-there light
          pooled behind the mark, like a stage. */
