@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { NavLink, Outlet, Link, useLocation } from "react-router-dom";
 import Discover from "./pages/Discover";
-import LoadingMark from "./components/LoadingMark";
+import Skeleton from "./components/Skeleton";
 import ThemeToggle from "./components/ThemeToggle";
 import CityPill from "./components/CityPill";
 import { useAccount } from "./store";
@@ -106,13 +106,26 @@ export default function App() {
       {MAIN_TABS.map(({ path, Component }) =>
         visited.has(path) ? (
           <div key={path} className="tab-page" data-active={location.pathname === path}>
-            <Suspense fallback={<div className="route-loading" aria-busy="true"><LoadingMark /></div>}>
+            {/* Skeleton fallback (not the Weyn logo) while a first-visited
+                tab's lazy chunk downloads — a layout-matched skeleton reads
+                as the page arriving, and the logo no longer flashes on every
+                first tab switch. Per-tab variant so the skeleton mirrors that
+                tab's real chrome. */}
+            <Suspense fallback={<Skeleton variant={path === "/tickets" ? "tickets" : path === "/you" ? "profile" : "discover"} />}>
               <Component />
             </Suspense>
           </div>
         ) : null
       )}
-      {!activeMainTab && <Outlet />}
+      {/* Drilled-in routes (/saved, /host/*, /admin, …) render here. Their
+          own Suspense boundary — with a skeleton, not the logo — so the
+          floating nav stays put while a drilled route's chunk loads, instead
+          of the whole shell being replaced by a full-page fallback. */}
+      {!activeMainTab && (
+        <Suspense fallback={<Skeleton variant="generic" />}>
+          <Outlet />
+        </Suspense>
+      )}
       <nav className="tabs" data-hidden={navHidden}>
         <div className="sidebar-brand brand">
           <i className="icon-sparkles" />

@@ -617,10 +617,11 @@
 .ec-skel .s-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
 .ec-skel .s-a { height: 13px; width: 70%; border-radius: 6px; background: var(--surface-2); }
 .ec-skel .s-b { height: 11px; width: 45%; border-radius: 6px; background: var(--surface-2); }
-.ec-skel .s-thumb, .ec-skel .s-a, .ec-skel .s-b { animation: skel-pulse 1.3s ease-in-out infinite; }
-@keyframes skel-pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+/* legacy fallback for any UA without color-mix — the shimmer sweep below
+   is the real animation; this just keeps blocks from sitting dead-flat. */
+@keyframes skel-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
 
-/* skeletons — additional page loading states, reuse skel-pulse */
+/* skeletons — additional page loading states */
 .ex-rail-skel { flex: 0 0 auto; width: 200px; display: flex; flex-direction: column; gap: 8px; }
 .ex-rail-skel .s-cover { aspect-ratio: 16/10; border-radius: 14px; background: var(--surface-hover); }
 .ex-rail-skel .s-a { height: 13px; width: 85%; border-radius: 6px; background: var(--surface-hover); margin-top: 2px; }
@@ -636,12 +637,64 @@
 .list-row-skel { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
 .list-row-skel .s-ic { width: 20px; height: 20px; border-radius: 6px; background: var(--surface-hover); }
 .list-row-skel .s-txt { height: 13px; width: 60%; border-radius: 6px; background: var(--surface-hover); }
-.ex-rail-skel .s-cover, .ex-rail-skel .s-a, .ex-rail-skel .s-b,
-.ex-feature-skel,
-.detail-skel-cover, .detail-skel-title, .detail-skel-line, .detail-skel-facts,
-.stat-skel .s-tile,
-.list-row-skel .s-ic, .list-row-skel .s-txt {
-  animation: skel-pulse 1.3s ease-in-out infinite;
+
+/* ---------- shimmer skeleton system ----------
+   A single moving highlight sweeps across each skeleton surface (premium,
+   "loading" reads as motion not blinking). Applied two ways: as a whole-
+   card sweep on the pre-existing multi-block skeletons (.ec-skel, rails),
+   and per-block on the .sk primitive used by the tab/route skeletons
+   (src/components/Skeleton.tsx). GPU-only (transform), so it's cheap. */
+.ec-skel, .ex-rail-skel, .sk {
+  position: relative; overflow: hidden;
+}
+.ec-skel::after, .ex-rail-skel::after,
+.ex-feature-skel::after, .detail-skel-cover::after,
+.detail-skel-title::after, .detail-skel-line::after, .detail-skel-facts::after,
+.list-row-skel .s-ic::after, .list-row-skel .s-txt::after,
+.stat-skel .s-tile::after, .sk::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent 0%,
+    color-mix(in srgb, var(--text) 8%, transparent) 50%, transparent 100%);
+  animation: sk-shimmer 1.5s cubic-bezier(.4,0,.2,1) infinite;
+}
+.ex-feature-skel, .detail-skel-cover, .stat-skel .s-tile,
+.detail-skel-title, .detail-skel-line, .detail-skel-facts,
+.list-row-skel .s-ic, .list-row-skel .s-txt { position: relative; overflow: hidden; }
+@keyframes sk-shimmer { to { transform: translateX(100%); } }
+
+/* .sk — skeleton block primitive (Skeleton.tsx). */
+.sk { display: block; background: var(--surface-hover); border-radius: 8px; }
+.sk-line { border-radius: 6px; }
+
+/* full-page tab/route skeleton layouts — mirror each tab's real chrome so
+   the swap into the loaded page has no layout jump. */
+.skel-page { animation: fade .2s ease; padding-bottom: 8px; }
+.sk-search { display: block; height: 40px; border-radius: 999px; margin: 8px 12px 0; }
+.skel-cats { display: flex; gap: 10px; padding: 8px 16px 4px; }
+.sk-cat { width: 52px; height: 52px; border-radius: 50%; flex: 0 0 auto; }
+.sk-hero { display: block; margin: 12px 16px 0; aspect-ratio: 4/5; border-radius: var(--radius-lg); }
+.skel-rowlist { display: flex; flex-direction: column; gap: 16px; padding: 20px 16px 0; }
+.skel-rowlist.tight { gap: 10px; padding-top: 14px; }
+.skel-cardrow { display: flex; flex-direction: column; gap: 8px; }
+.sk-cover { display: block; width: 100%; aspect-ratio: 16/9; border-radius: 18px; }
+.skel-title { padding: 14px 16px 8px; }
+.skel-pills { display: flex; gap: 8px; padding: 4px 16px 0; }
+.skel-listrow { display: flex; align-items: center; gap: 12px; }
+.sk-thumb { width: 64px; height: 64px; border-radius: 12px; flex: 0 0 auto; }
+.skel-listrow-txt { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.sk-account { display: block; height: 74px; border-radius: var(--radius); margin: 0 16px 14px; }
+.sk-block { display: block; height: 96px; border-radius: var(--radius); margin: 0 16px 16px; }
+.sk-dockrow { display: block; height: 56px; border-radius: var(--radius-sm); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ec-skel::after, .ex-rail-skel::after, .ex-feature-skel::after,
+  .detail-skel-cover::after, .detail-skel-title::after, .detail-skel-line::after,
+  .detail-skel-facts::after, .list-row-skel .s-ic::after, .list-row-skel .s-txt::after,
+  .stat-skel .s-tile::after, .sk::after {
+    animation: none; opacity: .5;
+  }
+  .skel-page { animation: none; }
 }
 
 
@@ -1952,6 +2005,23 @@ body,
 .ec-rail-cover:nth-child(3) { animation-delay: .08s; }
 .ec-rail-cover:nth-child(4) { animation-delay: .12s; }
 .ec-rail-cover:nth-child(n+5) { animation-delay: .16s; }
+
+/* Explore's main editorial list (.ex-agenda > .ec-card) is the primary feed
+   on Discover — it had no entry motion, so the list just popped in. Same
+   gentle staggered rise as the dense .feed rows above. `backwards` fill so
+   each card holds its off-state during its delay without leaving a lingering
+   transform (which would turn every card into a containing block for any
+   fixed descendant — see the note on .discover-mode). */
+.ex-agenda .ec-card { animation: rise-in .55s cubic-bezier(.16,1,.3,1) backwards; }
+.ex-agenda .ec-card:nth-child(2) { animation-delay: .06s; }
+.ex-agenda .ec-card:nth-child(3) { animation-delay: .12s; }
+.ex-agenda .ec-card:nth-child(4) { animation-delay: .18s; }
+.ex-agenda .ec-card:nth-child(5) { animation-delay: .24s; }
+.ex-agenda .ec-card:nth-child(6) { animation-delay: .3s; }
+.ex-agenda .ec-card:nth-child(n+7) { animation-delay: .34s; }
+@media (prefers-reduced-motion: reduce) {
+  .ex-agenda .ec-card { animation: none; }
+}
 
 /* page headers ease in */
 .page-head { animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }

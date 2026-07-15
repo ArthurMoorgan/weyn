@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router-dom";
 import Explore from "./Explore";
-import LoadingMark from "../components/LoadingMark";
+import Skeleton from "../components/Skeleton";
 
 // Reservations (venue browsing) is now folded into Discover as a second
 // mode rather than living on its own bottom-tab slot — events and venues
@@ -50,7 +50,7 @@ export default function Discover() {
         {mode === "events" ? (
           <Explore embedded />
         ) : (
-          <Suspense fallback={<div className="route-loading" aria-busy="true"><LoadingMark /></div>}>
+          <Suspense fallback={<Skeleton variant="discover" />}>
             <Reservations embedded />
           </Suspense>
         )}
