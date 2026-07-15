@@ -3,7 +3,7 @@
 // Cloudflare Workers instead; this file exists so local dev doesn't need
 // wrangler/Miniflare just to run the backend.
 import "dotenv/config"; // loads .env in the project root (git-ignored) into process.env
-import { createApp, runReminderScan, runCampaignScan, runAutomationScan, SCAN_EVERY_MS } from "./app.js";
+import { createApp, runReminderScan, runCampaignScan, runAutomationScan, runContactBirthdayScan, SCAN_EVERY_MS } from "./app.js";
 import { diskStorage } from "./storage-disk.js";
 import { seedIfEmpty, seedCategoriesIfEmpty } from "./db.js";
 
@@ -17,6 +17,7 @@ await seedCategoriesIfEmpty();
 setInterval(runReminderScan, SCAN_EVERY_MS).unref();
 setInterval(runCampaignScan, SCAN_EVERY_MS).unref();
 setInterval(runAutomationScan, SCAN_EVERY_MS).unref();
+setInterval(runContactBirthdayScan, SCAN_EVERY_MS).unref();
 
 // hosts like Render/Fly/Railway inject PORT; local dev keeps using API_PORT/4000
 const PORT = process.env.PORT || process.env.API_PORT || 4000;

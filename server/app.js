@@ -5,6 +5,7 @@
 // `storage` (disk vs R2) is injected by whichever entry constructs the app,
 // so this file never needs to know which runtime it's on.
 import express from "express";
+import QRCode from "qrcode";
 import helmet from "helmet";
 import cors from "cors";
 import multer from "multer";
@@ -14,8 +15,7 @@ import crypto from "crypto";
 import rateLimit from "express-rate-limit";
 import { fileURLToPath } from "url";
 import { db, prisma } from "./db.js";
-import { sendPush, pushConfigured } from "./push.js";
-import { sendWebPush, webPushConfigured } from "./webpush.js";
+import { sendOneSignalPush, oneSignalConfigured } from "./onesignal.js";
 import { scrapeInstagramPost, parseEventFromCaption, downloadImage } from "./instagram-import.js";
 import { generateMarketingCopy, scheduleDates, brandKitLine, generateAngledCopy, PERSUASION_ANGLE_KEYS, generateBulkAdVariants, generateGrowthIdeas, generateFreeToolIdeas } from "./marketing.js";
 import { metaConfigured, buildMetaOAuthUrl, exchangeCodeForConnection, publishInstagramPost, IntegrationNotConfiguredError } from "./social-posting.js";
@@ -67,29 +67,17 @@ function publicOrigin(req) {
   return `${req.protocol}://${req.get("host")}`;
 }
 
-// Fan out a push to every device a user has registered — web (VAPID,
-// browsers/PWA) and native (APNs), best-effort per-device so one bad
-// subscription never blocks the others. Used wherever a server-side event
-// (e.g. venue approval) needs to reach a *person* rather than the one
-// deviceId a specific booking happened to be made from.
+// Notify a person by Weyn userId — OneSignal owns device/subscription
+// management itself (both native and web SDKs register their own
+// subscription and link it to this userId via OneSignal.login(), see
+// src/push.ts), so this is now a thin wrapper rather than a per-device
+// fan-out. Used wherever a server-side event (e.g. venue approval) needs to
+// reach a *person* rather than the one deviceId a specific booking happened
+// to be made from.
 export async function notifyUser(userId, { title, body, data, url } = {}) {
   if (!userId) return { sent: 0 };
-  let sent = 0;
-  const [webSubs, nativeTokens] = await Promise.all([
-    prisma.webPushSubscription.findMany({ where: { userId } }),
-    db.tokensForUser(userId),
-  ]);
-  await Promise.all(webSubs.map(async (sub) => {
-    const result = await sendWebPush(sub, { title, body, data, url });
-    if (result.sent) sent++;
-    // The browser revoked/expired this subscription — stop retrying it.
-    else if (result.expired) await prisma.webPushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
-  }));
-  await Promise.all(nativeTokens.map(async (token) => {
-    const result = await sendPush(token, { title, body, data });
-    if (result.sent) sent++;
-  }));
-  return { sent };
+  const result = await sendOneSignalPush(userId, { title, body, data, url });
+  return { sent: result.sent ? 1 : 0 };
 }
 
 // reminder scanner — every 5 min, notify devices whose booked event starts in
@@ -103,11 +91,12 @@ export async function runReminderScan() {
   await db.expireStalePendingBookings(PENDING_TTL_MS);
   const due = await db.duePendingReminders(now + REMIND_LEAD_MS - SCAN_EVERY_MS, now + REMIND_LEAD_MS);
   for (const b of due) {
-    const token = await db.tokenForDevice(b.deviceId);
-    const e = await db.get(b.eventId);
-    if (token && e) {
-      await sendPush(token, { title: "Starting soon ⏰", body: `${e.title} starts in about 2 hours at ${e.venue}.` });
-    }
+    // These are free-RSVP bookings keyed by deviceId only (no login
+    // required), so there's no Weyn userId to target via OneSignal's
+    // external_id here — push confirmation for anonymous bookings is
+    // dropped (email reminders below still cover this case when an email
+    // was collected). db.tokenForDevice/PushToken are unused now but left
+    // in place — see server/onesignal.js and prisma/schema.prisma comments.
     await db.markReminded(b.deviceId, b.eventId);
   }
 
@@ -122,10 +111,9 @@ export async function runReminderScan() {
         sendEmail({ to: b.email, ...reminderEmail({ eventTitle: event.title, whenLabel, venue: `${event.venue}, ${event.area}`, ticketUrl }) })
           .catch((err) => captureError(err, { route: "runReminderScan (auto reminder email)", eventId: event.id, bookingId: b.id }));
       }
-      if (b.deviceId) {
-        const token = await db.tokenForDevice(b.deviceId);
-        if (token) sendPush(token, { title: "Coming up ⏰", body: `${event.title} is in ${whenLabel}.` }).catch(() => {});
-      }
+      // Same anonymous-booking limitation as above: b.deviceId has no
+      // associated Weyn userId to target via OneSignal, so push is skipped
+      // here — the email reminder above already covers this booking.
     }
     await db.markAutoRemindersSent(bookings.map((b) => b.id), offset);
   }
@@ -227,6 +215,32 @@ export async function autoAssignTable(reservation) {
   }
 }
 
+// A reservation just got cancelled — if this venue has anyone WAITING for
+// that same date (closest-match on the requested day, not exact time,
+// since "a table opened up" is worth telling someone even if it's not the
+// exact hour they asked for), email the highest-priority/oldest one and
+// flip them to NOTIFIED. Best-effort, mirrors runVenueWorkflows's own
+// never-block-the-triggering-action contract — a broken email send here
+// must never surface as a failure on the cancel action itself.
+export async function notifyNextWaitlistEntry(cancelledReservation) {
+  const dayStart = new Date(cancelledReservation.date); dayStart.setUTCHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 3600e3);
+  const next = await prisma.venueWaitlistEntry.findFirst({
+    where: { venueId: cancelledReservation.venueId, status: "WAITING", requestedDate: { gte: dayStart, lt: dayEnd } },
+    orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+  });
+  if (!next) return null;
+  const venue = await prisma.venue.findUnique({ where: { id: cancelledReservation.venueId } });
+  if (!venue) return null;
+  const updated = await prisma.venueWaitlistEntry.update({ where: { id: next.id }, data: { status: "NOTIFIED", notifiedAt: new Date() } });
+  await sendEmail({
+    to: next.guestEmail,
+    subject: `${venue.name}: A table just opened up`,
+    html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">Good news, ${next.guestName.split(" ")[0] || "there"}</h2><p style="line-height:1.5;color:#222">A table just opened up at ${venue.name} for your party of ${next.partySize} around ${next.requestedTimeWindow} on ${next.requestedDate.toISOString().slice(0, 10)}. Reply or call to confirm and we'll get you seated.</p></div>`,
+  }).catch(() => {});
+  return updated;
+}
+
 // Automation Builder — only the "capacity_threshold" trigger is real today
 // (see db.dueCapacityThresholdRules's comment); notifies the organizer by
 // email/push once, then marks the rule run so it doesn't refire every scan.
@@ -246,14 +260,13 @@ export async function sendEventNotificationNow(event, { subject, message, actorI
       html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">${safeSubject}</h2><p style="white-space:pre-wrap;line-height:1.5;color:#222">${safeMessage}</p><p style="color:#888;font-size:12px;margin-top:20px">You're receiving this because you have a ticket to ${safeTitle}.</p></div>`,
     }).then(() => emailed++).catch((err) => captureError(err, { route: "sendEventNotificationNow", eventId: event.id }))
   ));
-  const deviceIds = [...new Set(bookings.filter((b) => b.deviceId).map((b) => b.deviceId))];
-  let pushed = 0;
-  await Promise.all(deviceIds.map(async (deviceId) => {
-    const token = await db.tokenForDevice(deviceId);
-    if (!token) return;
-    const result = await sendPush(token, { title: event.title, body: subject });
-    if (result.sent) pushed++;
-  }));
+  // Bookings here are keyed by deviceId, not Weyn userId (anonymous free
+  // RSVP is supported), so there's no OneSignal external_id to target for
+  // most of them — push fan-out for this bulk-notify action is dropped;
+  // email above remains the reliable channel. If/when bookings start
+  // capturing userId for signed-in attendees, this could resume via
+  // notifyUser() for just those rows.
+  const pushed = 0;
   await db.audit("event.notify", { actorId: actorId || null, entityType: "event", entityId: event.id, metadata: { subject, emailed, pushed } });
   await db.createCampaign({ organizerId: actorId || event.ownerId, eventId: event.id, subject, message, scheduledFor: null });
   return { recipients: bookings.length, emailed, pushed };
@@ -275,6 +288,49 @@ export async function runAutomationScan() {
       }
     }
     notifyUser(e.ownerId, { title: "Automation triggered", body: `${e.title} is ${pct}% sold.` }).catch(() => {});
+    await db.markAutomationRuleRun(rule.id);
+  }
+}
+
+// Birthday/anniversary reminder automation — evaluates AutomationRule rows
+// with trigger === "contact_birthday" against MarketingContact.birthday,
+// matching on month/day only (year is irrelevant/may be a placeholder).
+// Deliberately a plain function, not wired into its own scheduler — call it
+// once a day (e.g. folded into the existing 5-minute cron in
+// server/worker.js with a same-day dedupe on rule.lastRunAt, same pattern
+// as runAutomationScan's dueCapacityThresholdRules) rather than inventing a
+// new cron surface for a single trigger type.
+export async function runContactBirthdayScan() {
+  const rules = await prisma.automationRule.findMany({ where: { trigger: "contact_birthday", enabled: true } });
+  if (!rules.length) return;
+  const now = new Date();
+  const month = now.getUTCMonth() + 1;
+  const day = now.getUTCDate();
+  for (const rule of rules) {
+    // Same-day dedupe — a rule already run today doesn't refire on the next
+    // tick, since this has no per-contact "already sent" state of its own.
+    if (rule.lastRunAt && rule.lastRunAt.getUTCFullYear() === now.getUTCFullYear() && rule.lastRunAt.getUTCMonth() === now.getUTCMonth() && rule.lastRunAt.getUTCDate() === now.getUTCDate()) continue;
+    let contacts;
+    try {
+      contacts = await prisma.marketingContact.findMany({ where: { organizerId: rule.organizerId, subscribed: true, birthday: { not: null } } });
+    } catch (err) {
+      // MarketingContact may not exist yet on this DB (pending migration,
+      // see prisma/migrations' comments) — fail soft rather than crash the
+      // whole scan for every other rule type.
+      captureError(err, { route: "runContactBirthdayScan", ruleId: rule.id });
+      continue;
+    }
+    const todays = contacts.filter((c) => c.birthday && c.birthday.getUTCMonth() + 1 === month && c.birthday.getUTCDate() === day);
+    const config = rule.config || {};
+    const subject = config.subject || "Happy birthday! 🎂";
+    const message = config.message || "Wishing you a wonderful day — hope to see you at an event soon!";
+    if (emailConfigured()) {
+      await Promise.all(todays.map((c) => sendEmail({
+        to: c.email,
+        subject,
+        html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><p style="white-space:pre-wrap;line-height:1.5;color:#222">${escapeHtml(message)}</p></div>`,
+      }).catch((err) => captureError(err, { route: "runContactBirthdayScan (email)", ruleId: rule.id }))));
+    }
     await db.markAutomationRuleRun(rule.id);
   }
 }
@@ -342,7 +398,7 @@ export function createApp(storage) {
         // and never hit the restriction, which is why the failure was easy
         // to miss testing only "/"). Same two hosts already allow-listed
         // below for connectSrc; script loading needs them too.
-        scriptSrc: ["'self'", "https://maps.googleapis.com", "https://*.clerk.accounts.dev", "https://clerk.weynevents.com"],
+        scriptSrc: ["'self'", "https://maps.googleapis.com", "https://*.clerk.accounts.dev", "https://clerk.weynevents.com", "https://cdn.onesignal.com", "https://onesignal.com", "https://*.onesignal.com"],
         // Vite/React inject some inline <style> at runtime; Google Fonts'
         // stylesheet is itself hosted on fonts.googleapis.com
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
@@ -354,7 +410,7 @@ export function createApp(storage) {
         // needed, just its API host for event capture) uses whatever
         // VITE_POSTHOG_HOST is set to; both US and EU cloud covered since
         // either could be configured per-environment.
-        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.weynevents.com", "https://maps.googleapis.com", "https://nominatim.openstreetmap.org", "https://us.i.posthog.com", "https://eu.i.posthog.com"],
+        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.weynevents.com", "https://maps.googleapis.com", "https://nominatim.openstreetmap.org", "https://us.i.posthog.com", "https://eu.i.posthog.com", "https://onesignal.com", "https://*.onesignal.com", "https://cdn.onesignal.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
       },
@@ -1007,15 +1063,15 @@ export function createApp(storage) {
       runEventWorkflows("ticket_sold", wfCtx).catch(() => {});
       runEventWorkflows("low_inventory", wfCtx).catch(() => {});
       if (req.body?.promoCode) {
-        redeemPromoCode(e.id, req.body.promoCode)
+        redeemPromoCode(e.id, req.body.promoCode, qty)
           .then((promo) => { if (promo) runEventWorkflows("promo_code_used", { ...wfCtx, promoCode: promo.code }).catch(() => {}); })
           .catch(() => {});
       }
     }
-    if (deviceId) {
-      const token = await db.tokenForDevice(deviceId);
-      if (token) sendPush(token, { title: "You're going! 🎟", body: `${e.title}${bookedTier ? ` (${bookedTier})` : ""} — we'll remind you before it starts.` }).catch(() => {});
-    }
+    // Free RSVP is deviceId-keyed with no login required, so there's no
+    // Weyn userId to target via OneSignal here — booking confirmation push
+    // is skipped; the email confirmation below covers it when an email was
+    // collected.
     // Email confirmation — best-effort, independent of push. A booking
     // previously only ever produced a push notification, so anyone who
     // booked without push permission granted (or on a browser with no push
@@ -1067,7 +1123,7 @@ export function createApp(storage) {
     let unitPrice = basePrice;
     let appliedPromo = null;
     if (req.body?.promoCode) {
-      appliedPromo = await redeemPromoCode(e.id, req.body.promoCode);
+      appliedPromo = await redeemPromoCode(e.id, req.body.promoCode, qty);
       if (appliedPromo) {
         unitPrice = appliedPromo.discountType === "percent"
           ? +(basePrice * (1 - Number(appliedPromo.discountValue) / 100)).toFixed(3)
@@ -1131,7 +1187,7 @@ export function createApp(storage) {
     const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body), refCode: req.body?.refCode });
     await prisma.payment.create({ data: { bookingId: booking.id, amount: price * qty, status: "pending" } });
     if (req.body?.promoCode) {
-      redeemPromoCode(e.id, req.body.promoCode)
+      redeemPromoCode(e.id, req.body.promoCode, qty)
         .then((promo) => { if (promo) runEventWorkflows("promo_code_used", { eventId: e.id, bookingId: booking.id, tierId, email: account.email, qty, promoCode: promo.code }).catch(() => {}); })
         .catch(() => {});
     }
@@ -1485,12 +1541,10 @@ export function createApp(storage) {
     trackEvent(booking.deviceId || "unknown", "checkout_completed", { eventId: booking.eventId, qty: booking.qty });
 
     const e = await db.get(booking.eventId);
-    if (booking.deviceId) {
-      const token = await db.tokenForDevice(booking.deviceId);
-      if (token) {
-        sendPush(token, { title: "You're going! 🎟", body: `${e?.title || "Your ticket"} is confirmed — we'll remind you before it starts.` }).catch(() => {});
-      }
-    }
+    // Same as the free-RSVP flow above: paid bookings are deviceId-keyed,
+    // not userId-keyed, so there's no OneSignal external_id to target —
+    // the email confirmation below (always collected for paid checkout)
+    // covers this instead.
     // Paid checkout always collects an email (unlike free RSVP, where it's
     // optional) — see the checkout form — so this fires for every paid
     // booking, not just ones where push happened to be available.
@@ -1532,8 +1586,17 @@ export function createApp(storage) {
   // checkedInAt still being null, so a code can never admit twice even if
   // two staff scan it at the same instant (see db.checkInTicket).
   app.post("/api/tickets/:code/checkin", checkinLimiter, requireAuth, async (req, res) => {
+    const method = req.body?.method === "manual" ? "manual" : "qr";
     const ticket = await db.getTicketByCode(req.params.code);
-    if (!ticket) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Unknown ticket code" } });
+    if (!ticket) {
+      // No eventId to attach an INVALID CheckIn row to without knowing which
+      // event's scanner this came from, so this is only ever logged if the
+      // client tells us — best-effort, not required for the route to work.
+      if (req.body?.eventId) {
+        await prisma.checkIn.create({ data: { eventId: req.body.eventId, scannedBy: req.user.id, method, status: "INVALID" } }).catch(() => {});
+      }
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Unknown ticket code" } });
+    }
     const isOwner = ticket.event.ownerId && ticket.event.ownerId === req.user.id;
     const isAdmin = req.user.role === "ADMIN";
     if (!isOwner && !isAdmin) {
@@ -1545,15 +1608,66 @@ export function createApp(storage) {
       }
     }
     if (ticket.checkedInAt) {
+      await prisma.checkIn.create({ data: { eventId: ticket.eventId, ticketId: ticket.id, bookingId: ticket.bookingId, scannedBy: req.user.id, method, status: "DUPLICATE" } }).catch(() => {});
       return res.status(409).json({ error: { code: "ALREADY_USED", message: `Already checked in at ${ticket.checkedInAt.toISOString()}` } });
     }
     const result = await db.checkInTicket(req.params.code, req.user.id);
     if (!result) {
+      await prisma.checkIn.create({ data: { eventId: ticket.eventId, ticketId: ticket.id, bookingId: ticket.bookingId, scannedBy: req.user.id, method, status: "DUPLICATE" } }).catch(() => {});
       return res.status(409).json({ error: { code: "ALREADY_USED", message: "This ticket was just checked in by someone else" } });
     }
+    await prisma.checkIn.create({ data: { eventId: ticket.eventId, ticketId: ticket.id, bookingId: ticket.bookingId, scannedBy: req.user.id, method, status: "VALID" } }).catch(() => {});
     await db.audit("ticket.checkin", { actorId: req.user.id, entityType: "ticket", entityId: ticket.id, metadata: { eventId: ticket.eventId, bookingId: ticket.bookingId } });
     trackEvent(req.user.id, "ticket_checkin", { eventId: ticket.eventId });
     res.json({ ok: true, checkedInAt: result.checkedInAt });
+  });
+
+  // Live check-in progress + history for an event's scanner UI.
+  app.get("/api/events/:id/checkins", requireEventAccess("STAFF"), async (req, res) => {
+    const [total, checkedIn, recent] = await Promise.all([
+      prisma.ticket.count({ where: { eventId: req.event.id } }),
+      prisma.ticket.count({ where: { eventId: req.event.id, checkedInAt: { not: null } } }),
+      prisma.checkIn.findMany({ where: { eventId: req.event.id }, orderBy: { scannedAt: "desc" }, take: 100 }),
+    ]);
+    res.json({ total, checkedIn, recent });
+  });
+
+  // ---- Ticket transfers: reassign a ticket to a different attendee's
+  // email. The Ticket row (and its scannable `code`) never changes — this
+  // just relabels who it belongs to, and re-sends the ticket QR email to
+  // the new holder so they actually have something to show at the door. ----
+  app.post("/api/tickets/:code/transfer", requireAuth, async (req, res) => {
+    const toEmail = String(req.body?.toEmail || "").trim();
+    if (!toEmail || !toEmail.includes("@")) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid toEmail is required." } });
+    }
+    const ticket = await db.getTicketByCode(req.params.code);
+    if (!ticket) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Unknown ticket code" } });
+    const isOwner = ticket.event.ownerId && ticket.event.ownerId === req.user.id;
+    const isAdmin = req.user.role === "ADMIN";
+    if (!isOwner && !isAdmin) {
+      const membership = await db.getTeamMembership(ticket.eventId, req.user.id);
+      if (!membership) return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this event" } });
+    }
+    if (ticket.checkedInAt) {
+      return res.status(409).json({ error: { code: "ALREADY_USED", message: "Can't transfer a ticket that's already been checked in." } });
+    }
+    const updated = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { transferredToEmail: toEmail, transferredAt: new Date(), transferredBy: req.user.id },
+    });
+    await db.audit("ticket.transfer", { actorId: req.user.id, entityType: "ticket", entityId: ticket.id, metadata: { eventId: ticket.eventId, bookingId: ticket.bookingId, toEmail } });
+    const e = ticket.event;
+    if (emailConfigured()) {
+      const dateStr = new Date(e.startsAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+      const { subject, html } = bookingConfirmationEmail({
+        eventTitle: e.title, dateLabel: dateStr, venue: `${e.venue}, ${e.area}`,
+        ticketUrl: `${publicOrigin(req)}/e/${e.id}?booking=${ticket.bookingId}&accessToken=${encodeURIComponent(ticket.booking.accessToken || "")}`,
+        free: e.price <= 0,
+      });
+      sendEmail({ to: toEmail, subject: `A ticket to ${e.title} was transferred to you`, html }).catch((err) => captureError(err, { route: "POST /api/tickets/:code/transfer (email)", ticketId: ticket.id }));
+    }
+    res.json({ ok: true, ticket: updated });
   });
 
   const EDITABLE_FIELDS = ["title", "blurb", "price", "capacity", "startsAt", "refundPolicy", "venue", "area", "minAge", "tags", "ticketingType", "externalTicketUrl", "organizerContact", "paymentLinkUrl", "transferDetails", "reminderSchedule", "accentColor"];
@@ -1688,6 +1802,9 @@ export function createApp(storage) {
           maxUses: b.maxUses != null ? Math.max(1, parseInt(b.maxUses, 10)) : null,
           startsAt: b.startsAt ? new Date(b.startsAt) : null,
           endsAt: b.endsAt ? new Date(b.endsAt) : null,
+          // Group discounts: code only applies at checkout once cart qty
+          // reaches this — null/omitted means no minimum, same as before.
+          minQuantity: b.minQuantity != null ? Math.max(1, parseInt(b.minQuantity, 10)) : null,
         },
       });
       res.status(201).json(created);
@@ -1708,7 +1825,7 @@ export function createApp(storage) {
   // Public — a buyer redeeming a code at checkout has no subscription of
   // their own; what's gated is CREATING campaigns above, not using one.
   app.post("/api/promo-codes/validate", promoValidateLimiter, async (req, res) => {
-    const { eventId, code } = req.body || {};
+    const { eventId, code, qty } = req.body || {};
     if (!eventId || !code) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "eventId and code are required" } });
     const promo = await prisma.promoCode.findUnique({ where: { eventId_code: { eventId, code: String(code).trim().toUpperCase() } } });
     if (!promo || !promo.active) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Invalid promo code" } });
@@ -1716,7 +1833,11 @@ export function createApp(storage) {
     if (promo.startsAt && promo.startsAt > now) return res.status(400).json({ error: { code: "NOT_STARTED", message: "This code isn't active yet" } });
     if (promo.endsAt && promo.endsAt < now) return res.status(400).json({ error: { code: "EXPIRED", message: "This code has expired" } });
     if (promo.maxUses != null && promo.usedCount >= promo.maxUses) return res.status(400).json({ error: { code: "EXHAUSTED", message: "This code has reached its usage limit" } });
-    res.json({ code: promo.code, discountType: promo.discountType, discountValue: promo.discountValue });
+    const cartQty = Math.max(1, Number(qty) || 1);
+    if (promo.minQuantity != null && cartQty < promo.minQuantity) {
+      return res.status(400).json({ error: { code: "MIN_QUANTITY_NOT_MET", message: `This code requires buying at least ${promo.minQuantity} tickets` } });
+    }
+    res.json({ code: promo.code, discountType: promo.discountType, discountValue: promo.discountValue, minQuantity: promo.minQuantity });
   });
 
   // ---- Operations: CSV export ----
@@ -2083,6 +2204,50 @@ export function createApp(storage) {
     }
   });
 
+  // ---- venue reservation waitlist (distinct from the per-event
+  // WaitlistEntry in server/event-workflows.js — see that model's schema
+  // comment). Public: a guest joins a specific venue's waitlist for a
+  // requested date/time when every slot is full, no account required. ----
+  app.post("/api/venues/:id/waitlist", bookingLimiter, async (req, res) => {
+    try {
+      const venue = await prisma.venue.findUnique({ where: { id: req.params.id } });
+      if (!venue) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+
+      const { guestName, guestEmail, guestPhone, partySize, requestedDate, requestedTimeWindow, notes } = req.body || {};
+      if (!guestName || !String(guestName).trim() || !guestEmail || !String(guestEmail).trim()) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "guestName and guestEmail are required" } });
+      }
+      const size = Number(partySize);
+      if (!Number.isFinite(size) || size < 1) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "partySize must be a positive number" } });
+      }
+      if (!requestedDate || isNaN(new Date(requestedDate).getTime())) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid requestedDate is required" } });
+      }
+      if (!requestedTimeWindow || !String(requestedTimeWindow).trim()) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requestedTimeWindow is required" } });
+      }
+
+      const entry = await prisma.venueWaitlistEntry.create({
+        data: {
+          venueId: venue.id,
+          guestName: String(guestName).trim(),
+          guestEmail: String(guestEmail).trim(),
+          guestPhone: guestPhone ? String(guestPhone).trim() : null,
+          partySize: size,
+          requestedDate: new Date(requestedDate),
+          requestedTimeWindow: String(requestedTimeWindow).trim(),
+          notes: notes ? String(notes).trim() : null,
+        },
+      });
+      trackEvent(req.user?.id || guestEmail, "venue_waitlist_joined", { venueId: venue.id, partySize: size });
+      res.status(201).json(entry);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/waitlist", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // reservations the signed-in user made — matched by their account email,
   // mirroring how GET /api/dashboard/events filters by req.user.id but
   // keyed on guestEmail since Reservation has no userId column
@@ -2340,7 +2505,10 @@ export function createApp(storage) {
         return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this venue" } });
       }
       const updated = await prisma.reservation.update({ where: { id: reservation.id }, data: { status } });
-      if (status === "cancelled") runVenueWorkflows("reservation_cancelled", updated).catch(() => {});
+      if (status === "cancelled") {
+        runVenueWorkflows("reservation_cancelled", updated).catch(() => {});
+        notifyNextWaitlistEntry(updated).catch((err) => captureError(err, { route: "notifyNextWaitlistEntry", reservationId: updated.id }));
+      }
       if (status === "no_show") runVenueWorkflows("guest_no_show", updated).catch(() => {});
       res.json(updated);
     } catch (err) {
@@ -2400,6 +2568,104 @@ export function createApp(storage) {
       res.status(201).json(reservation);
     } catch (err) {
       captureError(err, { route: "POST /api/venues/:id/reservations/manual", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- venue waitlist: owner dashboard management ----
+  // Pending-first (WAITING/NOTIFIED before CONVERTED/EXPIRED/CANCELLED),
+  // then oldest requested date, mirroring how the reservations list
+  // orders by date first — a venue owner wants "who's next" at a glance.
+  app.get("/api/venues/:id/waitlist", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const entries = await prisma.venueWaitlistEntry.findMany({
+        where: { venueId: req.venue.id },
+        orderBy: [{ priority: "desc" }, { requestedDate: "asc" }, { createdAt: "asc" }],
+      });
+      res.json(entries);
+    } catch (err) {
+      captureError(err, { route: "GET /api/venues/:id/waitlist", venueId: req.params.id });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Owner tells a waiting guest a table is (probably) about to open up —
+  // sends the notification email and flips WAITING -> NOTIFIED. Doesn't
+  // create a reservation yet; the guest (or the owner, on their behalf)
+  // still needs to actually convert via the promote route below.
+  app.post("/api/venues/:id/waitlist/:entryId/notify", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const entry = await prisma.venueWaitlistEntry.findUnique({ where: { id: req.params.entryId } });
+      if (!entry || entry.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Waitlist entry not found" } });
+      if (entry.status !== "WAITING") {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Only a WAITING entry can be notified" } });
+      }
+      const updated = await prisma.venueWaitlistEntry.update({ where: { id: entry.id }, data: { status: "NOTIFIED", notifiedAt: new Date() } });
+      sendEmail({
+        to: entry.guestEmail,
+        subject: `${req.venue.name}: A table may be opening up`,
+        html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">Good news, ${entry.guestName.split(" ")[0] || "there"}</h2><p style="line-height:1.5;color:#222">A table may be opening up at ${req.venue.name} for your party of ${entry.partySize} around ${entry.requestedTimeWindow} on ${entry.requestedDate.toISOString().slice(0, 10)}. Reply or call to confirm and we'll get you seated.</p></div>`,
+      }).catch((err) => captureError(err, { route: "POST /api/venues/:id/waitlist/:entryId/notify (email)", entryId: entry.id }));
+      res.json(updated);
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/waitlist/:entryId/notify", venueId: req.params.id, entryId: req.params.entryId });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Promotes a waitlist entry into a real Reservation (auto-confirmed, same
+  // as a manual/owner-entered booking — see /reservations/manual above) and
+  // marks the entry CONVERTED. Reuses autoAssignTable/runVenueWorkflows so a
+  // promoted reservation behaves identically to any other reservation from
+  // here on — no parallel state machine.
+  app.post("/api/venues/:id/waitlist/:entryId/promote", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const entry = await prisma.venueWaitlistEntry.findUnique({ where: { id: req.params.entryId } });
+      if (!entry || entry.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Waitlist entry not found" } });
+      if (!["WAITING", "NOTIFIED"].includes(entry.status)) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Only a WAITING or NOTIFIED entry can be promoted" } });
+      }
+      const b = req.body || {};
+      const time = b.time ? String(b.time).trim() : String(entry.requestedTimeWindow).trim();
+      const reservation = await prisma.reservation.create({
+        data: {
+          venueId: req.venue.id,
+          slotId: b.slotId || null,
+          guestName: entry.guestName,
+          guestEmail: entry.guestEmail,
+          guestPhone: entry.guestPhone,
+          partySize: entry.partySize,
+          date: entry.requestedDate,
+          time,
+          notes: entry.notes,
+          status: "confirmed",
+          source: "manual",
+        },
+      });
+      await autoAssignTable(reservation);
+      runVenueWorkflows("reservation_created", reservation).catch(() => {});
+      const updated = await prisma.venueWaitlistEntry.update({
+        where: { id: entry.id },
+        data: { status: "CONVERTED", convertedReservationId: reservation.id },
+      });
+      res.json({ entry: updated, reservation });
+    } catch (err) {
+      captureError(err, { route: "POST /api/venues/:id/waitlist/:entryId/promote", venueId: req.params.id, entryId: req.params.entryId });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Owner (or the guest cancelling their own spot) removes an entry —
+  // CANCELLED rather than a hard delete, so the dashboard can still show
+  // "why isn't this guest waiting anymore" in a history view later.
+  app.delete("/api/venues/:id/waitlist/:entryId", requireAuth, requireVenueOwner, async (req, res) => {
+    try {
+      const entry = await prisma.venueWaitlistEntry.findUnique({ where: { id: req.params.entryId } });
+      if (!entry || entry.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Waitlist entry not found" } });
+      const updated = await prisma.venueWaitlistEntry.update({ where: { id: entry.id }, data: { status: "CANCELLED" } });
+      res.json(updated);
+    } catch (err) {
+      captureError(err, { route: "DELETE /api/venues/:id/waitlist/:entryId", venueId: req.params.id, entryId: req.params.entryId });
       res.status(500).json({ error: err.message });
     }
   });
@@ -3569,6 +3835,52 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     if (!ok) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Expense not found" } });
     res.json({ ok: true });
   });
+
+  // ---- Budget tracking with alerts — Budget rows are per-event/category
+  // allocations; "actual" is summed from Expense by matching category
+  // string (loose, not a hard FK — see schema.prisma's Budget comment) ----
+  app.get("/api/events/:id/budgets", requireEventAccess("MANAGER"), async (req, res) => {
+    const [budgets, expenses] = await Promise.all([
+      prisma.budget.findMany({ where: { eventId: req.event.id }, orderBy: { createdAt: "asc" } }),
+      prisma.expense.findMany({ where: { eventId: req.event.id }, select: { category: true, amount: true } }),
+    ]);
+    const spentByCategory = new Map();
+    for (const e of expenses) spentByCategory.set(e.category, (spentByCategory.get(e.category) || 0) + e.amount);
+    res.json(budgets.map((b) => {
+      const spent = +(spentByCategory.get(b.category) || 0).toFixed(2);
+      return { ...b, spent, remaining: +(b.allocatedAmount - spent).toFixed(2), overBudget: spent > b.allocatedAmount };
+    }));
+  });
+  app.post("/api/events/:id/budgets", requireEventAccess("MANAGER"), async (req, res) => {
+    const b = req.body || {};
+    const allocatedAmount = Number(b.allocatedAmount);
+    if (!b.category || !String(b.category).trim() || !(allocatedAmount > 0)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A category and a positive allocatedAmount are required." } });
+    }
+    try {
+      const budget = await prisma.budget.create({
+        data: { eventId: req.event.id, category: String(b.category).trim().slice(0, 60), allocatedAmount, currency: b.currency ? String(b.currency).slice(0, 8) : "OMR" },
+      });
+      res.status(201).json(budget);
+    } catch (err) {
+      if (err.code === "P2002") return res.status(409).json({ error: { code: "DUPLICATE", message: "A budget for that category already exists on this event" } });
+      throw err;
+    }
+  });
+  app.patch("/api/events/:id/budgets/:budgetId", requireEventAccess("MANAGER"), async (req, res) => {
+    const existing = await prisma.budget.findUnique({ where: { id: req.params.budgetId } });
+    if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Budget not found" } });
+    const patch = {};
+    if (req.body?.allocatedAmount != null) patch.allocatedAmount = Math.max(0, Number(req.body.allocatedAmount) || 0);
+    const updated = await prisma.budget.update({ where: { id: existing.id }, data: patch });
+    res.json(updated);
+  });
+  app.delete("/api/events/:id/budgets/:budgetId", requireEventAccess("MANAGER"), async (req, res) => {
+    const existing = await prisma.budget.findUnique({ where: { id: req.params.budgetId } });
+    if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Budget not found" } });
+    await prisma.budget.delete({ where: { id: existing.id } });
+    res.json({ ok: true });
+  });
   app.get("/api/organizer/finance/export.csv", requireAuth, requireFeature("csvExports"), async (req, res) => {
     const [finance, expenses] = await Promise.all([db.organizerFinance(req.user.id), db.listExpenses(req.user.id)]);
     const escape = (v) => {
@@ -3628,6 +3940,10 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   app.patch("/api/organizer/sponsors/:id", requireAuth, async (req, res) => {
     const patch = {};
     if (req.body?.status && ["prospect", "confirmed", "delivered"].includes(req.body.status)) patch.status = req.body.status;
+    // ---- Sponsor ROI tracking ----
+    for (const key of ["impressions", "clicks", "leadsGenerated"]) {
+      if (req.body?.[key] != null) patch[key] = Math.max(0, Math.round(Number(req.body[key])) || 0);
+    }
     const updated = await db.updateSponsor(req.params.id, req.user.id, patch);
     if (!updated) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Sponsor not found" } });
     res.json(updated);
@@ -3710,6 +4026,31 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     res.json(await db.eventAuditLog(req.event.id));
   });
 
+  // ---- QR flyer/poster generator — a downloadable SVG combining the
+  // event's title/date/venue with a QR code linking to the public event
+  // page, for print or social sharing. SVG (not a raster image) since
+  // there's no canvas/image-rendering lib in this server's dependencies —
+  // an SVG renders and prints fine, and stays crisp at any size. ----
+  app.get("/api/events/:id/flyer.svg", requireEventAccess("MANAGER"), async (req, res) => {
+    const e = req.event;
+    const eventUrl = `${publicOrigin(req)}/e/${e.id}`;
+    const qrSvg = await QRCode.toString(eventUrl, { type: "svg", margin: 1, width: 340, color: { dark: "#1c1b1a", light: "#ffffff" } });
+    const dateStr = new Date(e.startsAt).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
+    const bg = /^#[0-9a-fA-F]{6}$/.test(e.color || "") ? e.color : "#1c1b1a";
+    const poster = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1200" viewBox="0 0 800 1200">
+  <rect width="800" height="1200" fill="${bg}"/>
+  <rect x="40" y="40" width="720" height="1120" rx="24" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.15"/>
+  <text x="80" y="140" font-family="Helvetica, Arial, sans-serif" font-size="44" font-weight="700" fill="#ffffff">${escapeHtml(e.title).slice(0, 40)}</text>
+  <text x="80" y="200" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="#ffffff">${escapeHtml(dateStr)}</text>
+  <text x="80" y="240" font-family="Helvetica, Arial, sans-serif" font-size="22" fill="#ffffff" fill-opacity="0.8">${escapeHtml(e.venue)}, ${escapeHtml(e.area)}</text>
+  <g transform="translate(230, 700)">${qrSvg}</g>
+  <text x="400" y="1080" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="#ffffff" fill-opacity="0.7" text-anchor="middle">Scan to view &amp; book · weynevents.com</text>
+</svg>`;
+    res.set("Content-Type", "image/svg+xml");
+    res.set("Content-Disposition", `attachment; filename="${e.id}-flyer.svg"`);
+    res.send(poster);
+  });
+
   // ---- Feedback Center — public submission (any past attendee, no auth),
   // organizer-side viewing is owner/manager only ----
   app.post("/api/events/:id/feedback", socialLimiter, async (req, res) => {
@@ -3726,6 +4067,39 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   });
   app.get("/api/events/:id/feedback", requireEventAccess("MANAGER"), async (req, res) => {
     res.json(await db.listFeedback(req.event.id));
+  });
+
+  // Standard NPS: %promoters (9-10) minus %detractors (0-6), ignoring
+  // passives (7-8) in the denominator's numerator but not its total —
+  // the textbook formula, not a custom weighting.
+  app.get("/api/events/:id/feedback/nps", requireEventAccess("MANAGER"), async (req, res) => {
+    const rows = await prisma.eventFeedback.findMany({ where: { eventId: req.event.id, npsScore: { not: null } }, select: { npsScore: true } });
+    const total = rows.length;
+    if (!total) return res.json({ total: 0, nps: null, promoters: 0, passives: 0, detractors: 0 });
+    const promoters = rows.filter((r) => r.npsScore >= 9).length;
+    const detractors = rows.filter((r) => r.npsScore <= 6).length;
+    const passives = total - promoters - detractors;
+    const nps = Math.round(((promoters - detractors) / total) * 100);
+    res.json({ total, nps, promoters, passives, detractors });
+  });
+
+  // AI summary of free-text feedback comments into themes — reuses the same
+  // askClaude (Gemini/Groq-backed) call pattern as the rest of AI Studio.
+  // Best-effort: 503s cleanly if no LLM key is configured rather than
+  // pretending to summarize.
+  app.post("/api/events/:id/feedback/summarize", requireEventAccess("MANAGER"), async (req, res) => {
+    if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "AI isn't configured on this server yet." } });
+    const rows = await prisma.eventFeedback.findMany({ where: { eventId: req.event.id, comment: { not: null } }, select: { comment: true, rating: true, npsScore: true }, take: 300 });
+    const comments = rows.map((r) => r.comment).filter(Boolean);
+    if (!comments.length) return res.json({ summary: "No written feedback comments yet.", themes: [] });
+    const prompt = `You are analyzing post-event attendee feedback for an events platform. Summarize the following comments into 3-6 short themes (a few words each), then a 2-3 sentence overall summary. Respond as strict JSON: {"themes": ["..."], "summary": "..."}.\n\nComments:\n${comments.slice(0, 200).map((c, i) => `${i + 1}. ${c}`).join("\n")}`;
+    try {
+      const result = await askClaudeJson(prompt, { maxTokens: 500 });
+      res.json({ summary: result?.summary || "", themes: Array.isArray(result?.themes) ? result.themes : [] });
+    } catch (err) {
+      captureError(err, { route: "POST /api/events/:id/feedback/summarize", eventId: req.event.id });
+      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't summarize feedback right now." } });
+    }
   });
 
   // ---- Organizer Goals ----
@@ -3807,6 +4181,50 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     if (!member || member.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Team member not found" } });
     await db.revokeTeamMember(member.id);
     await db.audit("event.team.revoke", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { memberId: member.id } });
+    res.json({ ok: true });
+  });
+
+  // ---- Staff shift scheduling ----
+  app.get("/api/events/:id/shifts", requireEventAccess("MANAGER"), async (req, res) => {
+    const shifts = await prisma.eventShift.findMany({
+      where: { eventId: req.event.id },
+      include: { teamMember: { select: { id: true, invitedEmail: true, role: true } } },
+      orderBy: { startTime: "asc" },
+    });
+    res.json(shifts);
+  });
+  app.post("/api/events/:id/shifts", requireEventAccess("MANAGER"), async (req, res) => {
+    const b = req.body || {};
+    if (!b.teamMemberId || !b.startTime || !b.endTime) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "teamMemberId, startTime and endTime are required." } });
+    }
+    const member = await db.getTeamMemberById(b.teamMemberId);
+    if (!member || member.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Team member not found" } });
+    const startTime = new Date(b.startTime);
+    const endTime = new Date(b.endTime);
+    if (isNaN(startTime) || isNaN(endTime) || endTime <= startTime) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "endTime must be after startTime." } });
+    }
+    const shift = await prisma.eventShift.create({
+      data: { eventId: req.event.id, teamMemberId: member.id, role: b.role ? String(b.role).slice(0, 60) : null, startTime, endTime, notes: b.notes ? String(b.notes).slice(0, 500) : null },
+    });
+    res.status(201).json(shift);
+  });
+  app.patch("/api/events/:id/shifts/:shiftId", requireEventAccess("MANAGER"), async (req, res) => {
+    const existing = await prisma.eventShift.findUnique({ where: { id: req.params.shiftId } });
+    if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Shift not found" } });
+    const patch = {};
+    if (req.body?.startTime) patch.startTime = new Date(req.body.startTime);
+    if (req.body?.endTime) patch.endTime = new Date(req.body.endTime);
+    if (req.body?.role !== undefined) patch.role = req.body.role ? String(req.body.role).slice(0, 60) : null;
+    if (req.body?.notes !== undefined) patch.notes = req.body.notes ? String(req.body.notes).slice(0, 500) : null;
+    const updated = await prisma.eventShift.update({ where: { id: existing.id }, data: patch });
+    res.json(updated);
+  });
+  app.delete("/api/events/:id/shifts/:shiftId", requireEventAccess("MANAGER"), async (req, res) => {
+    const existing = await prisma.eventShift.findUnique({ where: { id: req.params.shiftId } });
+    if (!existing || existing.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Shift not found" } });
+    await prisma.eventShift.delete({ where: { id: existing.id } });
     res.json({ ok: true });
   });
 
@@ -4290,56 +4708,25 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.get("/api/push/status", (_req, res) => res.json({ configured: pushConfigured() }));
+  // OneSignal manages its own device registration/subscription client-side
+  // (the native Cordova plugin and the web SDK both talk to OneSignal
+  // directly — see src/push.ts), so this app no longer collects or stores
+  // raw push tokens or VAPID subscriptions itself. The old
+  // POST /api/push/register, GET /api/push/vapid-public-key,
+  // POST /api/push/web-subscribe, and POST /api/push/web-unsubscribe routes
+  // are removed. db.upsertPushToken/tokenForDevice/tokensForUser and the
+  // PushToken/WebPushSubscription Prisma models are left in place (not
+  // migrated away) but are now dead code — a candidate for later cleanup
+  // once OneSignal has been live for a while.
+  app.get("/api/push/status", (_req, res) => res.json({ configured: oneSignalConfigured() }));
 
-  app.post("/api/push/register", async (req, res) => {
-    const { deviceId, token, platform, deviceSecret } = req.body || {};
-    if (!deviceId || !token || !deviceSecret) return res.status(400).json({ error: "deviceId, token, and deviceSecret are required" });
-    if (!/^[0-9a-f-]{20,}$/i.test(deviceId) || String(deviceSecret).length < 32 || String(token).length < 20) {
-      return res.status(400).json({ error: "Invalid push registration payload" });
-    }
-    try {
-      await db.upsertPushToken(deviceId, token, ["ios", "android"].includes(platform) ? platform : "ios", deviceSecret, req.user?.id || null);
-      res.json({ ok: true });
-    } catch {
-      res.status(403).json({ error: "Invalid device secret" });
-    }
-  });
-
-  // Web Push (VAPID) — browser/PWA notifications. Keyed by userId (unlike
-  // PushToken's deviceId), so this is what lets a server-side event like
-  // "your venue application was approved" reach a specific person's devices
-  // without needing a deviceId collected earlier in an unrelated flow.
-  app.get("/api/push/vapid-public-key", (_req, res) => {
-    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null });
-  });
-  app.post("/api/push/web-subscribe", requireAuth, async (req, res) => {
-    const { endpoint, keys } = req.body?.subscription || req.body || {};
-    if (!endpoint || !keys?.p256dh || !keys?.auth) {
-      return res.status(400).json({ error: "A valid PushSubscription (endpoint + keys.p256dh + keys.auth) is required" });
-    }
-    await prisma.webPushSubscription.upsert({
-      where: { endpoint },
-      create: { userId: req.user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-      update: { userId: req.user.id, p256dh: keys.p256dh, auth: keys.auth },
-    });
-    res.json({ ok: true });
-  });
-  app.post("/api/push/web-unsubscribe", requireAuth, async (req, res) => {
-    const { endpoint } = req.body || {};
-    if (!endpoint) return res.status(400).json({ error: "endpoint is required" });
-    await prisma.webPushSubscription.deleteMany({ where: { endpoint, userId: req.user.id } });
-    res.json({ ok: true });
-  });
-
-  // ADMIN-only: this fires a real push to any registered device, so leaving
-  // it open let anyone spam notifications to a device they named. It's a
-  // debugging tool, not a user-facing endpoint.
+  // ADMIN-only: fires a real push at a Weyn userId via OneSignal, so leaving
+  // it open let anyone spam notifications. It's a debugging tool, not a
+  // user-facing endpoint.
   app.post("/api/push/test", requireAuth, requireRole("ADMIN"), async (req, res) => {
-    const { deviceId } = req.body || {};
-    const token = deviceId && (await db.tokenForDevice(deviceId));
-    if (!token) return res.status(404).json({ error: "No push token registered for that deviceId" });
-    const result = await sendPush(token, { title: "Weyn", body: "Test notification — if you see this, push works! 🎉" });
+    const { userId } = req.body || {};
+    if (!userId) return res.status(400).json({ error: "userId is required" });
+    const result = await sendOneSignalPush(userId, { title: "Weyn", body: "Test notification — if you see this, push works! 🎉" });
     res.json(result);
   });
 
@@ -4651,14 +5038,18 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   app.post("/api/me/marketing-contacts", requireAuth, requireFeature("emailCampaigns"), async (req, res) => {
     const email = String(req.body?.email || "").trim().toLowerCase();
     const name = req.body?.name ? String(req.body.name).trim() : null;
+    // Birthday/anniversary reminder automation — only month/day matter for
+    // the "contact_birthday" AutomationRule trigger; year can be a
+    // placeholder if the organizer doesn't know it.
+    const birthday = req.body?.birthday && !isNaN(new Date(req.body.birthday).getTime()) ? new Date(req.body.birthday) : null;
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A valid email is required" } });
     }
     try {
       const contact = await prisma.marketingContact.upsert({
         where: { organizerId_email: { organizerId: req.user.id, email } },
-        create: { organizerId: req.user.id, email, name, source: "manual", unsubscribeToken: newUnsubscribeToken() },
-        update: { name: name ?? undefined, subscribed: true },
+        create: { organizerId: req.user.id, email, name, birthday, source: "manual", unsubscribeToken: newUnsubscribeToken() },
+        update: { name: name ?? undefined, birthday: birthday ?? undefined, subscribed: true },
       });
       res.status(201).json(contact);
     } catch (err) {

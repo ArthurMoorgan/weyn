@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { Html5Qrcode } from "html5-qrcode";
 import QRCode from "qrcode";
-import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type PromoCode, type Campaign, type Sponsor, type Vendor, type FloorTable, type FloorTableInput, type MarketingScheduleItem } from "../../api";
+import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type TeamMember, type PromoCode, type Campaign, type Sponsor, type Vendor, type FloorTable, type FloorTableInput, type MarketingScheduleItem } from "../../api";
 import { useAsync } from "../../hooks";
 import { getAuthToken } from "../../store";
 import FeatureLock from "../../components/FeatureLock";
@@ -258,6 +258,9 @@ function AttendeesTab({ event, features }: { event: Weyn; features: Record<strin
         </button>
       </FeatureLock>
 
+      <p className="section-label">Transfer a ticket</p>
+      <TransferTicketPanel />
+
       <p className="section-label">Bulk notify</p>
       <NotifyForm event={event} enabled={!!features.bulkNotifications} />
     </>
@@ -304,6 +307,39 @@ function PendingPaymentsPanel({ event }: { event: Weyn }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function TransferTicketPanel() {
+  const [code, setCode] = useState("");
+  const [toEmail, setToEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function transfer() {
+    if (!code.trim() || !toEmail.trim()) return;
+    setBusy(true); setResult(null);
+    try {
+      await api.transferTicket(code.trim(), toEmail.trim());
+      setResult({ ok: true, message: "Ticket transferred — a new confirmation email was sent." });
+      setCode(""); setToEmail("");
+    } catch (e: any) {
+      setResult({ ok: false, message: e.message || "Couldn't transfer that ticket." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 10px" }}>Reassign a ticket (by its code, shown on the attendee's QR ticket) to a different attendee's email.</p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ticket code" style={{ flex: "1 1 160px" }} />
+        <input type="email" value={toEmail} onChange={(e) => setToEmail(e.target.value)} placeholder="new-attendee@email.com" style={{ flex: "1 1 200px" }} />
+        <button className="btn" onClick={transfer} disabled={busy || !code.trim() || !toEmail.trim()}>{busy ? "Transferring…" : "Transfer"}</button>
+      </div>
+      {result && <p className={result.ok ? "hint" : "errline"}>{result.message}</p>}
+    </>
   );
 }
 
@@ -430,6 +466,7 @@ function PromoCodesSection({ event, enabled }: { event: Weyn; enabled: boolean }
   const [discountType, setDiscountType] = useState<"percent" | "flat">("percent");
   const [discountValue, setDiscountValue] = useState("10");
   const [maxUses, setMaxUses] = useState("");
+  const [minQuantity, setMinQuantity] = useState("");
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState("");
 
@@ -440,8 +477,9 @@ function PromoCodesSection({ event, enabled }: { event: Weyn; enabled: boolean }
       await api.createPromoCode(event.id, {
         code: code.trim().toUpperCase(), discountType, discountValue: Number(discountValue) || 0,
         maxUses: maxUses ? Number(maxUses) : undefined,
+        minQuantity: minQuantity ? Number(minQuantity) : undefined,
       });
-      setCode(""); setMaxUses("");
+      setCode(""); setMaxUses(""); setMinQuantity("");
       reload();
     } catch (e: any) {
       setErr(e.message || "Couldn't create promo code");
@@ -471,6 +509,7 @@ function PromoCodesSection({ event, enabled }: { event: Weyn; enabled: boolean }
         </div>
       </div>
       <div className="field"><label>Max uses (optional)</label><input inputMode="numeric" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="Unlimited" /></div>
+      <div className="field"><label>Group discount — minimum quantity (optional)</label><input inputMode="numeric" value={minQuantity} onChange={(e) => setMinQuantity(e.target.value)} placeholder="e.g. 4 — code only applies buying 4+ tickets" /></div>
       {err && <p className="errline">{err}</p>}
       <button className="btn" onClick={create} disabled={creating || !code.trim()}>{creating ? "Creating…" : "Create promo code"}</button>
 
@@ -484,7 +523,7 @@ function PromoCodesSection({ event, enabled }: { event: Weyn; enabled: boolean }
               <li key={p.id}>
                 <i className="icon-ticket-percent" />
                 <span>
-                  <b>{p.code}</b> <small style={{ color: "var(--text-3)" }}>· {p.discountType === "percent" ? `${p.discountValue}% off` : `${p.discountValue} OMR off`} · {p.usedCount}{p.maxUses ? `/${p.maxUses}` : ""} used</small>
+                  <b>{p.code}</b> <small style={{ color: "var(--text-3)" }}>· {p.discountType === "percent" ? `${p.discountValue}% off` : `${p.discountValue} OMR off`} · {p.usedCount}{p.maxUses ? `/${p.maxUses}` : ""} used{p.minQuantity ? ` · min ${p.minQuantity} tickets` : ""}</small>
                 </span>
                 <button className="copy-btn" style={{ marginLeft: "auto" }} onClick={() => toggleActive(p)}>{p.active ? "Deactivate" : "Activate"}</button>
               </li>
@@ -663,6 +702,7 @@ function PostingScheduleSection({ schedule, copy, copiedKey }: { schedule: Marke
 function QrPosterSection({ event }: { event: Weyn }) {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [flyerBusy, setFlyerBusy] = useState(false);
   const eventUrl = `${window.location.origin}/e/${event.id}`;
 
   async function generate() {
@@ -671,6 +711,25 @@ function QrPosterSection({ event }: { event: Weyn }) {
       setQrUrl(await QRCode.toDataURL(eventUrl, { margin: 1, width: 480 }));
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function downloadFlyer() {
+    setFlyerBusy(true);
+    try {
+      const token = getAuthToken();
+      const res = await fetch(api.flyerUrl(event.id), { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error("Couldn't generate the flyer");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `weyn-${event.id}-flyer.svg`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // best-effort — no error UI here, matches the plain QR download above
+    } finally {
+      setFlyerBusy(false);
     }
   }
 
@@ -683,6 +742,9 @@ function QrPosterSection({ event }: { event: Weyn }) {
       </div>
       <button className="btn glass" onClick={generate} disabled={generating}>
         <i className="icon-qr-code" /> {generating ? "Generating…" : "Generate QR poster"}
+      </button>
+      <button className="btn glass" onClick={downloadFlyer} disabled={flyerBusy} style={{ marginLeft: 8 }}>
+        <i className="icon-download" /> {flyerBusy ? "Preparing…" : "Download full flyer (title, date, venue + QR)"}
       </button>
       {qrUrl && (
         <div style={{ marginTop: 14, textAlign: "center" }}>
@@ -717,6 +779,9 @@ function MoreEventTools({ event }: { event: Weyn }) {
           <p className="section-label">Files</p>
           <FileLibrarySection event={event} />
 
+          <p className="section-label">Budget</p>
+          <BudgetSection event={event} />
+
           <p className="section-label">Sponsors</p>
           <SponsorsSection event={event} />
 
@@ -738,11 +803,25 @@ function MoreEventTools({ event }: { event: Weyn }) {
    public link (shared separately, e.g. in a post-event email) ---------- */
 function FeedbackSection({ event }: { event: Weyn }) {
   const { data, loading } = useAsync(() => api.listFeedback(event.id), [event.id]);
+  const { data: nps } = useAsync(() => api.feedbackNps(event.id), [event.id]);
   const feedbackUrl = `${window.location.origin}/e/${event.id}?feedback=1`;
   const [copied, setCopied] = useState(false);
+  const [summary, setSummary] = useState<{ summary: string; themes: string[] } | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
+  const [summarizeErr, setSummarizeErr] = useState("");
 
   function copyLink() {
     navigator.clipboard?.writeText(feedbackUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  }
+  async function summarize() {
+    setSummarizing(true); setSummarizeErr("");
+    try {
+      setSummary(await api.summarizeFeedback(event.id));
+    } catch (e: any) {
+      setSummarizeErr(e.message || "Couldn't summarize feedback right now.");
+    } finally {
+      setSummarizing(false);
+    }
   }
 
   return (
@@ -752,10 +831,29 @@ function FeedbackSection({ event }: { event: Weyn }) {
         <input readOnly value={feedbackUrl} style={{ flex: 1 }} onFocus={(e) => e.target.select()} />
         <button className="copy-btn" onClick={copyLink}><i className={copied ? "icon-check" : "icon-copy"} /> {copied ? "Copied" : "Copy"}</button>
       </div>
+      {nps && nps.total > 0 && (
+        <p className="hint" style={{ margin: "0 0 10px" }}>
+          NPS score: <b>{nps.nps}</b> ({nps.promoters} promoters, {nps.passives} passives, {nps.detractors} detractors)
+        </p>
+      )}
       {loading && <p className="hint">Loading…</p>}
       {!loading && data && data.count > 0 && (
         <>
           <p className="hint" style={{ margin: "0 0 10px" }}>Average rating: <b>{data.avgRating ?? "—"}</b> / 5 ({data.count} response{data.count === 1 ? "" : "s"})</p>
+          <button className="btn glass" onClick={summarize} disabled={summarizing} style={{ marginBottom: 12 }}>
+            {summarizing ? "Summarizing…" : "AI-summarize comments"}
+          </button>
+          {summarizeErr && <p className="errline">{summarizeErr}</p>}
+          {summary && (
+            <div style={{ marginBottom: 14 }}>
+              <p className="hint">{summary.summary}</p>
+              {summary.themes.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                  {summary.themes.map((t) => <span key={t} className="chip">{t}</span>)}
+                </div>
+              )}
+            </div>
+          )}
           <ul className="steps">
             {data.entries.filter((e) => e.comment).map((e) => (
               <li key={e.id}>
@@ -868,6 +966,61 @@ function FileLibrarySection({ event }: { event: Weyn }) {
   );
 }
 
+/* ---------- Budget tracking with alerts ---------- */
+function BudgetSection({ event }: { event: Weyn }) {
+  const { data, loading, reload } = useAsync(() => api.listBudgets(event.id), [event.id]);
+  const [category, setCategory] = useState("");
+  const [allocatedAmount, setAllocatedAmount] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function add() {
+    if (!category.trim() || !(Number(allocatedAmount) > 0)) return;
+    setSaving(true); setErr("");
+    try {
+      await api.createBudget(event.id, { category: category.trim(), allocatedAmount: Number(allocatedAmount) });
+      setCategory(""); setAllocatedAmount("");
+      reload();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't create budget line");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function remove(id: string) {
+    await api.deleteBudget(event.id, id); reload();
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 10px" }}>Set a spending cap per category — matched against Expenses logged with the same category on the Overview dashboard.</p>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category, e.g. Venue" style={{ flex: 2 }} />
+        <input value={allocatedAmount} onChange={(e) => setAllocatedAmount(e.target.value)} placeholder="Allocated OMR" inputMode="decimal" style={{ flex: 1 }} />
+        <button className="btn" onClick={add} disabled={saving || !category.trim() || !(Number(allocatedAmount) > 0)}>{saving ? "Adding…" : "Add"}</button>
+      </div>
+      {err && <p className="errline">{err}</p>}
+      {loading && <p className="hint">Loading…</p>}
+      {!loading && (data || []).length > 0 && (
+        <ul className="steps">
+          {data!.map((b) => (
+            <li key={b.id}>
+              <i className={b.overBudget ? "icon-alert-triangle" : "icon-wallet"} />
+              <span>
+                {b.category} <small style={{ color: b.overBudget ? "var(--danger, #e05252)" : "var(--text-3)" }}>
+                  · {b.spent ?? 0} / {b.allocatedAmount} {b.currency}{b.overBudget ? " · over budget" : ""}
+                </small>
+              </span>
+              <button className="copy-btn" style={{ marginLeft: "auto" }} onClick={() => remove(b.id)}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!loading && (data || []).length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No budget lines yet.</p>}
+    </>
+  );
+}
+
 /* ---------- Sponsor management ---------- */
 function SponsorsSection({ event }: { event: Weyn }) {
   const { data, loading, reload } = useAsync(() => api.listSponsors(event.id), [event.id]);
@@ -887,6 +1040,9 @@ function SponsorsSection({ event }: { event: Weyn }) {
   async function remove(id: string) {
     await api.deleteSponsor(id); reload();
   }
+  async function updateRoi(s: Sponsor, key: "impressions" | "clicks" | "leadsGenerated", value: string) {
+    await api.updateSponsorRoi(s.id, { [key]: Number(value) || 0 }); reload();
+  }
 
   return (
     <>
@@ -899,11 +1055,25 @@ function SponsorsSection({ event }: { event: Weyn }) {
       {!loading && (data || []).length > 0 && (
         <ul className="steps">
           {data!.map((s) => (
-            <li key={s.id}>
+            <li key={s.id} style={{ flexWrap: "wrap" }}>
               <i className="icon-award" />
-              <span>{s.name}{s.amount ? ` · ${s.amount} OMR` : ""}</span>
+              <span>{s.name}{s.amount ? ` · ${s.amount} OMR` : ""}{s.roi != null ? ` · ROI ${s.roi > 0 ? "+" : ""}${s.roi}%` : ""}</span>
               <button className="chip" style={{ marginLeft: "auto" }} onClick={() => cycleStatus(s)}>{s.status}</button>
               <button className="copy-btn" onClick={() => remove(s.id)}>Delete</button>
+              <div style={{ display: "flex", gap: 8, width: "100%", marginTop: 8 }}>
+                <div className="field" style={{ flex: 1, margin: 0 }}>
+                  <label style={{ fontSize: 11 }}>Impressions</label>
+                  <input inputMode="numeric" defaultValue={s.impressions} onBlur={(e) => updateRoi(s, "impressions", e.target.value)} />
+                </div>
+                <div className="field" style={{ flex: 1, margin: 0 }}>
+                  <label style={{ fontSize: 11 }}>Clicks</label>
+                  <input inputMode="numeric" defaultValue={s.clicks} onBlur={(e) => updateRoi(s, "clicks", e.target.value)} />
+                </div>
+                <div className="field" style={{ flex: 1, margin: 0 }}>
+                  <label style={{ fontSize: 11 }}>Leads</label>
+                  <input inputMode="numeric" defaultValue={s.leadsGenerated} onBlur={(e) => updateRoi(s, "leadsGenerated", e.target.value)} />
+                </div>
+              </div>
             </li>
           ))}
         </ul>
@@ -1111,8 +1281,68 @@ function TeamTab({ event }: { event: Weyn }) {
         ) : <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No team members yet.</p>
       )}
 
+      <p className="section-label" style={{ marginTop: 18 }}>Shift scheduling</p>
+      <ShiftsPanel event={event} teamMembers={data || []} />
+
       <p className="section-label" style={{ marginTop: 18 }}>Activity log</p>
       <AuditLogPanel event={event} />
+    </>
+  );
+}
+
+function ShiftsPanel({ event, teamMembers }: { event: Weyn; teamMembers: TeamMember[] }) {
+  const { data, loading, reload } = useAsync(() => api.listShifts(event.id), [event.id]);
+  const [teamMemberId, setTeamMemberId] = useState("");
+  const [role, setRole] = useState("");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function add() {
+    if (!teamMemberId || !start || !end) return;
+    setSaving(true); setErr("");
+    try {
+      await api.createShift(event.id, { teamMemberId, startTime: new Date(start).toISOString(), endTime: new Date(end).toISOString(), role: role || undefined });
+      setRole(""); setStart(""); setEnd("");
+      reload();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't create shift");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function remove(shiftId: string) {
+    await api.deleteShift(event.id, shiftId); reload();
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 10px" }}>Schedule door/floor coverage for each team member.</p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <select value={teamMemberId} onChange={(e) => setTeamMemberId(e.target.value)} style={{ flex: "1 1 160px" }}>
+          <option value="">Team member…</option>
+          {teamMembers.map((m) => <option key={m.id} value={m.id}>{m.user?.name || m.email}</option>)}
+        </select>
+        <input value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role (optional)" style={{ flex: "1 1 120px" }} />
+        <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} style={{ flex: "1 1 160px" }} />
+        <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} style={{ flex: "1 1 160px" }} />
+        <button className="btn" onClick={add} disabled={saving || !teamMemberId || !start || !end}>{saving ? "Adding…" : "Add shift"}</button>
+      </div>
+      {err && <p className="errline">{err}</p>}
+      {loading && <p className="hint">Loading…</p>}
+      {!loading && (data || []).length > 0 && (
+        <ul className="steps">
+          {data!.map((s) => (
+            <li key={s.id}>
+              <i className="icon-clock" />
+              <span>{s.teamMember?.invitedEmail || "Team member"}{s.role ? ` · ${s.role}` : ""}<br /><small style={{ color: "var(--text-3)" }}>{new Date(s.startTime).toLocaleString()} → {new Date(s.endTime).toLocaleString()}</small></span>
+              <button className="copy-btn" style={{ marginLeft: "auto" }} onClick={() => remove(s.id)}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!loading && (data || []).length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No shifts scheduled yet.</p>}
     </>
   );
 }
@@ -1150,18 +1380,26 @@ function CheckInTab({ event }: { event: Weyn }) {
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [checkedInCount, setCheckedInCount] = useState(0);
+  const [summary, setSummary] = useState<{ total: number; checkedIn: number; recent: import("../../api").CheckIn[] } | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  function reloadSummary() {
+    api.eventCheckins(event.id).then(setSummary).catch(() => {});
+  }
+  useEffect(() => { reloadSummary(); }, [event.id]);
 
   async function submitCode(raw: string) {
     const value = raw.trim();
     if (!value || busy) return;
     setBusy(true); setResult(null);
     try {
-      await api.checkInTicket(value);
+      await api.checkInTicket(value, { method: scanning ? "qr" : "manual", eventId: event.id });
       setResult({ ok: true, message: "Checked in ✓" });
       setCheckedInCount((n) => n + 1);
+      reloadSummary();
     } catch (e: any) {
       setResult({ ok: false, message: e.message || "Couldn't check in that code" });
+      reloadSummary();
     } finally {
       setBusy(false);
       setCode("");
@@ -1194,7 +1432,9 @@ function CheckInTab({ event }: { event: Weyn }) {
 
   return (
     <>
-      <p className="hint" style={{ margin: "0 0 14px" }}>{checkedInCount} checked in this session</p>
+      <p className="hint" style={{ margin: "0 0 14px" }}>
+        {summary ? `${summary.checkedIn} / ${summary.total} checked in` : "…"} ({checkedInCount} this session)
+      </p>
       {!scanning ? (
         <button className="btn" onClick={startScanner}><i className="icon-camera" /> Scan QR code</button>
       ) : (
@@ -1210,6 +1450,19 @@ function CheckInTab({ event }: { event: Weyn }) {
       <button className="btn glass" onClick={() => submitCode(code)} disabled={busy || !code.trim()}>{busy ? "Checking…" : "Check in"}</button>
       {result && (
         <p className={result.ok ? "hint" : "errline"} style={{ marginTop: 10, color: result.ok ? "var(--accent)" : undefined }}>{result.message}</p>
+      )}
+      {summary && summary.recent.length > 0 && (
+        <>
+          <p className="section-label" style={{ marginTop: 22 }}>Recent scans</p>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {summary.recent.slice(0, 20).map((c) => (
+              <li key={c.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(128,128,128,0.15)" }}>
+                <span>{c.status === "VALID" ? "✓ Valid" : c.status === "DUPLICATE" ? "⚠ Duplicate" : "✕ Invalid"}</span>
+                <span className="hint">{new Date(c.scannedAt).toLocaleTimeString()}</span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </>
   );

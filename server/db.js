@@ -1105,16 +1105,30 @@ export const db = {
   },
 
   // ---- Sponsor management ----
+  // ROI is a simple estimate, not real attributed revenue: each click is
+  // valued at a flat 2 OMR-equivalent "worth" (roughly what a single paid
+  // click would cost via an ad platform) and each lead at 10x that — good
+  // enough to rank sponsors relative to each other, not a real finance
+  // number. Returned alongside every sponsor row so the UI never has to
+  // recompute it.
+  _sponsorRoi(s) {
+    const estValue = (s.clicks || 0) * 2 + (s.leadsGenerated || 0) * 20;
+    const roi = s.amount && s.amount > 0 ? +(((estValue - s.amount) / s.amount) * 100).toFixed(1) : null;
+    return { ...s, estValue, roi };
+  },
   async listSponsors(organizerId, eventId) {
-    return prisma.sponsor.findMany({ where: { organizerId, ...(eventId ? { eventId } : {}) }, orderBy: { createdAt: "desc" } });
+    const rows = await prisma.sponsor.findMany({ where: { organizerId, ...(eventId ? { eventId } : {}) }, orderBy: { createdAt: "desc" } });
+    return rows.map((s) => db._sponsorRoi(s));
   },
   async createSponsor({ organizerId, eventId, name, contactEmail, contactPhone, contractUrl, logoUrl, amount, deliverables }) {
-    return prisma.sponsor.create({ data: { organizerId, eventId: eventId || null, name, contactEmail: contactEmail || null, contactPhone: contactPhone || null, contractUrl: contractUrl || null, logoUrl: logoUrl || null, amount: amount ?? null, deliverables: deliverables || [] } });
+    const created = await prisma.sponsor.create({ data: { organizerId, eventId: eventId || null, name, contactEmail: contactEmail || null, contactPhone: contactPhone || null, contractUrl: contractUrl || null, logoUrl: logoUrl || null, amount: amount ?? null, deliverables: deliverables || [] } });
+    return db._sponsorRoi(created);
   },
   async updateSponsor(id, organizerId, patch) {
     const existing = await prisma.sponsor.findUnique({ where: { id } });
     if (!existing || existing.organizerId !== organizerId) return null;
-    return prisma.sponsor.update({ where: { id }, data: patch });
+    const updated = await prisma.sponsor.update({ where: { id }, data: patch });
+    return db._sponsorRoi(updated);
   },
   async deleteSponsor(id, organizerId) {
     const existing = await prisma.sponsor.findUnique({ where: { id } });

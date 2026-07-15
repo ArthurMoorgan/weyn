@@ -9,7 +9,6 @@
 // code is redeemed) — never a poll cycle.
 import { prisma } from "./db.js";
 import { sendEmail } from "./email.js";
-import { sendPush } from "./push.js";
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -186,7 +185,11 @@ export async function runEventWorkflowGraph(workflow, ctx, event) {
 // charged (priceFor() in app.js) — that's a separate, pre-existing gap
 // (promo codes were never wired into pricing at all), out of scope for the
 // workflows build.
-export async function redeemPromoCode(eventId, rawCode) {
+// `qty` (cart quantity) is required to enforce group-discount codes'
+// minQuantity — defaults to 1 for any pre-existing caller that hasn't been
+// updated to pass it, so a code with no minQuantity set keeps working
+// exactly as before.
+export async function redeemPromoCode(eventId, rawCode, qty = 1) {
   if (!rawCode) return null;
   const code = String(rawCode).trim().toUpperCase();
   if (!code) return null;
@@ -200,7 +203,8 @@ export async function redeemPromoCode(eventId, rawCode) {
       AND ("startsAt" IS NULL OR "startsAt" <= ${now})
       AND ("endsAt" IS NULL OR "endsAt" >= ${now})
       AND ("maxUses" IS NULL OR "usedCount" < "maxUses")
-    RETURNING id, code, "discountType", "discountValue"
+      AND ("minQuantity" IS NULL OR ${qty}::int >= "minQuantity")
+    RETURNING id, code, "discountType", "discountValue", "minQuantity"
   `;
   return rows[0] || null;
 }

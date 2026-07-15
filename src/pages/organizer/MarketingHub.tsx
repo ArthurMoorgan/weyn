@@ -601,9 +601,12 @@ function EmailListSection({ events, loading, enabled }: { events: Weyn[]; loadin
   const { data: contacts, loading: contactsLoading, reload } = useAsync(() => api.listMarketingContacts(), []);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [birthday, setBirthday] = useState("");
   const [csv, setCsv] = useState("");
   const [saving, setSaving] = useState(false);
   const [importMsg, setImportMsg] = useState("");
+  const [birthdayAutomationOn, setBirthdayAutomationOn] = useState(false);
+  const [savingAutomation, setSavingAutomation] = useState(false);
 
   const [eventId, setEventId] = useState("");
   const activeId = eventId || events[0]?.id || "";
@@ -623,7 +626,21 @@ function EmailListSection({ events, loading, enabled }: { events: Weyn[]; loadin
   async function addContact() {
     if (!email.trim()) return;
     setSaving(true);
-    try { await api.addMarketingContact({ email: email.trim(), name: name.trim() || undefined }); setEmail(""); setName(""); reload(); } finally { setSaving(false); }
+    try {
+      await api.addMarketingContact({ email: email.trim(), name: name.trim() || undefined, birthday: birthday || undefined });
+      setEmail(""); setName(""); setBirthday(""); reload();
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function enableBirthdayAutomation() {
+    setSavingAutomation(true);
+    try {
+      await api.createAutomation({ name: "Birthday emails", trigger: "contact_birthday", action: "send_email", config: { subject: "Happy birthday! 🎂", message: "Wishing you a wonderful day — hope to see you at an event soon!" } });
+      setBirthdayAutomationOn(true);
+    } finally {
+      setSavingAutomation(false);
+    }
   }
   async function importCsv() {
     if (!csv.trim()) return;
@@ -660,12 +677,20 @@ function EmailListSection({ events, loading, enabled }: { events: Weyn[]; loadin
 
       <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
         <p className="hint" style={{ margin: "0 0 10px" }}>Add a subscriber</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div className="field" style={{ margin: 0 }}><label>Email</label><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" /></div>
           <div className="field" style={{ margin: 0 }}><label>Name (optional)</label><input value={name} onChange={(e) => setName(e.target.value)} /></div>
+          <div className="field" style={{ margin: 0 }}><label>Birthday (optional)</label><input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} /></div>
         </div>
         <button className="btn glass sm" style={{ width: "auto" }} onClick={addContact} disabled={saving || !email.trim()}>
           <i className="icon-plus" /> Add
+        </button>
+      </div>
+
+      <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
+        <p className="hint" style={{ margin: "0 0 10px" }}>Birthday reminder automation — sends a birthday email to any contact whose birthday matches today. Needs a daily scheduled check on the server (already wired into the same background scan as other automations).</p>
+        <button className="btn glass sm" style={{ width: "auto" }} onClick={enableBirthdayAutomation} disabled={savingAutomation || birthdayAutomationOn}>
+          <i className="icon-cake" /> {birthdayAutomationOn ? "Enabled ✓" : savingAutomation ? "Enabling…" : "Enable birthday emails"}
         </button>
       </div>
 
@@ -687,7 +712,7 @@ function EmailListSection({ events, loading, enabled }: { events: Weyn[]; loadin
             {((contacts as MarketingContact[] | undefined) || []).map((c) => (
               <li key={c.id} style={{ opacity: c.subscribed ? 1 : 0.5 }}>
                 <i className="icon-mail" />
-                <span><b>{c.email}</b> {c.name && <span className="hint">{c.name}</span>} {!c.subscribed && <span className="hint">(unsubscribed)</span>}</span>
+                <span><b>{c.email}</b> {c.name && <span className="hint">{c.name}</span>} {c.birthday && <span className="hint">🎂 {new Date(c.birthday).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>} {!c.subscribed && <span className="hint">(unsubscribed)</span>}</span>
                 <button className="btn glass sm" style={{ marginLeft: "auto", width: "auto" }} onClick={() => removeContact(c.id)}><i className="icon-x" /></button>
               </li>
             ))}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType, type WinBackStats, type VenueLoyaltyGuest, type VenueMarketingLink, type VenueMarketingCalendarItem, type VenueBrandKit, type SocialAccountConnection, type VenueSocialPost, type VenueMarketingContact, type AdVariant, type PersuasionAngle } from "../../api";
+import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType, type WinBackStats, type VenueLoyaltyGuest, type VenueMarketingLink, type VenueMarketingCalendarItem, type VenueBrandKit, type SocialAccountConnection, type VenueSocialPost, type VenueMarketingContact, type AdVariant, type PersuasionAngle, type VenueWaitlistEntry } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
@@ -18,6 +18,7 @@ type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
 // conditional render chain) rather than the old internal chip-switcher.
 const VENUE_TABS = [
   { key: "reservations", label: "Reservations", icon: "calendar-check" },
+  { key: "waitlist", label: "Waitlist", icon: "clock" },
   { key: "calendar", label: "Calendar", icon: "calendar" },
   { key: "tables", label: "Tables", icon: "grid-2x2" },
   { key: "venue", label: "Venue", icon: "store" },
@@ -92,6 +93,7 @@ function VenueBody({ tab, venue }: { tab: VenueTabKey; venue: OwnedVenue }) {
   }
 
   if (tab === "reservations") return <VenueReservationsTab venueId={venue.id} rows={rows} loading={loading} error={error} setStatus={setStatus} onCreated={reload} />;
+  if (tab === "waitlist") return <VenueWaitlistTab venueId={venue.id} />;
   if (tab === "calendar") return <VenueCalendar rows={rows} loading={loading} />;
   if (tab === "tables") return <VenueTables venueId={venue.id} />;
   if (tab === "venue") return <VenueProfileEditor venue={venue} />;
@@ -260,6 +262,153 @@ function ManualReservationForm({ venueId, onDone }: { venueId: string; onDone: (
       </div>
       {err && <p className="errline">{err}</p>}
       <button className="btn glass" onClick={submit} disabled={saving}>{saving ? "Saving…" : "Add reservation"}</button>
+    </div>
+  );
+}
+
+// ---- Waitlist: guests waiting on a fully-booked slot. Own owner-entered
+// join form (mirrors ManualReservationForm's shape) plus per-entry actions
+// — notify, promote to a real reservation, remove — rather than a
+// read-only list, since the whole point of a waitlist is acting on it.
+function VenueWaitlistTab({ venueId }: { venueId: string }) {
+  const { data, loading, error, reload } = useAsync(() => api.venueWaitlist(venueId), [venueId]);
+  const [showForm, setShowForm] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+
+  const entries = data || [];
+  const pending = entries.filter((e) => e.status === "WAITING" || e.status === "NOTIFIED");
+  const resolved = entries.filter((e) => e.status === "CONVERTED" || e.status === "EXPIRED" || e.status === "CANCELLED");
+
+  async function notify(id: string) {
+    setBusyId(id); setErr("");
+    try { await api.notifyVenueWaitlistEntry(venueId, id); await reload(); }
+    catch (e: any) { setErr(e.message || "Couldn't notify that guest."); }
+    finally { setBusyId(null); }
+  }
+  async function promote(id: string) {
+    setBusyId(id); setErr("");
+    try { await api.promoteVenueWaitlistEntry(venueId, id); await reload(); }
+    catch (e: any) { setErr(e.message || "Couldn't seat that guest."); }
+    finally { setBusyId(null); }
+  }
+  async function remove(id: string) {
+    setBusyId(id); setErr("");
+    try { await api.removeVenueWaitlistEntry(venueId, id); await reload(); }
+    catch (e: any) { setErr(e.message || "Couldn't remove that entry."); }
+    finally { setBusyId(null); }
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span><i className="icon-clock" /> Waitlist</span>
+        <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowForm((v) => !v)}>
+          <i className="icon-plus" /> {showForm ? "Cancel" : "Add to waitlist"}
+        </button>
+      </p>
+
+      {showForm && <VenueWaitlistJoinForm venueId={venueId} onDone={() => { setShowForm(false); reload(); }} />}
+      {err && <p className="errline">{err}</p>}
+
+      {loading && (
+        <div>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+          <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
+        </div>
+      )}
+      {error && <p className="errline">{error}</p>}
+      {!loading && !error && (
+        pending.length > 0 ? (
+          <ul className="steps">
+            {pending.map((e) => (
+              <li key={e.id} style={{ flexDirection: "column", alignItems: "stretch" }}>
+                <div style={{ display: "flex", alignItems: "center", width: "100%", gap: 10 }}>
+                  <i className="icon-user" />
+                  <span style={{ flex: 1 }}>
+                    {e.guestName} <small style={{ color: "var(--text-3)" }}>· party of {e.partySize}</small>
+                    <br />
+                    <small style={{ color: "var(--text-3)" }}>{e.requestedDate.slice(0, 10)} · {e.requestedTimeWindow}</small>
+                    {" "}
+                    <span className={"ec-badge " + (e.status === "NOTIFIED" ? "confirmed" : "")}>{e.status === "NOTIFIED" ? "notified" : "waiting"}</span>
+                  </span>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {e.status === "WAITING" && (
+                      <button className="btn glass sm" onClick={() => notify(e.id)} disabled={busyId === e.id}>Notify</button>
+                    )}
+                    <button className="btn glass sm success" onClick={() => promote(e.id)} disabled={busyId === e.id}>Seat now</button>
+                    <button className="btn glass sm danger" onClick={() => remove(e.id)} disabled={busyId === e.id}>Remove</button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: "var(--text-2)", fontSize: 13.5, marginBottom: 18 }}>No one's waiting right now.</p>
+        )
+      )}
+
+      {resolved.length > 0 && (
+        <details style={{ marginTop: 12 }}>
+          <summary className="hint" style={{ cursor: "pointer" }}>Past entries ({resolved.length})</summary>
+          <ul className="steps" style={{ marginTop: 8 }}>
+            {resolved.map((e) => (
+              <li key={e.id}>
+                <i className="icon-user" />
+                <span style={{ flex: 1 }}>
+                  {e.guestName} <small style={{ color: "var(--text-3)" }}>· party of {e.partySize} · {e.requestedDate.slice(0, 10)}</small>
+                </span>
+                <span className={"ec-badge " + (e.status === "CONVERTED" ? "confirmed" : "out")}>{e.status.toLowerCase()}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </>
+  );
+}
+
+function VenueWaitlistJoinForm({ venueId, onDone }: { venueId: string; onDone: () => void }) {
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [partySize, setPartySize] = useState("2");
+  const [requestedDate, setRequestedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [requestedTimeWindow, setRequestedTimeWindow] = useState("19:00");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit() {
+    if (!guestName.trim() || !guestEmail.trim()) { setErr("Name and email are required."); return; }
+    setSaving(true); setErr("");
+    try {
+      await api.joinVenueWaitlist(venueId, {
+        guestName: guestName.trim(), guestEmail: guestEmail.trim(), guestPhone: guestPhone.trim() || undefined,
+        partySize: Number(partySize) || 1, requestedDate, requestedTimeWindow, notes: notes.trim() || undefined,
+      });
+      onDone();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't add that guest to the waitlist.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="dash-card" style={{ padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+      <p className="hint" style={{ margin: 0 }}><i className="icon-clock" /> Add a guest to the waitlist</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <input className="toolbar-field" placeholder="Guest name" value={guestName} onChange={(e) => setGuestName(e.target.value)} />
+        <input className="toolbar-field" placeholder="Email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} />
+        <input className="toolbar-field" placeholder="Phone (optional)" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} />
+        <input className="toolbar-field" inputMode="numeric" placeholder="Party size" value={partySize} onChange={(e) => setPartySize(e.target.value)} />
+        <input className="toolbar-field" type="date" value={requestedDate} onChange={(e) => setRequestedDate(e.target.value)} />
+        <input className="toolbar-field" placeholder="Requested time, e.g. 19:00" value={requestedTimeWindow} onChange={(e) => setRequestedTimeWindow(e.target.value)} />
+      </div>
+      <input className="toolbar-field" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      {err && <p className="errline">{err}</p>}
+      <button className="btn glass" onClick={submit} disabled={saving}>{saving ? "Saving…" : "Add to waitlist"}</button>
     </div>
   );
 }

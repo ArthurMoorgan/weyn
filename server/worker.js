@@ -3,7 +3,7 @@
 // existing Express app (still calling app.listen()) on the Workers runtime.
 // See: https://developers.cloudflare.com/workers/tutorials/deploy-an-express-app/
 import { httpServerHandler } from "cloudflare:node";
-import { createApp, runReminderScan, runCampaignScan, runAutomationScan } from "./app.js";
+import { createApp, runReminderScan, runCampaignScan, runAutomationScan, runContactBirthdayScan } from "./app.js";
 import { r2Storage } from "./storage-r2.js";
 
 const PORT = 3000; // internal only — Workers routes requests in, this never binds a real socket
@@ -18,5 +18,6 @@ export default {
     ctx.waitUntil(runReminderScan());
     ctx.waitUntil(runCampaignScan());
     ctx.waitUntil(runAutomationScan());
+    ctx.waitUntil(runContactBirthdayScan());
   },
 };

@@ -452,6 +452,7 @@ export interface MarketingContact {
   subscribed: boolean;
   source: string;
   tags: string[];
+  birthday: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -767,6 +768,35 @@ export interface VenueApplication {
   createdAt: string;
 }
 
+export type VenueWaitlistStatus = "WAITING" | "NOTIFIED" | "CONVERTED" | "EXPIRED" | "CANCELLED";
+
+export interface VenueWaitlistEntry {
+  id: string;
+  venueId: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone?: string | null;
+  partySize: number;
+  requestedDate: string;
+  requestedTimeWindow: string;
+  notes?: string | null;
+  status: VenueWaitlistStatus;
+  priority: number;
+  notifiedAt?: string | null;
+  convertedReservationId?: string | null;
+  createdAt: string;
+}
+
+export interface VenueWaitlistInput {
+  guestName: string;
+  guestEmail: string;
+  guestPhone?: string;
+  partySize: number;
+  requestedDate: string;
+  requestedTimeWindow: string;
+  notes?: string;
+}
+
 export interface ReservationInput {
   guestName: string;
   guestEmail: string;
@@ -912,6 +942,7 @@ async function json<T>(res: Response): Promise<T> {
 export type PromoCode = {
   id: string; code: string; discountType: "percent" | "flat"; discountValue: number;
   maxUses: number | null; usedCount: number; startsAt: string | null; endsAt: string | null; active: boolean;
+  minQuantity: number | null;
 };
 
 // ---- organizer dashboard: cross-event views ----
@@ -1018,7 +1049,64 @@ export interface Sponsor {
   amount: number | null;
   deliverables: string[];
   status: "prospect" | "confirmed" | "delivered";
+  impressions: number;
+  clicks: number;
+  leadsGenerated: number;
+  estValue: number;
+  roi: number | null;
   createdAt: string;
+}
+
+// ---- Check-ins (feature 1) ----
+export type CheckInStatus = "VALID" | "DUPLICATE" | "INVALID";
+export interface CheckIn {
+  id: string;
+  eventId: string;
+  ticketId: string | null;
+  bookingId: string | null;
+  scannedAt: string;
+  scannedBy: string | null;
+  method: string;
+  status: CheckInStatus;
+}
+export interface CheckInSummary {
+  total: number;
+  checkedIn: number;
+  recent: CheckIn[];
+}
+
+// ---- Staff shift scheduling (feature 4) ----
+export interface EventShift {
+  id: string;
+  eventId: string;
+  teamMemberId: string;
+  role: string | null;
+  startTime: string;
+  endTime: string;
+  notes: string | null;
+  createdAt: string;
+  teamMember?: { id: string; invitedEmail: string; role: TeamRole };
+}
+
+// ---- Budget tracking (feature 5) ----
+export interface Budget {
+  id: string;
+  eventId: string;
+  category: string;
+  allocatedAmount: number;
+  currency: string;
+  createdAt: string;
+  spent?: number;
+  remaining?: number;
+  overBudget?: boolean;
+}
+
+export interface NpsSummary {
+  total: number;
+  nps: number | null;
+  promoters: number;
+  passives: number;
+  detractors: number;
 }
 
 export interface Vendor {
@@ -1164,13 +1252,6 @@ export const api = {
   },
   async rejectAgentAction(id: string): Promise<AgentAction> {
     return fetch(`${API_BASE}/api/organizer/ai/actions/${id}/reject`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
-  },
-  registerPush(deviceId: string, deviceSecret: string, token: string, platform: string): Promise<{ ok: boolean }> {
-    return fetch(`${API_BASE}/api/push/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deviceId, deviceSecret, token, platform }),
-    }).then((r) => json(r));
   },
   async contactSupport(input: { subject: string; message: string }): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/support`, {
@@ -1343,7 +1424,7 @@ export const api = {
   async listMarketingContacts(): Promise<MarketingContact[]> {
     return fetch(`${API_BASE}/api/me/marketing-contacts`, { headers: await authHeaders() }).then((r) => json(r));
   },
-  async addMarketingContact(input: { email: string; name?: string }): Promise<MarketingContact> {
+  async addMarketingContact(input: { email: string; name?: string; birthday?: string }): Promise<MarketingContact> {
     return fetch(`${API_BASE}/api/me/marketing-contacts`, {
       method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
     }).then((r) => json(r));
@@ -1482,8 +1563,58 @@ export const api = {
     const qs = accessToken ? `?accessToken=${encodeURIComponent(accessToken)}` : "";
     return fetch(`${API_BASE}/api/bookings/${bookingId}/tickets${qs}`).then((r) => json(r));
   },
-  async checkInTicket(code: string): Promise<{ ok: boolean; checkedInAt: string }> {
-    return fetch(`${API_BASE}/api/tickets/${encodeURIComponent(code)}/checkin`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
+  async checkInTicket(code: string, opts?: { method?: "qr" | "manual"; eventId?: string }): Promise<{ ok: boolean; checkedInAt: string }> {
+    return fetch(`${API_BASE}/api/tickets/${encodeURIComponent(code)}/checkin`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ method: opts?.method || "qr", eventId: opts?.eventId }),
+    }).then((r) => json(r));
+  },
+  async eventCheckins(eventId: string): Promise<CheckInSummary> {
+    return fetch(`${API_BASE}/api/events/${eventId}/checkins`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async transferTicket(code: string, toEmail: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/tickets/${encodeURIComponent(code)}/transfer`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ toEmail }),
+    }).then((r) => json(r));
+  },
+
+  // ---- Staff shift scheduling ----
+  async listShifts(eventId: string): Promise<EventShift[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/shifts`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async createShift(eventId: string, input: { teamMemberId: string; startTime: string; endTime: string; role?: string; notes?: string }): Promise<EventShift> {
+    return fetch(`${API_BASE}/api/events/${eventId}/shifts`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async deleteShift(eventId: string, shiftId: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/shifts/${shiftId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- Budget tracking ----
+  async listBudgets(eventId: string): Promise<Budget[]> {
+    return fetch(`${API_BASE}/api/events/${eventId}/budgets`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async createBudget(eventId: string, input: { category: string; allocatedAmount: number; currency?: string }): Promise<Budget> {
+    return fetch(`${API_BASE}/api/events/${eventId}/budgets`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json(r));
+  },
+  async deleteBudget(eventId: string, budgetId: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/budgets/${budgetId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- NPS + AI feedback summary ----
+  async feedbackNps(eventId: string): Promise<NpsSummary> {
+    return fetch(`${API_BASE}/api/events/${eventId}/feedback/nps`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async summarizeFeedback(eventId: string): Promise<{ summary: string; themes: string[] }> {
+    return fetch(`${API_BASE}/api/events/${eventId}/feedback/summarize`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- QR flyer/poster ----
+  flyerUrl(eventId: string): string {
+    return `${API_BASE}/api/events/${eventId}/flyer.svg`;
   },
 
   // ---- search ----
@@ -1692,6 +1823,11 @@ export const api = {
       method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ status }),
     }).then((r) => json(r));
   },
+  async updateSponsorRoi(id: string, patch: { impressions?: number; clicks?: number; leadsGenerated?: number }): Promise<Sponsor> {
+    return fetch(`${API_BASE}/api/organizer/sponsors/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(patch),
+    }).then((r) => json(r));
+  },
   async deleteSponsor(id: string): Promise<{ ok: boolean }> {
     return fetch(`${API_BASE}/api/organizer/sponsors/${id}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
@@ -1825,7 +1961,7 @@ export const api = {
   async listPromoCodes(eventId: string): Promise<PromoCode[]> {
     return fetch(`${API_BASE}/api/events/${eventId}/promo-codes`, { headers: await authHeaders() }).then((r) => json(r));
   },
-  async createPromoCode(eventId: string, input: { code: string; discountType: "percent" | "flat"; discountValue: number; maxUses?: number; startsAt?: string; endsAt?: string }): Promise<PromoCode> {
+  async createPromoCode(eventId: string, input: { code: string; discountType: "percent" | "flat"; discountValue: number; maxUses?: number; startsAt?: string; endsAt?: string; minQuantity?: number }): Promise<PromoCode> {
     return fetch(`${API_BASE}/api/events/${eventId}/promo-codes`, {
       method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify(input),
@@ -1837,10 +1973,10 @@ export const api = {
       body: JSON.stringify({ active }),
     }).then((r) => json(r));
   },
-  async validatePromoCode(eventId: string, code: string): Promise<{ code: string; discountType: "percent" | "flat"; discountValue: number }> {
+  async validatePromoCode(eventId: string, code: string, qty?: number): Promise<{ code: string; discountType: "percent" | "flat"; discountValue: number; minQuantity: number | null }> {
     return fetch(`${API_BASE}/api/promo-codes/validate`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eventId, code }),
+      body: JSON.stringify({ eventId, code, qty }),
     }).then((r) => json(r));
   },
   attendeesCsvUrl(eventId: string): string {
@@ -1896,6 +2032,31 @@ export const api = {
     return fetch(`${API_BASE}/api/venues/${venueId}/reservations/manual`, {
       method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
     }).then((r) => json<Reservation>(r));
+  },
+  // ---- venue reservation waitlist ----
+  async joinVenueWaitlist(venueId: string, input: VenueWaitlistInput): Promise<VenueWaitlistEntry> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/waitlist`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(input),
+    }).then((r) => json<VenueWaitlistEntry>(r));
+  },
+  async venueWaitlist(venueId: string): Promise<VenueWaitlistEntry[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/waitlist`, { headers: { ...(await authHeaders()) } })
+      .then((r) => json<VenueWaitlistEntry[]>(r));
+  },
+  async notifyVenueWaitlistEntry(venueId: string, entryId: string): Promise<VenueWaitlistEntry> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/waitlist/${entryId}/notify`, {
+      method: "POST", headers: { ...(await authHeaders()) },
+    }).then((r) => json<VenueWaitlistEntry>(r));
+  },
+  async promoteVenueWaitlistEntry(venueId: string, entryId: string, time?: string): Promise<{ entry: VenueWaitlistEntry; reservation: Reservation }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/waitlist/${entryId}/promote`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ time }),
+    }).then((r) => json<{ entry: VenueWaitlistEntry; reservation: Reservation }>(r));
+  },
+  async removeVenueWaitlistEntry(venueId: string, entryId: string): Promise<VenueWaitlistEntry> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/waitlist/${entryId}`, {
+      method: "DELETE", headers: { ...(await authHeaders()) },
+    }).then((r) => json<VenueWaitlistEntry>(r));
   },
   async venueAnalytics(venueId: string): Promise<VenueAnalytics> {
     return fetch(`${API_BASE}/api/venues/${venueId}/analytics`, { headers: { ...(await authHeaders()) } })

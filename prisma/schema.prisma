@@ -288,6 +288,9 @@ model Event {
   marketingLinks    MarketingLink[]
   referralCodes     ReferralCode[]
   socialPosts       SocialPost[]
+  checkIns          CheckIn[]
+  shifts            EventShift[]
+  budgets           Budget[]
 
   @@index([organizer])
   @@index([featured])
@@ -372,9 +375,10 @@ model EventTeamMember {
   // Empty array = full access implied by `role` (STAFF=check-in, MANAGER=all).
   permissions  String[]         @default([])
 
-  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user    User? @relation("TeamMembership", fields: [userId], references: [id])
-  inviter User  @relation("TeamInviter", fields: [invitedBy], references: [id])
+  event   Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User?        @relation("TeamMembership", fields: [userId], references: [id])
+  inviter User         @relation("TeamInviter", fields: [invitedBy], references: [id])
+  shifts  EventShift[]
 
   // one active (non-revoked) membership per person per event — re-inviting
   // after a revoke creates a new row rather than fighting a unique index
@@ -520,12 +524,85 @@ model Ticket {
   // than forcing every event into the seat-picking flow.
   seatId      String?   @unique
 
+  // ---- Ticket transfers: reassigning a ticket to a different attendee ----
+  // Purely informational re-labeling — the same Ticket row (and its `code`)
+  // keeps admitting whoever holds the code; this just records who it's
+  // supposed to belong to now, for the attendee list / re-sent confirmation.
+  transferredToEmail String?
+  transferredAt       DateTime?
+  transferredBy       String? // User.id of the organizer/staff who actioned it
+
   booking Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   event   Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   seat    FloorSeat? @relation(fields: [seatId], references: [id])
+  checkIns CheckIn[]
 
   @@index([bookingId])
   @@index([eventId])
+}
+
+// ---- QR check-in scanning: append-only log of every scan attempt, distinct
+// from Ticket.checkedInAt/checkedInBy (which just tracks the current
+// admitted/not-admitted state) — this records EVERY scan including
+// duplicates/invalid codes, for the live "checked in vs total" count and a
+// per-event history view.
+enum CheckInStatus {
+  VALID
+  DUPLICATE
+  INVALID
+}
+
+model CheckIn {
+  id         String        @id @default(cuid())
+  eventId    String
+  ticketId   String?
+  bookingId  String?
+  scannedAt  DateTime      @default(now())
+  scannedBy  String? // User.id of the organizer/staff who scanned
+  method     String        @default("qr") // "qr" | "manual"
+  status     CheckInStatus
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticket  Ticket?  @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([ticketId])
+  @@index([eventId, status])
+}
+
+// ---- Staff shift scheduling ----
+model EventShift {
+  id            String   @id @default(cuid())
+  eventId       String
+  teamMemberId  String
+  role          String?
+  startTime     DateTime
+  endTime       DateTime
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  event      Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  teamMember EventTeamMember  @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([teamMemberId])
+}
+
+// ---- Budget tracking with alerts — loosely linked to Expense by matching
+// `category` strings (not a hard FK, since expenses are freeform-category
+// and a budget line can exist before any expense is logged against it) ----
+model Budget {
+  id              String   @id @default(cuid())
+  eventId         String
+  category        String
+  allocatedAmount Float
+  currency        String   @default("OMR")
+  createdAt       DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@unique([eventId, category])
 }
 
 // Append-only trail for anything that mutates state on someone else's
@@ -548,6 +625,12 @@ model AuditLog {
   @@index([createdAt])
 }
 
+// DEAD as of the OneSignal migration (see server/onesignal.js) — OneSignal
+// manages device registration/subscriptions itself client-side, so nothing
+// writes to this model anymore (server/app.js's old POST /api/push/register
+// was removed). Left in place rather than migrated away — db.js's
+// upsertPushToken/tokenForDevice/tokensForUser still exist too. Safe to drop
+// in a later cleanup once OneSignal has been live for a while.
 model PushToken {
   id           String   @id @default(cuid())
   deviceId     String   @unique
@@ -562,10 +645,9 @@ model PushToken {
   @@index([userId])
 }
 
-// Web Push (VAPID) subscriptions — browser/PWA push. This is the channel
-// that actually reaches current users: PushToken above is native-APNs only
-// and there is no native app in users' hands yet. One row per
-// browser+device; endpoint is globally unique per the Push API spec.
+// DEAD as of the OneSignal migration, same as PushToken above — OneSignal's
+// web SDK manages its own subscriptions; the old POST /api/push/web-subscribe
+// / web-unsubscribe routes that wrote here were removed from server/app.js.
 model WebPushSubscription {
   id        String   @id @default(cuid())
   userId    String
@@ -823,6 +905,10 @@ model MarketingContact {
   subscribed        Boolean  @default(true)
   source            String   @default("manual") // "manual" | "csv_import"
   tags              String[] @default([])
+  // Birthday/anniversary reminder automation: optional date-of-birth (year
+  // may be a placeholder if unknown — only month/day are used for the
+  // "contact_birthday" AutomationRule trigger match).
+  birthday          DateTime?
   unsubscribeToken  String   @unique
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -891,9 +977,51 @@ model Venue {
   socialPosts              VenueSocialPost[]
   marketingContacts        VenueMarketingContact[]
   emailCampaignSends       VenueEmailCampaignSend[]
+  waitlistEntries          VenueWaitlistEntry[]
 
   @@index([ownerId])
   @@index([category])
+}
+
+// ---- venue reservation waitlist (fully-booked slot → guest joins a
+// waitlist, gets notified/promoted when a table opens up). Deliberately a
+// separate model from the per-event WaitlistEntry above (see that model's
+// comment) and from LandingWaitlistSignup — this one is scoped to a real
+// Venue + a requested date/time, and can be promoted straight into a real
+// Reservation row. ----
+enum VenueWaitlistStatus {
+  WAITING
+  NOTIFIED
+  CONVERTED
+  EXPIRED
+  CANCELLED
+}
+
+model VenueWaitlistEntry {
+  id                  String              @id @default(cuid())
+  venueId             String
+  guestName           String
+  guestEmail          String
+  guestPhone          String?
+  partySize           Int
+  requestedDate       DateTime
+  requestedTimeWindow String // free-text, e.g. "19:00" or "19:00-21:00"
+  notes               String?
+  status              VenueWaitlistStatus @default(WAITING)
+  // Higher = notified/promoted first when a slot frees up. Plain guest
+  // joins default to 0; an owner can bump a VIP up manually from the
+  // dashboard.
+  priority            Int                 @default(0)
+  notifiedAt          DateTime?
+  convertedReservationId String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId])
+  @@index([venueId, status])
+  @@index([requestedDate])
 }
 
 model VenueAvailabilitySlot {
@@ -1263,6 +1391,9 @@ model PromoCode {
   discountValue Float // percent: 0-100, flat: OMR amount
   maxUses       Int? // null = unlimited
   usedCount     Int       @default(0)
+  // Group discounts: code only applies at checkout when cart qty >= this.
+  // Null = no minimum (applies to any quantity), same as before this field.
+  minQuantity   Int?
   startsAt      DateTime? // null = active immediately (early-bird window's open end)
   endsAt        DateTime? // null = no expiry
   active        Boolean   @default(true)
@@ -1526,6 +1657,10 @@ model Sponsor {
   amount       Float?
   deliverables String[] @default([])
   status       String   @default("prospect") // prospect | confirmed | delivered
+  // ---- Sponsor ROI tracking ----
+  impressions     Int      @default(0)
+  clicks          Int      @default(0)
+  leadsGenerated  Int      @default(0)
   createdAt    DateTime @default(now())
 
   organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
