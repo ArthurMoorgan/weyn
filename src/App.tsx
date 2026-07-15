@@ -49,14 +49,6 @@ export default function App() {
   const [hostOpen, setHostOpen] = useState(false);
   const hostRef = useRef<HTMLDivElement>(null);
   const onHostRoute = location.pathname.startsWith("/host");
-  // Which slot the sliding highlight pill (.tab-indicator) sits behind —
-  // TABS' own order (Discover/Tickets/Profile), with Host as the 4th slot
-  // since it renders after them in the same row. -1 means nothing in the
-  // row is active (e.g. a route inside neither, like /saved) — the
-  // indicator just hides itself rather than resting on a wrong tab.
-  const activeTabIndex = onHostRoute
-    ? TABS.length
-    : TABS.findIndex((t) => (t.to === "/" ? location.pathname === "/" : location.pathname.startsWith(t.to)));
 
   useEffect(() => {
     if (activeMainTab && !visited.has(activeMainTab.path)) {
@@ -74,32 +66,6 @@ export default function App() {
   }, [hostOpen]);
 
   useEffect(() => { setHostOpen(false); }, [location.pathname]);
-
-  // Auto-hiding nav (Uber/Apple convention): slides away while scrolling
-  // down (content gets the full screen), returns the instant the user
-  // scrolls up, reaches the top, or changes route. Capture-phase listener so
-  // scrolling inside any nested container counts, not just window. A 6px
-  // dead-zone filters out sub-pixel jitter and iOS rubber-banding; the
-  // 64px top guard keeps the bar pinned while the page has barely moved.
-  const [navHidden, setNavHidden] = useState(false);
-  const lastYRef = useRef(0);
-  useEffect(() => {
-    function scrollTopOf(e: Event): number {
-      const t = e.target;
-      if (t instanceof Element) return t.scrollTop;
-      return window.scrollY;
-    }
-    function onScroll(e: Event) {
-      const y = scrollTopOf(e);
-      const dy = y - lastYRef.current;
-      lastYRef.current = y;
-      if (y < 64 || dy < -6) setNavHidden(false);
-      else if (dy > 6) setNavHidden(true);
-    }
-    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    return () => window.removeEventListener("scroll", onScroll, { capture: true });
-  }, []);
-  useEffect(() => { setNavHidden(false); lastYRef.current = 0; }, [location.pathname]);
 
   return (
     <div className="shell">
@@ -126,47 +92,31 @@ export default function App() {
           <Outlet />
         </Suspense>
       )}
-      <nav className="tabs" data-hidden={navHidden}>
+      {/* Instagram-style bottom bar: full-width, fixed to the screen edge,
+          always visible (no floating pill, no scroll-based hide/show).
+          Icon-only — selection reads through outline->fill (the *-fill
+          glyph swap below), same convention Instagram itself uses, so no
+          background highlight capsule is needed either. */}
+      <nav className="tabs">
         <div className="sidebar-brand brand">
           <i className="icon-sparkles" />
           <span className="en">Weyn</span>
           <span className="ar">وين؟</span>
         </div>
-        {/* One joined floating pill — Discover/Tickets/Profile + Host all
-            live in the same bar now (previously Host floated as its own
-            separate circle next to it). Icon-only on mobile (see
-            .tabs-pill/.tab span in components.css). NavLink sets
-            aria-current="page" on the active link automatically. */}
         <div className="tabs-pill">
-          {/* Sliding highlight capsule — the liquid-glass blur/refraction
-              behind the icons (see .tabs-pill's backdrop-filter) means a
-              bare icon can lose contrast against whatever's scrolling
-              underneath. This sits just above the glass and below the icon,
-              giving the active tab a solid-ish backing to read against —
-              and, like Uber/Platinumlist's tab bars, slides to track
-              whichever tab is active instead of just appearing/disappearing. */}
-          <span
-            className="tab-indicator"
-            /* 70px = tab width (64) + inter-tab gap (6); keep in sync with
-               .tab / .tabs-pill in components.css. */
-            style={{ transform: `translateX(${activeTabIndex * 70}px)`, opacity: activeTabIndex < 0 ? 0 : 1 }}
-            aria-hidden="true"
-          />
           {TABS.map((t) => (
             <NavLink
               key={t.to}
               to={t.to}
               end={t.to === "/"}
               className={({ isActive }) => "tab" + (isActive ? " on" : "")}
+              aria-label={t.label}
             >
               {({ isActive }) => (
-                <>
-                  {/* Outline glyph when inactive, solid fill when selected
-                      (iOS tab-bar convention) — the *-fill variants live in
-                      ikonate.css. */}
-                  <i className={"icon-" + t.icon + (isActive ? "-fill" : "")} />
-                  <span>{t.label}</span>
-                </>
+                // Outline glyph when inactive, solid fill when selected
+                // (iOS/Instagram tab-bar convention) — the *-fill variants
+                // live in ikonate.css.
+                <i className={"icon-" + t.icon + (isActive ? "-fill" : "")} />
               )}
             </NavLink>
           ))}
@@ -180,7 +130,6 @@ export default function App() {
               onClick={() => setHostOpen((v) => !v)}
             >
               <i className={"icon-circle-plus" + (onHostRoute ? "-fill" : "")} />
-              <span>Host</span>
             </button>
             {hostOpen && (
               <div className="tab-host-menu" role="menu">
@@ -197,11 +146,10 @@ export default function App() {
             )}
           </div>
         </div>
-        {/* Desktop-only (see .tabs-right in index.css, hidden below 900px) —
-            once the bar moves to the top on wide layouts, these are the
-            chrome that top bar earns: city, theme, and account. Host lives
-            in .tab-host above (rendered on both mobile and desktop), so no
-            separate host link needed here. */}
+        {/* Desktop-only (see .tabs-right in components.css, hidden below
+            900px) — city, theme, and account. Host lives in .tab-host above
+            (rendered on both mobile and desktop), so no separate host link
+            needed here. */}
         <div className="tabs-right">
           <CityPill />
           <ThemeToggle />
