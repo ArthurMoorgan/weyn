@@ -732,12 +732,28 @@
    popover instead of navigating straight to one flow. */
 .tab-host { position: relative; flex: 1 1 0; display: flex; }
 .tab-host > .tab { width: 100%; }
-/* macOS Dock/taskbar-style pop: scales up from a small anchor point near
-   the trigger with a springy overshoot (the bounce past 100% before
-   settling), rather than a plain fade/slide. */
+/* Dimmed scrim behind the popover — the outside-tap-to-close behavior
+   already existed (App.tsx's pointerdown listener), but with nothing
+   darkened behind it there was no visual cue the popover was a dismissable
+   overlay, and no explicit close control either (a real "how do I back out
+   of this" dead end). Matches the same backdrop convention as the filter
+   sheet / city popover elsewhere. */
+.tab-host-backdrop {
+  position: fixed; inset: 0; z-index: 45;
+  background: var(--scrim);
+  animation: fade .18s ease;
+}
+/* Right-anchored (not centered) — Host is always the last/rightmost of the
+   4 full-width tab columns (see .tab-host in App.tsx), so centering the
+   menu on the trigger like the old floating-pill nav did pushed it ~80px
+   off the right edge of the viewport on real phone widths (a real,
+   confirmed-via-measurement overflow bug found auditing back-navigation;
+   the menu's own close button was rendering off-screen and unclickable).
+   Anchoring to the trigger's right edge instead keeps the whole menu
+   on-screen regardless of viewport width. */
 .tab-host-menu {
-  position: absolute; bottom: calc(100% + 12px); left: 50%;
-  transform-origin: bottom center;
+  position: absolute; bottom: calc(100% + 12px); right: 0;
+  transform-origin: bottom right;
   width: 260px; max-width: calc(100vw - 24px);
   background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius);
   box-shadow: var(--shadow-lg); padding: 6px; z-index: 50;
@@ -745,8 +761,18 @@
   animation: tab-host-in .26s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes tab-host-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(.92); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(8px) scale(.92); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.tab-host-menu-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 8px 6px; font: var(--t-meta); font-weight: 600; color: var(--text-2);
+}
+/* Compact close button for this small popover header — the full 44px
+   .icon-btn footprint (sized for floating over photo covers) reads as
+   oversized in a 260px-wide menu. */
+.tab-host-menu-head .icon-btn.sm {
+  width: 28px; height: 28px; background: var(--surface-hover); color: var(--text-2); font-size: 14px;
 }
 .tab-host-item {
   display: flex; align-items: flex-start; gap: 10px;

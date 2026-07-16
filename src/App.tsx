@@ -61,8 +61,13 @@ export default function App() {
     const close = (e: MouseEvent) => {
       if (hostRef.current && !hostRef.current.contains(e.target as Node)) setHostOpen(false);
     };
+    const closeOnEscape = (e: KeyboardEvent) => { if (e.key === "Escape") setHostOpen(false); };
     document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
   }, [hostOpen]);
 
   useEffect(() => { setHostOpen(false); }, [location.pathname]);
@@ -132,17 +137,34 @@ export default function App() {
               <i className={"icon-circle-plus" + (onHostRoute ? "-fill" : "")} />
             </button>
             {hostOpen && (
-              <div className="tab-host-menu" role="menu">
-                {HOST_OPTIONS.map((o) => (
-                  <Link key={o.to} to={o.to} className="tab-host-item" role="menuitem" onClick={() => setHostOpen(false)}>
-                    <i className={"icon-" + o.icon} />
-                    <div>
-                      <strong>{o.label}</strong>
-                      <span>{o.hint}</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              <>
+                {/* Dimmed backdrop so it's visually obvious the popover is a
+                    dismissable overlay, not stray floating content — the
+                    outside-tap-to-close behavior already existed (the
+                    pointerdown listener above), but with nothing behind it
+                    darkened there was no visual cue that tapping away would
+                    close it, and no explicit close control either. Matches
+                    the same backdrop+close convention as the filter sheet
+                    and the city/notifications popovers elsewhere. */}
+                <div className="tab-host-backdrop" onClick={() => setHostOpen(false)} aria-hidden="true" />
+                <div className="tab-host-menu" role="menu">
+                  <div className="tab-host-menu-head">
+                    <span>Get started</span>
+                    <button type="button" className="icon-btn sm" onClick={() => setHostOpen(false)} aria-label="Close">
+                      <i className="icon-x" />
+                    </button>
+                  </div>
+                  {HOST_OPTIONS.map((o) => (
+                    <Link key={o.to} to={o.to} className="tab-host-item" role="menuitem" onClick={() => setHostOpen(false)}>
+                      <i className={"icon-" + o.icon} />
+                      <div>
+                        <strong>{o.label}</strong>
+                        <span>{o.hint}</span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
