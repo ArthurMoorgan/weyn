@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
+// Leaflet's CSS lives here (with its only consumer) rather than globally in
+// main.tsx — importing it here keeps it in this lazy route chunk's CSS
+// instead of the render-blocking entry stylesheet the home screen waits on.
+import "leaflet/dist/leaflet.css";
 import { GOOGLE_MAPS_KEY, loadGoogleMaps } from "../google-maps";
 
 // teal HTML pin — only used for the free OSM fallback map (no Google key).

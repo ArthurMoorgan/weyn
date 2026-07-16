@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { motion, MotionConfig, AnimatePresence } from "motion/react";
 import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
@@ -9,7 +9,13 @@ import Icon3D, { type Icon3DName } from "../components/Icon3D";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
 import { capture } from "../posthog";
-import SplitText from "../components/landing/SplitText";
+// Lazy: SplitText pulls in gsap (~heavy), and it only renders in the
+// non-embedded standalone hero — the running app always uses <Explore
+// embedded /> (the Discover shell owns the header), so gsap was being
+// bundled into the entry chunk for a heading that never shows in-app.
+// Lazy import keeps gsap out of the critical path; the Suspense fallback
+// renders the heading text immediately (animation is pure enhancement).
+const SplitText = lazy(() => import("../components/landing/SplitText"));
 
 // Explore is one honest list: a featured spotlight up top, then every
 // upcoming event as a full-width editorial card, all in one continuous
@@ -285,18 +291,20 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
       {!searching && !embedded && (
         <section className="ex-hero">
           <div>
-            <SplitText
-              text="Where to next?"
-              tag="h1"
-              splitType="chars"
-              duration={0.7}
-              delay={18}
-              from={{ opacity: 0, y: 14 }}
-              to={{ opacity: 1, y: 0 }}
-              textAlign="left"
-              threshold={0}
-              rootMargin="0px"
-            />
+            <Suspense fallback={<h1 style={{ textAlign: "left" }}>Where to next?</h1>}>
+              <SplitText
+                text="Where to next?"
+                tag="h1"
+                splitType="chars"
+                duration={0.7}
+                delay={18}
+                from={{ opacity: 0, y: 14 }}
+                to={{ opacity: 1, y: 0 }}
+                textAlign="left"
+                threshold={0}
+                rootMargin="0px"
+              />
+            </Suspense>
           </div>
         </section>
       )}

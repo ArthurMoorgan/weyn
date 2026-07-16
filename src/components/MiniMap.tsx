@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
+// See MapPicker: leaflet CSS scoped to this lazy chunk, not the global
+// render-blocking entry stylesheet.
+import "leaflet/dist/leaflet.css";
 import { GOOGLE_MAPS_KEY, loadGoogleMaps } from "../google-maps";
 
 const osmPinIcon = L.divIcon({
