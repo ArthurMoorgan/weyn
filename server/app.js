@@ -1655,7 +1655,14 @@ export function createApp(storage) {
     const isAdmin = req.user.role === "ADMIN";
     if (!isOwner && !isAdmin) {
       const membership = await db.getTeamMembership(ticket.eventId, req.user.id);
-      if (!membership) return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this event" } });
+      // Require MANAGER+, not merely any membership: STAFF is door-only
+      // (check-in), and reassigning a paid ticket to an arbitrary email is a
+      // materially more privileged action than scanning at the door. This
+      // route previously copied check-in's "any membership passes" check,
+      // which let a STAFF invitee hijack tickets (security audit finding).
+      if (!membership || TEAM_ROLE_RANK[membership.role] < TEAM_ROLE_RANK.MANAGER) {
+        return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this event" } });
+      }
     }
     if (ticket.checkedInAt) {
       return res.status(409).json({ error: { code: "ALREADY_USED", message: "Can't transfer a ticket that's already been checked in." } });
@@ -2406,24 +2413,30 @@ export function createApp(storage) {
       // above, so a Resend outage never loses a submission, only delays
       // the team noticing it (see server/email.js: silent no-op if
       // RESEND_API_KEY isn't set at all).
-      const notifyTo = process.env.VENUE_APPLICATION_NOTIFY_EMAIL || "dhairyarsaluja@gmail.com";
-      sendEmail({
+      const notifyTo = process.env.VENUE_APPLICATION_NOTIFY_EMAIL;
+      if (!notifyTo) {
+        console.warn("[weyn] VENUE_APPLICATION_NOTIFY_EMAIL unset — venue-application notification email skipped (application still stored).");
+      }
+      // Every field below is applicant-controlled from an UNAUTHENTICATED
+      // POST /api/venue-applications — escape all of them (security audit).
+      const e = (v, fallback = "—") => escapeHtml(v || fallback);
+      if (notifyTo) sendEmail({
         to: notifyTo,
         subject: `New venue application: ${application.name}`,
         html: `
           <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px">
             <h2 style="margin:0 0 12px">New reservation-hosting application</h2>
             <table style="width:100%;border-collapse:collapse;font-size:14px;color:#222">
-              <tr><td style="padding:6px 0;color:#888">Venue</td><td style="padding:6px 0"><b>${application.name}</b></td></tr>
-              <tr><td style="padding:6px 0;color:#888">Type</td><td style="padding:6px 0">${application.businessType}</td></tr>
-              <tr><td style="padding:6px 0;color:#888">Area</td><td style="padding:6px 0">${application.area || "—"}</td></tr>
-              <tr><td style="padding:6px 0;color:#888">Contact</td><td style="padding:6px 0">${application.contactName} (${application.role})</td></tr>
-              <tr><td style="padding:6px 0;color:#888">Email</td><td style="padding:6px 0">${application.contactEmail}</td></tr>
-              <tr><td style="padding:6px 0;color:#888">Phone</td><td style="padding:6px 0">${application.contactPhone || "—"}</td></tr>
-              <tr><td style="padding:6px 0;color:#888">Address</td><td style="padding:6px 0">${application.venue || "—"}${application.area ? ", " + application.area : ""}</td></tr>
-              <tr><td style="padding:6px 0;color:#888">Reg. no.</td><td style="padding:6px 0">${application.businessRegNo || "—"}</td></tr>
-              <tr><td style="padding:6px 0;color:#888">Price range</td><td style="padding:6px 0">${application.priceRange || "—"}</td></tr>
-              <tr><td style="padding:6px 0;color:#888;vertical-align:top">Description</td><td style="padding:6px 0">${application.description || "—"}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Venue</td><td style="padding:6px 0"><b>${e(application.name)}</b></td></tr>
+              <tr><td style="padding:6px 0;color:#888">Type</td><td style="padding:6px 0">${e(application.businessType)}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Area</td><td style="padding:6px 0">${e(application.area)}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Contact</td><td style="padding:6px 0">${e(application.contactName)} (${e(application.role)})</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Email</td><td style="padding:6px 0">${e(application.contactEmail)}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Phone</td><td style="padding:6px 0">${e(application.contactPhone)}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Address</td><td style="padding:6px 0">${e(application.venue)}${application.area ? ", " + escapeHtml(application.area) : ""}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Reg. no.</td><td style="padding:6px 0">${e(application.businessRegNo)}</td></tr>
+              <tr><td style="padding:6px 0;color:#888">Price range</td><td style="padding:6px 0">${e(application.priceRange)}</td></tr>
+              <tr><td style="padding:6px 0;color:#888;vertical-align:top">Description</td><td style="padding:6px 0">${e(application.description)}</td></tr>
             </table>
             <p style="margin:18px 0 6px"><a href="${(process.env.PUBLIC_APP_URL || "https://weynevents.com").replace(/\/$/, "")}${application.proofDocUrl}" style="color:#1C6DD0">View ownership proof document →</a></p>
             <p style="margin:0"><a href="${(process.env.PUBLIC_APP_URL || "https://weynevents.com").replace(/\/$/, "")}/admin" style="color:#1C6DD0">Review &amp; approve in the admin queue →</a></p>
@@ -2609,10 +2622,20 @@ export function createApp(storage) {
         return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Only a WAITING entry can be notified" } });
       }
       const updated = await prisma.venueWaitlistEntry.update({ where: { id: entry.id }, data: { status: "NOTIFIED", notifiedAt: new Date() } });
+      // Escape every interpolated field: guestName/guestEmail come from an
+      // UNAUTHENTICATED public waitlist-join (the joiner can put arbitrary
+      // HTML in guestName and an arbitrary victim address in guestEmail), and
+      // venue.name can itself trace back to an unescaped venue application —
+      // so raw interpolation here let a joiner deliver arbitrary HTML to any
+      // address under Weyn's trusted sending domain. (Security audit: High.)
+      const firstName = escapeHtml(entry.guestName.split(" ")[0] || "there");
+      const venueName = escapeHtml(req.venue.name);
+      const timeWindow = escapeHtml(entry.requestedTimeWindow);
+      const partySize = Number(entry.partySize) || 0;
       sendEmail({
         to: entry.guestEmail,
         subject: `${req.venue.name}: A table may be opening up`,
-        html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">Good news, ${entry.guestName.split(" ")[0] || "there"}</h2><p style="line-height:1.5;color:#222">A table may be opening up at ${req.venue.name} for your party of ${entry.partySize} around ${entry.requestedTimeWindow} on ${entry.requestedDate.toISOString().slice(0, 10)}. Reply or call to confirm and we'll get you seated.</p></div>`,
+        html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><h2 style="margin:0 0 12px">Good news, ${firstName}</h2><p style="line-height:1.5;color:#222">A table may be opening up at ${venueName} for your party of ${partySize} around ${timeWindow} on ${entry.requestedDate.toISOString().slice(0, 10)}. Reply or call to confirm and we'll get you seated.</p></div>`,
       }).catch((err) => captureError(err, { route: "POST /api/venues/:id/waitlist/:entryId/notify (email)", entryId: entry.id }));
       res.json(updated);
     } catch (err) {
@@ -2813,7 +2836,7 @@ export function createApp(storage) {
   // generic "write me an email" prompt. Always a draft the owner reviews
   // and edits before sending — never auto-sent, same policy as every
   // other AI Studio feature in this app.
-  app.post("/api/venues/:id/campaigns/ai-draft", requireAuth, requireVenueOwner, requireFeature("aiStudio"), async (req, res) => {
+  app.post("/api/venues/:id/campaigns/ai-draft", importLimiter, requireAuth, requireVenueOwner, requireFeature("aiStudio"), async (req, res) => {
     if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
     const goal = String(req.body?.goal || "").trim();
     if (!goal) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Describe what this campaign should achieve." } });
