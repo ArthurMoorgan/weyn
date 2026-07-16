@@ -724,14 +724,34 @@
 }
 .tab [class^="icon-"] { font-size: 25px; display: inline-block; color: var(--text); transition: transform .15s cubic-bezier(.25,1,.5,1); }
 .tab.on [class^="icon-"] { transform: scale(1.04); }
+/* Icon-only on mobile (Instagram convention) — labeled again on desktop's
+   top bar, see the >=900px block below. */
+.tab span { display: none; }
 .sidebar-brand { display: none; }
 .tabs-right { display: none; }
 
 /* Host — now just another item inside the bar (no more standalone
    circle/glass of its own); a button (not a link) that opens a two-item
    popover instead of navigating straight to one flow. */
-.tab-host { position: relative; flex: 1 1 0; display: flex; }
-.tab-host > .tab { width: 100%; }
+.tab-host { position: relative; flex: 1 1 0; display: flex; justify-content: center; }
+/* Host as a real FAB (mobile only — see the design-brief direction: "large,
+   circular, black background with white icon"), not just the 4th equal-
+   width tab slot. Raised proud of the bar on its own filled circle so the
+   primary create/host action reads as elevated, not just another icon. */
+.tab-host > .tab {
+  /* flex: none overrides the base .tab rule's flex: 1 1 0 (grow=1 would
+     otherwise stretch this to fill the whole slot width, squashing the
+     circle into an oval — the actual bug this fixes). */
+  flex: none;
+  width: 56px; height: 56px; min-height: 56px;
+  border-radius: 50%;
+  background: var(--text); color: var(--bg);
+  transform: translateY(-10px);
+  box-shadow: var(--shadow-md);
+  transition: transform .15s cubic-bezier(.25,1,.5,1), background-color .15s ease;
+}
+.tab-host > .tab:active { transform: translateY(-10px) scale(.93); }
+.tab-host > .tab [class^="icon-"] { color: var(--bg); font-size: 24px; }
 /* Dimmed scrim behind the popover — the outside-tap-to-close behavior
    already existed (App.tsx's pointerdown listener), but with nothing
    darkened behind it there was no visual cue the popover was a dismissable
@@ -2092,10 +2112,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 /* ============================================================
    Desktop layout — everything above this point is still the mobile
-   layout unchanged. At >=900px the bottom tab bar becomes a fixed left
-   sidebar and content widens from the phone-width column to a real
-   desktop reading width, matching every other flat/minimal surface
-   already defined above (same cards, same tokens — just more room).
+   layout unchanged. At >=900px content widens from the phone-width column
+   to a real desktop reading width, matching every other flat/minimal
+   surface already defined above (same cards, same tokens — just more
+   room), and the nav becomes a real top bar.
    ============================================================ */
 @media (min-width: 900px) {
   :root {
@@ -2103,15 +2123,68 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
     --t-hero: 700 32px/1.1 var(--f-display);
   }
 
-  /* The nav stays a floating bottom pill on desktop too (Uber-style: one
-     nav, one place, every form factor) — the previous top-bar conversion
-     also never reset the mobile translateX(-50%), which left the desktop
-     bar's background spanning only half the viewport. Content just gets
-     the width back; no top chrome. .tabs-right (city/theme/avatar cluster)
-     stays hidden — those utilities live on the Profile tab. */
   .shell {
     box-sizing: border-box;
+    /* Nav moved from the bottom edge to the top — see .tabs below. */
+    padding-top: calc(64px + env(safe-area-inset-top));
+    padding-bottom: 0;
   }
+
+  /* A real top bar — logo left, labeled inline links, a right-aligned
+     utility cluster. The Instagram-style bottom bar (icon-only, full-
+     width, evenly-spaced) is a mobile pattern; stretched across a wide
+     desktop viewport it read as 4 icons stranded with huge dead gaps
+     between them — a real bug, not a stylistic choice, found auditing the
+     desktop layout. Top bars are the actual desktop-web convention. */
+  .tabs {
+    position: fixed; top: 0; left: 0; right: 0; bottom: auto; z-index: 40;
+    height: 64px; min-height: 64px;
+    align-items: center; gap: 4px;
+    padding: 0 28px;
+    border-top: none; border-bottom: 1px solid var(--divider);
+    padding-bottom: 0;
+  }
+  .sidebar-brand {
+    display: flex; align-items: baseline; gap: 8px; flex: 0 0 auto;
+    padding-right: 20px;
+  }
+  .sidebar-brand > i { align-self: center; font-size: 18px; color: var(--text); }
+  .sidebar-brand .en { font: 700 17px/1 var(--f-display); letter-spacing: -0.2px; color: var(--text); }
+  .sidebar-brand .ar { font-family: "Noto Naskh Arabic", serif; font-size: 15px; color: var(--text-3); }
+
+  .tabs-pill { flex: 0 0 auto; gap: 4px; }
+  .tab {
+    flex: 0 0 auto; flex-direction: row; height: auto; min-height: auto;
+    padding: 9px 14px; border-radius: var(--radius-pill); gap: 8px;
+  }
+  .tab [class^="icon-"] { font-size: 19px; }
+  /* The label is icon-only-hidden on mobile (see the base .tab span rule) —
+     desktop has the room, and a top bar with unlabeled icons reads as
+     unfinished in a way a bottom tab bar doesn't. */
+  .tab span { display: inline; font: var(--t-meta); font-weight: 600; }
+  /* Desktop's selected state is a soft tint (not the mobile outline->fill
+     swap alone) — there's no thumb-reach affordance to lean on here, so
+     the active tab needs its own visible backing. */
+  .tab.on { background: var(--accent-soft); color: var(--text); }
+
+  .tab-host { flex: 0 0 auto; justify-content: flex-start; }
+  /* The circular FAB treatment is a mobile bottom-nav pattern (per the
+     design brief it's modeled on) — reset back to a normal inline top-bar
+     tab here, matching Discover/Tickets/Profile. */
+  .tab-host > .tab {
+    width: auto; height: auto; min-height: auto; flex-direction: row;
+    border-radius: var(--radius-pill); background: none; color: var(--text-2);
+    transform: none; box-shadow: none; padding: 9px 14px; gap: 8px;
+  }
+  .tab-host > .tab:active { transform: scale(.97); }
+  .tab-host > .tab.on { background: var(--accent-soft); color: var(--text); }
+  .tab-host > .tab [class^="icon-"] { color: var(--text); font-size: 19px; }
+  /* Opens downward from a top-bar trigger instead of upward from a bottom
+     one — same right-anchored footprint (still avoids off-screen overflow
+     on the wide end of the viewport, same reasoning as the mobile fix). */
+  .tab-host-menu { bottom: auto; top: calc(100% + 10px); }
+
+  .tabs-right { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: 0 0 auto; }
 
   /* dense row lists become a 3-column grid on desktop — uses the width
      instead of one long centered column, without shrinking each row */

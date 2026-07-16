@@ -4,17 +4,18 @@ export function dismissSplash() {
   const root = document.documentElement;
   if (!root.classList.contains("show-splash")) return;
   const elapsed = performance.now() - shownAt;
-  // Min on-screen time: the entry choreography (strokes draw by ~900ms,
-  // dot pops at ~620ms, wordmark settles by ~1.1s — see index.html's
-  // splash <style>) must complete before the exit starts, or the mark
-  // gets cut off mid-draw. Long enough to land as a brand moment, short
-  // enough to never feel like a loading screen.
-  const wait = Math.max(0, 1150 - elapsed);
+  // Min on-screen time: retimed down from 1150ms after feedback that the
+  // fixed hold made every load feel slow. The entry choreography (strokes
+  // draw by ~370ms, dot pops ~430ms, wordmark settles ~660ms — see
+  // index.html's splash <style>, retimed to match) needs to finish before
+  // the exit starts, plus a short beat to actually register as a brand
+  // moment rather than a flash.
+  const wait = Math.max(0, 750 - elapsed);
   setTimeout(() => {
     root.classList.add("splash-exit");
     setTimeout(() => {
       document.getElementById("splash")?.remove();
       root.classList.remove("show-splash", "splash-exit");
-    }, 520);
+    }, 380);
   }, wait);
 }

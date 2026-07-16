@@ -11,17 +11,23 @@
      off-black, ink itself is the accent — white "primary" in dark, black
      in light. No hue anywhere in the chrome; color lives only in event
      photography. Variable NAMES unchanged (~300 call sites). */
-  --bg:             #0A0A0A;
-  --bg-elevated:    #131313;
-  --surface:        #161616;
-  --surface-hover:  #1F1F1F;
-  --border:         #262626;
-  --border-strong:  #333333;
+  /* Softened off-black, not literal #0A0A0A/near-#000 — a true near-black
+     background across a full-viewport surface is a real eye-strain/OLED-
+     smear complaint (halation against any bright content), not just a
+     stylistic nitpick. #121212 is the same floor Material dark theme
+     settled on for exactly this reason. Text also stepped back from pure
+     #F5F5F5 for the same reason on large body-copy blocks. */
+  --bg:             #121212;
+  --bg-elevated:    #1A1A1A;
+  --surface:        #191919;
+  --surface-hover:  #232323;
+  --border:         #2A2A2A;
+  --border-strong:  #383838;
   /* "Primary" is ink: white on dark. Hover/pressed step through greys. */
   --primary:        #FFFFFF;
   --primary-hover:  #E8E8E8;
   --primary-pressed:#D4D4D4;
-  --on-primary:     #0A0A0A;
+  --on-primary:     #121212;
   /* CTA buttons: white-on-black in dark mode, black-on-white in light. */
   --cta-bg:         var(--primary);
   --cta-on-cta:     var(--on-primary);
@@ -31,15 +37,15 @@
   --warning:        #B0B0B0;
   --error:          #E5564C;
   --info:           #B0B0B0;
-  --text:           #F5F5F5;
+  --text:           #EDEDED;
   --text-2:         #9C9C9C;
-  --text-3:         #787878;
-  --text-disabled:  #555555;
-  --icon:           #F5F5F5;
+  --text-3:         #7E7E7E;
+  --text-disabled:  #585858;
+  --icon:           #EDEDED;
   --icon-2:         #9C9C9C;
-  --divider:        #262626;
-  --card-bg:        #161616;
-  --card-border:    #262626;
+  --divider:        #2A2A2A;
+  --card-bg:        #191919;
+  --card-border:    #2A2A2A;
   --card-shadow:    0 1px 2px rgba(0,0,0,.4);
   --accent-soft:    rgba(255,255,255,.10);
   --success-soft:   rgba(255,255,255,.08);
@@ -60,9 +66,9 @@
   --line:        var(--border);
   --chip-soft:   var(--surface-hover);
 
-  /* Sharper, flatter than the previous pass — Uber/Instagram read as
-     crisp rectangles with modest rounding, not soft "bubble" cards. */
-  --radius: 12px; --radius-sm: 8px; --radius-pill: 999px; --maxw: 468px;
+  /* Consistent large radius on cards/buttons/inputs (16-24px range), per
+     the design-brief direction — up from the previous sharper 12/8px pass. */
+  --radius: 16px; --radius-sm: 12px; --radius-pill: 999px; --maxw: 468px;
   --shadow-sm: 0 1px 2px rgba(0,0,0,.35);
   --shadow-md: 0 1px 3px rgba(0,0,0,.4), 0 4px 10px rgba(0,0,0,.3);
   --shadow-lg: 0 2px 6px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.4);
@@ -138,18 +144,18 @@
   color-scheme: light;
   /* Monochrome light: white cards on faint neutral grey, black ink as the
      accent. Depth from hairline + whisper shadow, never a tinted bg. */
-  --bg: #FAFAFA; --bg-elevated: #F2F2F2; --surface: #FFFFFF; --surface-hover: #F4F4F4;
+  --bg: #FAFAFA; --bg-elevated: #F2F2F2; --surface: #FCFCFB; --surface-hover: #F4F4F4;
   --border: #E8E8E8; --border-strong: #D9D9D9;
-  --primary: #0A0A0A; --primary-hover: #262626; --primary-pressed: #000000;
-  --on-primary: #FFFFFF;
+  --primary: #121212; --primary-hover: #2A2A2A; --primary-pressed: #000000;
+  --on-primary: #FCFCFB;
   --cta-bg: var(--text);
   --cta-on-cta: #FFFFFF;
   /* Greyscale semantics; error keeps one desaturated red (see dark block). */
   --success: #3D3D3D; --warning: #6B6B6B; --error: #B3362D; --info: #6B6B6B;
   /* --text-3 #717171 = 4.6:1 on this bg — keeps WCAG AA for captions. */
-  --text: #0A0A0A; --text-2: #5C5C5C; --text-3: #717171; --text-disabled: #ADADAD;
-  --icon: #0A0A0A; --icon-2: #5C5C5C; --divider: #E8E8E8;
-  --card-bg: #FFFFFF; --card-border: #E8E8E8;
+  --text: #171717; --text-2: #5C5C5C; --text-3: #717171; --text-disabled: #ADADAD;
+  --icon: #171717; --icon-2: #5C5C5C; --divider: #E8E8E8;
+  --card-bg: #FCFCFB; --card-border: #E8E8E8;
   --card-shadow: 0 1px 2px rgba(0,0,0,.05);
   --accent-soft: rgba(10,10,10,.06); --success-soft: rgba(10,10,10,.05);
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);

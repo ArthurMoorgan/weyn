@@ -97,11 +97,16 @@ export default function App() {
           <Outlet />
         </Suspense>
       )}
-      {/* Instagram-style bottom bar: full-width, fixed to the screen edge,
-          always visible (no floating pill, no scroll-based hide/show).
-          Icon-only — selection reads through outline->fill (the *-fill
-          glyph swap below), same convention Instagram itself uses, so no
-          background highlight capsule is needed either. */}
+      {/* Mobile (<900px): Instagram-style bottom bar — full-width, fixed to
+          the screen edge, always visible, icon-only (selection reads through
+          outline->fill). Desktop (>=900px): a normal top bar — logo left,
+          labeled inline links, city/theme/avatar utility cluster right (see
+          the >=900px block in components.css). Stretching the mobile bottom
+          bar full-width across a desktop viewport (the previous pass) left
+          4 icons rattling around in a huge empty bar — not a real desktop
+          nav pattern; top bars are. Same <nav>, same links, CSS repositions
+          it per breakpoint — .tab span (the label) is always in the DOM,
+          just hidden below 900px, so there's one source of truth per tab. */}
       <nav className="tabs">
         <div className="sidebar-brand brand">
           <i className="icon-sparkles" />
@@ -118,10 +123,13 @@ export default function App() {
               aria-label={t.label}
             >
               {({ isActive }) => (
-                // Outline glyph when inactive, solid fill when selected
-                // (iOS/Instagram tab-bar convention) — the *-fill variants
-                // live in ikonate.css.
-                <i className={"icon-" + t.icon + (isActive ? "-fill" : "")} />
+                <>
+                  {/* Outline glyph when inactive, solid fill when selected
+                      (iOS/Instagram tab-bar convention) — the *-fill
+                      variants live in ikonate.css. */}
+                  <i className={"icon-" + t.icon + (isActive ? "-fill" : "")} />
+                  <span>{t.label}</span>
+                </>
               )}
             </NavLink>
           ))}
@@ -135,6 +143,7 @@ export default function App() {
               onClick={() => setHostOpen((v) => !v)}
             >
               <i className={"icon-circle-plus" + (onHostRoute ? "-fill" : "")} />
+              <span>Host</span>
             </button>
             {hostOpen && (
               <>
