@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Mark } from "./Logo";
-import GlassSurface from "./GlassSurface";
 
 type BIPEvent = Event & { prompt: () => void; userChoice: Promise<{ outcome: string }> };
 
@@ -49,7 +48,11 @@ export default function InstallPrompt() {
 
   return (
     <>
-      <GlassSurface width="100%" height="auto" borderRadius={16} backgroundOpacity={0.14} saturation={1.4} className="install-card">
+      {/* Plain shadow-separated card (design brief), not the GlassSurface
+          SVG-displacement panel — that filter has a blue chromatic-offset
+          channel that rendered a stray blue edge, clashing with the
+          monochrome system. */}
+      <div className="install-card">
         <div className="ic-mark"><Mark size={26} /></div>
         <div className="ic-body">
           <b>Install Weyn</b>
@@ -58,7 +61,7 @@ export default function InstallPrompt() {
         <button className="btn" style={{ width: "auto", padding: "11px 18px" }} onClick={install}>
           <i className="icon-download" /> Install
         </button>
-      </GlassSurface>
+      </div>
 
       {sheet && (
         <div className="sheet-backdrop" onClick={() => setSheet(null)}>

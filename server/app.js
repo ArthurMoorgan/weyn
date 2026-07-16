@@ -1572,13 +1572,21 @@ export function createApp(storage) {
   // codes rendered as QR client-side — the booking owner needs these to show
   // at the door, so no auth beyond knowing the (unguessable cuid) booking id
   app.get("/api/bookings/:id/tickets", async (req, res) => {
-    const booking = await db.getBooking(req.params.id);
-    if (!booking) return res.status(404).json({ error: "Booking not found" });
-    if (booking.accessToken && req.query.accessToken !== booking.accessToken) {
-      return res.status(403).json({ error: "Ticket access token is required" });
+    // try/catch so a DB error returns a real 500 instead of an unhandled
+    // rejection that hangs the request (Express-4 async gap — see the
+    // security audit's note on un-wrapped async handlers).
+    try {
+      const booking = await db.getBooking(req.params.id);
+      if (!booking) return res.status(404).json({ error: "Booking not found" });
+      if (booking.accessToken && req.query.accessToken !== booking.accessToken) {
+        return res.status(403).json({ error: "Ticket access token is required" });
+      }
+      const tickets = await db.ticketsForBooking(req.params.id);
+      res.json(tickets.map((t) => ({ code: t.code, checkedInAt: t.checkedInAt })));
+    } catch (e) {
+      console.error("[weyn] GET /api/bookings/:id/tickets failed:", e?.message);
+      res.status(500).json({ error: "Couldn't load your ticket." });
     }
-    const tickets = await db.ticketsForBooking(req.params.id);
-    res.json(tickets.map((t) => ({ code: t.code, checkedInAt: t.checkedInAt })));
   });
 
   // Door check-in — only the event's owner/staff (or an ADMIN) can scan

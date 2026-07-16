@@ -19,17 +19,26 @@ export default function TicketSheet({
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
   const [walletToast, setWalletToast] = useState(false);
+  // Ticket "generation" success moment (design brief 2): the sheet opens on a
+  // brief generating state, then the ticket reveals with a check-pop + a
+  // one-time sheen sweep across the stub. `revealed` gates that transition so
+  // it plays exactly once, when the real ticket data arrives.
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     api.getBookingTickets(bookingId, accessToken)
       .then(async (rows) => {
         if (cancelled) return;
-        setTickets(rows);
         const entries = await Promise.all(
           rows.map(async (t) => [t.code, await QRCode.toDataURL(t.code, { margin: 1, width: 320 })] as const)
         );
-        if (!cancelled) setQrDataUrls(Object.fromEntries(entries));
+        if (cancelled) return;
+        setQrDataUrls(Object.fromEntries(entries));
+        setTickets(rows);
+        // Enforce a short floor so the generating→revealed transition always
+        // registers as a deliberate confirmation moment, even on a warm cache.
+        setTimeout(() => !cancelled && setRevealed(true), 260);
       })
       .catch((e) => !cancelled && setErr(e.message || "Couldn't load your ticket."));
     return () => { cancelled = true; };
@@ -38,17 +47,20 @@ export default function TicketSheet({
   return (
     <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
       <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 4 }}>My ticket</h3>
-        {tickets && tickets.length > 1 && <p className="sub" style={{ marginBottom: 16 }}>1 of {tickets.length} · swipe for more</p>}
+        <h3 style={{ marginBottom: 4 }}>{revealed ? "My ticket" : "Preparing your ticket"}</h3>
+        {revealed && tickets && tickets.length > 1 && <p className="sub" style={{ marginBottom: 16 }}>1 of {tickets.length} · swipe for more</p>}
 
         {err && <p className="errline">{err}</p>}
 
-        {!err && tickets === null && (
-          <div className="detail-skel-cover" style={{ height: 320, borderRadius: 26, margin: "0 auto" }} />
+        {!err && !revealed && (
+          <div className="ticket-generating" aria-busy="true" aria-label="Preparing your ticket">
+            <span className="ticket-generating-mark" />
+          </div>
         )}
 
-        {tickets?.map((t) => (
-          <div key={t.code} className="ticket-stub">
+        {revealed && tickets?.map((t) => (
+          <div key={t.code} className="ticket-stub reveal">
+            <span className="ticket-success-check" aria-hidden="true"><i className="icon-circle-check" /></span>
             {/* Dark header band — intentionally near-black in both themes
                 (the Editorial handoff's ticket stub reads as a printed
                 physical ticket, not a themed UI surface). */}
@@ -74,7 +86,7 @@ export default function TicketSheet({
           </div>
         ))}
 
-        {tickets && !err && (
+        {revealed && tickets && !err && (
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             <button
               className="btn"

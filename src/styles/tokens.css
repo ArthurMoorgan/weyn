@@ -46,7 +46,13 @@
   --divider:        #2A2A2A;
   --card-bg:        #191919;
   --card-border:    #2A2A2A;
-  --card-shadow:    0 1px 2px rgba(0,0,0,.4);
+  /* Design-brief card treatment: separation comes from a soft DIFFUSED
+     shadow + a slightly-lifted surface tone, NOT a hairline border ("no
+     hard dividers or borders are used for separation"). On a dark canvas a
+     pure-black shadow barely registers, so elevation is carried mostly by
+     the lighter card surface (#191919 on the #121212 canvas) plus this
+     two-layer soft shadow for the grounding/contact cue. */
+  --card-shadow:    0 1px 2px rgba(0,0,0,.5), 0 6px 20px rgba(0,0,0,.34);
   --accent-soft:    rgba(255,255,255,.10);
   --success-soft:   rgba(255,255,255,.08);
   --scrim: rgba(0,0,0,0.6);
@@ -156,7 +162,9 @@
   --text: #171717; --text-2: #5C5C5C; --text-3: #717171; --text-disabled: #ADADAD;
   --icon: #171717; --icon-2: #5C5C5C; --divider: #E8E8E8;
   --card-bg: #FCFCFB; --card-border: #E8E8E8;
-  --card-shadow: 0 1px 2px rgba(0,0,0,.05);
+  /* Light: soft diffused shadow does the separating work (brief 1), white
+     card floating on the faint off-white canvas — no hairline border. */
+  --card-shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 20px rgba(17,17,17,.06);
   --accent-soft: rgba(10,10,10,.06); --success-soft: rgba(10,10,10,.05);
   --surface-2: var(--surface-hover); --accent: var(--primary); --accent-2: var(--primary-hover);
   --danger: var(--error); --ink: var(--text); --hair: var(--divider); --line: var(--border);

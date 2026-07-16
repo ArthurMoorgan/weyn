@@ -487,12 +487,14 @@ model Payment {
   id             String        @id @default(cuid())
   bookingId      String        @unique
   paytabsTranRef String?       @unique
-  // Pre-existing column on the live DB (added by a migration that never made
-  // it into this repo's migrations/ directory — discovered as drift while
-  // adding EventWorkflow/EventWorkflowRun below; documenting it here rather
-  // than dropping it is the non-destructive fix, not something new this pass
-  // introduces).
-  stripeSessionId String?      @unique
+  // NOTE: a `stripeSessionId` field used to be declared here. It only ever
+  // existed on the old Neon DB as untracked drift (added by a migration that
+  // never made it into migrations/), was unreferenced by any code (no Stripe
+  // integration exists), and does NOT exist on the migration-built Supabase
+  // DB the app now runs on. Keeping it in the schema made every query that
+  // joins `payment` (e.g. getBooking → ticket viewing, checkout confirm)
+  // fail with "column Payment.stripeSessionId does not exist" after the
+  // Supabase cutover. Removed so the schema matches the real DB.
   amount         Float
   status         PaymentStatus @default(pending)
   rawWebhook     Json?
