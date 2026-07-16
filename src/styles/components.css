@@ -1325,6 +1325,18 @@
   background: rgba(0,0,0,0.35);
   display: grid; place-items: center; font-size: 18px; color: #fff;
   transition: transform .15s cubic-bezier(.25,1,.5,1), background-color .18s;
+  /* ikonate.css's catch-all `[class^="icon-"]` fallback (meant only for
+     actual <i class="icon-name"> glyphs with no matching mask rule) also
+     matches this class purely because its name happens to start with
+     "icon-" — that rule's mask-image: linear-gradient(transparent,
+     transparent) then silently wins the cascade (nothing else here ever
+     set mask-image), rendering every .icon-btn on the page completely
+     invisible while staying fully interactive/hit-testable. Reset it
+     explicitly so this wrapper renders. Real bug found auditing the
+     desktop layout — EventDetail's back/share/save buttons (and every
+     other .icon-btn: Checkout, Account, Admin, VenueDetail...) were
+     invisible everywhere, not just on desktop. */
+  mask-image: none; -webkit-mask-image: none;
 }
 .icon-btn:active { transform: scale(.88); background: rgba(0,0,0,0.5); }
 .icon-btn.on { color: var(--danger); }
