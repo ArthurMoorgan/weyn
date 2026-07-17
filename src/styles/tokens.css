@@ -117,10 +117,14 @@
   --cat-culture: #333333; --cat-cars: #3F3F3F; --cat-workshop: #383838;
   --cat-community: #2B2B2B;
 
-  /* Niche-grid tile accents — real hue per category, used only as a soft
-     glow behind the icon on the discovery grid's dark tiles (reference:
-     colorful category cards on a near-black canvas). Kept separate from
-     --cat-* above so the monochrome fallback-cover system is untouched. */
+  /* Niche-grid tile accents — real hue per category, used on the discovery
+     grid's dark tiles (reference: colorful category cards on a near-black
+     canvas). Kept separate from --cat-* above so the monochrome
+     fallback-cover system is untouched. --hue-* is the matching hue-rotate
+     angle used to tint the (grey/white) 3D icon renders themselves via a
+     sepia+hue-rotate CSS filter chain — recoloring the actual icon art
+     rather than just glowing behind it, since we don't have real per-color
+     icon renders yet. */
   --tile-all:       #8A8AFF;
   --tile-music:     #B24CFF;
   --tile-sports:    #FF6A3D;
@@ -128,6 +132,12 @@
   --tile-culture:   #FFC24C;
   --tile-workshop:  #4CFFB0;
   --tile-community: #4C7FFF;
+  --hue-music:      240deg;
+  --hue-sports:     341deg;
+  --hue-food:       315deg;
+  --hue-culture:    5deg;
+  --hue-workshop:   120deg;
+  --hue-community:  195deg;
 
   /* fallback scrim used by Stub.tsx cover gradients */
   --fallback-scrim: rgba(0,0,0,0.35);

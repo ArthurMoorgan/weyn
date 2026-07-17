@@ -194,9 +194,9 @@
    chip, nothing else. Row is shorter now (no permanent labels under every
    icon), reclaiming vertical space for the events themselves. */
 /* Niche grid: 3-column grid of dark tiles, each carrying its own category
-   glow — replaces the earlier monochrome horizontal-scroll rail. Reference:
-   dark near-black cards, colorful icon per niche, label under the icon,
-   3 per row. */
+   color on the icon itself (see .cat-circle-ring img below) — replaces the
+   earlier monochrome horizontal-scroll rail. Reference: dark near-black
+   cards, colorful icon per niche, label under the icon, 3 per row. */
 .cat-circles {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
   padding: 4px 20px 4px;
@@ -210,16 +210,21 @@
 .cat-circle.on {
   border-color: var(--tile-cat, var(--text));
 }
-/* Glow tile behind the icon — one real hue per category (--tile-*), a soft
-   radial so it reads as colorful lighting rather than a flat badge. Icon
-   art itself stays the existing monochrome 3D render; the color lives in
-   the glow, same split as the reference's colored-card/neutral-icon look. */
 .cat-circle-ring {
   width: 52px; height: 52px; border-radius: 50%;
   display: grid; place-items: center; flex: 0 0 auto;
-  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--tile-cat, var(--primary)) 55%, transparent), transparent 72%);
+  background: var(--surface-hover);
   color: var(--text);
   transition: transform .15s ease;
+}
+/* Colorize the icon art itself, not just a badge behind it — the renders
+   are grey/white 3D product shots with no chroma of their own, so a plain
+   hue-rotate does nothing (rotating a hue that doesn't exist). sepia(1)
+   first injects a brownish tint (real chroma to work with), then
+   hue-rotate(--hue-cat) spins that tint to the category's real hue,
+   saturate boosts it back up to a vivid, non-washed-out color. */
+.cat-circle-ring img {
+  filter: sepia(1) saturate(6) hue-rotate(var(--icon-hue, 0deg)) brightness(1.05) contrast(1.05);
 }
 .cat-circle-label {
   font: var(--t-meta); font-weight: 600; color: var(--text); white-space: nowrap;

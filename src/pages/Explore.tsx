@@ -6,7 +6,6 @@ import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isP
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import Stub from "../components/Stub";
-import HomeFeed from "../components/HomeFeed";
 import PullToRefresh from "../components/PullToRefresh";
 import { preloadEventDetail } from "../eventDetailChunk";
 import Icon3D, { type Icon3DName } from "../components/Icon3D";
@@ -390,15 +389,16 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               <motion.button
                 key={c.key}
                 className={"cat-circle" + (isOn ? " on" : "")}
-                style={{ "--tile-cat": `var(--tile-${c.key})` } as React.CSSProperties}
+                style={{ "--tile-cat": `var(--tile-${c.key})`, "--icon-hue": `var(--hue-${c.key})` } as React.CSSProperties}
                 onClick={() => setCat(c.key as Cat | "all")}
                 aria-pressed={isOn}
                 aria-label={c.label}
                 whileTap={{ scale: 0.96 }}
               >
-                {/* Niche grid: each tile carries its own category hue as a
-                    soft glow behind the icon (--tile-cat, set inline above)
-                    — reference direction. Icon art itself is unchanged. */}
+                {/* Niche grid: each tile's icon is recolored to its category
+                    hue via a CSS filter (--icon-hue, set inline above; see
+                    .cat-circle-ring img in components.css) — the color lives
+                    in the icon art itself, not a glow behind it. */}
                 <motion.span
                   className="cat-circle-ring"
                   animate={{ scale: isOn ? 1.06 : 1 }}
@@ -508,12 +508,23 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
         )
       )}
 
-      {/* ---- discovery: personalized sections via HomeFeed ---- */}
+      {/* ---- discovery: one hero + every other event, one flat list ---- */}
       {!loading && !error && S.mode === "browse" && (
         S.all.length === 0 ? (
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
-          <HomeFeed events={S.all} loading={loading} isAuthenticated={!!account} />
+          <>
+            {S.heroPool.length > 0 && <FeaturedSpotlight events={S.heroPool} />}
+            {S.rest.length > 0 && (
+              <section className="ex-section">
+                <div className="ex-head">
+                  <h2>All events</h2>
+                  <span className="ex-sub">{S.rest.length}</span>
+                </div>
+                <div className="ex-agenda">{S.rest.map((e) => <Stub key={e.id} e={e} variant="card" />)}</div>
+              </section>
+            )}
+          </>
         )
       )}
 
