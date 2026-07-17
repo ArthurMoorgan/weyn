@@ -341,6 +341,7 @@ function MoreMenu({ account, isHost, hasVenues, isAdmin, counts, onOpen }: {
     { key: "overview", label: "You", sub: "Tickets, saved & activity", icon: "layout-grid", tab: "overview", show: true },
     { key: "saved", label: "Saved", sub: counts.saved > 0 ? `${counts.saved} event${counts.saved === 1 ? "" : "s"}` : "Tap the heart on any event", icon: "heart", tab: "saved", show: true },
     { key: "lists", label: "Lists", sub: "Group events to remember or share", icon: "list", tab: "lists", show: account },
+    { key: "friends", label: "Friends", sub: "People you follow", icon: "users", to: "/friends", show: account },
     { key: "account", label: "Manage account", sub: "Profile & sign-out", icon: "user-cog", to: "/account", show: account },
     { key: "support", label: "Help & support", icon: "life-buoy", to: "/support", show: true },
   ];

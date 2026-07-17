@@ -9,6 +9,7 @@ import MiniMap from "../components/MiniMap";
 import FollowButton from "../components/FollowButton";
 import TicketSheet from "../components/TicketSheet";
 import FloorPlanCanvas from "../components/FloorPlanCanvas";
+import WhosGoing from "../components/WhosGoing";
 import type { Collection } from "../api";
 import { downloadEventIcs } from "../ics";
 import Tooltip from "../components/Tooltip";
@@ -32,6 +33,7 @@ export default function EventDetail() {
   const [activeSlide, setActiveSlide] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
   const [contactSheet, setContactSheet] = useState(false);
+  const [inviteSheet, setInviteSheet] = useState(false);
 
   // Restores the "you're going / ticket reserved" bar on a return visit —
   // previously `booked` only ever got set optimistically inside book()
@@ -264,6 +266,13 @@ export default function EventDetail() {
               </button>
             </Tooltip>
           )}
+          {account && (
+            <Tooltip text="Invite friends">
+              <button className="icon-btn" onClick={() => setInviteSheet(true)} aria-label="Invite friends">
+                <i className="icon-send" />
+              </button>
+            </Tooltip>
+          )}
         </div>
         {!hasCarousel && !ev.image && <span className="glyph">{ev.glyph}</span>}
       </motion.div>
@@ -275,6 +284,7 @@ export default function EventDetail() {
         ) : null;
       })()}
       {contactSheet && ev.organizerContact && <ContactOrganizerSheet contact={ev.organizerContact} onClose={() => setContactSheet(false)} />}
+      {inviteSheet && <InviteFriendsSheet eventId={ev.id} eventTitle={ev.title} onClose={() => setInviteSheet(false)} />}
 
       <div className="sheet glass">
         <span className={`catpill cat-${ev.cat}`}>{cat?.label}</span>
@@ -426,6 +436,8 @@ export default function EventDetail() {
           </p>
         )}
         {searchParams.get("feedback") === "1" && <FeedbackWidget eventId={ev.id} bookingId={ticketFor(ev.id)?.bookingId} />}
+
+        <WhosGoing eventId={ev.id} currentUserId={account?.id} />
       </div>
       </div>
 
@@ -646,6 +658,42 @@ function ContactOrganizerSheet({ contact, onClose }: { contact: string; onClose:
           </li>
         </ul>
         <button className="btn glass" style={{ marginTop: 14, width: "100%" }} onClick={close}>Done</button>
+      </div>
+    </div>
+  );
+}
+
+function InviteFriendsSheet({ eventId, eventTitle, onClose }: { eventId: string; eventTitle: string; onClose: () => void }) {
+  const { closing, close } = useClosing(onClose);
+  const [copied, setCopied] = useState(false);
+
+  const inviteLink = `/e/${eventId}`;
+
+  async function copyToClipboard() {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* clipboard blocked */ }
+  }
+
+  return (
+    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
+      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginBottom: 12 }}>Invite friends</h3>
+        <p style={{ marginBottom: 14, color: "var(--text-2)", fontSize: 14 }}>Event: <b>{eventTitle}</b></p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: 12, backgroundColor: "var(--bg-2)", borderRadius: 8, marginBottom: 14 }}>
+          <code style={{ flex: 1, fontSize: 13, wordBreak: "break-all" }}>{inviteLink}</code>
+          <button
+            className="copy-btn"
+            onClick={copyToClipboard}
+            style={{ marginLeft: 8, flexShrink: 0 }}
+            aria-label="Copy link"
+          >
+            {copied ? <><i className="icon-check" /> Copied</> : <i className="icon-copy" />}
+          </button>
+        </div>
+        <button className="btn glass" style={{ width: "100%" }} onClick={close}>Done</button>
       </div>
     </div>
   );

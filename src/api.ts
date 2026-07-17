@@ -515,6 +515,13 @@ export interface OrganizerProfile {
   events: Weyn[];
 }
 
+export interface FollowingUser {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  followerCount: number;
+}
+
 export interface DashboardSummary {
   totalEvents: number;
   upcomingEvents: number;
@@ -1346,6 +1353,9 @@ export const api = {
   async getAttendees(id: string): Promise<Attendee[]> {
     return fetch(`${API_BASE}/api/events/${id}/attendees`, { headers: await authHeaders() }).then((r) => json<Attendee[]>(r));
   },
+  async getEventAttendeesSummary(id: string): Promise<{ attendees: { name: string | null }[]; totalCount: number }> {
+    return fetch(`${API_BASE}/api/events/${id}/attendees-summary`).then((r) => json(r));
+  },
   // Identity itself now comes from Clerk — this just returns the app-side
   // fields (role, id) that live in our own DB, e.g. for the admin link.
   async me(): Promise<{ id: string; email: string; name: string; avatarUrl: string | null; role: "ATTENDEE" | "ORGANIZER" | "ADMIN" }> {
@@ -1664,6 +1674,14 @@ export const api = {
   },
   async followingFeed(): Promise<Weyn[]> {
     return fetch(`${API_BASE}/api/me/following-feed`, { headers: await authHeaders() }).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));
+  },
+
+  // ---- following users (person-to-person) ----
+  async getFollowingList(): Promise<FollowingUser[]> {
+    return fetch(`${API_BASE}/api/me/following`, { headers: await authHeaders() }).then((r) => json<FollowingUser[]>(r));
+  },
+  async unfollowUser(id: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/users/${id}/follow`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- collections ----

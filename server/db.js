@@ -340,6 +340,21 @@ export const db = {
     });
     return bookings;
   },
+  // Public/unauthenticated endpoint — never return real attendee names here,
+  // only derived initials, so anonymous visitors can't scrape a real name
+  // list for who bought tickets to an event.
+  async attendeesSummary(eventId) {
+    const bookings = await prisma.booking.findMany({
+      where: { eventId, status: "paid" },
+      select: { name: true },
+      orderBy: { bookedAt: "asc" },
+    });
+    const initials = bookings.map((b) => {
+      const parts = (b.name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2);
+      return { initials: parts.length ? parts.map((w) => w[0].toUpperCase()).join("") : "?" };
+    });
+    return { attendees: initials, totalCount: bookings.length };
+  },
   async duePendingReminders(windowStartMs, windowEndMs) {
     const bookings = await prisma.booking.findMany({
       where: {
@@ -1391,6 +1406,25 @@ export const db = {
       orderBy: { startsAt: "asc" },
     });
     return events.map(shape);
+  },
+  // List of users the given user follows — with name, avatar, follower count
+  async followingList(userId) {
+    const ids = await db.followingIds(userId);
+    if (!ids.length) return [];
+    const users = await prisma.user.findMany({
+      where: { id: { in: ids }, deletedAt: null },
+      select: { id: true, name: true, avatarUrl: true },
+    });
+    // Fetch follower count for each user
+    const list = await Promise.all(
+      users.map(async (u) => ({
+        id: u.id,
+        name: u.name,
+        avatarUrl: u.avatarUrl,
+        followerCount: await db.followerCount(u.id),
+      }))
+    );
+    return list;
   },
 
   // ---- collections (Pinterest-style saved lists, see schema.prisma) ----

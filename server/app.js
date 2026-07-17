@@ -1861,6 +1861,11 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
     res.json(await db.attendeesForEvent(req.event.id));
   });
 
+  // Public summary of attendees for event detail page (Who's Going)
+  app.get("/api/events/:id/attendees-summary", async (req, res) => {
+    res.json(await db.attendeesSummary(req.params.id));
+  });
+
   // ============================================================
   // Organizer Pro features. Every route below either requires a specific
   // feature flag (requireFeature — see server/features.js) or, for
@@ -4477,6 +4482,16 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // of the follow graph, surfaced as its own feed rather than just a count
   app.get("/api/me/following-feed", requireAuth, async (req, res) => {
     res.json(await db.followingFeed(req.user.id));
+  });
+
+  // ---- following users (person-to-person) ----
+  app.get("/api/me/following", requireAuth, async (req, res) => {
+    res.json(await db.followingList(req.user.id));
+  });
+
+  app.delete("/api/users/:id/follow", requireAuth, async (req, res) => {
+    await db.unfollowOrganizer(req.user.id, req.params.id);
+    res.json({ ok: true });
   });
 
   // ---- collections (Pinterest-style saved lists, see schema.prisma) ----
