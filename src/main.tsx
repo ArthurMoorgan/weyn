@@ -42,6 +42,7 @@ const HostVenue = lazy(() => import("./pages/HostVenue"));
 const VenueDetail = lazy(() => import("./pages/VenueDetail"));
 const Support = lazy(() => import("./pages/Support"));
 const Account = lazy(() => import("./pages/Account"));
+const Search = lazy(() => import("./pages/Search"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const OrganizerLayout = lazy(() => import("./pages/organizer/Layout"));
 const OrganizerOverview = lazy(() => import("./pages/organizer/Overview"));
@@ -268,6 +269,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               <Route path="/checkout/organizer-payment" element={<OrganizerPaymentCheckout />} />
               <Route path="/invite/:token" element={<InviteAccept />} />
               <Route path="/collections/:id" element={<CollectionPage />} />
+              <Route path="/search" element={<Search />} />
               <Route path="/support" element={<Support />} />
               <Route path="/account" element={<Account />} />
               {/* Catch-all — unknown paths used to render a bare black

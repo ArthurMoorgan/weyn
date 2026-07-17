@@ -5,6 +5,7 @@ import { MotionButton } from "../motion";
 import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
+import { addRecentSearch, getRecentSearches, clearRecentSearches } from "../hooks/useRecentSearches";
 import Stub from "../components/Stub";
 import PullToRefresh from "../components/PullToRefresh";
 import { preloadEventDetail } from "../eventDetailChunk";
@@ -208,6 +209,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   const [showSuggest, setShowSuggest] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [showFilters, setShowFilters] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   // null = no price ceiling set yet (slider sits at the catalog's max, so
   // dragging it down is the only way this ever actually filters anything).
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
@@ -219,6 +221,13 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   // Explore is the app's root route, so the initial-content-loading period
   // here is exactly what the first-launch splash should cover.
   useEffect(() => { if (!loading) dismissSplash(); }, [loading]);
+
+  // Load recent searches when q becomes empty
+  useEffect(() => {
+    if (!q.trim()) {
+      setRecentSearches(getRecentSearches());
+    }
+  }, [q]);
 
   const suggestions = useMemo(() => buildSuggestions((data || []).filter((e) => !e.cancelled && !isPast(e)), q), [data, q]);
 
@@ -239,6 +248,12 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   }
 
   function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && q.trim()) {
+      e.preventDefault();
+      addRecentSearch(q.trim());
+      setShowSuggest(false);
+      return;
+    }
     if (!showSuggest || suggestions.length === 0) return;
     if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx((i) => (i + 1) % suggestions.length); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx((i) => (i <= 0 ? suggestions.length - 1 : i - 1)); }
@@ -370,6 +385,35 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
       </div>
+
+      {!searching && recentSearches.length > 0 && (
+        <div className="recent-searches">
+          <div className="recent-searches-header">
+            <span className="recent-searches-label">Recent searches</span>
+            <button
+              className="recent-searches-clear"
+              onClick={() => {
+                clearRecentSearches();
+                setRecentSearches([]);
+              }}
+              aria-label="Clear recent searches"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="chips">
+            {recentSearches.map((search) => (
+              <button
+                key={search}
+                className="chip"
+                onClick={() => setQ(search)}
+              >
+                {search}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!searching && (
         <div className="chips chips-when chips-desktop-only">

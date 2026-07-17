@@ -96,3 +96,18 @@ export function getPopularOrganizers(events: Weyn[]): OrganizerStats[] {
     .sort((a, b) => b.eventCount - a.eventCount)
     .slice(0, 6);
 }
+
+// Popular searches: hard-coded list of trending search terms derived from
+// category names and common time-based searches. Displayed when search is
+// empty to help users discover events.
+export function getPopularSearches(): string[] {
+  return [
+    "Music Events",
+    "Sports Tonight",
+    "Free Events",
+    "This Weekend",
+    "Food & Dining",
+    "Workshops",
+    "Live Theater",
+  ];
+}
