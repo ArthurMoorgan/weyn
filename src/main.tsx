@@ -28,6 +28,7 @@ import { markSplashShown, dismissSplash } from "./splash";
 import { initPostHog, identifyPostHog, resetPostHog } from "./posthog";
 
 const EventDetail = lazy(preloadEventDetail);
+const Explore = lazy(() => import("./pages/Explore"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Saved = lazy(() => import("./pages/Saved"));
 const Organizer = lazy(() => import("./pages/Organizer"));
@@ -222,6 +223,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   the actual rendering. */}
               <Route element={<App />}>
                 <Route path="/" />
+                <Route path="/explore" element={<Explore />} />
                 {/* Reservations is no longer its own tab — venue browsing
                     folded into Discover's Venues mode. Keep the old path
                     working by redirecting it home. */}

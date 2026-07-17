@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion, MotionConfig, AnimatePresence } from "motion/react";
 import { MotionButton } from "../motion";
 import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
@@ -190,11 +190,15 @@ const SUGGEST_ICON: Record<Suggestion["kind"], string> = {
 
 export default function Explore({ embedded = false }: { embedded?: boolean }) {
   const account = useAccount();
+  const [searchParams] = useSearchParams();
   // The onboarding-redirect that used to live here moved to AuthGate
   // (main.tsx) — Explore now sits behind that gate, so by the time this
   // ever mounts, both onboarding and sign-up are already done. Keeping the
   // check here too would just be dead code that never fires.
-  const [cat, setCat] = useState<Cat | "all">("all");
+  const [cat, setCat] = useState<Cat | "all">(() => {
+    const param = searchParams.get("cat");
+    return (param && CATS.find(c => c.key === param)) ? (param as Cat | "all") : "all";
+  });
   const [when, setWhenRaw] = useState<"all" | "today" | "tomorrow" | "weekend">("all");
   // "Today" is this app's closest real proxy for the "What Can I Do
   // Tonight?" activation event the business plan defines (open the Tonight

@@ -1,4 +1,4 @@
-import { type Weyn, isTonight, isThisWeekend } from "../api";
+import { type Weyn, isTonight, isThisWeekend, startDate } from "../api";
 
 // Derives HomeFeed's personalized rails from the one events list Explore
 // already fetches (api.listEvents()) — no extra endpoints. Every helper
@@ -110,4 +110,70 @@ export function getPopularSearches(): string[] {
     "Workshops",
     "Live Theater",
   ];
+}
+
+// Discovery hub collection rails — specialized derivations for Discover page.
+// Each returns up to LIMIT events for a horizontally-scrollable rail.
+
+// "Date Night" = evening events (18:00+) in culture, food, or music categories,
+// not sold out.
+export function getDateNightEvents(events: Weyn[]): Weyn[] {
+  const categories = ["culture", "food", "music"];
+  return [...events]
+    .filter(
+      (e) =>
+        startDate(e).getHours() >= 18 &&
+        categories.includes(e.cat) &&
+        (e.sold || 0) < e.capacity
+    )
+    .sort(bySoonest)
+    .slice(0, LIMIT);
+}
+
+// "Family Weekend" = weekend events (Fri/Sat), not featured, in community,
+// music, workshop, or food categories.
+export function getFamilyWeekendEvents(events: Weyn[]): Weyn[] {
+  const categories = ["community", "music", "workshop", "food"];
+  return [...events]
+    .filter((e) => {
+      const d = startDate(e);
+      const day = d.getDay();
+      const isWeekend = day === 5 || day === 6; // Fri=5, Sat=6 (Oman weekend)
+      return isWeekend && !e.featured && categories.includes(e.cat);
+    })
+    .sort(bySoonest)
+    .slice(0, LIMIT);
+}
+
+// "Student Friendly" = free or budget events (≤5 OMR).
+export function getStudentFriendlyEvents(events: Weyn[]): Weyn[] {
+  return [...events]
+    .filter((e) => e.price === 0 || e.price <= 5)
+    .sort(bySoonest)
+    .slice(0, LIMIT);
+}
+
+// "Luxury" = featured events or premium events (price > 50 OMR).
+export function getLuxuryEvents(events: Weyn[]): Weyn[] {
+  return [...events]
+    .filter((e) => e.featured || e.price > 50)
+    .sort(byPopular)
+    .slice(0, LIMIT);
+}
+
+// "Adventure" = outdoor/adventure experiences: tags match outdoor/hiking/adventure/
+// sports/fitness, or in sports/workshop/community categories.
+export function getAdventureEvents(events: Weyn[]): Weyn[] {
+  const adventureTags = ["outdoor", "hiking", "adventure", "sports", "fitness"];
+  const categories = ["sports", "workshop", "community"];
+  return [...events]
+    .filter((e) => {
+      const hasAdventureTag = (e.tags || []).some((tag) =>
+        adventureTags.some((at) => tag.toLowerCase().includes(at))
+      );
+      const hasAdventureCategory = categories.includes(e.cat);
+      return hasAdventureTag || hasAdventureCategory;
+    })
+    .sort(bySoonest)
+    .slice(0, LIMIT);
 }

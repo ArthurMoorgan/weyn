@@ -507,6 +507,125 @@
 .ex-hero-host:hover { background: var(--surface-hover); border-color: var(--text-3); }
 .ex-hero-host [class^="icon-"] { font-size: 14px; color: var(--accent); }
 
+/* Category Grid + Collection Rails Hub — responsive discovery page with
+   category shortcuts and horizontally-scrollable event collections. */
+.discover {
+  display: flex; flex-direction: column;
+  background: var(--body); /* edge-to-edge, no max-width constraint */
+}
+
+.discover-hub {
+  display: flex; flex-direction: column;
+  background: var(--body);
+}
+
+/* Category grid: 3 cols on mobile, 4 on tablet, 6 on desktop.
+   80-100px square buttons with 16px gap (2 × 8pt). Horizontal padding 16px. */
+.discover-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 16px;
+  padding: 24px 16px 16px;
+}
+
+.discover-collections {
+  display: flex; flex-direction: column;
+  gap: 0;
+}
+
+@media (min-width: 768px) {
+  .discover-cats {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .discover-cats {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+/* Category button: square, 80px base size (auto-fit grows on wider screens),
+   16px radius, centered icon + label, 48px touch target minimum. */
+.discover-cat-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px; /* touch target */
+  aspect-ratio: 1;
+  background: var(--surface-hover);
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background-color .15s ease;
+  padding: 0; /* icon/label sizing handled by children */
+  font-family: inherit;
+}
+
+.discover-cat-btn:hover {
+  background: var(--surface-hover-2, var(--text, rgba(0,0,0,0.05)));
+}
+
+.discover-cat-btn:active {
+  background: var(--text, rgba(0,0,0,0.1));
+}
+
+.discover-cat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+}
+
+.discover-cat-label {
+  font: var(--t-caption);
+  color: var(--text);
+  text-align: center;
+  line-height: 1.2;
+  word-wrap: break-word;
+  max-width: 100%;
+}
+
+/* Collection section: 16px h-padding, 32px gap between rails (4 × 8pt).
+   Margin-top 16px per section. */
+.discover-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px;
+  margin-top: 16px;
+}
+
+.discover-section-title {
+  font: var(--t-section);
+  color: var(--text);
+  margin: 0;
+  padding: 0 0 4px;
+}
+
+/* Horizontal scroll rail for collection items. */
+.discover-rail {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+}
+
+.discover-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.discover-rail-item {
+  flex: 0 0 auto;
+  width: 160px;
+  scroll-snap-align: start;
+}
+
 /* Full-bleed hero for the top featured event — one implementation at every
    breakpoint (see the 900px block for the size-up, not a swap to a
    different element). inset:-1px on the scrim, see the identical comment on
