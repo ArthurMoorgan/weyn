@@ -1,7 +1,8 @@
 import {ClerkProvider, useAuth, useUser} from "@clerk/react";
-import React, { Suspense, lazy, useEffect } from "react";
+import React, { lazy, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { HashRouter, BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { MotionConfig } from "motion/react";
 import { Capacitor } from "@capacitor/core";
 import "./ikonate.css";
 import "./index.css";
@@ -19,7 +20,7 @@ import { setTokenGetter } from "./store";
 import Onboarding from "./pages/Onboarding";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AuthGate from "./components/AuthGate";
-import Skeleton from "./components/Skeleton";
+import RouteTransitions from "./motion/RouteTransitions";
 import { initPush, identifyPushUser, clearPushUser } from "./push";
 import { getAuthToken } from "./store";
 import { markSplashShown, dismissSplash } from "./splash";
@@ -183,9 +184,19 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
         <ClerkAuthBridge />
         <SplashDismisser />
+        {/* Above <Router>, not inside it — a shared layoutId morph (e.g. an
+            Explore card into EventDetail's hero) has to survive React
+            Router unmounting/remounting App across that navigation, and
+            MotionConfig's reduced-motion context needs to keep applying to
+            whatever's still mounted while that happens. reducedMotion="user"
+            defers to each animation's own opt-out rather than force-disabling
+            everything, matching prefers-reduced-motion at the OS level. */}
+        <MotionConfig reducedMotion="user">
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <Suspense fallback={<Skeleton variant="generic" />}>
-          <Routes>
+          {/* Directional fade+scale between route groups. Owns the frozen
+              <Routes location> + Suspense so a lazy chunk suspending can't
+              block the outgoing page's EXIT animation — see RouteTransitions. */}
+          <RouteTransitions>
             {/* /onboarding is the one route reachable signed-out — everything
                 else sits behind AuthGate, see that file for why. */}
             <Route
@@ -262,9 +273,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   screen (no matching route, nothing mounted). */}
               <Route path="*" element={<NotFound />} />
             </Route>
-          </Routes>
-          </Suspense>
+          </RouteTransitions>
         </Router>
+        </MotionConfig>
       </ClerkProvider>
     </ErrorBoundary>
   </React.StrictMode>

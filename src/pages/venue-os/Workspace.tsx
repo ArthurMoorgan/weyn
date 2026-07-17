@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType, type WinBackStats, type VenueLoyaltyGuest, type VenueMarketingLink, type VenueMarketingCalendarItem, type VenueBrandKit, type SocialAccountConnection, type VenueSocialPost, type VenueMarketingContact, type AdVariant, type PersuasionAngle, type VenueWaitlistEntry } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
 import FloorPlanCanvas from "../../components/FloorPlanCanvas";
 import WorkflowCanvas from "../../components/WorkflowCanvas";
 import DashboardShell from "../../components/dashboard/DashboardShell";
+import DesktopOnlyBanner from "../../components/DesktopOnlyBanner";
 import { layoutGraph, unreachableNodeIds } from "../../lib/workflowLayout";
+import { MotionButton, MotionLink } from "../../motion";
 
 type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
 
@@ -50,7 +52,7 @@ export default function VenueWorkspace() {
     <div className="empty">
       <div className="ic"><i className="icon-search-x" /></div>
       <p>Couldn't find that venue, or you don't manage it.</p>
-      <Link to="/venue-os" className="btn glass" style={{ maxWidth: 220, margin: "8px auto 0" }}>Back to venues</Link>
+      <MotionLink to="/venue-os" className="btn glass" style={{ maxWidth: 220, margin: "8px auto 0" }}>Back to venues</MotionLink>
     </div>
   );
   // The bare /venue-os/:id route (no :tab segment) rendered the reservations
@@ -68,6 +70,8 @@ export default function VenueWorkspace() {
         </h2>
       </div>
       <p className="hint" style={{ padding: "0 6px 10px" }}>{venue.area} · {venue._count?.reservations ?? 0} reservation{(venue._count?.reservations ?? 0) === 1 ? "" : "s"}</p>
+
+      <div style={{ padding: "0 6px" }}><DesktopOnlyBanner /></div>
 
       <DashboardShell
         ariaLabel="Venue sections"
@@ -135,9 +139,9 @@ function VenueReservationsTab({ venueId, rows, loading, error, setStatus, onCrea
     <>
       <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span><i className="icon-calendar-check" /> Incoming reservations</span>
-        <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowForm((v) => !v)}>
+        <MotionButton type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowForm((v) => !v)}>
           <i className="icon-plus" /> {showForm ? "Cancel" : "Add reservation"}
-        </button>
+        </MotionButton>
       </p>
 
       {showForm && (
@@ -181,21 +185,21 @@ function VenueReservationsTab({ venueId, rows, loading, error, setStatus, onCrea
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                       {pending && (
                         <>
-                          <button className="btn glass sm success" onClick={() => act(r.id, "confirmed")} disabled={busyId === r.id}>Confirm</button>
-                          <button className="btn glass sm danger" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
+                          <MotionButton className="btn glass sm success" onClick={() => act(r.id, "confirmed")} disabled={busyId === r.id}>Confirm</MotionButton>
+                          <MotionButton className="btn glass sm danger" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</MotionButton>
                         </>
                       )}
                       {arrivable && (
                         <>
-                          <button className="btn glass sm success" onClick={() => act(r.id, "seated")} disabled={busyId === r.id}>Seated</button>
-                          <button className="btn glass sm" onClick={() => act(r.id, "no_show")} disabled={busyId === r.id}>No-show</button>
-                          <button className="btn glass sm danger" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</button>
+                          <MotionButton className="btn glass sm success" onClick={() => act(r.id, "seated")} disabled={busyId === r.id}>Seated</MotionButton>
+                          <MotionButton className="btn glass sm" onClick={() => act(r.id, "no_show")} disabled={busyId === r.id}>No-show</MotionButton>
+                          <MotionButton className="btn glass sm danger" onClick={() => act(r.id, "cancelled")} disabled={busyId === r.id}>Cancel</MotionButton>
                         </>
                       )}
                       {canAssign && (
-                        <button className="btn glass sm" onClick={() => setAssigningId(assigningId === r.id ? null : r.id)}>
+                        <MotionButton className="btn glass sm" onClick={() => setAssigningId(assigningId === r.id ? null : r.id)}>
                           <i className="icon-grid-2x2" /> {r.tableAssignment?.tables.length ? "Reassign" : "Assign"}
-                        </button>
+                        </MotionButton>
                       )}
                     </div>
                   </div>
@@ -261,7 +265,7 @@ function ManualReservationForm({ venueId, onDone }: { venueId: string; onDone: (
         </label>
       </div>
       {err && <p className="errline">{err}</p>}
-      <button className="btn glass" onClick={submit} disabled={saving}>{saving ? "Saving…" : "Add reservation"}</button>
+      <MotionButton className="btn glass" onClick={submit} disabled={saving}>{saving ? "Saving…" : "Add reservation"}</MotionButton>
     </div>
   );
 }
@@ -303,9 +307,9 @@ function VenueWaitlistTab({ venueId }: { venueId: string }) {
     <>
       <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span><i className="icon-clock" /> Waitlist</span>
-        <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowForm((v) => !v)}>
+        <MotionButton type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowForm((v) => !v)}>
           <i className="icon-plus" /> {showForm ? "Cancel" : "Add to waitlist"}
-        </button>
+        </MotionButton>
       </p>
 
       {showForm && <VenueWaitlistJoinForm venueId={venueId} onDone={() => { setShowForm(false); reload(); }} />}
@@ -334,10 +338,10 @@ function VenueWaitlistTab({ venueId }: { venueId: string }) {
                   </span>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                     {e.status === "WAITING" && (
-                      <button className="btn glass sm" onClick={() => notify(e.id)} disabled={busyId === e.id}>Notify</button>
+                      <MotionButton className="btn glass sm" onClick={() => notify(e.id)} disabled={busyId === e.id}>Notify</MotionButton>
                     )}
-                    <button className="btn glass sm success" onClick={() => promote(e.id)} disabled={busyId === e.id}>Seat now</button>
-                    <button className="btn glass sm danger" onClick={() => remove(e.id)} disabled={busyId === e.id}>Remove</button>
+                    <MotionButton className="btn glass sm success" onClick={() => promote(e.id)} disabled={busyId === e.id}>Seat now</MotionButton>
+                    <MotionButton className="btn glass sm danger" onClick={() => remove(e.id)} disabled={busyId === e.id}>Remove</MotionButton>
                   </div>
                 </div>
               </li>
@@ -408,7 +412,7 @@ function VenueWaitlistJoinForm({ venueId, onDone }: { venueId: string; onDone: (
       </div>
       <input className="toolbar-field" placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
       {err && <p className="errline">{err}</p>}
-      <button className="btn glass" onClick={submit} disabled={saving}>{saving ? "Saving…" : "Add to waitlist"}</button>
+      <MotionButton className="btn glass" onClick={submit} disabled={saving}>{saving ? "Saving…" : "Add to waitlist"}</MotionButton>
     </div>
   );
 }
@@ -498,9 +502,9 @@ function VenueGuests({ venueId, rows }: { venueId: string; rows: VenueReservatio
                     {g.visits} visit{g.visits === 1 ? "" : "s"}{g.noShows > 0 ? ` · ${g.noShows} no-show${g.noShows === 1 ? "" : "s"}` : ""} · last {g.lastVisit.slice(0, 10)}
                   </small>
                 </span>
-                <button className="btn glass sm" style={{ width: "auto" }} onClick={() => setExpanded(expanded === g.email ? null : g.email)}>
+                <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={() => setExpanded(expanded === g.email ? null : g.email)}>
                   {expanded === g.email ? "Close" : "Details"}
-                </button>
+                </MotionButton>
               </div>
               {expanded === g.email && (
                 <GuestDetail venueId={venueId} email={g.email} reservations={g.reservations} note={noteFor(g.email)} tags={tagsFor(g.email)} onNoteSaved={reload} />
@@ -539,7 +543,7 @@ function GuestDetail({ venueId, email, reservations, note, tags, onNoteSaved }: 
       </div>
       <input className="toolbar-field" placeholder="Tags, comma-separated (VIP, regular, allergy: nuts…)" value={tagsText} onChange={(e) => setTagsText(e.target.value)} />
       <textarea className="toolbar-field" rows={2} placeholder="Notes on this guest (allergies, preferences, VIP…)" value={text} onChange={(e) => setText(e.target.value)} />
-      <button className="btn glass sm" style={{ width: "auto" }} onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+      <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</MotionButton>
     </div>
   );
 }
@@ -646,9 +650,9 @@ function VenueMarketing({ venueId }: { venueId: string }) {
 
         <div style={{ display: "flex", gap: 8 }}>
           <input className="toolbar-field" style={{ flex: 1 }} placeholder="What's this campaign for? e.g. win back guests who haven't visited in a while" value={goal} onChange={(e) => setGoal(e.target.value)} />
-          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={aiDraft} disabled={drafting}>
+          <MotionButton type="button" className="btn glass sm" style={{ width: "auto" }} onClick={aiDraft} disabled={drafting}>
             <i className="icon-sparkles" /> {drafting ? "Drafting…" : "AI draft"}
-          </button>
+          </MotionButton>
         </div>
         <input className="toolbar-field" placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
         <textarea className="toolbar-field" rows={4} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
@@ -659,9 +663,9 @@ function VenueMarketing({ venueId }: { venueId: string }) {
 
         {err && <p className="errline">{err}</p>}
         {result && <p className="hint">{result}</p>}
-        <button className="btn glass" onClick={send} disabled={sending || !preview?.count}>
+        <MotionButton className="btn glass" onClick={send} disabled={sending || !preview?.count}>
           {sending ? "Sending…" : scheduleFor ? "Schedule campaign" : `Send to ${preview?.count ?? 0} guest${preview?.count === 1 ? "" : "s"}`}
-        </button>
+        </MotionButton>
       </div>
 
       <p className="hint" style={{ margin: "4px 0 8px" }}>History</p>
@@ -682,7 +686,7 @@ function VenueMarketing({ venueId }: { venueId: string }) {
                 </small>
               </span>
               {c.status === "scheduled" && (
-                <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => cancel(c.id)}>Cancel</button>
+                <MotionButton className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => cancel(c.id)}>Cancel</MotionButton>
               )}
             </li>
           ))}
@@ -829,17 +833,17 @@ function VenueWinBack({ venueId }: { venueId: string }) {
         </p>
         <div style={{ display: "flex", gap: 8 }}>
           <input className="toolbar-field" style={{ flex: 1 }} value={goal} onChange={(e) => setGoal(e.target.value)} />
-          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={aiDraft} disabled={drafting}>
+          <MotionButton type="button" className="btn glass sm" style={{ width: "auto" }} onClick={aiDraft} disabled={drafting}>
             <i className="icon-sparkles" /> {drafting ? "Drafting…" : "AI draft"}
-          </button>
+          </MotionButton>
         </div>
         <input className="toolbar-field" placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
         <textarea className="toolbar-field" rows={4} placeholder="Message" value={message} onChange={(e) => setMessage(e.target.value)} />
         {err && <p className="errline">{err}</p>}
         {result && <p className="hint">{result}</p>}
-        <button className="btn glass" onClick={send} disabled={sending || !preview?.count}>
+        <MotionButton className="btn glass" onClick={send} disabled={sending || !preview?.count}>
           {sending ? "Sending…" : `Send win-back to ${preview?.count ?? 0} guest${preview?.count === 1 ? "" : "s"}`}
-        </button>
+        </MotionButton>
       </div>
 
       <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
@@ -851,9 +855,9 @@ function VenueWinBack({ venueId }: { venueId: string }) {
             <option value="urgency">Urgency / FOMO</option>
             <option value="exclusivity">Exclusivity</option>
           </select>
-          <button className="btn glass sm" style={{ width: "auto" }} onClick={applyAngle} disabled={angling}>
+          <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={applyAngle} disabled={angling}>
             <i className="icon-zap" /> {angling ? "Re-angling…" : "Re-angle copy"}
-          </button>
+          </MotionButton>
         </div>
         {angledResult && (
           <div className="marketing-card" style={{ marginTop: 10 }}>
@@ -871,9 +875,9 @@ function VenueWinBack({ venueId }: { venueId: string }) {
             <option value="google">Google Search</option>
           </select>
           <input type="number" min={1} max={10} className="toolbar-field" style={{ width: 70 }} value={bulkCount} onChange={(e) => setBulkCount(Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1)))} />
-          <button className="btn glass sm" style={{ width: "auto" }} onClick={generateMoreVariants} disabled={bulkGenerating}>
+          <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={generateMoreVariants} disabled={bulkGenerating}>
             <i className="icon-refresh-cw" /> {bulkGenerating ? "Generating…" : "Generate variants"}
-          </button>
+          </MotionButton>
         </div>
         {bulkVariants && bulkVariants.map((v, i) => (
           <div className="marketing-card" key={i} style={{ marginTop: 10 }}>
@@ -905,7 +909,7 @@ function VenueWinBack({ venueId }: { venueId: string }) {
                   {stats[c.id] && ` · ${stats[c.id].converted} of ${stats[c.id].targeted} booked again (${stats[c.id].rate != null ? Math.round(stats[c.id].rate! * 100) : "—"}%)`}
                 </small>
               </span>
-              <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => loadStats(c.id)}>Check conversion</button>
+              <MotionButton className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => loadStats(c.id)}>Check conversion</MotionButton>
             </li>
           ))}
         </ul>
@@ -954,9 +958,9 @@ function VenueLoyalty({ venueId }: { venueId: string }) {
                 </small>
               </span>
               {!g.referralCode && (
-                <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => issue(g.email)} disabled={issuing === g.email}>
+                <MotionButton className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => issue(g.email)} disabled={issuing === g.email}>
                   {issuing === g.email ? "Issuing…" : "Issue referral code"}
-                </button>
+                </MotionButton>
               )}
             </li>
           ))}
@@ -1009,7 +1013,7 @@ function VenueMarketingLinks({ venueId }: { venueId: string }) {
           <input className="toolbar-field" style={{ flex: 1, minWidth: 120 }} placeholder="utm_campaign (e.g. summer-launch)" value={utmCampaign} onChange={(e) => setUtmCampaign(e.target.value)} />
         </div>
         {err && <p className="errline">{err}</p>}
-        <button className="btn glass" onClick={create} disabled={saving}>{saving ? "Creating…" : "Create link"}</button>
+        <MotionButton className="btn glass" onClick={create} disabled={saving}>{saving ? "Creating…" : "Create link"}</MotionButton>
       </div>
 
       {loading ? (
@@ -1026,7 +1030,7 @@ function VenueMarketingLinks({ venueId }: { venueId: string }) {
                 <br />
                 <small style={{ color: "var(--text-3)", wordBreak: "break-all" }}>{l.url}</small>
               </span>
-              <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => remove(l.id)}>Delete</button>
+              <MotionButton className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => remove(l.id)}>Delete</MotionButton>
             </li>
           ))}
         </ul>
@@ -1082,9 +1086,9 @@ function VenueConnectedAccounts({ venueId }: { venueId: string }) {
             <p className="hint" style={{ margin: "0 0 8px" }}>
               <i className="icon-instagram" /> Connected — posting via <b>{meta.pageName || "your Facebook Page"}</b>
             </p>
-            <button className="btn glass sm" style={{ width: "auto" }} onClick={() => disconnect(meta.id)}>
+            <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={() => disconnect(meta.id)}>
               <i className="icon-x" /> Disconnect
-            </button>
+            </MotionButton>
           </>
         ) : (
           <>
@@ -1104,9 +1108,9 @@ function VenueConnectedAccounts({ venueId }: { venueId: string }) {
           <p className="hint" style={{ margin: "0 0 10px" }}>Post to Instagram</p>
           <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={5} style={{ width: "100%", marginBottom: 10 }} placeholder="Caption…" />
           {postErr && <p className="errline">{postErr}</p>}
-          <button className="btn glass sm" style={{ width: "auto" }} onClick={() => post()} disabled={posting || !caption.trim()}>
+          <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={() => post()} disabled={posting || !caption.trim()}>
             <i className="icon-send" /> {posting ? "Posting…" : "Post now"}
-          </button>
+          </MotionButton>
         </div>
       )}
 
@@ -1192,18 +1196,18 @@ function VenueEmailList({ venueId }: { venueId: string }) {
           <div className="field" style={{ margin: 0 }}><label>Email</label><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" /></div>
           <div className="field" style={{ margin: 0 }}><label>Name (optional)</label><input value={name} onChange={(e) => setName(e.target.value)} /></div>
         </div>
-        <button className="btn glass sm" style={{ width: "auto" }} onClick={addContact} disabled={saving || !email.trim()}>
+        <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={addContact} disabled={saving || !email.trim()}>
           <i className="icon-plus" /> Add
-        </button>
+        </MotionButton>
       </div>
 
       <div className="dash-card" style={{ padding: 14, marginBottom: 14 }}>
         <p className="hint" style={{ margin: "0 0 10px" }}>Import CSV (email,name per line)</p>
         <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={4} style={{ width: "100%", marginBottom: 10 }} placeholder={"email,name\njane@example.com,Jane"} />
         {importMsg && <p className="hint">{importMsg}</p>}
-        <button className="btn glass sm" style={{ width: "auto" }} onClick={importCsv} disabled={saving || !csv.trim()}>
+        <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={importCsv} disabled={saving || !csv.trim()}>
           <i className="icon-upload" /> Import
-        </button>
+        </MotionButton>
       </div>
 
       {loading ? (
@@ -1216,7 +1220,7 @@ function VenueEmailList({ venueId }: { venueId: string }) {
               <li key={c.id} style={{ opacity: c.subscribed ? 1 : 0.5 }}>
                 <i className="icon-mail" />
                 <span><b>{c.email}</b> {c.name && <span className="hint">{c.name}</span>} {!c.subscribed && <span className="hint">(unsubscribed)</span>}</span>
-                <button className="btn glass sm" style={{ marginLeft: "auto", width: "auto" }} onClick={() => removeContact(c.id)}><i className="icon-x" /></button>
+                <MotionButton className="btn glass sm" style={{ marginLeft: "auto", width: "auto" }} onClick={() => removeContact(c.id)}><i className="icon-x" /></MotionButton>
               </li>
             ))}
           </ul>
@@ -1228,9 +1232,9 @@ function VenueEmailList({ venueId }: { venueId: string }) {
         <div className="field"><label>Subject</label><input value={subject} onChange={(e) => setSubject(e.target.value)} /></div>
         <div className="field"><label>Body</label><textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} style={{ width: "100%" }} /></div>
         {sendResult && <p className="hint">Sent to {sendResult.sent} of {sendResult.recipients} recipients.</p>}
-        <button className="btn glass" onClick={send} disabled={sending || !subject.trim() || !body.trim()} style={{ marginTop: 4 }}>
+        <MotionButton className="btn glass" onClick={send} disabled={sending || !subject.trim() || !body.trim()} style={{ marginTop: 4 }}>
           <i className="icon-send" /> {sending ? "Sending…" : `Send to ${subscribedCount} subscriber${subscribedCount === 1 ? "" : "s"}`}
-        </button>
+        </MotionButton>
       </div>
     </>
   );
@@ -1336,7 +1340,7 @@ function VenueBrandKitEditor({ venueId }: { venueId: string }) {
         <input className="toolbar-field" placeholder="Logo URL" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
         <input className="toolbar-field" placeholder="Primary brand color (e.g. #E63946)" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} />
         <input className="toolbar-field" placeholder="Tone of voice (e.g. playful and casual)" value={toneOfVoice} onChange={(e) => setToneOfVoice(e.target.value)} />
-        <button className="btn glass" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save brand kit"}</button>
+        <MotionButton className="btn glass" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save brand kit"}</MotionButton>
       </div>
     </>
   );
@@ -1544,7 +1548,7 @@ function VenueWorkflows({ venueId }: { venueId: string }) {
       <>
         <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span><i className="icon-layout" /> Start from template</span>
-          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowTemplates(false)}>Cancel</button>
+          <MotionButton type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowTemplates(false)}>Cancel</MotionButton>
         </p>
         <ul className="steps">
           {WORKFLOW_TEMPLATES.map((tpl) => (
@@ -1554,7 +1558,7 @@ function VenueWorkflows({ venueId }: { venueId: string }) {
                 {tpl.name}<br />
                 <small style={{ color: "var(--text-3)" }}>{tpl.description}</small>
               </span>
-              <button className="btn glass sm" style={{ marginLeft: "auto", width: "auto" }} onClick={() => startFromTemplate(tpl)}>Use this</button>
+              <MotionButton className="btn glass sm" style={{ marginLeft: "auto", width: "auto" }} onClick={() => startFromTemplate(tpl)}>Use this</MotionButton>
             </li>
           ))}
         </ul>
@@ -1567,12 +1571,12 @@ function VenueWorkflows({ venueId }: { venueId: string }) {
       <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span><i className="icon-zap" /> Workflows</span>
         <span style={{ display: "flex", gap: 8 }}>
-          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowTemplates(true)}>
+          <MotionButton type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowTemplates(true)}>
             <i className="icon-layout" /> Start from template
-          </button>
-          <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={startNew} disabled={creating}>
+          </MotionButton>
+          <MotionButton type="button" className="btn glass sm" style={{ width: "auto" }} onClick={startNew} disabled={creating}>
             <i className="icon-plus" /> New workflow
-          </button>
+          </MotionButton>
         </span>
       </p>
 
@@ -1587,12 +1591,12 @@ function VenueWorkflows({ venueId }: { venueId: string }) {
             and then something happens automatically (notify you, tag the guest, or email them).
           </p>
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowTemplates(true)}>
+            <MotionButton type="button" className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowTemplates(true)}>
               <i className="icon-layout" /> Start from template
-            </button>
-            <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={startNew} disabled={creating}>
+            </MotionButton>
+            <MotionButton type="button" className="btn glass sm" style={{ width: "auto" }} onClick={startNew} disabled={creating}>
               <i className="icon-plus" /> New workflow
-            </button>
+            </MotionButton>
           </div>
         </div>
       ) : (
@@ -1611,9 +1615,9 @@ function VenueWorkflows({ venueId }: { venueId: string }) {
                   </small>
                 </span>
                 <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
-                  <button className="btn glass sm" onClick={() => setEditingId(w.id)}>Edit</button>
-                  <button className="btn glass sm" onClick={() => toggle(w)}>{w.enabled ? "Disable" : "Enable"}</button>
-                  <button className="btn glass sm" onClick={() => remove(w)}><i className="icon-x" /></button>
+                  <MotionButton className="btn glass sm" onClick={() => setEditingId(w.id)}>Edit</MotionButton>
+                  <MotionButton className="btn glass sm" onClick={() => toggle(w)}>{w.enabled ? "Disable" : "Enable"}</MotionButton>
+                  <MotionButton className="btn glass sm" onClick={() => remove(w)}><i className="icon-x" /></MotionButton>
                 </div>
               </li>
             );
@@ -1695,9 +1699,9 @@ function WorkflowEditor({ venueId, workflow, initial, onDone }: { venueId: strin
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <button className="btn glass sm" style={{ width: "auto" }} onClick={onDone}><i className="icon-arrow-left" /> Back</button>
+        <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={onDone}><i className="icon-arrow-left" /> Back</MotionButton>
         <input className="toolbar-field" style={{ flex: 1 }} value={name} onChange={(e) => { setName(e.target.value); setDirty(true); }} />
-        {workflowId && <button className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowRuns((v) => !v)}>{showRuns ? "Canvas" : "Run history"}</button>}
+        {workflowId && <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={() => setShowRuns((v) => !v)}>{showRuns ? "Canvas" : "Run history"}</MotionButton>}
       </div>
 
       {showRuns && workflowId ? (
@@ -1705,9 +1709,9 @@ function WorkflowEditor({ venueId, workflow, initial, onDone }: { venueId: strin
       ) : (
         <>
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <button className="btn glass sm" style={{ width: "auto" }} onClick={() => addNode("condition")}><i className="icon-plus" /> Condition</button>
-            <button className="btn glass sm" style={{ width: "auto" }} onClick={() => addNode("action")}><i className="icon-plus" /> Action</button>
-            <button className="btn glass sm" style={{ width: "auto" }} onClick={autoArrange}><i className="icon-layout" /> Auto-arrange</button>
+            <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={() => addNode("condition")}><i className="icon-plus" /> Condition</MotionButton>
+            <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={() => addNode("action")}><i className="icon-plus" /> Action</MotionButton>
+            <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={autoArrange}><i className="icon-layout" /> Auto-arrange</MotionButton>
           </div>
 
           <WorkflowCanvas
@@ -1722,7 +1726,7 @@ function WorkflowEditor({ venueId, workflow, initial, onDone }: { venueId: strin
             <div className="dash-card" style={{ padding: 14, marginTop: 14 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
                 <p className="hint" style={{ margin: 0 }}>{selected.type === "trigger" ? "Trigger" : selected.type === "condition" ? "Condition" : "Action"}</p>
-                {selected.type !== "trigger" && <button className="btn glass sm" style={{ width: "auto" }} onClick={deleteSelected}><i className="icon-x" /> Remove node</button>}
+                {selected.type !== "trigger" && <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={deleteSelected}><i className="icon-x" /> Remove node</MotionButton>}
               </div>
               <p style={{ color: "var(--text-3)", fontSize: 12.5, margin: "0 0 10px" }}>
                 {selected.type === "trigger" && (TRIGGER_DESCRIPTIONS[selected.data.trigger as VenueWorkflowTrigger] || "")}
@@ -1824,9 +1828,9 @@ function WorkflowEditor({ venueId, workflow, initial, onDone }: { venueId: strin
           )}
 
           {err && <p className="errline" style={{ marginTop: 10 }}>{err}</p>}
-          <button className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
+          <MotionButton className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
             {saving ? "Saving…" : dirty ? "Save workflow" : "Saved ✓"}
-          </button>
+          </MotionButton>
         </>
       )}
     </>
@@ -2029,7 +2033,7 @@ function VenueProfileEditor({ venue }: { venue: OwnedVenue }) {
         </div>
 
         {err && <p className="errline">{err}</p>}
-        <button className="btn glass" onClick={save} disabled={saving}>{saving ? "Saving…" : saved ? "Saved ✓" : "Save changes"}</button>
+        <MotionButton className="btn glass" onClick={save} disabled={saving}>{saving ? "Saving…" : saved ? "Saved ✓" : "Save changes"}</MotionButton>
       </div>
     </div>
   );
@@ -2110,9 +2114,9 @@ function VenueAvailabilityEditor({ venue }: { venue: OwnedVenue }) {
         })}
       </div>
       {err && <p className="errline">{err}</p>}
-      <button className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving}>
+      <MotionButton className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving}>
         {saving ? "Saving…" : saved ? "Saved ✓" : "Save availability"}
-      </button>
+      </MotionButton>
     </div>
   );
 }
@@ -2191,8 +2195,8 @@ function VenueTables({ venueId }: { venueId: string }) {
           Choose how tables get assigned here — you can change this later.
         </p>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn glass" onClick={() => init("table")}>Whole tables</button>
-          <button className="btn glass" onClick={() => init("seat")}>Individual seats</button>
+          <MotionButton className="btn glass" onClick={() => init("table")}>Whole tables</MotionButton>
+          <MotionButton className="btn glass" onClick={() => init("seat")}>Individual seats</MotionButton>
         </div>
       </div>
     );
@@ -2202,7 +2206,7 @@ function VenueTables({ venueId }: { venueId: string }) {
     <>
       <p className="hint" style={{ margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span><i className="icon-grid-2x2" /> Floor plan · {plan.mode === "seat" ? "individual seats" : "whole tables"}</span>
-        <button type="button" className="btn glass sm" style={{ width: "auto" }} onClick={addTable}><i className="icon-plus" /> Add table</button>
+        <MotionButton type="button" className="btn glass sm" style={{ width: "auto" }} onClick={addTable}><i className="icon-plus" /> Add table</MotionButton>
       </p>
 
       <FloorPlanCanvas tables={tables} mode="edit" seatMode={plan.mode === "seat"}
@@ -2233,16 +2237,16 @@ function VenueTables({ venueId }: { venueId: string }) {
               <option value="needs_cleaning">Needs cleaning</option>
               <option value="maintenance">Maintenance</option>
             </select>
-            <button className="btn glass sm" onClick={() => removeTable(t.id)}><i className="icon-x" /></button>
+            <MotionButton className="btn glass sm" onClick={() => removeTable(t.id)}><i className="icon-x" /></MotionButton>
           </div>
         ))}
         {tables.length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No tables yet — add one above.</p>}
       </div>
 
       {err && <p className="errline">{err}</p>}
-      <button className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
+      <MotionButton className="btn glass" style={{ marginTop: 10 }} onClick={save} disabled={saving || !dirty}>
         {saving ? "Saving…" : dirty ? "Save layout" : "Saved ✓"}
-      </button>
+      </MotionButton>
     </>
   );
 }
@@ -2288,10 +2292,10 @@ function TableAssignPanel({ venueId, reservationId, onDone }: { venueId: string;
       <FloorPlanCanvas tables={plan.tables} mode="assign" seatMode={plan.mode === "seat"} selectedTableIds={selected} onTableClick={toggle} />
       {err && <p className="errline">{err}</p>}
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <button className="btn glass sm" style={{ width: "auto" }} onClick={confirm} disabled={saving || !selected.length}>
+        <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={confirm} disabled={saving || !selected.length}>
           {saving ? "Saving…" : `Assign ${selected.length || ""} table${selected.length === 1 ? "" : "s"}`.trim()}
-        </button>
-        <button className="btn glass sm" style={{ width: "auto" }} onClick={unassign} disabled={saving}>Clear assignment</button>
+        </MotionButton>
+        <MotionButton className="btn glass sm" style={{ width: "auto" }} onClick={unassign} disabled={saving}>Clear assignment</MotionButton>
       </div>
     </div>
   );

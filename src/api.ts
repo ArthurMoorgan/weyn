@@ -245,6 +245,9 @@ export interface Weyn {
   inviteCode?: string | null;
   ownerId?: string | null; // absent on legacy/seeded events created before real auth existed
   discoveryStatus?: "PENDING_REVIEW" | "APPROVED" | "DISCOVERY_LIMITED" | "MANUAL_REVIEW" | "DISCOVERY_BLOCKED";
+  // Caller's effective access to this event — only set by GET /api/dashboard/events.
+  myRole?: "OWNER" | "MANAGER" | "STAFF";
+  myPermissions?: TeamPermission[];
 }
 
 export interface BookingStatus {
@@ -1134,6 +1137,11 @@ export interface MessageTemplate {
 }
 
 export const api = {
+  // Public, secret-free feature flags — e.g. whether card payments are wired
+  // up on this environment. No auth required.
+  config(): Promise<{ paymentsEnabled: boolean }> {
+    return fetch(`${API_BASE}/api/config`).then((r) => json<{ paymentsEnabled: boolean }>(r));
+  },
   listEvents(params: { cat?: string; q?: string } = {}): Promise<Weyn[]> {
     const sp = new URLSearchParams();
     if (params.cat && params.cat !== "all") sp.set("cat", params.cat);
@@ -1556,6 +1564,24 @@ export const api = {
   },
   async acceptInvite(token: string): Promise<{ ok: boolean; eventId: string; eventTitle: string; role: TeamRole }> {
     return fetch(`${API_BASE}/api/team/invites/${token}/accept`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
+  },
+
+  // ---- venue team management (mirrors the event team methods above) ----
+  async inviteVenueTeamMember(venueId: string, email: string, role: TeamRole): Promise<TeamInviteResult> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/team/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ email, role }),
+    }).then((r) => json(r));
+  },
+  async listVenueTeam(venueId: string): Promise<TeamMember[]> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/team`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async revokeVenueTeamMember(venueId: string, memberId: string): Promise<{ ok: boolean }> {
+    return fetch(`${API_BASE}/api/venues/${venueId}/team/${memberId}`, { method: "DELETE", headers: await authHeaders() }).then((r) => json(r));
+  },
+  async acceptVenueInvite(token: string): Promise<{ ok: boolean; venueId: string; venueName: string; role: TeamRole }> {
+    return fetch(`${API_BASE}/api/venue-team/invites/${token}/accept`, { method: "POST", headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- check-in ----

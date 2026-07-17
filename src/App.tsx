@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
-import { NavLink, Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation } from "react-router-dom";
 import Discover from "./pages/Discover";
 import Skeleton from "./components/Skeleton";
 import ThemeToggle from "./components/ThemeToggle";
 import CityPill from "./components/CityPill";
 import { useAccount } from "./store";
+import { MotionButton, MotionNavLink, MotionLink } from "./motion";
 
 // Lazy, same as every other non-critical-path route (see main.tsx) — these
 // just aren't *routed* through main.tsx anymore, App renders them directly.
@@ -115,7 +116,7 @@ export default function App() {
         </div>
         <div className="tabs-pill">
           {TABS.map((t) => (
-            <NavLink
+            <MotionNavLink
               key={t.to}
               to={t.to}
               end={t.to === "/"}
@@ -131,10 +132,10 @@ export default function App() {
                   <span>{t.label}</span>
                 </>
               )}
-            </NavLink>
+            </MotionNavLink>
           ))}
           <div className="tab-host" ref={hostRef}>
-            <button
+            <MotionButton
               type="button"
               className={"tab" + (onHostRoute ? " on" : "")}
               aria-haspopup="menu"
@@ -144,7 +145,7 @@ export default function App() {
             >
               <i className={"icon-circle-plus" + (onHostRoute ? "-fill" : "")} />
               <span>Host</span>
-            </button>
+            </MotionButton>
             {hostOpen && (
               <>
                 {/* Dimmed backdrop so it's visually obvious the popover is a
@@ -159,18 +160,18 @@ export default function App() {
                 <div className="tab-host-menu" role="menu">
                   <div className="tab-host-menu-head">
                     <span>Get started</span>
-                    <button type="button" className="icon-btn sm" onClick={() => setHostOpen(false)} aria-label="Close">
+                    <MotionButton type="button" className="icon-btn sm" onClick={() => setHostOpen(false)} aria-label="Close">
                       <i className="icon-x" />
-                    </button>
+                    </MotionButton>
                   </div>
                   {HOST_OPTIONS.map((o) => (
-                    <Link key={o.to} to={o.to} className="tab-host-item" role="menuitem" onClick={() => setHostOpen(false)}>
+                    <MotionLink key={o.to} to={o.to} className="tab-host-item" role="menuitem" onClick={() => setHostOpen(false)}>
                       <i className={"icon-" + o.icon} />
                       <div>
                         <strong>{o.label}</strong>
                         <span>{o.hint}</span>
                       </div>
-                    </Link>
+                    </MotionLink>
                   ))}
                 </div>
               </>

@@ -617,6 +617,42 @@ export const db = {
     return prisma.eventTeamMember.findUnique({ where: { id } });
   },
 
+  // ---- venue team membership (venue-scoped roles, mirrors the event
+  // helpers above against VenueTeamMember) ----
+  async getVenueTeamMembership(venueId, userId) {
+    return prisma.venueTeamMember.findFirst({ where: { venueId, userId, status: "ACCEPTED" } });
+  },
+  async createVenueTeamInvite({ venueId, invitedEmail, role, invitedBy, permissions }) {
+    return prisma.venueTeamMember.create({
+      data: { venueId, invitedEmail: invitedEmail.toLowerCase().trim(), role, invitedBy, permissions: permissions || [] },
+    });
+  },
+  async listVenueTeamMembers(venueId) {
+    return prisma.venueTeamMember.findMany({
+      where: { venueId, status: { not: "REVOKED" } },
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+  },
+  async getVenueInviteByToken(token) {
+    return prisma.venueTeamMember.findUnique({ where: { inviteToken: token }, include: { venue: true } });
+  },
+  async acceptVenueInvite(token, userId) {
+    return prisma.venueTeamMember.update({
+      where: { inviteToken: token },
+      data: { userId, status: "ACCEPTED", acceptedAt: new Date(), inviteToken: null },
+    });
+  },
+  async revokeVenueTeamMember(id) {
+    return prisma.venueTeamMember.update({ where: { id }, data: { status: "REVOKED", inviteToken: null } });
+  },
+  async getVenueTeamMemberById(id) {
+    return prisma.venueTeamMember.findUnique({ where: { id } });
+  },
+  async getVenue(id) {
+    return prisma.venue.findUnique({ where: { id } });
+  },
+
   // ---- organizer-wide team (aggregated view over per-event memberships) ----
   // Deliberately NOT a new table/model — "org-wide roles" here means
   // inviting someone to every one of the organizer's current events at once
@@ -678,10 +714,21 @@ export const db = {
         deletedAt: null,
         OR: [{ ownerId: userId }, { teamMembers: { some: { userId, status: "ACCEPTED" } } }],
       },
-      include: { tiers: true },
+      include: {
+        tiers: true,
+        teamMembers: { where: { userId, status: "ACCEPTED" }, select: { role: true, permissions: true } },
+      },
       orderBy: { startsAt: "desc" },
     });
-    return events.map(shape);
+    return events.map((e) => {
+      const { teamMembers, ...shaped } = shape(e);
+      const membership = teamMembers[0];
+      return {
+        ...shaped,
+        myRole: e.ownerId === userId ? "OWNER" : membership.role,
+        myPermissions: membership ? membership.permissions : undefined,
+      };
+    });
   },
 
   // ---- dashboard aggregates ----

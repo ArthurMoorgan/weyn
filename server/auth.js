@@ -174,3 +174,45 @@ export function requireEventOwnerStrict() {
     next();
   };
 }
+
+// ---- venue equivalents (same TEAM_ROLE_RANK model as events, against
+// VenueTeamMember). Loads the venue at req.params.id, attaches req.venue, and
+// 403s unless the signed-in user owns it, is ADMIN, or holds an accepted
+// venue team membership at >= minTeamRole. Venues with no owner can only be
+// touched by an ADMIN.
+export function requireVenueAccess(minTeamRole = "MANAGER") {
+  const minRank = TEAM_ROLE_RANK[minTeamRole];
+  return async (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: { code: "UNAUTHENTICATED", message: "Sign in required" } });
+    const venue = await db.getVenue(req.params.id);
+    if (!venue) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+    const isOwner = venue.ownerId && venue.ownerId === req.user.id;
+    const isAdmin = req.user.role === "ADMIN";
+    let hasTeamAccess = false;
+    if (!isOwner && !isAdmin) {
+      const membership = await db.getVenueTeamMembership(venue.id, req.user.id);
+      hasTeamAccess = !!membership && TEAM_ROLE_RANK[membership.role] >= minRank;
+    }
+    if (!isOwner && !isAdmin && !hasTeamAccess) {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this venue" } });
+    }
+    req.venue = venue;
+    next();
+  };
+}
+
+// Strictly owner/ADMIN — excludes MANAGER team members, so venue-profile
+// edits and team management stay with the owner.
+export function requireVenueOwnerStrict() {
+  return async (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: { code: "UNAUTHENTICATED", message: "Sign in required" } });
+    const venue = await db.getVenue(req.params.id);
+    if (!venue) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
+    const isOwner = venue.ownerId && venue.ownerId === req.user.id;
+    if (!isOwner && req.user.role !== "ADMIN") {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "Only the venue owner can do that" } });
+    }
+    req.venue = venue;
+    next();
+  };
+}

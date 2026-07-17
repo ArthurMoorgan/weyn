@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, Link, useNavigate } from "react-router-dom";
+import { Outlet, Link, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { api } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
@@ -34,8 +34,15 @@ const NAV = [
 export default function OrganizerLayout() {
   const account = useAccount();
   const nav = useNavigate();
+  const location = useLocation();
   const dashEvents = useAsync(() => (account ? api.dashboardEvents() : Promise.resolve([])), [account]);
   const isHost = (dashEvents.data?.length || 0) > 0;
+  // UX gate only — every route below is enforced server-side. A user who is
+  // STAFF on every event they can reach (owns/manages nothing) gets a reduced
+  // nav: just Events, from which they open the per-event workspaces their
+  // role allows. Owners/managers get the full cross-event nav.
+  const canManageAny = (dashEvents.data || []).some((e) => e.myRole === "OWNER" || e.myRole === "MANAGER");
+  const navItems = canManageAny ? NAV : NAV.filter((n) => n.to === "/organizer/events");
 
   if (dashEvents.loading) {
     return <div className="feed" style={{ paddingTop: 8 }}>
@@ -65,6 +72,13 @@ export default function OrganizerLayout() {
     );
   }
 
+  // The org-wide Overview (aggregate revenue etc.) isn't in a staff-only
+  // user's nav — bounce their landing to Events so they don't sit on a page
+  // they can't act on.
+  if (!canManageAny && location.pathname === "/organizer") {
+    return <Navigate to="/organizer/events" replace />;
+  }
+
   return (
     <section className="organizer-page">
       <header className="topbar">
@@ -77,7 +91,7 @@ export default function OrganizerLayout() {
           <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "9px 14px" }}><i className="icon-plus" /> New event</Link>
         </div>
       </header>
-      <DashboardShell navItems={NAV} ariaLabel="Organizer sections" primary>
+      <DashboardShell navItems={navItems} ariaLabel="Organizer sections" primary>
         <Outlet context={{ isHost, reloadEvents: dashEvents.reload, eventsLoading: dashEvents.loading } satisfies OrganizerCtx} />
       </DashboardShell>
     </section>

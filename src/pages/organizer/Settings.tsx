@@ -41,6 +41,8 @@ export default function OrganizerSettings() {
   const [saved, setSaved] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [generatingQr, setGeneratingQr] = useState(false);
+  const [paymentsEnabled, setPaymentsEnabled] = useState(true);
+  useEffect(() => { api.config().then((c) => setPaymentsEnabled(c.paymentsEnabled)).catch(() => {}); }, []);
 
   useEffect(() => {
     if (!data) return;
@@ -150,6 +152,12 @@ export default function OrganizerSettings() {
           <textarea rows={3} value={defaultTransferDetails} onChange={(e) => setDefaultTransferDetails(e.target.value)} placeholder="Bank name, account name, account/IBAN number, reference to use…" />
         )}
         <p className="hint" style={{ marginTop: 10 }}>Revenue and per-event breakdowns are on the Overview page.</p>
+        {!paymentsEnabled && (
+          <div className="note" style={{ marginTop: 12, marginBottom: 0 }}>
+            <i className="icon-info" style={{ marginRight: 6 }} />
+            Weyn card payments (PayTabs) aren't connected on this environment yet, so "Weyn Ticketing" isn't available when creating events — use a payment link or bank transfer instead.
+          </div>
+        )}
       </div>
 
       <button className="btn" onClick={save} disabled={saving} style={{ marginBottom: 24 }}>{saving ? "Saving…" : saved ? "Saved ✓" : "Save settings"}</button>

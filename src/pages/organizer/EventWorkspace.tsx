@@ -31,6 +31,19 @@ const TABS = [
   { key: "settings", label: "Settings", icon: "settings" },
 ];
 
+// UX-only role gate — the server routes (requireEventAccess / *Strict) are
+// the real enforcement. STAFF is door-only: Check-in and a read-only
+// Overview, plus Attendees when their membership carries the viewAttendees
+// permission (matches requireEventAccessOrPermission on the server). OWNER
+// and MANAGER see every tab; the Team tab renders read-only for MANAGER
+// inside TeamTab.
+function tabAllowed(key: string, event: Weyn): boolean {
+  if (event.myRole !== "STAFF") return true;
+  if (key === "overview" || key === "checkin") return true;
+  if (key === "attendees") return (event.myPermissions || []).includes("viewAttendees");
+  return false;
+}
+
 export default function EventWorkspace() {
   const { id, tab } = useParams<{ id: string; tab?: string }>();
   const events = useAsync(() => api.dashboardEvents(), []);
@@ -52,6 +65,13 @@ export default function EventWorkspace() {
   // section never highlighted. Redirect once so URL and body agree.
   if (!tab) return <Navigate to={`/organizer/events/${event.id}/overview`} replace />;
 
+  // Only the tabs this role can use — and if a deep link points at one it
+  // can't (e.g. STAFF opening /team directly), bounce to the first it can.
+  const visibleTabs = TABS.filter((t) => tabAllowed(t.key, event));
+  if (!visibleTabs.some((t) => t.key === tab)) {
+    return <Navigate to={`/organizer/events/${event.id}/${visibleTabs[0].key}`} replace />;
+  }
+
   const features = sub.data?.features || {};
 
   return (
@@ -63,6 +83,11 @@ export default function EventWorkspace() {
       <div className="date-head" style={{ paddingLeft: 0, alignItems: "center", paddingBottom: 4 }}>
         <Link to="/organizer/events" className="copy-btn" style={{ marginRight: 4 }}><i className="icon-arrow-left" /></Link>
         <h2 className="page-title" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</h2>
+        {event.myRole && event.myRole !== "OWNER" && (
+          <span className="ec-badge" style={{ marginLeft: 8, flexShrink: 0 }}>
+            {event.myRole === "MANAGER" ? "Manager" : "Staff — check-in only"}
+          </span>
+        )}
       </div>
       <div style={{ display: "flex", gap: 8, padding: "0 6px 10px" }}>
         <Link to={`/e/${event.id}`} className="btn glass sm"><i className="icon-external-link" /> View live</Link>
@@ -73,7 +98,7 @@ export default function EventWorkspace() {
       </div>
       <DashboardShell
         ariaLabel="Event workspace sections"
-        navItems={TABS.map((t) => ({
+        navItems={visibleTabs.map((t) => ({
           to: `/organizer/events/${event.id}/${t.key}`,
           icon: t.icon,
           label: t.label,
@@ -1192,6 +1217,10 @@ const PERMISSION_LABEL: Record<string, string> = {
 };
 
 function TeamTab({ event }: { event: Weyn }) {
+  // Invite/revoke are owner-only on the server (requireEventOwnerStrict); a
+  // MANAGER can list the team (requireEventOwner) but not mutate it, so they
+  // see the roster read-only with no invite form or Revoke buttons.
+  const canManage = event.myRole === "OWNER";
   const { data, loading, error, reload } = useAsync(() => api.listTeam(event.id), [event.id]);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<TeamRole>("STAFF");
@@ -1231,37 +1260,43 @@ function TeamTab({ event }: { event: Weyn }) {
 
   return (
     <>
-      <p className="hint" style={{ margin: "0 0 14px" }}>Managers get full event access. Staff can only check people in at the door.</p>
-      <div className="field"><label>Invite by email</label><input type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="teammate@email.com" /></div>
-      <div className="field">
-        <label>Role</label>
-        <select value={role} onChange={(ev) => setRole(ev.target.value as TeamRole)}>
-          <option value="STAFF">Staff (check-in only)</option>
-          <option value="MANAGER">Manager (full access)</option>
-        </select>
-      </div>
-      {role === "STAFF" && (
-        <div className="field">
-          <label>Extra permissions for this staffer <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label>
-          {TEAM_PERMISSIONS.map((p) => (
-            <label key={p} className="tier-toggle">
-              <input type="checkbox" checked={permissions.includes(p)} onChange={() => togglePermission(p)} />
-              {PERMISSION_LABEL[p]}
-            </label>
-          ))}
-        </div>
-      )}
-      {inviteErr && <p className="errline">{inviteErr}</p>}
-      <button className="btn" onClick={invite} disabled={inviting || !isValidEmail(email)}>{inviting ? "Creating invite…" : "Create invite link"}</button>
-
-      {lastLink && (
-        <div className="marketing-card" style={{ marginTop: 10 }}>
-          <div className="marketing-card-head">
-            <i className="icon-link" /> <b>Invite link — send it yourself</b>
-            <button className="copy-btn" onClick={copyLink}><i className={(copied ? "icon-check" : "icon-copy")} /> {copied ? "Copied" : "Copy"}</button>
+      {canManage ? (
+        <>
+          <p className="hint" style={{ margin: "0 0 14px" }}>Managers get full event access. Staff can only check people in at the door.</p>
+          <div className="field"><label>Invite by email</label><input type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} placeholder="teammate@email.com" /></div>
+          <div className="field">
+            <label>Role</label>
+            <select value={role} onChange={(ev) => setRole(ev.target.value as TeamRole)}>
+              <option value="STAFF">Staff (check-in only)</option>
+              <option value="MANAGER">Manager (full access)</option>
+            </select>
           </div>
-          <pre className="marketing-text" style={{ wordBreak: "break-all" }}>{lastLink}</pre>
-        </div>
+          {role === "STAFF" && (
+            <div className="field">
+              <label>Extra permissions for this staffer <span style={{ fontWeight: 400, color: "var(--text-3)" }}>· optional</span></label>
+              {TEAM_PERMISSIONS.map((p) => (
+                <label key={p} className="tier-toggle">
+                  <input type="checkbox" checked={permissions.includes(p)} onChange={() => togglePermission(p)} />
+                  {PERMISSION_LABEL[p]}
+                </label>
+              ))}
+            </div>
+          )}
+          {inviteErr && <p className="errline">{inviteErr}</p>}
+          <button className="btn" onClick={invite} disabled={inviting || !isValidEmail(email)}>{inviting ? "Creating invite…" : "Create invite link"}</button>
+
+          {lastLink && (
+            <div className="marketing-card" style={{ marginTop: 10 }}>
+              <div className="marketing-card-head">
+                <i className="icon-link" /> <b>Invite link — send it yourself</b>
+                <button className="copy-btn" onClick={copyLink}><i className={(copied ? "icon-check" : "icon-copy")} /> {copied ? "Copied" : "Copy"}</button>
+              </div>
+              <pre className="marketing-text" style={{ wordBreak: "break-all" }}>{lastLink}</pre>
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="hint" style={{ margin: "0 0 14px" }}>You can view the team here. Only the event owner can invite or remove members.</p>
       )}
 
       <p className="section-label" style={{ marginTop: 18 }}>Team members</p>
@@ -1274,7 +1309,7 @@ function TeamTab({ event }: { event: Weyn }) {
               <li key={m.id}>
                 <i className={m.role === "MANAGER" ? "icon-shield" : "icon-scan"} />
                 <span>{m.user?.name || m.email} <small style={{ color: "var(--text-3)" }}>· {ROLE_LABEL[m.role]}{m.status === "PENDING" ? " · invite pending" : ""}{m.permissions.length > 0 ? ` · ${m.permissions.map((p) => PERMISSION_LABEL[p] || p).join(", ")}` : ""}</small></span>
-                <button className="copy-btn" onClick={() => revoke(m.id)} style={{ marginLeft: "auto" }}>Revoke</button>
+                {canManage && <button className="copy-btn" onClick={() => revoke(m.id)} style={{ marginLeft: "auto" }}>Revoke</button>}
               </li>
             ))}
           </ul>

@@ -17,23 +17,23 @@ enum Role {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  name         String
-  avatarUrl    String?
-  googleSub    String?   @unique // legacy Google Sign-In identity, kept for historical rows — no longer written to
-  clerkUserId  String?   @unique // real identity now, see server/auth.js
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  name                 String
+  avatarUrl            String?
+  googleSub            String?   @unique // legacy Google Sign-In identity, kept for historical rows — no longer written to
+  clerkUserId          String?   @unique // real identity now, see server/auth.js
   // Default is ATTENDEE, not ORGANIZER — hosting is granted by *acting* as an
   // organizer (Event.ownerId is set the moment you create your first event),
   // not by the role column. Keeping the default minimal-privilege means a
   // brand-new session token has the least power a bug in `role` checks could
   // grant. ADMIN is manually assigned, never self-assigned.
-  role         Role      @default(ATTENDEE)
+  role                 Role      @default(ATTENDEE)
   // App-side marker for security-sensitive user changes. Clerk owns real
   // session lifetime; immediate forced sign-out must be done through Clerk.
-  tokenVersion Int       @default(0)
-  createdAt    DateTime  @default(now())
-  deletedAt    DateTime?
+  tokenVersion         Int       @default(0)
+  createdAt            DateTime  @default(now())
+  deletedAt            DateTime?
   // Organizer dashboard: prefills for new events (refund policy, capacity,
   // category, etc) so hosting a 10th event doesn't mean retyping the same
   // values. Free-form JSON, not individual columns — this is a UX
@@ -41,37 +41,39 @@ model User {
   // prefillable fields is expected to grow without needing a migration.
   defaultEventSettings Json?
 
-  events          Event[]
-  analyticsEvents AnalyticsEvent[]
-  auditLogs       AuditLog[]
-  aiGenerations   AiGenerationLog[]
-  agentActions    AgentAction[]
-  eventVenues     EventVenue[]
-  attendeeProfiles AttendeeProfile[]
-  campaigns       Campaign[]
-  expenses        Expense[]
-  mediaAssets     MediaAsset[]
-  sponsors        Sponsor[]
-  vendors         Vendor[]
-  automationRules AutomationRule[]
-  workflows       Workflow[]
-  eventWorkflows  EventWorkflow[]
-  goals           OrganizerGoal[]
-  messageTemplates MessageTemplate[]
-  teamMemberships EventTeamMember[] @relation("TeamMembership")
-  teamInvitesSent EventTeamMember[] @relation("TeamInviter")
-  following       Follow[]          @relation("Follower")
-  followers       Follow[]          @relation("Following")
-  collections     Collection[]
-  reportsFiled    Report[]          @relation("Reporter")
-  reportsReviewed Report[]          @relation("ReportReviewer")
-  venues          Venue[]
-  venueApplications VenueApplication[]
-  webPushSubscriptions WebPushSubscription[]
-  subscription    Subscription?
-  marketingLinks  MarketingLink[]
-  referralCodes   ReferralCode[]
-  brandKit        OrganizerBrandKit?
+  events                   Event[]
+  analyticsEvents          AnalyticsEvent[]
+  auditLogs                AuditLog[]
+  aiGenerations            AiGenerationLog[]
+  agentActions             AgentAction[]
+  eventVenues              EventVenue[]
+  attendeeProfiles         AttendeeProfile[]
+  campaigns                Campaign[]
+  expenses                 Expense[]
+  mediaAssets              MediaAsset[]
+  sponsors                 Sponsor[]
+  vendors                  Vendor[]
+  automationRules          AutomationRule[]
+  workflows                Workflow[]
+  eventWorkflows           EventWorkflow[]
+  goals                    OrganizerGoal[]
+  messageTemplates         MessageTemplate[]
+  teamMemberships          EventTeamMember[]         @relation("TeamMembership")
+  teamInvitesSent          EventTeamMember[]         @relation("TeamInviter")
+  venueTeamMemberships     VenueTeamMember[]         @relation("VenueTeamMembership")
+  venueTeamInvitesSent     VenueTeamMember[]         @relation("VenueTeamInviter")
+  following                Follow[]                  @relation("Follower")
+  followers                Follow[]                  @relation("Following")
+  collections              Collection[]
+  reportsFiled             Report[]                  @relation("Reporter")
+  reportsReviewed          Report[]                  @relation("ReportReviewer")
+  venues                   Venue[]
+  venueApplications        VenueApplication[]
+  webPushSubscriptions     WebPushSubscription[]
+  subscription             Subscription?
+  marketingLinks           MarketingLink[]
+  referralCodes            ReferralCode[]
+  brandKit                 OrganizerBrandKit?
   socialAccountConnections SocialAccountConnection[]
   marketingContacts        MarketingContact[]
   socialPosts              SocialPost[]
@@ -254,7 +256,7 @@ model Event {
   // server/features.js). Existed only as a dead, never-populated field on
   // the frontend Weyn type before this; now a real column an organizer with
   // the featuredPlacement feature can set on their own event.
-  featured          Boolean            @default(false)
+  featured Boolean @default(false)
 
   // Invite-only hosting: an event that never appears in public Discovery
   // (GET /api/events) and can't be booked without inviteCode matching —
@@ -402,12 +404,12 @@ model AnalyticsEvent {
 }
 
 model Tier {
-  id       String @id @default(cuid())
-  eventId  String
-  name     String
-  price    Float
-  capacity Int
-  sold     Int    @default(0)
+  id            String    @id @default(cuid())
+  eventId       String
+  name          String
+  price         Float
+  capacity      Int
+  sold          Int       @default(0)
   // Advanced ticketing: "standard" | "vip" | "group" | "family" | "membership" | "donation"
   kind          String    @default("standard")
   minQty        Int? // group/family bundle minimum quantity per purchase
@@ -432,44 +434,44 @@ enum BookingStatus {
 }
 
 model Booking {
-  id       String        @id @default(cuid())
-  eventId  String
-  tierId   String?
-  status   BookingStatus @default(pending)
-  deviceId String?
-  email    String?
-  name     String?
-  qty      Int           @default(1)
-  accessToken String?    @unique
-  bookedAt DateTime      @default(now())
-  reminded Boolean       @default(false)
+  id                String        @id @default(cuid())
+  eventId           String
+  tierId            String?
+  status            BookingStatus @default(pending)
+  deviceId          String?
+  email             String?
+  name              String?
+  qty               Int           @default(1)
+  accessToken       String?       @unique
+  bookedAt          DateTime      @default(now())
+  reminded          Boolean       @default(false)
   // "organizer_payment" flow only — the attendee's own claim that they sent
   // the transfer/paid the link, BEFORE the organizer has actually confirmed
   // it (status stays "pending" until they do). Purely informational, surfaced
   // to the organizer so they know a claim is waiting — never trusted as proof
   // of payment on its own.
-  claimedPaidAt DateTime?
+  claimedPaidAt     DateTime?
   // Which of the event's reminderSchedule offsets (hours-before-start) have
   // already been sent for this booking — prevents the scan from re-sending
   // the same T-3d reminder on every 5-minute tick once it's within window.
-  autoRemindersSent Int[] @default([])
+  autoRemindersSent Int[]         @default([])
   // Promotion Center: captured from ?utm_source=... on the event page at the
   // moment of booking (see EventDetail.tsx) — null means direct/no campaign.
-  utmSource   String?
-  utmMedium   String?
-  utmCampaign String?
+  utmSource         String?
+  utmMedium         String?
+  utmCampaign       String?
   // Marketing Hub referral program: which organizer-issued ReferralCode (if
   // any) this booking was attributed to, captured from ?ref=CODE the same
   // way utmSource/etc are captured from ?utm_source=... — null means this
   // booking wasn't referred.
-  referredByCodeId String?
+  referredByCodeId  String?
 
-  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  tier    Tier?    @relation(fields: [tierId], references: [id])
-  payment Payment?
-  tickets Ticket[]
+  event           Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tier            Tier?            @relation(fields: [tierId], references: [id])
+  payment         Payment?
+  tickets         Ticket[]
   tableAssignment TableAssignment?
-  referredByCode ReferralCode? @relation("ReferredBookings", fields: [referredByCodeId], references: [id])
+  referredByCode  ReferralCode?    @relation("ReferredBookings", fields: [referredByCodeId], references: [id])
 
   @@index([eventId])
   @@index([deviceId])
@@ -531,12 +533,12 @@ model Ticket {
   // keeps admitting whoever holds the code; this just records who it's
   // supposed to belong to now, for the attendee list / re-sent confirmation.
   transferredToEmail String?
-  transferredAt       DateTime?
-  transferredBy       String? // User.id of the organizer/staff who actioned it
+  transferredAt      DateTime?
+  transferredBy      String? // User.id of the organizer/staff who actioned it
 
-  booking Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  event   Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  seat    FloorSeat? @relation(fields: [seatId], references: [id])
+  booking  Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  event    Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  seat     FloorSeat? @relation(fields: [seatId], references: [id])
   checkIns CheckIn[]
 
   @@index([bookingId])
@@ -555,17 +557,17 @@ enum CheckInStatus {
 }
 
 model CheckIn {
-  id         String        @id @default(cuid())
-  eventId    String
-  ticketId   String?
-  bookingId  String?
-  scannedAt  DateTime      @default(now())
-  scannedBy  String? // User.id of the organizer/staff who scanned
-  method     String        @default("qr") // "qr" | "manual"
-  status     CheckInStatus
+  id        String        @id @default(cuid())
+  eventId   String
+  ticketId  String?
+  bookingId String?
+  scannedAt DateTime      @default(now())
+  scannedBy String? // User.id of the organizer/staff who scanned
+  method    String        @default("qr") // "qr" | "manual"
+  status    CheckInStatus
 
-  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  ticket  Ticket?  @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
   @@index([eventId])
   @@index([ticketId])
@@ -574,17 +576,17 @@ model CheckIn {
 
 // ---- Staff shift scheduling ----
 model EventShift {
-  id            String   @id @default(cuid())
-  eventId       String
-  teamMemberId  String
-  role          String?
-  startTime     DateTime
-  endTime       DateTime
-  notes         String?
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  eventId      String
+  teamMemberId String
+  role         String?
+  startTime    DateTime
+  endTime      DateTime
+  notes        String?
+  createdAt    DateTime @default(now())
 
-  event      Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  teamMember EventTeamMember  @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  event      Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  teamMember EventTeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
   @@index([teamMemberId])
@@ -603,8 +605,8 @@ model Budget {
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  @@index([eventId])
   @@unique([eventId, category])
+  @@index([eventId])
 }
 
 // Append-only trail for anything that mutates state on someone else's
@@ -704,8 +706,8 @@ model MarketingLink {
   clicks      Int      @default(0)
   createdAt   DateTime @default(now())
 
-  event    Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  event     Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizer User  @relation(fields: [organizerId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
   @@index([organizerId])
@@ -726,9 +728,9 @@ model ReferralCode {
   referralCount Int      @default(0)
   createdAt     DateTime @default(now())
 
-  event      Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  organizer  User       @relation(fields: [organizerId], references: [id], onDelete: Cascade)
-  bookings   Booking[]  @relation("ReferredBookings")
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizer User      @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  bookings  Booking[] @relation("ReferredBookings")
 
   @@index([eventId])
   @@index([organizerId])
@@ -740,11 +742,11 @@ model ReferralCode {
 // optional, organizer-dashboard-only settings, same reasoning as
 // EventVenue being split out from Event.
 model OrganizerBrandKit {
-  organizerId String   @id
-  logoUrl     String?
+  organizerId  String   @id
+  logoUrl      String?
   primaryColor String?
-  toneOfVoice String? // free text, e.g. "playful and casual" / "polished and formal"
-  updatedAt   DateTime @updatedAt
+  toneOfVoice  String? // free text, e.g. "playful and casual" / "polished and formal"
+  updatedAt    DateTime @updatedAt
 
   organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
 }
@@ -780,10 +782,10 @@ model SocialAccountConnection {
   id                  String    @id @default(cuid())
   userId              String?
   venueId             String?
-  provider            String    // "meta" (Instagram + Facebook via Meta Graph API) — only provider today, room to add more later
-  accessTokenEnc       String    // AES-256-GCM ciphertext, see server/crypto-secrets.js encryptSecret()
+  provider            String // "meta" (Instagram + Facebook via Meta Graph API) — only provider today, room to add more later
+  accessTokenEnc      String // AES-256-GCM ciphertext, see server/crypto-secrets.js encryptSecret()
   tokenExpiresAt      DateTime?
-  igBusinessAccountId String?   // resolved once at connect-time from the chosen Facebook Page
+  igBusinessAccountId String? // resolved once at connect-time from the chosen Facebook Page
   pageId              String?
   pageName            String?
   connectedAt         DateTime  @default(now())
@@ -815,9 +817,9 @@ model SocialAccountConnection {
 model VenueSocialPost {
   id             String   @id @default(cuid())
   venueId        String
-  provider       String   // "instagram" today
+  provider       String // "instagram" today
   externalPostId String?
-  copy           Json     // snapshot of exactly what was posted (caption + which image url)
+  copy           Json // snapshot of exactly what was posted (caption + which image url)
   status         String   @default("posted") // "posted" | "failed"
   error          String?
   postedAt       DateTime @default(now())
@@ -874,15 +876,15 @@ model VenueEmailCampaignSend {
 // importantly, block an accidental double-post of the same drafted copy
 // for the same event (see the route's pre-check in server/app.js).
 model SocialPost {
-  id            String   @id @default(cuid())
-  eventId       String
-  organizerId   String
-  provider      String   // "instagram" today
-  externalPostId String?  // Graph API media/publish id, once known
-  copy          Json     // snapshot of exactly what was posted (caption + which image url)
-  status        String   @default("posted") // "posted" | "failed"
-  error         String?
-  postedAt      DateTime @default(now())
+  id             String   @id @default(cuid())
+  eventId        String
+  organizerId    String
+  provider       String // "instagram" today
+  externalPostId String? // Graph API media/publish id, once known
+  copy           Json // snapshot of exactly what was posted (caption + which image url)
+  status         String   @default("posted") // "posted" | "failed"
+  error          String?
+  postedAt       DateTime @default(now())
 
   event     Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   organizer User  @relation(fields: [organizerId], references: [id], onDelete: Cascade)
@@ -900,20 +902,20 @@ model SocialPost {
 // schema), not a decorative link — CAN-SPAM/GDPR-style compliance is a
 // legal requirement for real bulk email, not an optional nicety.
 model MarketingContact {
-  id                String   @id @default(cuid())
-  organizerId       String
-  email             String
-  name              String?
-  subscribed        Boolean  @default(true)
-  source            String   @default("manual") // "manual" | "csv_import"
-  tags              String[] @default([])
+  id               String    @id @default(cuid())
+  organizerId      String
+  email            String
+  name             String?
+  subscribed       Boolean   @default(true)
+  source           String    @default("manual") // "manual" | "csv_import"
+  tags             String[]  @default([])
   // Birthday/anniversary reminder automation: optional date-of-birth (year
   // may be a placeholder if unknown — only month/day are used for the
   // "contact_birthday" AutomationRule trigger match).
-  birthday          DateTime?
-  unsubscribeToken  String   @unique
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  birthday         DateTime?
+  unsubscribeToken String    @unique
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
 
@@ -928,7 +930,7 @@ model MarketingContact {
 model EmailCampaignSend {
   id             String   @id @default(cuid())
   organizerId    String
-  eventId        String?  // nullable — a send can be about one event's copy but still goes out to the organizer-wide list, not per-event recipients
+  eventId        String? // nullable — a send can be about one event's copy but still goes out to the organizer-wide list, not per-event recipients
   subject        String
   bodyHtml       String
   recipientCount Int      @default(0)
@@ -944,45 +946,73 @@ model EmailCampaignSend {
 // ticketing above; a Venue is a standing place with recurring availability,
 // not a one-off scheduled happening.
 model Venue {
-  id               String    @id @default(cuid())
-  name             String
-  category         String // "restaurant" | "cafe" | "lounge" | "rooftop" | "beach_club" | "experience"
-  description      String
-  venue            String
-  area             String
-  lat              Float
-  lng              Float
-  distanceKm       Float
-  coverImage       String?
-  photos           String[]
-  priceRange       String? // "$" | "$$" | "$$$"
-  tags             String[]
-  ownerId          String?
-  verified         Boolean   @default(false)
-  subscriptionTier String?
+  id                 String   @id @default(cuid())
+  name               String
+  category           String // "restaurant" | "cafe" | "lounge" | "rooftop" | "beach_club" | "experience"
+  description        String
+  venue              String
+  area               String
+  lat                Float
+  lng                Float
+  distanceKm         Float
+  coverImage         String?
+  photos             String[]
+  priceRange         String? // "$" | "$$" | "$$$"
+  tags               String[]
+  ownerId            String?
+  verified           Boolean  @default(false)
+  subscriptionTier   String?
   subscriptionStatus String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  owner         User?                    @relation(fields: [ownerId], references: [id])
-  slots         VenueAvailabilitySlot[]
-  reservations  Reservation[]
-  guestNotes    VenueGuestNote[]
-  campaigns     Campaign[]
-  automationRules AutomationRule[]
-  workflows     Workflow[]
-  floorPlan     FloorPlan?
-  marketingLinks  VenueMarketingLink[]
-  loyaltyProfiles VenueLoyalty[]
-  brandKit        VenueBrandKit?
+  owner                    User?                     @relation(fields: [ownerId], references: [id])
+  slots                    VenueAvailabilitySlot[]
+  reservations             Reservation[]
+  guestNotes               VenueGuestNote[]
+  campaigns                Campaign[]
+  automationRules          AutomationRule[]
+  workflows                Workflow[]
+  floorPlan                FloorPlan?
+  marketingLinks           VenueMarketingLink[]
+  loyaltyProfiles          VenueLoyalty[]
+  brandKit                 VenueBrandKit?
   socialAccountConnections SocialAccountConnection[]
   socialPosts              VenueSocialPost[]
   marketingContacts        VenueMarketingContact[]
   emailCampaignSends       VenueEmailCampaignSend[]
   waitlistEntries          VenueWaitlistEntry[]
+  teamMembers              VenueTeamMember[]
 
   @@index([ownerId])
   @@index([category])
+}
+
+// Venue-scoped team access — mirrors EventTeamMember exactly (same TeamRole /
+// TeamInviteStatus enums, same copy-link invite flow, same "userId null until
+// accepted, inviteToken cleared on accept" model). STAFF is front-of-house /
+// day-to-day, MANAGER runs the venue except managing the team itself (owner
+// only). See EventTeamMember above for the reasoning behind each field.
+model VenueTeamMember {
+  id           String           @id @default(cuid())
+  venueId      String
+  invitedEmail String
+  userId       String?
+  role         TeamRole
+  status       TeamInviteStatus @default(PENDING)
+  inviteToken  String?          @unique @default(cuid())
+  invitedBy    String
+  createdAt    DateTime         @default(now())
+  acceptedAt   DateTime?
+  permissions  String[]         @default([])
+
+  venue   Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user    User? @relation("VenueTeamMembership", fields: [userId], references: [id])
+  inviter User  @relation("VenueTeamInviter", fields: [invitedBy], references: [id])
+
+  @@index([venueId])
+  @@index([userId])
+  @@index([invitedEmail])
 }
 
 // ---- venue reservation waitlist (fully-booked slot → guest joins a
@@ -1000,24 +1030,24 @@ enum VenueWaitlistStatus {
 }
 
 model VenueWaitlistEntry {
-  id                  String              @id @default(cuid())
-  venueId             String
-  guestName           String
-  guestEmail          String
-  guestPhone          String?
-  partySize           Int
-  requestedDate       DateTime
-  requestedTimeWindow String // free-text, e.g. "19:00" or "19:00-21:00"
-  notes               String?
-  status              VenueWaitlistStatus @default(WAITING)
+  id                     String              @id @default(cuid())
+  venueId                String
+  guestName              String
+  guestEmail             String
+  guestPhone             String?
+  partySize              Int
+  requestedDate          DateTime
+  requestedTimeWindow    String // free-text, e.g. "19:00" or "19:00-21:00"
+  notes                  String?
+  status                 VenueWaitlistStatus @default(WAITING)
   // Higher = notified/promoted first when a slot frees up. Plain guest
   // joins default to 0; an owner can bump a VIP up manually from the
   // dashboard.
-  priority            Int                 @default(0)
-  notifiedAt          DateTime?
+  priority               Int                 @default(0)
+  notifiedAt             DateTime?
   convertedReservationId String?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
 
   venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
 
@@ -1060,8 +1090,8 @@ model Reservation {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  venue Venue                  @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  slot  VenueAvailabilitySlot? @relation(fields: [slotId], references: [id])
+  venue           Venue                  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  slot            VenueAvailabilitySlot? @relation(fields: [slotId], references: [id])
   tableAssignment TableAssignment?
 
   @@index([venueId])
@@ -1207,7 +1237,7 @@ model VenueGuestNote {
 // distinct from Venue itself, which only gets created once the Weyn team
 // approves an application by hand. See POST /api/venue-applications.
 model VenueApplication {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   applicantId      String?
   businessType     String // "restaurant" | "cafe" | "lounge" | "rooftop" | "beach_club" | "experience"
   name             String
@@ -1217,7 +1247,7 @@ model VenueApplication {
   description      String?
   // Full listing data captured up front, so approving an application can
   // mint a complete, ready-to-list Venue with no follow-up data entry.
-  venue            String?  // street address
+  venue            String? // street address
   area             String?
   lat              Float?
   lng              Float?
@@ -1237,13 +1267,13 @@ model VenueApplication {
   // endTime, capacity }]. Approval turns these into real
   // VenueAvailabilitySlot rows so the owner never re-enters their hours.
   availability     Json?
-  status           String   @default("pending") // "pending" | "approved" | "rejected"
+  status           String    @default("pending") // "pending" | "approved" | "rejected"
   // Admin review trail.
   reviewedBy       String?
   reviewedAt       DateTime?
   reviewNote       String?
   resultingVenueId String? // the Venue created when this application was approved
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
 
   applicant User? @relation(fields: [applicantId], references: [id])
 
@@ -1290,19 +1320,19 @@ model SubscriptionPlan {
 }
 
 model Subscription {
-  id                 String             @id @default(cuid())
-  userId             String             @unique // one subscription per organizer account
-  planId             String
-  status             SubscriptionStatus @default(INACTIVE)
-  currentPeriodStart DateTime?
-  currentPeriodEnd   DateTime?
-  cancelAtPeriodEnd  Boolean            @default(false)
+  id                     String             @id @default(cuid())
+  userId                 String             @unique // one subscription per organizer account
+  planId                 String
+  status                 SubscriptionStatus @default(INACTIVE)
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
   // Cancel-flow exit survey (see /api/me/subscription/cancel) — captured
   // whether or not a save offer is ultimately accepted, so reason
   // distribution can be tracked even for saved customers, not just
   // completed cancellations.
-  cancelReason   String?
-  cancelFeedback String?
+  cancelReason           String?
+  cancelFeedback         String?
   // Which save offer (if any) the organizer accepted last time they went
   // through the cancel flow — "pause" | "discount" | "downgrade" | null.
   // Analytics only today (offer-acceptance rate); once real billing exists,
@@ -1313,14 +1343,14 @@ model Subscription {
   // (see server/features.js's isActive(), unchanged: SUSPENDED already
   // reads as "not active" there) until this date, then ensureSubscription()
   // auto-resumes it back to ACTIVE on next read.
-  pausedUntil DateTime?
+  pausedUntil            DateTime?
   // Populated once real billing is wired — null for every row created by
   // the current free-grant path. stripeSubscriptionId is the natural
   // dedup/idempotency key for webhook-driven updates (see BillingEvent).
-  stripeCustomerId     String?
-  stripeSubscriptionId String? @unique
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  stripeCustomerId       String?
+  stripeSubscriptionId   String?            @unique
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
   user           User             @relation(fields: [userId], references: [id])
   plan           SubscriptionPlan @relation(fields: [planId], references: [id])
@@ -1446,13 +1476,13 @@ model WaitlistEntry {
 // tier — not read by anything yet, but the alternative (adding it retroactively
 // once usage actually matters) means losing all history from before that point.
 model AiGenerationLog {
-  id         String   @id @default(cuid())
+  id          String   @id @default(cuid())
   organizerId String
-  eventId    String?
-  feature    String   // "description" | "pricing" | "cover-concept" | "summary"
-  prompt     String
-  output     String
-  createdAt  DateTime @default(now())
+  eventId     String?
+  feature     String // "description" | "pricing" | "cover-concept" | "summary"
+  prompt      String
+  output      String
+  createdAt   DateTime @default(now())
 
   organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
   event     Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
@@ -1470,17 +1500,17 @@ model AiGenerationLog {
 // create/send/cancel something land here, and none of them touch the
 // database until `status` moves to "approved".
 model AgentAction {
-  id         String   @id @default(cuid())
+  id          String    @id @default(cuid())
   organizerId String
-  tool       String   // e.g. "assignTable" | "createReservation" | "sendCampaignEmail"
-  args       Json     // the exact arguments the model proposed calling the tool with
-  reasoning  String   // the model's own explanation, shown to the owner before they approve
-  status     String   @default("proposed") // "proposed" | "approved" | "rejected" | "executed" | "failed"
-  result     Json?    // set once executed — whatever the tool's real execution returned
-  error      String?  // set if execution failed after approval
-  createdAt  DateTime @default(now())
-  decidedAt  DateTime?
-  executedAt DateTime?
+  tool        String // e.g. "assignTable" | "createReservation" | "sendCampaignEmail"
+  args        Json // the exact arguments the model proposed calling the tool with
+  reasoning   String // the model's own explanation, shown to the owner before they approve
+  status      String    @default("proposed") // "proposed" | "approved" | "rejected" | "executed" | "failed"
+  result      Json? // set once executed — whatever the tool's real execution returned
+  error       String? // set if execution failed after approval
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+  executedAt  DateTime?
 
   organizer User @relation(fields: [organizerId], references: [id], onDelete: Cascade)
 
@@ -1544,27 +1574,27 @@ model AttendeeProfile {
 // with a real scheduled/segment-targeted concept — sent by the same
 // reminder-scan cron that already runs every 5 minutes, not a new worker.
 model Campaign {
-  id           String    @id @default(cuid())
-  organizerId  String
-  eventId      String? // set for event-ticket-buyer campaigns
-  venueId      String? // set for venue-guest campaigns — exactly one of eventId/venueId is set, never both
-  channel      String // "email" | "push"
-  subject      String?
-  message      String
-  segment      Json? // e.g. {tags: ["vip"], minSpend: 50} — matched against AttendeeProfile/Booking (events) or VenueGuestNote/Reservation (venues)
-  scheduledFor DateTime?
-  sentAt       DateTime?
-  status       String    @default("scheduled") // scheduled | sent | cancelled
+  id             String    @id @default(cuid())
+  organizerId    String
+  eventId        String? // set for event-ticket-buyer campaigns
+  venueId        String? // set for venue-guest campaigns — exactly one of eventId/venueId is set, never both
+  channel        String // "email" | "push"
+  subject        String?
+  message        String
+  segment        Json? // e.g. {tags: ["vip"], minSpend: 50} — matched against AttendeeProfile/Booking (events) or VenueGuestNote/Reservation (venues)
+  scheduledFor   DateTime?
+  sentAt         DateTime?
+  status         String    @default("scheduled") // scheduled | sent | cancelled
   // Set once actually sent — how many people it reached. A count computed
   // fresh from current data would drift from what was true at send time
   // (guests/attendees keep changing), so this is captured once and never
   // recomputed, same reasoning as any other historical ledger entry.
   recipientCount Int?
-  createdAt    DateTime  @default(now())
+  createdAt      DateTime  @default(now())
 
-  organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
-  event     Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  venue     Venue? @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  organizer  User                     @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  event      Event?                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  venue      Venue?                   @relation(fields: [venueId], references: [id], onDelete: Cascade)
   recipients VenueCampaignRecipient[]
 
   @@index([organizerId])
@@ -1648,22 +1678,22 @@ model MediaAsset {
 
 // ---- Sponsor Management ----
 model Sponsor {
-  id           String   @id @default(cuid())
-  organizerId  String
-  eventId      String?
-  name         String
-  contactEmail String?
-  contactPhone String?
-  contractUrl  String?
-  logoUrl      String?
-  amount       Float?
-  deliverables String[] @default([])
-  status       String   @default("prospect") // prospect | confirmed | delivered
+  id             String   @id @default(cuid())
+  organizerId    String
+  eventId        String?
+  name           String
+  contactEmail   String?
+  contactPhone   String?
+  contractUrl    String?
+  logoUrl        String?
+  amount         Float?
+  deliverables   String[] @default([])
+  status         String   @default("prospect") // prospect | confirmed | delivered
   // ---- Sponsor ROI tracking ----
-  impressions     Int      @default(0)
-  clicks          Int      @default(0)
-  leadsGenerated  Int      @default(0)
-  createdAt    DateTime @default(now())
+  impressions    Int      @default(0)
+  clicks         Int      @default(0)
+  leadsGenerated Int      @default(0)
+  createdAt      DateTime @default(now())
 
   organizer User   @relation(fields: [organizerId], references: [id], onDelete: Cascade)
   event     Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
@@ -1773,13 +1803,13 @@ model Workflow {
 // graph may have stopped some branches) so an owner can see exactly why a
 // run did or didn't do what they expected, not just that it ran.
 model WorkflowRun {
-  id              String   @id @default(cuid())
-  workflowId      String
-  trigger         String
-  reservationId   String?
-  matchedActions  Json // array of {nodeId, action, ok, error?}
-  status          String // "success" | "partial" | "failed"
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  workflowId     String
+  trigger        String
+  reservationId  String?
+  matchedActions Json // array of {nodeId, action, ok, error?}
+  status         String // "success" | "partial" | "failed"
+  createdAt      DateTime @default(now())
 
   workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
@@ -1832,7 +1862,7 @@ model EventWorkflowRun {
 
 // ---- Organizer Goals ----
 model OrganizerGoal {
-  id             String  @id @default(cuid())
+  id             String @id @default(cuid())
   organizerId    String
   month          String // "2026-07"
   revenueGoal    Float?

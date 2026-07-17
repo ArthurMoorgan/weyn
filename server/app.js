@@ -23,7 +23,7 @@ import { refineEventDraft, cleanEventTitle } from "./refine.js";
 import { suggestImageFocalPoint, askClaude, askClaudeJson, aiConfigured, runAgentTurn, agentToolsConfigured } from "./ai.js";
 import { AGENT_TOOLS, buildToolExecutor, toolByName } from "./agent-tools.js";
 import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
-import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, requireEventAccessOrPermission, authConfigured } from "./auth.js";
+import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, requireEventAccessOrPermission, requireVenueAccess, requireVenueOwnerStrict, authConfigured } from "./auth.js";
 import { createEventSchema, updateEventSchema, eventWorkflowSchema, validateBody } from "./validators.js";
 import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature } from "./features.js";
@@ -387,8 +387,10 @@ export function createApp(storage) {
         // (storage.readImage), never linked to R2/Blob directly — 'self'
         // covers them. data: for the inline SVG favicon, img.clerk.com for
         // Clerk-hosted avatars (Google-account pictures now come through
-        // Clerk's own CDN, not directly from googleusercontent).
-        imgSrc: ["'self'", "data:", "https://img.clerk.com"],
+        // Clerk's own CDN, not directly from googleusercontent). Google Maps
+        // basemap tiles/markers (MapPicker.tsx, MiniMap.tsx) come from
+        // maps.gstatic.com and the various *.googleapis.com tile subdomains.
+        imgSrc: ["'self'", "data:", "https://img.clerk.com", "https://maps.gstatic.com", "https://*.googleapis.com"],
         // Clerk's React SDK does NOT bundle the real Clerk JS — it lazy-loads
         // it at runtime from Clerk's own Frontend API host via a dynamically
         // injected <script> tag (confirmed live: "Clerk: Failed to load
@@ -410,7 +412,7 @@ export function createApp(storage) {
         // needed, just its API host for event capture) uses whatever
         // VITE_POSTHOG_HOST is set to; both US and EU cloud covered since
         // either could be configured per-environment.
-        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.weynevents.com", "https://maps.googleapis.com", "https://nominatim.openstreetmap.org", "https://us.i.posthog.com", "https://eu.i.posthog.com", "https://onesignal.com", "https://*.onesignal.com", "https://cdn.onesignal.com"],
+        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.weynevents.com", "https://maps.googleapis.com", "https://*.googleapis.com", "https://nominatim.openstreetmap.org", "https://us.i.posthog.com", "https://eu.i.posthog.com", "https://onesignal.com", "https://*.onesignal.com", "https://cdn.onesignal.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
       },
@@ -594,6 +596,10 @@ export function createApp(storage) {
   // ---- routes ----
   app.get("/", (_req, res) => res.json({ name: "weyn-api", ok: true }));
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
+
+  // Public, secret-free feature flags the frontend needs before login —
+  // e.g. whether card payments are wired up on this environment.
+  app.get("/api/config", (_req, res) => res.json({ paymentsEnabled: paytabsConfigured() }));
 
   app.get("/api/events", async (req, res) => {
     let events = [...(await db.all())].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
@@ -799,6 +805,7 @@ export function createApp(storage) {
       // existence, is what the pipeline gates. See server/moderation.js.
       const moderation = await runModerationPipeline(ev, { triggeredBy: "publish" });
       if (moderation.hardFail) {
+        captureError(new Error("Event publish hardFail"), { route: "POST /api/events", eventId: ev.id, hardFail: moderation.hardFail, startsAt: ev.startsAt, nowIso: new Date().toISOString() });
         return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `Couldn't publish: ${moderation.hardFail.join(", ")}` } });
       }
 
@@ -834,6 +841,7 @@ export function createApp(storage) {
     if (!req.event.isDraft) return res.json(req.event);
     const moderation = await runModerationPipeline(req.event, { triggeredBy: "publish" });
     if (moderation.hardFail) {
+      captureError(new Error("Event publish hardFail"), { route: "POST /api/events/:id/publish", eventId: req.event.id, hardFail: moderation.hardFail, startsAt: req.event.startsAt, nowIso: new Date().toISOString() });
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `Couldn't publish: ${moderation.hardFail.join(", ")}` } });
     }
     const updated = await db.update(req.event.id, { isDraft: false, discoveryStatus: moderation.discoveryStatus, draftData: null });
@@ -1092,7 +1100,7 @@ export function createApp(storage) {
   });
 
   app.post("/api/events/:id/checkout", bookingLimiter, async (req, res) => {
-    if (!paytabsConfigured()) return res.status(503).json({ error: "Payments aren't configured on this server yet" });
+    if (!paytabsConfigured()) return res.status(503).json({ error: { code: "PAYMENTS_UNAVAILABLE", message: "Online card payment isn't available yet — this event uses another ticketing method." } });
     const e = await db.get(req.params.id);
     if (!e) return res.status(404).json({ error: "Event not found" });
     if (e.cancelled) return res.status(410).json({ error: "This event was cancelled" });
@@ -1505,8 +1513,22 @@ export function createApp(storage) {
   async function confirmPaymentFromPayTabs(payment, rawWebhook) {
     if (payment.status === "paid") return;
     const { success, raw } = await fetchTransactionStatus(payment.paytabsTranRef);
-    await prisma.payment.update({ where: { id: payment.id }, data: { rawWebhook: rawWebhook || raw, status: success ? "paid" : "failed" } });
-    if (!success) return;
+    if (!success) {
+      await prisma.payment.update({ where: { id: payment.id }, data: { rawWebhook: rawWebhook || raw, status: "failed" } });
+      return;
+    }
+
+    // Atomic conditional transition: this function is reachable concurrently
+    // from the webhook and the booking-status poll, so a plain read-then-write
+    // guard on payment.status/booking.status isn't enough — two racing calls
+    // could both pass it and each claim capacity + issue tickets. Only the
+    // call whose UPDATE actually flips status away from "paid" (count === 1)
+    // proceeds; the loser returns having done nothing further.
+    const { count } = await prisma.payment.updateMany({
+      where: { id: payment.id, status: { not: "paid" } },
+      data: { rawWebhook: rawWebhook || raw, status: "paid" },
+    });
+    if (count !== 1) return;
 
     const booking = await prisma.booking.findUnique({ where: { id: payment.bookingId } });
     if (!booking || booking.status === "paid") return;
@@ -2098,7 +2120,7 @@ export function createApp(storage) {
   // validation as the application upload above.
   const VENUE_CATEGORIES = ["restaurant", "cafe", "lounge", "rooftop", "beach_club", "experience"];
   const VENUE_PRICE_RANGES = ["$", "$$", "$$$"];
-  app.put("/api/venues/:id", requireAuth, requireVenueOwner, upload.fields([{ name: "coverImage", maxCount: 1 }, { name: "photos", maxCount: 6 }]), async (req, res) => {
+  app.put("/api/venues/:id", requireAuth, requireVenueOwnerStrict(), upload.fields([{ name: "coverImage", maxCount: 1 }, { name: "photos", maxCount: 6 }]), async (req, res) => {
     try {
       const b = req.body || {};
       const data = {};
@@ -2456,20 +2478,9 @@ export function createApp(storage) {
   // ---- venue owner management (dashboard for an approved venue) ----
   // Loads req.params.id's Venue and 403s unless the signed-in user owns it
   // or is an ADMIN — the venue equivalent of requireEventOwner.
-  async function requireVenueOwner(req, res, next) {
-    if (!req.user) return res.status(401).json({ error: { code: "UNAUTHENTICATED", message: "Sign in required" } });
-    const venue = await prisma.venue.findUnique({ where: { id: req.params.id } });
-    if (!venue) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Venue not found" } });
-    if (venue.ownerId !== req.user.id && req.user.role !== "ADMIN") {
-      return res.status(403).json({ error: { code: "FORBIDDEN", message: "You don't manage this venue" } });
-    }
-    req.venue = venue;
-    next();
-  }
-
   // Venues the signed-in user owns (their reservation-hosting dashboard list).
   // Incoming reservations for one of my venues, newest first.
-  app.get("/api/venues/:id/reservations", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/reservations", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const reservations = await prisma.reservation.findMany({
         where: { venueId: req.venue.id },
@@ -2486,7 +2497,7 @@ export function createApp(storage) {
   // Replace a venue's weekly availability in one call (owner sets their
   // bookable slots). Deletes the old set and writes the new — simplest
   // correct model for "here is my current weekly schedule".
-  app.put("/api/venues/:id/slots", requireAuth, requireVenueOwner, async (req, res) => {
+  app.put("/api/venues/:id/slots", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const incoming = Array.isArray(req.body?.slots) ? req.body.slots : [];
       const clean = [];
@@ -2545,7 +2556,7 @@ export function createApp(storage) {
   // an owner seating a walk-in without a matching slot, or over a slot's
   // nominal capacity for a one-off, is a real and common case they should be
   // able to just record.
-  app.post("/api/venues/:id/reservations/manual", requireAuth, requireVenueOwner, async (req, res) => {
+  app.post("/api/venues/:id/reservations/manual", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const { guestName, guestEmail, guestPhone, partySize, date, time, slotId, notes, status } = req.body || {};
       if (!guestName || !String(guestName).trim() || !guestEmail || !String(guestEmail).trim()) {
@@ -2597,7 +2608,7 @@ export function createApp(storage) {
   // Pending-first (WAITING/NOTIFIED before CONVERTED/EXPIRED/CANCELLED),
   // then oldest requested date, mirroring how the reservations list
   // orders by date first — a venue owner wants "who's next" at a glance.
-  app.get("/api/venues/:id/waitlist", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/waitlist", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const entries = await prisma.venueWaitlistEntry.findMany({
         where: { venueId: req.venue.id },
@@ -2614,7 +2625,7 @@ export function createApp(storage) {
   // sends the notification email and flips WAITING -> NOTIFIED. Doesn't
   // create a reservation yet; the guest (or the owner, on their behalf)
   // still needs to actually convert via the promote route below.
-  app.post("/api/venues/:id/waitlist/:entryId/notify", requireAuth, requireVenueOwner, async (req, res) => {
+  app.post("/api/venues/:id/waitlist/:entryId/notify", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const entry = await prisma.venueWaitlistEntry.findUnique({ where: { id: req.params.entryId } });
       if (!entry || entry.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Waitlist entry not found" } });
@@ -2649,7 +2660,7 @@ export function createApp(storage) {
   // marks the entry CONVERTED. Reuses autoAssignTable/runVenueWorkflows so a
   // promoted reservation behaves identically to any other reservation from
   // here on — no parallel state machine.
-  app.post("/api/venues/:id/waitlist/:entryId/promote", requireAuth, requireVenueOwner, async (req, res) => {
+  app.post("/api/venues/:id/waitlist/:entryId/promote", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const entry = await prisma.venueWaitlistEntry.findUnique({ where: { id: req.params.entryId } });
       if (!entry || entry.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Waitlist entry not found" } });
@@ -2689,7 +2700,7 @@ export function createApp(storage) {
   // Owner (or the guest cancelling their own spot) removes an entry —
   // CANCELLED rather than a hard delete, so the dashboard can still show
   // "why isn't this guest waiting anymore" in a history view later.
-  app.delete("/api/venues/:id/waitlist/:entryId", requireAuth, requireVenueOwner, async (req, res) => {
+  app.delete("/api/venues/:id/waitlist/:entryId", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const entry = await prisma.venueWaitlistEntry.findUnique({ where: { id: req.params.entryId } });
       if (!entry || entry.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Waitlist entry not found" } });
@@ -2705,7 +2716,7 @@ export function createApp(storage) {
   // Revenue is deliberately not included — Reservation has no monetary field
   // (no deposit/prepayment exists yet), so a revenue figure here would be
   // fabricated rather than measured.
-  app.get("/api/venues/:id/analytics", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/analytics", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const reservations = await prisma.reservation.findMany({ where: { venueId: req.venue.id } });
       const total = reservations.length;
@@ -2741,7 +2752,7 @@ export function createApp(storage) {
 
   // ---- per-guest notes: a running note per (venue, guestEmail), independent
   // of any single reservation. List is owner-only same as reservations. ----
-  app.get("/api/venues/:id/guest-notes", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/guest-notes", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const notes = await prisma.venueGuestNote.findMany({ where: { venueId: req.venue.id } });
       res.json(notes);
@@ -2751,7 +2762,7 @@ export function createApp(storage) {
     }
   });
 
-  app.put("/api/venues/:id/guest-notes/:email", requireAuth, requireVenueOwner, async (req, res) => {
+  app.put("/api/venues/:id/guest-notes/:email", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const guestEmail = String(req.params.email || "").trim().toLowerCase();
       const note = String(req.body?.note || "").trim();
@@ -2779,7 +2790,7 @@ export function createApp(storage) {
   // runCampaignScan picking up anything with a future scheduledFor) — see
   // that route's comment for why scheduling reuses a Campaign row instead
   // of a separate job queue. ----
-  app.get("/api/venues/:id/segment-preview", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/segment-preview", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const segment = { type: req.query.type || "all", tag: req.query.tag, days: req.query.days ? Number(req.query.days) : undefined };
       const guests = await resolveVenueSegment(req.venue.id, segment);
@@ -2790,7 +2801,7 @@ export function createApp(storage) {
     }
   });
 
-  app.post("/api/venues/:id/campaigns", requireAuth, requireVenueOwner, async (req, res) => {
+  app.post("/api/venues/:id/campaigns", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const subject = String(req.body?.subject || "").trim();
       const message = String(req.body?.message || "").trim();
@@ -2826,7 +2837,7 @@ export function createApp(storage) {
     }
   });
 
-  app.get("/api/venues/:id/campaigns", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/campaigns", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     res.json(await db.listVenueCampaigns(req.venue.id));
   });
 
@@ -2836,7 +2847,7 @@ export function createApp(storage) {
   // generic "write me an email" prompt. Always a draft the owner reviews
   // and edits before sending — never auto-sent, same policy as every
   // other AI Studio feature in this app.
-  app.post("/api/venues/:id/campaigns/ai-draft", importLimiter, requireAuth, requireVenueOwner, requireFeature("aiStudio"), async (req, res) => {
+  app.post("/api/venues/:id/campaigns/ai-draft", importLimiter, requireAuth, requireVenueAccess("MANAGER"), requireFeature("aiStudio"), async (req, res) => {
     if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set on this server yet." } });
     const goal = String(req.body?.goal || "").trim();
     if (!goal) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Describe what this campaign should achieve." } });
@@ -2867,7 +2878,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.delete("/api/venues/:id/campaigns/:campaignId", requireAuth, requireVenueOwner, async (req, res) => {
+  app.delete("/api/venues/:id/campaigns/:campaignId", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     const cancelled = await db.cancelCampaign(req.params.campaignId, req.user.id);
     if (!cancelled) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Nothing to cancel — it may already have sent." } });
     res.json(cancelled);
@@ -2878,7 +2889,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // book again" — computed from the VenueCampaignRecipient snapshot taken
   // at send time (see the campaigns routes above), not re-resolved from the
   // segment (which would drift as guest history keeps changing).
-  app.get("/api/venues/:id/campaigns/:campaignId/winback-stats", requireAuth, requireVenueOwner, requireFeature("venueWinBackCampaigns"), async (req, res) => {
+  app.get("/api/venues/:id/campaigns/:campaignId/winback-stats", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueWinBackCampaigns"), async (req, res) => {
     try {
       const campaign = await prisma.campaign.findUnique({ where: { id: req.params.campaignId } });
       if (!campaign || campaign.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Campaign not found" } });
@@ -2897,7 +2908,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // Reservation history — never stored, so it can't drift. Only the
   // referral code (needs to stay stable once shared) is persisted, in
   // VenueLoyalty. No payment/discount processing.
-  app.get("/api/venues/:id/loyalty", requireAuth, requireVenueOwner, requireFeature("venueLoyaltyProgram"), async (req, res) => {
+  app.get("/api/venues/:id/loyalty", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueLoyaltyProgram"), async (req, res) => {
     try {
       const [visits, loyaltyRows] = await Promise.all([
         venueGuestVisitCounts(req.venue.id),
@@ -2928,7 +2939,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // Issue (or return the existing) referral code for a guest — idempotent,
   // short URL-safe code, same collision-retry pattern as the organizer
   // side's ReferralCode.
-  app.post("/api/venues/:id/loyalty/:email/referral-code", requireAuth, requireVenueOwner, requireFeature("venueLoyaltyProgram"), async (req, res) => {
+  app.post("/api/venues/:id/loyalty/:email/referral-code", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueLoyaltyProgram"), async (req, res) => {
     try {
       const guestEmail = String(req.params.email || "").trim().toLowerCase();
       if (!guestEmail) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "guestEmail is required" } });
@@ -2949,7 +2960,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   });
 
   // ---- Venue Marketing Hub: UTM link builder ----
-  app.post("/api/venues/:id/marketing-links", requireAuth, requireVenueOwner, requireFeature("venueUtmLinkBuilder"), async (req, res) => {
+  app.post("/api/venues/:id/marketing-links", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueUtmLinkBuilder"), async (req, res) => {
     try {
       const b = req.body || {};
       const label = String(b.label || "").trim();
@@ -2970,10 +2981,10 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
       res.status(500).json({ error: err.message });
     }
   });
-  app.get("/api/venues/:id/marketing-links", requireAuth, requireVenueOwner, requireFeature("venueUtmLinkBuilder"), async (req, res) => {
+  app.get("/api/venues/:id/marketing-links", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueUtmLinkBuilder"), async (req, res) => {
     res.json(await prisma.venueMarketingLink.findMany({ where: { venueId: req.venue.id }, orderBy: { createdAt: "desc" } }));
   });
-  app.delete("/api/venues/:id/marketing-links/:linkId", requireAuth, requireVenueOwner, requireFeature("venueUtmLinkBuilder"), async (req, res) => {
+  app.delete("/api/venues/:id/marketing-links/:linkId", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueUtmLinkBuilder"), async (req, res) => {
     const existing = await prisma.venueMarketingLink.findUnique({ where: { id: req.params.linkId } });
     if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Link not found" } });
     await prisma.venueMarketingLink.delete({ where: { id: existing.id } });
@@ -2986,7 +2997,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // Friday") the owner can add — purely a client-visible reminder list
   // (VenueRecurringPromo), no automatic send; if they want it to actually
   // go out on a schedule, that's what Workflows/scheduled campaigns are for.
-  app.get("/api/venues/:id/marketing-calendar", requireAuth, requireVenueOwner, requireFeature("venueMarketingCalendar"), async (req, res) => {
+  app.get("/api/venues/:id/marketing-calendar", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueMarketingCalendar"), async (req, res) => {
     try {
       const campaigns = await prisma.campaign.findMany({
         where: { venueId: req.venue.id, status: { in: ["scheduled", "sent"] } },
@@ -3012,11 +3023,11 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // venueId instead of organizerId (see prisma/schema.prisma's
   // VenueBrandKit comment for why). Feeds into the venue AI campaign-draft
   // prompt below.
-  app.get("/api/venues/:id/brand-kit", requireAuth, requireVenueOwner, requireFeature("venueBrandKit"), async (req, res) => {
+  app.get("/api/venues/:id/brand-kit", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueBrandKit"), async (req, res) => {
     const kit = await prisma.venueBrandKit.findUnique({ where: { venueId: req.venue.id } });
     res.json(kit || { venueId: req.venue.id, logoUrl: null, primaryColor: null, toneOfVoice: null });
   });
-  app.put("/api/venues/:id/brand-kit", requireAuth, requireVenueOwner, requireFeature("venueBrandKit"), async (req, res) => {
+  app.put("/api/venues/:id/brand-kit", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueBrandKit"), async (req, res) => {
     const b = req.body || {};
     const data = {
       logoUrl: b.logoUrl ? String(b.logoUrl).trim() : null,
@@ -3050,12 +3061,12 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     return null;
   }
 
-  app.get("/api/venues/:id/social-accounts", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/social-accounts", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     const rows = await prisma.socialAccountConnection.findMany({ where: { venueId: req.venue.id } });
     res.json(rows.map(({ accessTokenEnc, ...rest }) => rest));
   });
 
-  app.get("/api/venues/:id/social-accounts/meta/connect", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/social-accounts/meta/connect", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       pruneVenueMetaOAuthState();
       const state = crypto.randomBytes(16).toString("hex");
@@ -3068,7 +3079,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.get("/api/venues/:id/social-accounts/meta/callback", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/social-accounts/meta/callback", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const { code, state, error: oauthError } = req.query;
       if (oauthError) return res.status(400).json({ error: { code: "OAUTH_DENIED", message: String(oauthError) } });
@@ -3094,7 +3105,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.delete("/api/venues/:id/social-accounts/meta/:connId", requireAuth, requireVenueOwner, async (req, res) => {
+  app.delete("/api/venues/:id/social-accounts/meta/:connId", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     const existing = await prisma.socialAccountConnection.findUnique({ where: { id: req.params.connId } });
     if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Connection not found" } });
     await prisma.socialAccountConnection.delete({ where: { id: existing.id } });
@@ -3103,7 +3114,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   });
 
   // ---- Real posting: Instagram, via the venue's connected Meta account ----
-  app.post("/api/venues/:id/marketing/post-to-instagram", socialLimiter, requireAuth, requireVenueOwner, requireFeature("venueSocialAutoPosting"), async (req, res) => {
+  app.post("/api/venues/:id/marketing/post-to-instagram", socialLimiter, requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueSocialAutoPosting"), async (req, res) => {
     try {
       const v = req.venue;
       const connection = await prisma.socialAccountConnection.findUnique({ where: { venueId_provider: { venueId: v.id, provider: "meta" } } });
@@ -3138,7 +3149,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.get("/api/venues/:id/marketing/social-posts", requireAuth, requireVenueOwner, requireFeature("venueSocialAutoPosting"), async (req, res) => {
+  app.get("/api/venues/:id/marketing/social-posts", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueSocialAutoPosting"), async (req, res) => {
     res.json(await prisma.venueSocialPost.findMany({ where: { venueId: req.venue.id }, orderBy: { postedAt: "desc" } }));
   });
 
@@ -3147,11 +3158,11 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     return crypto.randomBytes(24).toString("base64url");
   }
 
-  app.get("/api/venues/:id/marketing-contacts", requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+  app.get("/api/venues/:id/marketing-contacts", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueEmailCampaigns"), async (req, res) => {
     res.json(await prisma.venueMarketingContact.findMany({ where: { venueId: req.venue.id }, orderBy: { createdAt: "desc" } }));
   });
 
-  app.post("/api/venues/:id/marketing-contacts", requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+  app.post("/api/venues/:id/marketing-contacts", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueEmailCampaigns"), async (req, res) => {
     const email = String(req.body?.email || "").trim().toLowerCase();
     const name = req.body?.name ? String(req.body.name).trim() : null;
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -3170,7 +3181,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.post("/api/venues/:id/marketing-contacts/import", requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+  app.post("/api/venues/:id/marketing-contacts/import", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueEmailCampaigns"), async (req, res) => {
     const raw = String(req.body?.csv || "");
     if (!raw.trim()) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "csv text is required" } });
     const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -3198,7 +3209,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     res.json({ imported, skipped, total: seen.size });
   });
 
-  app.delete("/api/venues/:id/marketing-contacts/:contactId", requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+  app.delete("/api/venues/:id/marketing-contacts/:contactId", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueEmailCampaigns"), async (req, res) => {
     const existing = await prisma.venueMarketingContact.findUnique({ where: { id: req.params.contactId } });
     if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Contact not found" } });
     await prisma.venueMarketingContact.delete({ where: { id: existing.id } });
@@ -3221,7 +3232,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // server/email.js's sendEmail()/Resend wrapper. Same fixed-size-batch
   // approach as the organizer's send-email-campaign route. ----
   const VENUE_EMAIL_BATCH_SIZE = 25;
-  app.post("/api/venues/:id/marketing/send-email-campaign", socialLimiter, requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+  app.post("/api/venues/:id/marketing/send-email-campaign", socialLimiter, requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueEmailCampaigns"), async (req, res) => {
     const subject = String(req.body?.subject || "").trim();
     const bodyText = String(req.body?.body || "").trim();
     if (!subject || !bodyText) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "subject and body are required" } });
@@ -3249,12 +3260,12 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     res.status(201).json({ ok: true, recipients: contacts.length, sent, campaign: record });
   });
 
-  app.get("/api/venues/:id/email-campaign-sends", requireAuth, requireVenueOwner, requireFeature("venueEmailCampaigns"), async (req, res) => {
+  app.get("/api/venues/:id/email-campaign-sends", requireAuth, requireVenueAccess("MANAGER"), requireFeature("venueEmailCampaigns"), async (req, res) => {
     res.json(await prisma.venueEmailCampaignSend.findMany({ where: { venueId: req.venue.id }, orderBy: { sentAt: "desc" }, take: 100 }));
   });
 
   // ---- Venue growth tools ----
-  app.get("/api/venues/:id/marketing/growth-ideas", importLimiter, requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/marketing/growth-ideas", importLimiter, requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       res.json({ ideas: await generateVenueGrowthIdeas(req.venue) });
     } catch (err) {
@@ -3263,7 +3274,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.get("/api/venues/:id/marketing/free-tool-ideas", importLimiter, requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/marketing/free-tool-ideas", importLimiter, requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       res.json({ ideas: await generateVenueFreeToolIdeas(req.venue) });
     } catch (err) {
@@ -3272,7 +3283,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.get("/api/venues/:id/marketing/angled-copy", importLimiter, requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/marketing/angled-copy", importLimiter, requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     const angle = String(req.query.angle || "");
     if (!VENUE_PERSUASION_ANGLE_KEYS.includes(angle)) {
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `angle must be one of: ${VENUE_PERSUASION_ANGLE_KEYS.join(", ")}` } });
@@ -3286,7 +3297,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.get("/api/venues/:id/marketing/bulk-ad-variants", importLimiter, requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/marketing/bulk-ad-variants", importLimiter, requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     const platform = req.query.platform === "google" ? "google" : "meta";
     const count = Math.min(10, Math.max(1, parseInt(req.query.count, 10) || 3));
     try {
@@ -3303,11 +3314,11 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // executed immediately at the trigger (server/venue-workflows.js), not
   // polled. Graph validation happens on every save (create + update), so a
   // malformed graph never gets persisted only to silently no-op later. ----
-  app.get("/api/venues/:id/workflows", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/workflows", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     res.json(await prisma.workflow.findMany({ where: { venueId: req.venue.id }, orderBy: { createdAt: "desc" } }));
   });
 
-  app.post("/api/venues/:id/workflows", requireAuth, requireVenueOwner, async (req, res) => {
+  app.post("/api/venues/:id/workflows", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const name = String(req.body?.name || "").trim();
       const nodes = req.body?.nodes;
@@ -3323,7 +3334,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.put("/api/venues/:id/workflows/:workflowId", requireAuth, requireVenueOwner, async (req, res) => {
+  app.put("/api/venues/:id/workflows/:workflowId", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const existing = await prisma.workflow.findUnique({ where: { id: req.params.workflowId } });
       if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
@@ -3340,14 +3351,14 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.patch("/api/venues/:id/workflows/:workflowId", requireAuth, requireVenueOwner, async (req, res) => {
+  app.patch("/api/venues/:id/workflows/:workflowId", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     const existing = await prisma.workflow.findUnique({ where: { id: req.params.workflowId } });
     if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
     const updated = await prisma.workflow.update({ where: { id: existing.id }, data: { enabled: !!req.body?.enabled } });
     res.json(updated);
   });
 
-  app.delete("/api/venues/:id/workflows/:workflowId", requireAuth, requireVenueOwner, async (req, res) => {
+  app.delete("/api/venues/:id/workflows/:workflowId", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     const existing = await prisma.workflow.findUnique({ where: { id: req.params.workflowId } });
     if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
     await prisma.workflow.delete({ where: { id: existing.id } });
@@ -3357,7 +3368,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // Execution log — the "debug mode" from the master automation-builder
   // prompt: which action nodes actually ran (and whether each succeeded)
   // for every time this workflow's trigger fired.
-  app.get("/api/venues/:id/workflows/:workflowId/runs", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/workflows/:workflowId/runs", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     const existing = await prisma.workflow.findUnique({ where: { id: req.params.workflowId } });
     if (!existing || existing.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Workflow not found" } });
     const runs = await prisma.workflowRun.findMany({ where: { workflowId: existing.id }, orderBy: { createdAt: "desc" }, take: 50 });
@@ -3374,7 +3385,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   const FLOOR_PLAN_INCLUDE = { sections: true, tables: { include: { seats: true }, orderBy: { createdAt: "asc" } } };
 
   // Owner-only: create (if missing) or fetch a venue's floor plan.
-  app.post("/api/venues/:id/floor-plan", requireAuth, requireVenueOwner, async (req, res) => {
+  app.post("/api/venues/:id/floor-plan", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const mode = req.body?.mode === "seat" ? "seat" : "table";
       const plan = await prisma.floorPlan.upsert({
@@ -3390,7 +3401,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.get("/api/venues/:id/floor-plan", requireAuth, requireVenueOwner, async (req, res) => {
+  app.get("/api/venues/:id/floor-plan", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const plan = await prisma.floorPlan.findUnique({ where: { venueId: req.venue.id }, include: FLOOR_PLAN_INCLUDE });
       res.json(plan || null);
@@ -3400,7 +3411,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.put("/api/venues/:id/floor-plan", requireAuth, requireVenueOwner, async (req, res) => {
+  app.put("/api/venues/:id/floor-plan", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const mode = req.body?.mode === "seat" ? "seat" : "table";
       const plan = await prisma.floorPlan.update({ where: { venueId: req.venue.id }, data: { mode }, include: FLOOR_PLAN_INCLUDE });
@@ -3411,7 +3422,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     }
   });
 
-  app.post("/api/venues/:id/floor-plan/sections", requireAuth, requireVenueOwner, async (req, res) => {
+  app.post("/api/venues/:id/floor-plan/sections", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const name = String(req.body?.name || "").trim();
       if (!name) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "name is required" } });
@@ -3432,7 +3443,7 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
   // cascades to its seats and any assignment linking to it — acceptable for
   // a layout edit, since removing a table from the floor plan means it no
   // longer physically exists).
-  app.put("/api/venues/:id/floor-plan/tables", requireAuth, requireVenueOwner, async (req, res) => {
+  app.put("/api/venues/:id/floor-plan/tables", requireAuth, requireVenueAccess("MANAGER"), async (req, res) => {
     try {
       const plan = await prisma.floorPlan.findUnique({ where: { venueId: req.venue.id } });
       if (!plan) return res.status(400).json({ error: { code: "NO_FLOOR_PLAN", message: "Create the floor plan first" } });
@@ -4272,6 +4283,54 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
     const accepted = await db.acceptInvite(req.params.token, req.user.id);
     await db.audit("event.team.accept", { actorId: req.user.id, entityType: "event", entityId: invite.eventId, metadata: { role: invite.role } });
     res.json({ ok: true, eventId: accepted.eventId, eventTitle: invite.event.title, role: accepted.role });
+  });
+
+  // ---- venue team management (mirrors the event team routes above against
+  // VenueTeamMember). Invite/revoke are owner-only; listing is MANAGER+. ----
+  app.post("/api/venues/:id/team/invite", teamInviteLimiter, requireVenueOwnerStrict(), async (req, res) => {
+    const { email, role } = req.body || {};
+    if (!email || !["MANAGER", "STAFF"].includes(role)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "email and role (MANAGER or STAFF) are required" } });
+    }
+    const invite = await db.createVenueTeamInvite({ venueId: req.venue.id, invitedEmail: email, role, invitedBy: req.user.id });
+    await db.audit("venue.team.invite", { actorId: req.user.id, entityType: "venue", entityId: req.venue.id, metadata: { email, role } });
+    const origin = publicOrigin(req);
+    const inviteLink = `${origin}/venue-invite/${invite.inviteToken}`;
+    if (emailConfigured()) {
+      sendEmail({ to: email, ...teamInviteEmail({ eventTitle: req.venue.name, role, inviteLink }) })
+        .catch((err) => console.error("venue team invite email failed:", err.message));
+    }
+    res.status(201).json({ id: invite.id, email: invite.invitedEmail, role: invite.role, inviteLink });
+  });
+
+  app.get("/api/venues/:id/team", requireVenueAccess("MANAGER"), async (req, res) => {
+    const members = await db.listVenueTeamMembers(req.venue.id);
+    res.json(members.map((m) => ({
+      id: m.id, email: m.invitedEmail, role: m.role, status: m.status, permissions: m.permissions || [],
+      user: m.user ? { id: m.user.id, name: m.user.name, avatarUrl: m.user.avatarUrl } : null,
+      createdAt: m.createdAt, acceptedAt: m.acceptedAt,
+    })));
+  });
+
+  app.delete("/api/venues/:id/team/:memberId", requireVenueOwnerStrict(), async (req, res) => {
+    const member = await db.getVenueTeamMemberById(req.params.memberId);
+    if (!member || member.venueId !== req.venue.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Team member not found" } });
+    await db.revokeVenueTeamMember(member.id);
+    await db.audit("venue.team.revoke", { actorId: req.user.id, entityType: "venue", entityId: req.venue.id, metadata: { memberId: member.id } });
+    res.json({ ok: true });
+  });
+
+  app.post("/api/venue-team/invites/:token/accept", requireAuth, async (req, res) => {
+    const invite = await db.getVenueInviteByToken(req.params.token);
+    if (!invite || invite.status !== "PENDING") {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "This invite link is invalid or already used" } });
+    }
+    if (req.user.email.toLowerCase() !== invite.invitedEmail.toLowerCase()) {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "Sign in with the invited email address to accept this invite" } });
+    }
+    const accepted = await db.acceptVenueInvite(req.params.token, req.user.id);
+    await db.audit("venue.team.accept", { actorId: req.user.id, entityType: "venue", entityId: invite.venueId, metadata: { role: invite.role } });
+    res.json({ ok: true, venueId: accepted.venueId, venueName: invite.venue.name, role: accepted.role });
   });
 
   // ---- organizer-wide team (see db.organizerTeamMembers's comment — not a

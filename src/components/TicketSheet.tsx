@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { api } from "../api";
 import { useClosing } from "../hooks";
+import { MotionButton } from "../motion";
 
 // The one thing every ticketing app needs and this one didn't have: a place
 // to actually SEE a ticket after booking. Free RSVP and paid checkout both
@@ -88,12 +89,12 @@ export default function TicketSheet({
 
         {revealed && tickets && !err && (
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button
+            <MotionButton
               className="btn"
               onClick={() => { setWalletToast(true); setTimeout(() => setWalletToast(false), 2200); }}
             >
               <i className="icon-wallet" /> Add to Wallet
-            </button>
+            </MotionButton>
             {typeof lat === "number" && typeof lng === "number" && (
               <a
                 className="btn glass"
@@ -110,7 +111,7 @@ export default function TicketSheet({
 
         {walletToast && <div className="toast"><i className="icon-info" /> Wallet passes are coming soon</div>}
 
-        <button className="btn glass" style={{ marginTop: 8 }} onClick={close}>Close</button>
+        <MotionButton className="btn glass" style={{ marginTop: 8 }} onClick={close}>Close</MotionButton>
       </div>
     </div>
   );

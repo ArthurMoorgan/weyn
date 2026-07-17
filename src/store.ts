@@ -181,3 +181,17 @@ export function toggleTheme() {
   emit();
 }
 export function useTheme(): Theme { return useSyncExternalStore(subscribe, () => theme); }
+
+// ---- viewport width (used to gate desktop-only surfaces like venue-os) ----
+const NARROW_QUERY = "(max-width: 1023px)";
+export function useIsNarrowViewport(): boolean {
+  const mql = useMemo(() => window.matchMedia?.(NARROW_QUERY), []);
+  return useSyncExternalStore(
+    (onChange) => {
+      if (!mql) return () => {};
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    },
+    () => mql?.matches ?? false,
+  );
+}

@@ -6,13 +6,19 @@ import MapPicker from "../components/MapPicker";
 import ThemeToggle from "../components/ThemeToggle";
 import AccountWidget from "../components/AccountWidget";
 import Tooltip from "../components/Tooltip";
+import { MotionButton } from "../motion";
+
+// formats a Date as a local-time "YYYY-MM-DDTHH:mm" string for <input type="datetime-local">
+function toDatetimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 // default datetime-local value = ~3h from now, rounded
 function defaultWhen() {
   const d = new Date(Date.now() + 3 * 3600e3);
   d.setMinutes(0, 0, 0);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return toDatetimeLocal(d);
 }
 
 const TICKETING_OPTIONS: { key: TicketingType; label: string; icon: string; hint: string; disabled?: boolean }[] = [
@@ -36,6 +42,8 @@ export default function Organizer() {
   const [img, setImg] = useState<{ file: File; url: string } | null>(null);
   const [gallery, setGallery] = useState<{ file: File; url: string }[]>([]);
   const [galleryErr, setGalleryErr] = useState("");
+  const [paymentsEnabled, setPaymentsEnabled] = useState(true);
+  useEffect(() => { api.config().then((c) => setPaymentsEnabled(c.paymentsEnabled)).catch(() => {}); }, []);
   const MAX_GALLERY = 8;
   const [loc, setLoc] = useState<{ lat: number; lng: number }>({ lat: 23.61, lng: 58.54 });
   const [busy, setBusy] = useState(false);
@@ -62,7 +70,7 @@ export default function Organizer() {
         title: d.title === "Untitled draft" ? "" : d.title || "",
         organizer: d.organizer || prev.organizer,
         cat: (d.cat as Cat) || prev.cat,
-        when: d.startsAt ? new Date(d.startsAt).toISOString().slice(0, 16) : prev.when,
+        when: d.startsAt && new Date(d.startsAt) > new Date() ? toDatetimeLocal(new Date(d.startsAt)) : prev.when,
         venue: d.venue === "TBD" ? "" : d.venue || "",
         area: d.area || prev.area,
         price: String(d.price ?? prev.price),
@@ -292,7 +300,7 @@ export default function Organizer() {
       <>
         <header className="topbar">
           <div className="brand">
-            <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button>
+            <MotionButton className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></MotionButton>
             <span className="en">Host an event</span>
           </div>
           <div className="tb-right"><ThemeToggle /></div>
@@ -319,7 +327,7 @@ export default function Organizer() {
     <>
       <header className="topbar">
         <div className="brand">
-          <button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button>
+          <MotionButton className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></MotionButton>
           <span className="en">Host an event</span>
         </div>
         <div className="tb-right">
@@ -345,13 +353,13 @@ export default function Organizer() {
             {!igNeedsCaption ? (
               <>
                 <input value={igUrl} onChange={(e) => setIgUrl(e.target.value)} placeholder="https://www.instagram.com/p/..." />
-                <button className="btn" type="submit" disabled={igBusy}>{igBusy ? "Reading post…" : "Import"}</button>
+                <MotionButton className="btn" type="submit" disabled={igBusy}>{igBusy ? "Reading post…" : "Import"}</MotionButton>
               </>
             ) : (
               <>
                 <p className="hint" style={{ margin: "0 0 8px" }}>{igErr}</p>
                 <textarea rows={4} value={igCaption} onChange={(e) => setIgCaption(e.target.value)} placeholder="Paste the Instagram caption here…" />
-                <button className="btn" type="submit" disabled={igBusy}>{igBusy ? "Reading caption…" : "Use this caption"}</button>
+                <MotionButton className="btn" type="submit" disabled={igBusy}>{igBusy ? "Reading caption…" : "Use this caption"}</MotionButton>
               </>
             )}
             {igErr && !igNeedsCaption && <p className="errline">{igErr}</p>}
@@ -507,10 +515,12 @@ export default function Organizer() {
             ))}
           </div>
         </div>
-        <div className="note" style={{ marginTop: -6 }}>
-          <i className="icon-info" style={{ marginRight: 6 }} />
-          <b>Weyn Ticketing is coming soon.</b> Card payments through Weyn aren't live yet, so for now use an external ticket link, a registration form, or cash at the door to manage entry.
-        </div>
+        {!paymentsEnabled && (
+          <div className="note" style={{ marginTop: -6 }}>
+            <i className="icon-info" style={{ marginRight: 6 }} />
+            <b>Weyn Ticketing is coming soon.</b> Card payments through Weyn aren't connected on this environment yet, so for now use an external ticket link, a registration form, or cash at the door to manage entry.
+          </div>
+        )}
         {f.ticketingType === "weyn" && (
           <div className="field">
             <label className="tier-toggle">
@@ -613,12 +623,12 @@ export default function Organizer() {
 
         {err && <p className="errline">{err}</p>}
 
-        <button className="btn lg" onClick={() => publish(false)} disabled={busy}>
+        <MotionButton className="btn lg" onClick={() => publish(false)} disabled={busy}>
           <i className="icon-rocket" /> {busy ? "Publishing…" : "Publish to Weyn"}
-        </button>
-        <button className="btn glass" style={{ marginTop: 8 }} onClick={() => publish(true)} disabled={busy}>
+        </MotionButton>
+        <MotionButton className="btn glass" style={{ marginTop: 8 }} onClick={() => publish(true)} disabled={busy}>
           <i className="icon-save" /> {draftSaved ? "Saved ✓" : "Save as draft"}
-        </button>
+        </MotionButton>
         <p style={{ textAlign: "center", fontSize: 12, color: "var(--text-3)", margin: "12px 0 0" }}>
           Saved to the Weyn backend. Appears in Explore instantly.
         </p>

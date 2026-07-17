@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { motion, MotionConfig, AnimatePresence } from "motion/react";
+import { MotionButton } from "../motion";
 import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
@@ -283,6 +284,10 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
     // carousel's spring drag, the category circles' spring pop) respect the
     // OS-level "reduce motion" setting automatically — instant snaps instead
     // of springs, without a bespoke @media check on every one of them.
+    // Redundant now that main.tsx wraps the whole app in the same
+    // MotionConfig — kept anyway: nesting is harmless (the inner value just
+    // repeats the outer one) and keeps this file self-contained if Explore
+    // is ever rendered standalone outside the app shell again.
     <MotionConfig reducedMotion="user">
     <>
       {/* Hero title is suppressed when embedded in Discover — the Discover
@@ -463,8 +468,8 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
             </div>
 
             <div className="filter-sheet-actions">
-              <button className="btn glass" onClick={() => { setWhen("all"); setCat("all"); setMaxPrice(null); }}>Clear all</button>
-              <button className="btn lg" onClick={() => setShowFilters(false)}>Show results</button>
+              <MotionButton className="btn glass" onClick={() => { setWhen("all"); setCat("all"); setMaxPrice(null); }}>Clear all</MotionButton>
+              <MotionButton className="btn lg" onClick={() => setShowFilters(false)}>Show results</MotionButton>
             </div>
           </div>
         </div>
@@ -480,7 +485,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
         <div className="empty">
           <div className="ic"><i className="icon-cloud-off" /></div>
           <p>Couldn't load events. {error}</p>
-          <button className="btn glass" style={{ maxWidth: 200, margin: "0 auto" }} onClick={reload}>Try again</button>
+          <MotionButton className="btn glass" style={{ maxWidth: 200, margin: "0 auto" }} onClick={reload}>Try again</MotionButton>
         </div>
       )}
 

@@ -4,6 +4,7 @@ import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
 import ThemeToggle from "../../components/ThemeToggle";
 import Tooltip from "../../components/Tooltip";
+import DesktopOnlyBanner from "../../components/DesktopOnlyBanner";
 
 // The /venue-os index — mirrors organizer/Events.tsx's role as the entry
 // point into per-venue workspaces (Workspace.tsx), just simpler: venue
@@ -28,6 +29,8 @@ export default function VenueList() {
         <div className="brand"><span className="en">Your venues</span></div>
         <div className="tb-right"><ThemeToggle /></div>
       </header>
+
+      <div style={{ padding: "10px 16px 0" }}><DesktopOnlyBanner /></div>
 
       {venues.loading && <p className="hint" style={{ padding: "8px 16px" }}>Loading…</p>}
       {venues.error && <p className="errline" style={{ padding: "0 16px" }}>{venues.error}</p>}
