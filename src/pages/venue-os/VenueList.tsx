@@ -5,6 +5,7 @@ import { useAccount } from "../../store";
 import ThemeToggle from "../../components/ThemeToggle";
 import Tooltip from "../../components/Tooltip";
 import DesktopOnlyBanner from "../../components/DesktopOnlyBanner";
+import { MotionButton, MotionLink } from "../../motion";
 
 // The /venue-os index — mirrors organizer/Events.tsx's role as the entry
 // point into per-venue workspaces (Workspace.tsx), just simpler: venue
@@ -25,7 +26,7 @@ export default function VenueList() {
   return (
     <>
       <header className="topbar">
-        <Tooltip text="Back"><button className="icon-btn" onClick={() => nav("/you")} aria-label="Back"><i className="icon-arrow-left" /></button></Tooltip>
+        <Tooltip text="Back"><MotionButton className="icon-btn" onClick={() => nav("/you")} aria-label="Back"><i className="icon-arrow-left" /></MotionButton></Tooltip>
         <div className="brand"><span className="en">Your venues</span></div>
         <div className="tb-right"><ThemeToggle /></div>
       </header>
@@ -39,7 +40,7 @@ export default function VenueList() {
         <div className="empty">
           <div className="ic"><i className="icon-store" /></div>
           <p>No venues yet.</p>
-          <Link to="/host/venue" className="btn glass" style={{ maxWidth: 220, margin: "8px auto 0" }}>Host a venue</Link>
+          <MotionLink to="/host/venue" className="btn glass" style={{ maxWidth: 220, margin: "8px auto 0" }}>Host a venue</MotionLink>
         </div>
       )}
 
