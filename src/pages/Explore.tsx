@@ -7,7 +7,7 @@ import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import { addRecentSearch, getRecentSearches, clearRecentSearches } from "../hooks/useRecentSearches";
 import Stub from "../components/Stub";
-import PullToRefresh from "../components/PullToRefresh";
+import Icon3D from "../components/Icon3D";
 import { preloadEventDetail } from "../eventDetailChunk";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
@@ -30,19 +30,6 @@ const SplitText = lazy(() => import("../components/landing/SplitText"));
 // events" — cleanly, immediately, no hunting through sections. Everything
 // is still derived client-side from one events fetch — no extra
 // endpoints — so there's a single source of truth.
-
-// Editorial handoff: category shortcuts are circular icon selectors, not
-// text pills — one icon per real CATS entry (src/api.ts), not the mockup's
-// illustrative Music/Sports/Dining/Arts labels.
-const CAT_ICON: Record<Cat | "all", string> = {
-  all: "layout-grid",
-  music: "music",
-  sports: "trophy",
-  food: "utensils",
-  culture: "theater",
-  workshop: "hammer",
-  community: "users",
-};
 
 const startTs = (e: Weyn) => new Date(e.startsAt).getTime();
 const bySoonest = (a: Weyn, b: Weyn) => startTs(a) - startTs(b);
@@ -314,7 +301,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
     // repeats the outer one) and keeps this file self-contained if Explore
     // is ever rendered standalone outside the app shell again.
     <MotionConfig reducedMotion="user">
-    <PullToRefresh onRefresh={reload} refreshing={loading}>
+    <>
       {/* Hero title is suppressed when embedded in Discover — the Discover
           shell owns the header (the Events/Venues segmented toggle + host
           pill) so a second title here would be redundant clutter. */}
@@ -442,19 +429,18 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 aria-label={c.label}
                 whileTap={{ scale: 0.96 }}
               >
-                {/* Niche grid: a plain icon-font glyph colored directly via
-                    --tile-cat (set inline above), not the photographic 3D
-                    renders — those are grey/white studio shots with no
-                    chroma of their own, so faking color onto them with a
-                    CSS filter came out muddy/unreliable. A colored glyph on
-                    a dark card is the reliable version of the reference's
-                    colorful-icon-on-dark-tile look. */}
+                {/* Uber-style photographic 3D niche renders (see Icon3D) —
+                    the same silver/white product shots the event cards use
+                    for their fallback covers, so the category grid and the
+                    feed share one visual language. Selection reads through
+                    the tile's own .on state (accent border + tint) rather
+                    than tinting the render itself. */}
                 <motion.span
                   className="cat-circle-ring"
                   animate={{ scale: isOn ? 1.06 : 1 }}
                   transition={{ type: "spring", stiffness: 500, damping: 14 }}
                 >
-                  <i className={"icon-" + CAT_ICON[c.key as Cat]} />
+                  <Icon3D name={c.key as Cat} size={52} />
                 </motion.span>
                 <span className="cat-circle-label">{c.label}</span>
               </motion.button>
@@ -588,7 +574,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
       {!account && !loading && (
         <p className="ex-footnote">Sign in on the <strong>You</strong> tab to save events and follow organizers.</p>
       )}
-    </PullToRefresh>
+    </>
     </MotionConfig>
   );
 }

@@ -1,10 +1,17 @@
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { useState } from "react";
 import { type Weyn, ticketsLeft, isSoldOut, isTonight, dayLabel, timeLabel } from "../api";
 import { isSaved, toggleSave, useSaved } from "../store";
 import { preloadEventDetail } from "../eventDetailChunk";
+import { usePrefersReducedMotion, pressSpring } from "../motion";
 import Icon3D from "./Icon3D";
+
+// The whole card is tappable, so the card itself is the press target — a
+// subtle shrink-on-press (much gentler than a button's 0.94, since a big
+// editorial surface shouldn't leap around) makes every event card across the
+// app — Explore, Search, Saved, Tickets — feel alive under the finger. The
+// layoutId cover-morph lives on the inner motion.div, independent of this.
+const MotionLink = motion.create(Link);
 
 // Card variants — one component, four densities, so different surfaces get
 // genuinely different visual treatments:
@@ -48,37 +55,6 @@ function SaveHeart({ id, className = "" }: { id: string; className?: string }) {
   );
 }
 
-// Quick-share button, overlaid on the card alongside SaveHeart. Uses
-// navigator.share when available (native share sheet on mobile), falls back
-// to clipboard.writeText with visual feedback. stopPropagation to prevent
-// triggering the surrounding <Link> navigation.
-function ShareButton({ e, className = "" }: { e: Weyn; className?: string }) {
-  const [shared, setShared] = useState(false);
-
-  async function shareEvent() {
-    const url = window.location.href;
-    const shareData = { title: e.title, text: `${e.title} — ${e.venue || e.area}`, url };
-    if (navigator.share) {
-      try { await navigator.share(shareData); return; } catch { /* user cancelled */ }
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      setShared(true);
-      setTimeout(() => setShared(false), 1800);
-    } catch { /* clipboard blocked */ }
-  }
-
-  return (
-    <button
-      className={"ec-share" + (className ? " " + className : "")}
-      onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); shareEvent(); }}
-      aria-label="Share"
-    >
-      <i className={shared ? "icon-check" : "icon-share-2"} />
-    </button>
-  );
-}
-
 export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn; ticket?: boolean; variant?: Variant }) {
   const left = ticketsLeft(e);
   const out = isSoldOut(e);
@@ -94,6 +70,11 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   // so its hero (the layoutId morph target) is mounted in time for the
   // shared-element transition — spread onto every /e/:id <Link> below.
   const preload = { onPointerDown: preloadEventDetail, onMouseEnter: preloadEventDetail };
+
+  // Press feedback, OS-reduced-motion aware (MotionConfig can't neutralize a
+  // literal whileTap scale — same reason usePressable checks the hook).
+  const reduced = usePrefersReducedMotion();
+  const press = reduced ? {} : { whileTap: { scale: 0.985 }, transition: pressSpring };
 
   // Build status badges array: primary status (ticket/sold/live/featured) first,
   // then secondary signals (verified, selling-fast, only-X-left).
@@ -147,7 +128,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   // ---- dense horizontal list row (default) ----
   if (variant === "list") {
     return (
-      <Link to={`/e/${e.id}`} {...preload} className={"ec-row" + (ticket ? " ticket" : "")}>
+      <MotionLink to={`/e/${e.id}`} {...preload} {...press} className={"ec-row" + (ticket ? " ticket" : "")}>
         <motion.div layoutId={`event-cover-${e.id}`} className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={48} /></span>}</motion.div>
         <div className="ec-main">
           <div className="ec-top">
@@ -168,20 +149,17 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
           )}
           {ticket && <span className="ec-dist">{e.area}</span>}
         </div>
-      </Link>
+      </MotionLink>
     );
   }
 
   // ---- full-width editorial card (image top, text below) ----
   if (variant === "card") {
     return (
-      <Link to={`/e/${e.id}`} {...preload} className="ec-card">
+      <MotionLink to={`/e/${e.id}`} {...preload} {...press} className="ec-card">
         <motion.div layoutId={`event-cover-${e.id}`} className="ec-card-cover" style={coverStyle}>
           {coverBadges}
-          <div style={{ display: "flex", gap: 8 }}>
-            <ShareButton e={e} />
-            <SaveHeart id={e.id} />
-          </div>
+          <SaveHeart id={e.id} />
           {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={76} /></span>}
           {scarce && <span className="ec-card-scarce">{left} left</span>}
         </motion.div>
@@ -195,20 +173,17 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
             <span className={"ec-price" + (e.price === 0 ? " free" : "")}>{priceText}</span>
           </div>
         </div>
-      </Link>
+      </MotionLink>
     );
   }
 
   // ---- compact vertical card for horizontal rails ----
   if (variant === "rail") {
     return (
-      <Link to={`/e/${e.id}`} {...preload} className="ec-rail">
+      <MotionLink to={`/e/${e.id}`} {...preload} {...press} className="ec-rail">
         <motion.div layoutId={`event-cover-${e.id}`} className="ec-rail-cover" style={coverStyle}>
           {coverBadges}
-          <div style={{ display: "flex", gap: 8 }}>
-            <ShareButton e={e} />
-            <SaveHeart id={e.id} />
-          </div>
+          <SaveHeart id={e.id} />
           {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={48} /></span>}
         </motion.div>
         <h3 className="ec-title">{e.title}</h3>
@@ -217,19 +192,16 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
           <span className="ec-dot">·</span>
           <span className={e.price === 0 ? "ec-price free" : "ec-price"}>{priceText}</span>
         </div>
-      </Link>
+      </MotionLink>
     );
   }
 
   // ---- large featured hero card ----
   return (
-    <Link to={`/e/${e.id}`} {...preload} className="ec-feature">
+    <MotionLink to={`/e/${e.id}`} {...preload} {...press} className="ec-feature">
       <motion.div layoutId={`event-cover-${e.id}`} className="ec-feature-cover" style={coverStyle}>
         {coverBadges}
-        <div style={{ display: "flex", gap: 8 }}>
-          <ShareButton e={e} />
-          <SaveHeart id={e.id} className="ec-save-lg" />
-        </div>
+        <SaveHeart id={e.id} className="ec-save-lg" />
         {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={76} /></span>}
         <div className="ec-feature-body">
           <div className="ec-feature-toprow">
@@ -245,6 +217,6 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
           </div>
         </div>
       </motion.div>
-    </Link>
+    </MotionLink>
   );
 }

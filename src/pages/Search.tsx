@@ -1,11 +1,15 @@
 import { useMemo, useState, useRef, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { motion } from "motion/react";
 import { api, CATS, type Cat, type Venue, isToday, isTomorrow, isThisWeekend, isPast } from "../api";
 import { useAsync } from "../hooks";
+import { usePrefersReducedMotion, pressSpring } from "../motion";
 import { parseSearchQuery } from "../utils/queryParser";
 import ThemeToggle from "../components/ThemeToggle";
 import Tooltip from "../components/Tooltip";
 import Stub from "../components/Stub";
+
+const MotionLink = motion.create(Link);
 
 export default function Search() {
   const nav = useNavigate();
@@ -128,9 +132,15 @@ export default function Search() {
     };
   }, []);
 
+  // Press feedback + real client-side nav (an <a href> here did a full page
+  // reload to /v/:id — a route that doesn't even exist; venue detail is
+  // /reservations/:id).
+  const reduced = usePrefersReducedMotion();
+  const press = reduced ? {} : { whileTap: { scale: 0.985 }, transition: pressSpring };
+
   // Simple venue card component — reuses event card styling
   const VenueCard = ({ venue }: { venue: Venue }) => (
-    <a href={`/v/${venue.id}`} className="ec-row" style={{ textDecoration: "none", color: "inherit" }}>
+    <MotionLink to={`/reservations/${venue.id}`} {...press} className="ec-row" style={{ textDecoration: "none", color: "inherit" }}>
       <div className="ec-thumb" style={{
         backgroundImage: venue.coverImage ? `url(${venue.coverImage})` : `linear-gradient(150deg, var(--cat-food, #3A3A3A), var(--fallback-scrim))`,
         backgroundPosition: "center",
@@ -148,7 +158,7 @@ export default function Search() {
           <span>{venue.priceRange || "$$"}</span>
         </div>
       </div>
-    </a>
+    </MotionLink>
   );
 
   return (

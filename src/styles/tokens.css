@@ -132,6 +132,11 @@
   /* fallback scrim used by Stub.tsx cover gradients */
   --fallback-scrim: rgba(0,0,0,0.35);
 
+  /* The one sanctioned spot of hue in the otherwise-monochrome chrome: a soft
+     purple radial bleeding down from the very top edge (the Dynamic Island
+     region), fading to transparent so it melts into --bg. Drives .shell::before. */
+  --ambient-top: rgba(139, 61, 255, 0.30);
+
   /* Tab-switch spark burst (see .tab-spark below) */
   --spark-color-1: var(--primary);
   --spark-color-2: var(--primary-hover);
@@ -208,6 +213,8 @@
   --glass-blend: normal;
   --card-alt: var(--surface-hover);
   --fallback-scrim: rgba(0,0,0,0.1);
+  /* Lighter, gentler purple on the white canvas so it reads as a tint, not a stain. */
+  --ambient-top: rgba(139, 61, 255, 0.14);
 
   --spark-color-1: var(--primary);
   --spark-color-2: var(--primary-hover);

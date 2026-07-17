@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useAccount } from "../store";
+import { MotionButton } from "../motion";
 
 // Follows an organizer (User.id, not display name — see schema.prisma's
 // Follow comment). Renders nothing for the organizer's own event page or
@@ -47,7 +48,7 @@ export default function FollowButton({ organizerId }: { organizerId: string }) {
   }
 
   return (
-    <button
+    <MotionButton
       className={"chip" + (following ? " on" : "")}
       onClick={toggle}
       aria-pressed={!!following}
@@ -56,6 +57,6 @@ export default function FollowButton({ organizerId }: { organizerId: string }) {
       <i className={(following ? "icon-user-check" : "icon-user-plus")} />
       {following ? "Following" : "Follow"}
       {count !== null && count > 0 ? ` · ${count}` : ""}
-    </button>
+    </MotionButton>
   );
 }

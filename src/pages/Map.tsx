@@ -37,14 +37,22 @@ function clusterIcon(count: number): google.maps.Icon {
   };
 }
 
-const dotIcon: google.maps.Symbol = {
-  path: google.maps?.SymbolPath?.CIRCLE,
-  scale: 7,
-  fillColor: "#4285F4",
-  fillOpacity: 1,
-  strokeColor: "#fff",
-  strokeWeight: 2,
-};
+// Built lazily inside the marker effect, not as a module-level const: the
+// Google Maps script is loaded on demand by useGoogleMapInstance, so `google`
+// doesn't exist yet when this module is first imported. Reading
+// google.maps.SymbolPath at top level threw `ReferenceError: google is not
+// defined` and crashed the whole /map route to the error boundary (optional
+// chaining on `google.maps?.` can't guard an undeclared `google` binding).
+function dotIcon(): google.maps.Symbol {
+  return {
+    path: google.maps.SymbolPath.CIRCLE,
+    scale: 7,
+    fillColor: "#4285F4",
+    fillOpacity: 1,
+    strokeColor: "#fff",
+    strokeWeight: 2,
+  };
+}
 
 export default function Map() {
   const nav = useNavigate();
@@ -90,7 +98,7 @@ export default function Map() {
     meMarkerRef.current = new google.maps.Marker({
       map,
       position: myLocation,
-      icon: dotIcon,
+      icon: dotIcon(),
       zIndex: 999,
       clickable: false,
     });

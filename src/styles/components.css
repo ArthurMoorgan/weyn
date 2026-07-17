@@ -48,13 +48,14 @@
      clearance to add beyond the bar's real height. */
   padding-bottom: calc(50px + env(safe-area-inset-bottom));
 }
-/* Soft white ambient glow bleeding down from the very top edge (reference:
-   the light catching the status-bar area) — a light-source cue, not a hue,
-   so it stays inside the monochrome chrome system. Sits behind all shell
-   content and never intercepts taps. */
+/* Soft purple ambient glow bleeding down from the very top edge — emitted
+   from the Dynamic Island region (50% 0%) and fading to transparent so it
+   melts into --bg. The one sanctioned bit of hue in the monochrome chrome
+   (see --ambient-top). Sits behind all shell content and never intercepts
+   taps. */
 .shell::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 220px;
-  background: radial-gradient(ellipse 100% 100% at 50% 0%, rgba(255,255,255,.10), transparent 70%);
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 280px;
+  background: radial-gradient(ellipse 95% 78% at 50% 0%, var(--ambient-top), transparent 72%);
   pointer-events: none; z-index: -1;
 }
 
@@ -216,20 +217,26 @@
   flex-direction: column; display: flex; align-items: center; justify-content: center;
   gap: 10px; background: var(--surface); border: 1px solid var(--card-border);
   border-radius: var(--radius-lg); padding: 18px 8px 14px; min-height: 108px;
-  box-shadow: var(--card-shadow); transition: transform .15s ease;
+  box-shadow: var(--card-shadow);
+  transition: transform .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
 }
+/* Selected niche: the tile fills with a wash of its own category color and
+   grows an accent ring, so which category is filtering the feed is obvious
+   at a glance (there was previously no .on styling at all — the class was
+   applied in JSX but had no visual). --tile-cat is set inline per tile. */
+.cat-circle.on {
+  border-color: var(--tile-cat, var(--accent));
+  background: color-mix(in srgb, var(--tile-cat, var(--accent)) 14%, var(--surface));
+  box-shadow: inset 0 0 0 1px var(--tile-cat, var(--accent)), var(--card-shadow);
+}
+.cat-circle.on .cat-circle-label { color: var(--tile-cat, var(--accent)); }
 .cat-circle-ring {
   width: 52px; height: 52px;
   display: grid; place-items: center; flex: 0 0 auto;
   transition: transform .15s ease;
 }
-/* Color lives directly on the glyph — reliable and vivid, unlike trying to
-   fake color onto the old grey/white photographic 3D renders with filters
-   (came out muddy). */
-.cat-circle-ring i {
-  font-size: 26px;
-  color: var(--tile-cat, var(--text));
-}
+/* Photographic 3D render fills the ring (Icon3D <img>). */
+.cat-circle-ring img { width: 100%; height: 100%; object-fit: contain; }
 .cat-circle-label {
   font: var(--t-meta); font-weight: 600; color: var(--text); white-space: nowrap;
 }
@@ -3484,9 +3491,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   font-family: inherit; transition: border-color 0.15s;
 }
 
+/* Focus reads through the border + a soft ring, not by flooding the field
+   with 40% ink — that washed the placeholder/typed text down to near-zero
+   contrast. Keep the surface legible; signal focus at the edge. */
 .concierge-input:focus {
   outline: none; border-color: var(--accent);
-  background: color-mix(in srgb, var(--surface-hover) 60%, var(--accent) 40%);
+  background: var(--surface-hover);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .concierge-input:disabled {
