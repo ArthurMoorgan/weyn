@@ -48,6 +48,15 @@
      clearance to add beyond the bar's real height. */
   padding-bottom: calc(50px + env(safe-area-inset-bottom));
 }
+/* Soft white ambient glow bleeding down from the very top edge (reference:
+   the light catching the status-bar area) — a light-source cue, not a hue,
+   so it stays inside the monochrome chrome system. Sits behind all shell
+   content and never intercepts taps. */
+.shell::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 220px;
+  background: radial-gradient(ellipse 100% 100% at 50% 0%, rgba(255,255,255,.10), transparent 70%);
+  pointer-events: none; z-index: -1;
+}
 
 /* ---------- top bar ---------- flat, minimal-height, not a floating pill */
 .topbar {

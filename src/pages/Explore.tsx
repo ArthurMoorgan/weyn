@@ -564,7 +564,14 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
           <>
-            {S.heroPool.length > 0 && <FeaturedSpotlight events={S.heroPool} />}
+            {S.heroPool.length > 0 && (
+              <section className="ex-section ex-section-spotlight">
+                <div className="ex-head">
+                  <h2>In the spotlight</h2>
+                </div>
+                <FeaturedSpotlight events={S.heroPool} />
+              </section>
+            )}
             {S.rest.length > 0 && (
               <section className="ex-section">
                 <div className="ex-head">
