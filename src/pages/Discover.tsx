@@ -39,7 +39,10 @@ export default function Discover() {
             Venues
           </button>
         </div>
-        <Link to="/host/events" className="ex-hero-host">Host <i className="icon-arrow-right" /></Link>
+        <div className="discover-head-actions">
+          <Link to="/concierge" className="ex-hero-link">Ask our AI</Link>
+          <Link to="/host/events" className="ex-hero-host">Host <i className="icon-arrow-right" /></Link>
+        </div>
       </div>
 
       {/* key={mode} + .discover-mode's rise-in animation (same entrance

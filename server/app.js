@@ -564,6 +564,9 @@ export function createApp(storage) {
   // Sends a real email per call, with no dedupe — bound how many an
   // authenticated (even brand-new) account can fire off.
   const teamInviteLimiter = rateLimit({ windowMs: 60 * 60e3, max: 20, standardHeaders: true, legacyHeaders: false });
+  // Concierge endpoint calls Claude LLM for event selection — 10 requests per
+  // 15 minutes balances UX (user can try multiple prompts) with LLM costs.
+  const conciergeLimiter = rateLimit({ windowMs: 15 * 60e3, max: 10, standardHeaders: true, legacyHeaders: false });
 
   // hard cap on tickets per single booking request — stops one call from
   // draining a whole event's inventory or issuing a huge number of ticket
@@ -651,6 +654,80 @@ export function createApp(storage) {
     const results = await db.searchEvents(String(q), { cat: cat ? String(cat) : undefined });
     db.track("search", { userId: req.user?.id, metadata: { query: q, resultCount: results.length } }).catch(() => {});
     res.json(results);
+  });
+
+  app.post("/api/concierge", conciergeLimiter, async (req, res) => {
+    if (!aiConfigured()) return res.status(503).json({ error: { code: "AI_NOT_CONFIGURED", message: "No AI provider key is set yet." } });
+
+    const query = String(req.body?.query || "").trim().slice(0, 500);
+    if (!query) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Please describe what kind of events you're looking for." } });
+
+    try {
+      // Fetch real events with same filters as GET /api/events
+      const allEvents = await db.all();
+      const nowTs = Date.now();
+      const isOver = (e) => {
+        const end = e.endsAt ? new Date(e.endsAt).getTime() : new Date(e.startsAt).getTime() + 3 * 3600e3;
+        return Number.isFinite(end) && end < nowTs;
+      };
+      const availableEvents = allEvents.filter(
+        (e) => !e.cancelled && !e.isDraft && !e.isTemplate && e.discoveryStatus === "APPROVED" && !e.inviteOnly && !isOver(e)
+      );
+
+      // Build compact event list for LLM
+      const compactEvents = availableEvents.map((e) => ({
+        id: e.id,
+        title: e.title,
+        cat: e.cat,
+        price: e.price,
+        startsAt: e.startsAt,
+        venue: e.venue,
+        area: e.area,
+      }));
+
+      // Call LLM with structured prompt
+      const prompt = `User's natural-language request: "${query}"
+
+Available events (JSON array):
+${JSON.stringify(compactEvents, null, 2)}
+
+Identify 1-3 real events from the list above that match the user's request. Consider title, category, date, price, venue, and area.
+
+Return strict JSON only (no other text):
+{
+  "picks": [
+    {"id": "<exact event.id from list>", "reasoning": "<one-line explanation>"},
+    ...
+  ]
+}
+
+Only include IDs that exist in the list. Never invent events. If nothing matches, return empty picks array.`;
+
+      const response = await askClaudeJson(prompt, { maxTokens: 300 });
+      const picks = response.picks || [];
+
+      // Validate returned IDs against real event list
+      const validIds = new Set(availableEvents.map((e) => e.id));
+      const validated = picks.filter((p) => validIds.has(p.id));
+
+      // Build itinerary with full event details
+      const itinerary = [];
+      for (const pick of validated) {
+        const fullEvent = availableEvents.find((e) => e.id === pick.id);
+        if (fullEvent) {
+          itinerary.push({
+            event: fullEvent,
+            reasoning: pick.reasoning,
+          });
+        }
+      }
+
+      await db.logAiGeneration({ organizerId: req.user?.id || null, eventId: null, feature: "concierge", prompt: query, output: JSON.stringify(itinerary) });
+      res.json({ itinerary });
+    } catch (err) {
+      captureError(err, { route: "POST /api/concierge", query });
+      res.status(502).json({ error: { code: "AI_ERROR", message: "Couldn't generate suggestions—try again shortly." } });
+    }
   });
 
   app.get("/api/events/:id", async (req, res) => {

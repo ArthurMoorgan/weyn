@@ -216,22 +216,18 @@
   flex-direction: column; display: flex; align-items: center; justify-content: center;
   gap: 10px; background: var(--surface); border: 1px solid var(--card-border);
   border-radius: var(--radius-lg); padding: 18px 8px 14px; min-height: 108px;
-  box-shadow: var(--card-shadow); transition: background-color .2s ease, border-color .2s ease, transform .15s ease;
-}
-.cat-circle.on {
-  border-color: var(--tile-cat, var(--text));
+  box-shadow: var(--card-shadow); transition: transform .15s ease;
 }
 .cat-circle-ring {
-  width: 52px; height: 52px; border-radius: 50%;
+  width: 52px; height: 52px;
   display: grid; place-items: center; flex: 0 0 auto;
-  background: color-mix(in srgb, var(--tile-cat, var(--surface-hover)) 16%, var(--surface-hover));
   transition: transform .15s ease;
 }
 /* Color lives directly on the glyph — reliable and vivid, unlike trying to
    fake color onto the old grey/white photographic 3D renders with filters
    (came out muddy). */
 .cat-circle-ring i {
-  font-size: 24px;
+  font-size: 26px;
   color: var(--tile-cat, var(--text));
 }
 .cat-circle-label {
@@ -246,7 +242,7 @@
     justify-content: center; gap: 16px; padding: 8px 24px 12px;
   }
   .cat-circle { padding: 22px 10px 16px; min-height: 124px; }
-  .cat-circle:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--tile-cat, var(--border-strong)) 60%, var(--card-border)); }
+  .cat-circle:hover { transform: translateY(-2px); }
   .cat-circle-ring { width: 60px; height: 60px; }
   .cat-circle-ring i { font-size: 28px; }
 }
@@ -533,6 +529,12 @@
 }
 .ex-hero-host:hover { background: var(--surface-hover); border-color: var(--text-3); }
 .ex-hero-host [class^="icon-"] { font-size: 14px; color: var(--accent); }
+.discover-head-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.ex-hero-link {
+  font: var(--t-card); font-weight: 600; color: var(--text-2);
+  transition: color .15s ease;
+}
+.ex-hero-link:hover { color: var(--text); }
 
 /* Category Grid + Collection Rails Hub — responsive discovery page with
    category shortcuts and horizontally-scrollable event collections. */
@@ -719,13 +721,27 @@
 .ex-hero-card-price { font-size: 13.5px; color: rgba(255,255,255,0.78); }
 .ex-hero-card-price b { color: #fff; font-weight: 700; }
 
-/* Single rotating featured spotlight (the swipeable carousel was removed by
-   request). One big hero at a time, cross-dissolving to the next featured
-   event every few seconds — see FeaturedSpotlight in Explore.tsx. The
-   grid stacks both layers in one cell so the outgoing/incoming cards
-   crossfade in place; each layer is a full .ex-hero-card. */
-.ex-spotlight { display: grid; }
-.ex-spotlight-layer { grid-area: 1 / 1; }
+/* Swipeable featured spotlight carousel — a horizontal snap-scroll track,
+   each card sized so the next one peeks in from the right edge (reference:
+   partially-visible neighbor cards), native touch/trackpad scroll as the
+   only input, dots below tracking the nearest-snapped card. See
+   FeaturedSpotlight in Explore.tsx. */
+.ex-spotlight { margin-top: 4px; }
+.ex-spotlight-track {
+  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; padding: 0 16px; overscroll-behavior-x: contain;
+}
+.ex-spotlight-track::-webkit-scrollbar { display: none; }
+.ex-spotlight-slide {
+  flex: 0 0 86%; scroll-snap-align: center;
+}
+.ex-spotlight-slide .ex-hero-card { margin: 0; }
+.ex-spotlight-dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+.ex-spotlight-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong);
+  transition: background-color .2s ease, transform .2s ease;
+}
+.ex-spotlight-dot.on { background: var(--text); transform: scale(1.3); }
 
 /* More air between the spotlight and the list, and between the category row
    and everything — the review's "nothing feels cramped" note. Restraint is
@@ -3343,5 +3359,168 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .wl-linklike {
   color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: underline;
   text-underline-offset: 2px; background: none; border: none; cursor: pointer; padding: 0;
+}
+
+/* ---- Fullpage Concierge ---- */
+.concierge-page {
+  display: flex; flex-direction: column; height: 100dvh;
+  background: var(--bg); color: var(--text);
+}
+
+.concierge-header {
+  padding: 12px 16px; border-bottom: 1px solid var(--hair);
+  background: var(--surface);
+}
+
+.concierge-title-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+
+.concierge-back {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: var(--radius-sm);
+  background: var(--surface-hover); border: none; cursor: pointer;
+  color: var(--text); font-size: 18px; flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.concierge-back:hover { background: var(--surface-active); }
+.concierge-back:active { background: var(--surface-active); }
+
+.concierge-title {
+  font: var(--t-headline); letter-spacing: -0.3px; margin: 0; flex: 1; text-align: center;
+  font-size: clamp(18px, 5vw, 22px);
+}
+
+/* Scrollable content area */
+.concierge-content {
+  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 16px; display: flex; flex-direction: column; gap: 16px;
+}
+
+/* Intro text + example chips */
+.concierge-intro {
+  display: flex; flex-direction: column; gap: 16px; padding: 8px 0;
+}
+
+.concierge-intro-text {
+  font: var(--t-section); margin: 0; color: var(--text-2);
+  text-align: center; letter-spacing: -0.3px;
+}
+
+.concierge-chips {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+}
+
+.concierge-chip {
+  padding: 8px 16px; border-radius: 20px; border: 1px solid var(--hair);
+  background: var(--surface-hover); color: var(--text); font-size: 13px;
+  font-weight: 500; cursor: pointer; transition: all 0.15s;
+  white-space: nowrap; min-height: 36px;
+}
+
+.concierge-chip:hover { background: var(--surface-active); border-color: var(--text-3); }
+.concierge-chip:active { transform: scale(0.95); }
+
+/* Results itinerary */
+.concierge-results {
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+.concierge-result-item {
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+.concierge-reasoning {
+  font: var(--t-meta); color: var(--text-2); margin: 0 16px;
+  line-height: 1.5; font-size: 13px;
+}
+
+/* Skeleton loading */
+.concierge-skeletons {
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+.concierge-skeleton-item {
+  display: flex; flex-direction: column; gap: 8px;
+  border-radius: var(--radius-lg); overflow: hidden;
+}
+
+.concierge-skeleton-item .skel-cover {
+  width: 100%; border-radius: 14px;
+}
+
+/* Error message */
+.concierge-error {
+  padding: 14px 16px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+}
+
+.concierge-error p {
+  margin: 0; font-size: 14px; color: var(--text); line-height: 1.4;
+}
+
+.concierge-error-retry {
+  padding: 6px 12px; border-radius: var(--radius-sm); border: none;
+  background: var(--accent); color: #fff; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.15s;
+}
+
+.concierge-error-retry:hover { opacity: 0.9; }
+
+/* Input area - sticky bottom */
+.concierge-input-area {
+  display: flex; align-items: center; gap: 8px; padding: 12px;
+  border-top: 1px solid var(--hair); background: var(--surface);
+  flex-shrink: 0;
+}
+
+.concierge-input {
+  flex: 1; padding: 12px 16px; border-radius: 24px;
+  border: 1px solid var(--hair); background: var(--surface-hover);
+  color: var(--text); font-size: 15px; min-height: 44px;
+  font-family: inherit; transition: border-color 0.15s;
+}
+
+.concierge-input:focus {
+  outline: none; border-color: var(--accent);
+  background: color-mix(in srgb, var(--surface-hover) 60%, var(--accent) 40%);
+}
+
+.concierge-input:disabled {
+  opacity: 0.6; cursor: not-allowed;
+}
+
+.concierge-input::placeholder { color: var(--text-3); }
+
+.concierge-submit {
+  width: 44px; height: 44px; border-radius: 50%; border: none;
+  background: var(--accent); color: #fff; font-size: 18px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all 0.15s;
+}
+
+.concierge-submit:hover:not(:disabled) { opacity: 0.9; }
+.concierge-submit:active:not(:disabled) { transform: scale(0.92); }
+.concierge-submit:disabled {
+  opacity: 0.5; cursor: not-allowed;
+}
+
+.concierge-submit.loading i {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Mobile optimizations */
+@media (max-width: 600px) {
+  .concierge-page { height: 100dvh; }
+  .concierge-chips { justify-content: flex-start; }
+  .concierge-reasoning { margin-left: 12px; margin-right: 12px; }
 }
 

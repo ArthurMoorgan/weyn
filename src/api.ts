@@ -2300,6 +2300,18 @@ export const api = {
       method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ note }),
     }).then((r) => json<VenueApplication>(r));
   },
+
+  // ---- Fullpage Concierge: LLM-powered event discovery & itinerary ----
+  async askConcierge(query: string, context?: any): Promise<any> {
+    const token = await getAuthToken();
+    const res = await fetch(`${API_BASE}/api/concierge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }) },
+      body: JSON.stringify({ query, context }),
+    });
+    if (!res.ok) throw new Error(`Concierge error: ${res.status}`);
+    return res.json();
+  },
 };
 
 // ---------- derived display helpers ----------

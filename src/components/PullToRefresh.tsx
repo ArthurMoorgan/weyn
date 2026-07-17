@@ -75,8 +75,8 @@ export default function PullToRefresh({ onRefresh, refreshing, children }: PullT
     <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}>
       <motion.div
         className="ptr-indicator"
-        style={{ height: pull, opacity: pull > 4 ? 1 : 0 }}
-        transition={pressSpring}
+        animate={{ height: pull, opacity: pull > 4 ? 1 : 0 }}
+        transition={pull === 0 ? pressSpring : { duration: 0 }}
       >
         <div className={"spin ptr-spin" + (showSpin ? " on" : "")} />
       </motion.div>
