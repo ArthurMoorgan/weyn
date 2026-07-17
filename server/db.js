@@ -149,7 +149,7 @@ export function seed() {
     },
     {
       id: "car-meet", title: "Friday JDM Car Meet", organizer: "Muscat Auto Scene",
-      cat: "cars", startsAt: nextWeekday(5, 18, 30), endsAt: nextWeekday(5, 21, 0),
+      cat: "community", startsAt: nextWeekday(5, 18, 30), endsAt: nextWeekday(5, 21, 0),
       venue: "Qurum Beach car park", area: "Qurum", distanceKm: 5.0,
       price: 0, capacity: 999, sold: 130, image: null, color: "#3A4668", glyph: "🚗",
       blurb: "Skylines, Supras, and a few surprises. Coffee truck on site.",
@@ -216,7 +216,6 @@ export const CATEGORY_SEED = [
   { key: "sports", label: "Sports" },
   { key: "food", label: "Food" },
   { key: "culture", label: "Culture" },
-  { key: "cars", label: "Car meets" },
   { key: "workshop", label: "Workshops" },
   { key: "community", label: "Community" },
 ];

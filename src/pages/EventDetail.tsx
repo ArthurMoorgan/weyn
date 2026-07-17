@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom"
 import { motion } from "motion/react";
 import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, captureUtmFromUrl, type Weyn } from "../api";
 import { useAsync, useClosing } from "../hooks";
+import { addRecentlyViewed } from "../hooks/useRecentlyViewed";
 import { isSaved, toggleSave, useSaved, addTicket, ticketFor, getDeviceId, useAccount } from "../store";
 import MiniMap from "../components/MiniMap";
 import FollowButton from "../components/FollowButton";
@@ -41,6 +42,7 @@ export default function EventDetail() {
   // elsewhere — by persisting it the first time it's seen.
   useEffect(() => {
     if (!e) return;
+    addRecentlyViewed(e.id);
     const urlBooking = searchParams.get("booking");
     const urlToken = searchParams.get("accessToken") || undefined;
     if (urlBooking && !ticketFor(e.id)) addTicket(e.id, urlBooking, urlToken);

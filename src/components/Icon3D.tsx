@@ -9,7 +9,7 @@
 // didn't need to change.
 
 export type Icon3DName =
-  | "all" | "music" | "sports" | "food" | "culture" | "cars" | "workshop" | "community";
+  | "all" | "music" | "sports" | "food" | "culture" | "workshop" | "community";
 
 export default function Icon3D({ name, size = 40 }: { name: Icon3DName; size?: number }) {
   return (

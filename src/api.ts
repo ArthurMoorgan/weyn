@@ -1,7 +1,7 @@
 // Frontend API client — talks to the real Express backend via the Vite proxy.
 import { getAuthToken, type Account } from "./store";
 
-export type Cat = "sports" | "music" | "food" | "culture" | "cars" | "workshop" | "community";
+export type Cat = "sports" | "music" | "food" | "culture" | "workshop" | "community";
 export type TicketingType = "weyn" | "external" | "cash" | "registration" | "organizer_payment";
 
 // Cancel flow (see CancelSubscriptionFlow.tsx) — must match server/app.js's
@@ -838,7 +838,6 @@ export const CATS: { key: Cat | "all"; label: string }[] = [
   { key: "sports", label: "Sports" },
   { key: "food", label: "Food" },
   { key: "culture", label: "Culture" },
-  { key: "cars", label: "Car meets" },
   { key: "workshop", label: "Workshops" },
   { key: "community", label: "Community" },
 ];

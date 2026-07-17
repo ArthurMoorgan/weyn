@@ -6,6 +6,8 @@ import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isP
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import Stub from "../components/Stub";
+import HomeFeed from "../components/HomeFeed";
+import PullToRefresh from "../components/PullToRefresh";
 import { preloadEventDetail } from "../eventDetailChunk";
 import Icon3D, { type Icon3DName } from "../components/Icon3D";
 import { dismissSplash } from "../splash";
@@ -39,7 +41,6 @@ const CAT_ICON: Record<Cat | "all", string> = {
   sports: "trophy",
   food: "utensils",
   culture: "theater",
-  cars: "car",
   workshop: "hammer",
   community: "users",
 };
@@ -296,7 +297,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
     // repeats the outer one) and keeps this file self-contained if Explore
     // is ever rendered standalone outside the app shell again.
     <MotionConfig reducedMotion="user">
-    <>
+    <PullToRefresh onRefresh={reload} refreshing={loading}>
       {/* Hero title is suppressed when embedded in Discover — the Discover
           shell owns the header (the Events/Venues segmented toggle + host
           pill) so a second title here would be redundant clutter. */}
@@ -383,36 +384,29 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
 
       {!searching && (
         <div className="cat-circles">
-          {CATS.map((c) => {
+          {CATS.filter((c) => c.key !== "all").map((c) => {
             const isOn = cat === c.key;
             return (
               <motion.button
                 key={c.key}
                 className={"cat-circle" + (isOn ? " on" : "")}
+                style={{ "--tile-cat": `var(--tile-${c.key})` } as React.CSSProperties}
                 onClick={() => setCat(c.key as Cat | "all")}
                 aria-pressed={isOn}
                 aria-label={c.label}
-                whileTap={{ scale: 0.9 }}
+                whileTap={{ scale: 0.96 }}
               >
-                {/* Monochrome by design (per designer review): plain outline
-                    icon on a bare pill; only the SELECTED chip fills with the
-                    accent — the per-category rainbow colors read as playful
-                    against the cinematic photography, so they're gone.
-                    Underdamped spring keeps the tactile pop on selection. */}
+                {/* Niche grid: each tile carries its own category hue as a
+                    soft glow behind the icon (--tile-cat, set inline above)
+                    — reference direction. Icon art itself is unchanged. */}
                 <motion.span
                   className="cat-circle-ring"
-                  animate={{ scale: isOn ? 1 : 1 }}
+                  animate={{ scale: isOn ? 1.06 : 1 }}
                   transition={{ type: "spring", stiffness: 500, damping: 14 }}
                 >
-                  {/* Pseudo-3D graphite icon (Icon3D) instead of the flat
-                      glyph font — Uber-style dimensional tile marks. */}
                   <Icon3D name={c.key as Icon3DName} size={38} />
                 </motion.span>
-                {/* Label only under the selected chip (Apple filter-chip
-                    pattern) — collapses the row's vertical footprint and
-                    kills the "every item shouting" uniformity the review
-                    flagged. */}
-                {isOn && <motion.span layout className="cat-circle-label">{c.label}</motion.span>}
+                <span className="cat-circle-label">{c.label}</span>
               </motion.button>
             );
           })}
@@ -514,30 +508,19 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
         )
       )}
 
-      {/* ---- discovery: one hero + every other event, one flat list ---- */}
+      {/* ---- discovery: personalized sections via HomeFeed ---- */}
       {!loading && !error && S.mode === "browse" && (
         S.all.length === 0 ? (
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
-          <>
-            {S.heroPool.length > 0 && <FeaturedSpotlight events={S.heroPool} />}
-            {S.rest.length > 0 && (
-              <section className="ex-section">
-                <div className="ex-head">
-                  <h2>All events</h2>
-                  <span className="ex-sub">{S.rest.length}</span>
-                </div>
-                <div className="ex-agenda">{S.rest.map((e) => <Stub key={e.id} e={e} variant="card" />)}</div>
-              </section>
-            )}
-          </>
+          <HomeFeed events={S.all} loading={loading} isAuthenticated={!!account} />
         )
       )}
 
       {!account && !loading && (
         <p className="ex-footnote">Sign in on the <strong>You</strong> tab to save events and follow organizers.</p>
       )}
-    </>
+    </PullToRefresh>
     </MotionConfig>
   );
 }

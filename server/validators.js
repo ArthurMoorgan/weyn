@@ -7,7 +7,7 @@
 import { z } from "zod";
 
 // mirrors server/db.js's CATEGORY_SEED keys
-export const CATEGORY_KEYS = ["music", "sports", "food", "culture", "cars", "workshop", "community"];
+export const CATEGORY_KEYS = ["music", "sports", "food", "culture", "workshop", "community"];
 export const TICKETING_TYPES = ["weyn", "external", "cash", "registration", "organizer_payment"];
 
 export const createEventSchema = z.object({

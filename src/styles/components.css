@@ -193,38 +193,36 @@
    the whole point of this pass, so color is spent only on the one selected
    chip, nothing else. Row is shorter now (no permanent labels under every
    icon), reclaiming vertical space for the events themselves. */
+/* Niche grid: 3-column grid of dark tiles, each carrying its own category
+   glow — replaces the earlier monochrome horizontal-scroll rail. Reference:
+   dark near-black cards, colorful icon per niche, label under the icon,
+   3 per row. */
 .cat-circles {
-  display: flex; gap: 10px; overflow-x: auto; padding: 4px 20px 4px;
-  scrollbar-width: none; overscroll-behavior-x: contain; align-items: center;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  padding: 4px 20px 4px;
 }
-.cat-circles::-webkit-scrollbar { display: none; }
 .cat-circle {
-  flex: 0 0 auto; display: flex; align-items: center; gap: 8px; background: none;
-  padding: 0; border: none;
+  flex-direction: column; display: flex; align-items: center; justify-content: center;
+  gap: 10px; background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg); padding: 18px 8px 14px; min-height: 108px;
+  box-shadow: var(--card-shadow); transition: background-color .2s ease, border-color .2s ease;
 }
-/* Uber-style category tiles: solid grey circles with the 3D render sitting
-   inside (matching the reference's "For you" row) — not outline rings.
-   The renders are raster product shots with their own lighting/shadows, so
-   no color filters here; the tile provides the backing they were lit for. */
+.cat-circle.on {
+  border-color: var(--tile-cat, var(--text));
+}
+/* Glow tile behind the icon — one real hue per category (--tile-*), a soft
+   radial so it reads as colorful lighting rather than a flat badge. Icon
+   art itself stays the existing monochrome 3D render; the color lives in
+   the glow, same split as the reference's colored-card/neutral-icon look. */
 .cat-circle-ring {
   width: 52px; height: 52px; border-radius: 50%;
   display: grid; place-items: center; flex: 0 0 auto;
-  background: var(--surface-hover); border: 1.5px solid transparent;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--tile-cat, var(--primary)) 55%, transparent), transparent 72%);
   color: var(--text);
-  transition: background-color .2s ease, border-color .2s ease, transform .15s ease;
-}
-/* press scale removed — the cat-circle button already sets its own
-   whileTap on <motion.button> in Explore.tsx. */
-/* Selected: an ink ring around the tile (the render stays untouched —
-   filling the tile white/black behind a photoreal object washes it out). */
-.cat-circle.on .cat-circle-ring {
-  border-color: var(--text); background: var(--surface-hover);
+  transition: transform .15s ease;
 }
 .cat-circle-label {
   font: var(--t-meta); font-weight: 600; color: var(--text); white-space: nowrap;
-  padding-right: 4px;
 }
 
 /* ---------- date section header ---------- */
@@ -604,6 +602,63 @@
 }
 .ex-rail::-webkit-scrollbar { display: none; }
 .ex-rail > a { scroll-snap-align: start; }
+
+/* ============================================================
+   HOME FEED — section styling (HomeFeed.tsx)
+   ============================================================ */
+/* 32px top padding = 4 × 8pt grid, 16px sides = 2 × 8pt. Staggered
+   entrance via motion.div wraps each section with settleSpring animation. */
+.home-feed-section { margin-top: 32px; }
+.home-feed-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 14px; }
+.home-feed-title h2 { font: var(--t-section); letter-spacing: -0.4px; }
+
+/* Horizontal scroll rail — 12px gutter between cards (1.5 × 8pt), 16px
+   side margins. Snap behavior matches .ex-rail for consistent scroll feel. */
+.horizontal-rail {
+  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: 2px 16px 4px; scrollbar-width: none;
+  scroll-padding: 0 16px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.horizontal-rail::-webkit-scrollbar { display: none; }
+.horizontal-rail > div { scroll-snap-align: start; }
+
+/* Popular Organizers list — vertical stack of organizer cards with name,
+   event count, and optional follow button. Each item is 100% width. */
+.organizers-list {
+  display: flex; flex-direction: column; gap: 8px; padding: 0 16px;
+}
+.organizer-item {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px; background: var(--surface);
+  border: 1px solid var(--hair); border-radius: 12px;
+  transition: background-color .2s ease, border-color .2s ease;
+}
+.organizer-item:active {
+  background: var(--surface-hover);
+}
+.organizer-info {
+  flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.organizer-name {
+  font: var(--t-label); color: var(--text); font-weight: 600;
+  text-decoration: none; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; transition: color .2s ease;
+}
+.organizer-name:hover, .organizer-name:focus-visible {
+  color: var(--primary); outline: none;
+}
+.organizer-count {
+  font: var(--t-meta); color: var(--text-2); white-space: nowrap;
+}
+
+/* Respect prefers-reduced-motion: section entrance animations snap
+   to their final state instead of easing in — no delay or fade. */
+@media (prefers-reduced-motion: reduce) {
+  .home-feed-section { margin-top: 32px; }
+}
+
 .ex-list { display: flex; flex-direction: column; gap: 12px; padding: 0 16px; }
 /* genuine reading text (explains the product to signed-out users), not a
    caption — promoted from --text-3 to --text-2 to clear 4.5:1 contrast in
@@ -1540,7 +1595,6 @@
 .catpill.cat-sports { color: var(--cat-sports); background: color-mix(in srgb, var(--cat-sports) 14%, transparent); }
 .catpill.cat-food { color: var(--cat-food); background: color-mix(in srgb, var(--cat-food) 14%, transparent); }
 .catpill.cat-culture { color: var(--cat-culture); background: color-mix(in srgb, var(--cat-culture) 14%, transparent); }
-.catpill.cat-cars { color: var(--cat-cars); background: color-mix(in srgb, var(--cat-cars) 14%, transparent); }
 .catpill.cat-workshop { color: var(--cat-workshop); background: color-mix(in srgb, var(--cat-workshop) 14%, transparent); }
 .catpill.cat-community { color: var(--cat-community); background: color-mix(in srgb, var(--cat-community) 14%, transparent); }
 /* metadata grouped into one compact, scannable block — no per-row divider
@@ -2109,6 +2163,13 @@
 @keyframes sh { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 .spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid rgba(20,21,26,0.12); border-top-color: var(--accent); animation: rot .8s linear infinite; margin: 40px auto; }
 @keyframes rot { to { transform: rotate(360deg); } }
+
+/* Pull-to-refresh: a fixed-size spinner that fades/scales in as the caller
+   grows the indicator's height (the actual pull distance) — the spinner
+   itself never resizes, only its wrapper's height + opacity animate. */
+.ptr-indicator { display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.ptr-spin { width: 22px; height: 22px; margin: 0; opacity: 0; transform: scale(0.7); transition: opacity .18s ease, transform .18s ease; }
+.ptr-spin.on { opacity: 1; transform: scale(1); }
 
 .toast {
   position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
