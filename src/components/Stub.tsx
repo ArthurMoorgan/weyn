@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
+import { useState } from "react";
 import { type Weyn, ticketsLeft, isSoldOut, isTonight, dayLabel, timeLabel } from "../api";
 import { isSaved, toggleSave, useSaved } from "../store";
 import { preloadEventDetail } from "../eventDetailChunk";
@@ -47,6 +48,37 @@ function SaveHeart({ id, className = "" }: { id: string; className?: string }) {
   );
 }
 
+// Quick-share button, overlaid on the card alongside SaveHeart. Uses
+// navigator.share when available (native share sheet on mobile), falls back
+// to clipboard.writeText with visual feedback. stopPropagation to prevent
+// triggering the surrounding <Link> navigation.
+function ShareButton({ e, className = "" }: { e: Weyn; className?: string }) {
+  const [shared, setShared] = useState(false);
+
+  async function shareEvent() {
+    const url = window.location.href;
+    const shareData = { title: e.title, text: `${e.title} — ${e.venue || e.area}`, url };
+    if (navigator.share) {
+      try { await navigator.share(shareData); return; } catch { /* user cancelled */ }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShared(true);
+      setTimeout(() => setShared(false), 1800);
+    } catch { /* clipboard blocked */ }
+  }
+
+  return (
+    <button
+      className={"ec-share" + (className ? " " + className : "")}
+      onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); shareEvent(); }}
+      aria-label="Share"
+    >
+      <i className={shared ? "icon-check" : "icon-share-2"} />
+    </button>
+  );
+}
+
 export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn; ticket?: boolean; variant?: Variant }) {
   const left = ticketsLeft(e);
   const out = isSoldOut(e);
@@ -63,14 +95,53 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   // shared-element transition — spread onto every /e/:id <Link> below.
   const preload = { onPointerDown: preloadEventDetail, onMouseEnter: preloadEventDetail };
 
-  const statusBadge = ticket ? (
-    <span className="ec-badge confirmed"><i className="icon-circle-check" />{e.cancelled ? "Cancelled" : "Confirmed"}</span>
-  ) : out ? (
-    <span className="ec-badge out">Sold out</span>
-  ) : live ? (
-    <span className="ec-badge live"><span className="pulse" />Live</span>
-  ) : e.featured ? (
-    <span className="ec-badge featured"><i className="icon-sparkles" />Featured</span>
+  // Build status badges array: primary status (ticket/sold/live/featured) first,
+  // then secondary signals (verified, selling-fast, only-X-left).
+  const badges: React.ReactNode[] = [];
+
+  if (ticket) {
+    badges.push(
+      <span key="ticket" className="ec-badge confirmed"><i className="icon-circle-check" />{e.cancelled ? "Cancelled" : "Confirmed"}</span>
+    );
+  } else if (out) {
+    badges.push(
+      <span key="sold" className="ec-badge out">Sold out</span>
+    );
+  } else if (live) {
+    badges.push(
+      <span key="live" className="ec-badge live"><span className="pulse" />Live</span>
+    );
+  } else if (e.featured) {
+    badges.push(
+      <span key="featured" className="ec-badge featured"><i className="icon-sparkles" />Featured</span>
+    );
+  }
+
+  // Secondary badges (only if not ticket, not sold, not live)
+  if (!ticket && !out && !live) {
+    if (e.organizerVerified) {
+      badges.push(
+        <span key="verified" className="ec-badge verified"><i className="icon-badge-check" />Verified</span>
+      );
+    }
+    if (left > 5 && left <= 20) {
+      badges.push(
+        <span key="selling-fast" className="ec-badge selling-fast"><i className="icon-zap" />Selling fast</span>
+      );
+    }
+    if (left > 0 && left <= 5) {
+      badges.push(
+        <span key="only-left" className="ec-badge only-left"><i className="icon-warning" />{left} left</span>
+      );
+    }
+  }
+
+  // For list variant, render primary badge only in the text area
+  const listBadge = variant === "list" ? badges[0] : null;
+
+  // For cover variants (card/rail/feature), render all badges in a badge group
+  const coverBadges = variant !== "list" && badges.length > 0 ? (
+    <div className="ec-badge-group">{badges}</div>
   ) : null;
 
   // ---- dense horizontal list row (default) ----
@@ -81,7 +152,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
         <div className="ec-main">
           <div className="ec-top">
             <span className="ec-when">{dayLabel(e)} · {timeLabel(e)}</span>
-            {statusBadge}
+            {listBadge}
           </div>
           <h3 className="ec-title">{e.title}</h3>
           <div className="ec-meta">
@@ -106,8 +177,11 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
     return (
       <Link to={`/e/${e.id}`} {...preload} className="ec-card">
         <motion.div layoutId={`event-cover-${e.id}`} className="ec-card-cover" style={coverStyle}>
-          {statusBadge}
-          <SaveHeart id={e.id} />
+          {coverBadges}
+          <div style={{ display: "flex", gap: 8 }}>
+            <ShareButton e={e} />
+            <SaveHeart id={e.id} />
+          </div>
           {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={76} /></span>}
           {scarce && <span className="ec-card-scarce">{left} left</span>}
         </motion.div>
@@ -130,8 +204,11 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
     return (
       <Link to={`/e/${e.id}`} {...preload} className="ec-rail">
         <motion.div layoutId={`event-cover-${e.id}`} className="ec-rail-cover" style={coverStyle}>
-          {statusBadge}
-          <SaveHeart id={e.id} />
+          {coverBadges}
+          <div style={{ display: "flex", gap: 8 }}>
+            <ShareButton e={e} />
+            <SaveHeart id={e.id} />
+          </div>
           {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={48} /></span>}
         </motion.div>
         <h3 className="ec-title">{e.title}</h3>
@@ -148,8 +225,11 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   return (
     <Link to={`/e/${e.id}`} {...preload} className="ec-feature">
       <motion.div layoutId={`event-cover-${e.id}`} className="ec-feature-cover" style={coverStyle}>
-        {statusBadge}
-        <SaveHeart id={e.id} className="ec-save-lg" />
+        {coverBadges}
+        <div style={{ display: "flex", gap: 8 }}>
+          <ShareButton e={e} />
+          <SaveHeart id={e.id} className="ec-save-lg" />
+        </div>
         {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={76} /></span>}
         <div className="ec-feature-body">
           <div className="ec-feature-toprow">

@@ -357,6 +357,9 @@
 .ec-badge.live { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .ec-badge.out { color: var(--text-3); }
 .ec-badge.confirmed { color: var(--success); background: var(--success-soft); }
+.ec-badge.verified { color: var(--accent); background: var(--accent-soft); }
+.ec-badge.selling-fast { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.ec-badge.only-left { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .ec-badge .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); animation: pulse-dot 1.6s ease-in-out infinite; }
 
 /* quick-save heart, overlaid on rail/feature card covers (see Stub.tsx) —
@@ -398,7 +401,8 @@
   .ec-card-cover { transition: box-shadow .2s ease; }
   .ec-card:hover .ec-card-cover { transform: none; background-size: cover; }
 }
-.ec-card-cover > .ec-badge { position: absolute; top: 10px; left: 10px; z-index: 1; backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
+.ec-card-cover > .ec-badge-group { position: absolute; top: 10px; left: 10px; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.ec-card-cover > .ec-badge-group .ec-badge { backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
 .ec-card-scarce {
   position: absolute; left: 10px; bottom: 10px; z-index: 1;
   font: var(--t-caption); letter-spacing: 0.2px; color: #fff;
@@ -425,7 +429,8 @@
   background-size: cover; background-position: center; background-color: var(--card-bg);
   position: relative; display: grid; place-items: center;
 }
-.ec-rail-cover .ec-badge { position: absolute; top: 8px; left: 8px; backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
+.ec-rail-cover .ec-badge-group { position: absolute; top: 8px; left: 8px; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.ec-rail-cover .ec-badge-group .ec-badge { backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
 .ec-rail .ec-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
 
 /* ---- large featured hero card ---- */
@@ -449,7 +454,8 @@
    overflow:hidden clip is what defines the visible edge, not two layers
    trying to agree — the standard, reliable fix for this class of artifact. */
 .ec-feature-cover::after { content: ""; position: absolute; inset: -1px; background: linear-gradient(to top, rgba(6,8,12,0.92) 0%, rgba(6,8,12,0.25) 45%, transparent 70%); }
-.ec-feature-cover > .ec-badge { position: absolute; top: 10px; left: 10px; z-index: 1; backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
+.ec-feature-cover > .ec-badge-group { position: absolute; top: 10px; left: 10px; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.ec-feature-cover > .ec-badge-group .ec-badge { backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
 .ec-feature-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 14px; }
 .ec-feature-organizer { font: var(--t-caption); letter-spacing: 0.4px; text-transform: uppercase; color: rgba(255,255,255,0.75); }
 .ec-feature-title { font: var(--t-section); color: #fff; letter-spacing: -0.3px; margin: 2px 0 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

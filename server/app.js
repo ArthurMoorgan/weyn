@@ -913,6 +913,12 @@ export function createApp(storage) {
     await prisma.eventVenue.delete({ where: { id: req.params.id } });
     res.json({ ok: true });
   });
+  // Public endpoint: fetch EventVenue details by ID for display on event pages
+  app.get("/api/event-venues/:id", async (req, res) => {
+    const venue = await prisma.eventVenue.findUnique({ where: { id: req.params.id } });
+    if (!venue) return res.status(404).json({ error: "Venue not found" });
+    res.json(venue);
+  });
   // Simple heuristic "AI recommendation" — real comparable-event data (same
   // pattern as the AI Studio pricing suggestion), not a fabricated claim.
   app.get("/api/organizer/venues/:id/recommendation", requireAuth, async (req, res) => {

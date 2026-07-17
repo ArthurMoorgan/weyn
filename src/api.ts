@@ -1151,6 +1151,9 @@ export const api = {
   getEvent(id: string): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events/${id}`).then((r) => json<Weyn>(r)).then(absMedia);
   },
+  getEventVenue(id: string): Promise<EventVenue> {
+    return fetch(`${API_BASE}/api/event-venues/${id}`).then((r) => json<EventVenue>(r));
+  },
   async createEvent(form: FormData): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events`, { method: "POST", headers: await authHeaders(), body: form }).then((r) => json<Weyn>(r)).then(absMedia);
   },

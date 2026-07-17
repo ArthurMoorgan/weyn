@@ -31,6 +31,7 @@ export default function EventDetail() {
   const account = useAccount();
   const [activeSlide, setActiveSlide] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
+  const [contactSheet, setContactSheet] = useState(false);
 
   // Restores the "you're going / ticket reserved" bar on a return visit —
   // previously `booked` only ever got set optimistically inside book()
@@ -85,6 +86,10 @@ export default function EventDetail() {
   const seatMapQuery = useAsync(
     () => (e && ePayPrice === 0 ? api.eventSeatMap(e.id).then((p) => (p.mode === "seat" ? p : null)).catch(() => null) : Promise.resolve(null)),
     [e?.id, ePayPrice]
+  );
+  const venueQuery = useAsync(
+    () => (e?.venueProfileId ? api.getEventVenue(e.venueProfileId).catch(() => null) : Promise.resolve(null)),
+    [e?.venueProfileId]
   );
   const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
 
@@ -269,6 +274,7 @@ export default function EventDetail() {
           <TicketSheet eventTitle={ev.title} bookingId={rec.bookingId} accessToken={rec.accessToken} venue={ev.venue} dateLabel={`${dayLabel(ev)} · ${timeLabel(ev)}`} lat={ev.lat} lng={ev.lng} onClose={() => setTicketSheet(false)} />
         ) : null;
       })()}
+      {contactSheet && ev.organizerContact && <ContactOrganizerSheet contact={ev.organizerContact} onClose={() => setContactSheet(false)} />}
 
       <div className="sheet glass">
         <span className={`catpill cat-${ev.cat}`}>{cat?.label}</span>
@@ -280,6 +286,13 @@ export default function EventDetail() {
             <p className="host">Hosted by {ev.organizer}</p>
           )}
           {ev.ownerId && <FollowButton organizerId={ev.ownerId} />}
+          {ev.organizerContact && (
+            <Tooltip text="Contact organizer">
+              <button className="icon-btn" onClick={() => setContactSheet(true)} aria-label="Contact organizer">
+                <i className="icon-mail" />
+              </button>
+            </Tooltip>
+          )}
         </div>
 
         {ev.tags.length > 0 && (
@@ -318,6 +331,29 @@ export default function EventDetail() {
             <i className="icon-map" /> Open in Google Maps
           </a>
         </div>
+
+        {venueQuery.data && (
+          <div className="facts" style={{ marginTop: 18 }}>
+            <h3 style={{ marginBottom: 12 }}>Venue Details</h3>
+            {venueQuery.data.parkingAvailable !== undefined && (
+              <div className="fact">
+                <i className="icon-parking" />
+                <div>
+                  <b>{venueQuery.data.parkingAvailable ? "Parking available" : "No parking"}</b>
+                </div>
+              </div>
+            )}
+            {venueQuery.data.accessibilityNotes && (
+              <div className="fact">
+                <i className="icon-accessibility" />
+                <div>
+                  <b>Accessibility</b>
+                  <span>{venueQuery.data.accessibilityNotes}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {ev.ticketingType === "weyn" && hasTiers && !booked && (
           <div className="tier-picker">
@@ -560,6 +596,57 @@ function FeedbackWidget({ eventId, bookingId }: { eventId: string; bookingId?: s
       <textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Anything you'd like the organizer to know? (optional)" style={{ width: "100%", marginBottom: 10 }} />
       {err && <p className="errline">{err}</p>}
       <button className="btn" onClick={submit} disabled={busy || (!rating && !comment.trim())}>{busy ? "Sending…" : "Send feedback"}</button>
+    </div>
+  );
+}
+
+function ContactOrganizerSheet({ contact, onClose }: { contact: string; onClose: () => void }) {
+  const { closing, close } = useClosing(onClose);
+  const [copied, setCopied] = useState(false);
+
+  const isEmail = contact.includes("@");
+  const isPhone = /^\+?[\d\s\-()]+$/.test(contact);
+
+  async function copyToClipboard() {
+    try {
+      await navigator.clipboard.writeText(contact);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* clipboard blocked */ }
+  }
+
+  return (
+    <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
+      <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginBottom: 16 }}>Contact organizer</h3>
+        <p style={{ marginBottom: 14, color: "var(--text-2)", fontSize: 14 }}>{contact}</p>
+        <ul className="steps">
+          {isEmail && (
+            <li>
+              <i className="icon-mail" />
+              <span>Send email</span>
+              <a className="copy-btn" style={{ marginLeft: "auto" }} href={`mailto:${contact}`} rel="noreferrer">
+                <i className="icon-arrow-up-right" />
+              </a>
+            </li>
+          )}
+          {isPhone && (
+            <li>
+              <i className="icon-phone" />
+              <span>Call</span>
+              <a className="copy-btn" style={{ marginLeft: "auto" }} href={`tel:${contact}`} rel="noreferrer">
+                <i className="icon-arrow-up-right" />
+              </a>
+            </li>
+          )}
+          <li style={{ cursor: "pointer" }} onClick={copyToClipboard}>
+            <i className="icon-copy" />
+            <span>{copied ? "Copied!" : "Copy contact"}</span>
+            {!copied && <i className="copy-btn" style={{ marginLeft: "auto", cursor: "pointer" }}>→</i>}
+          </li>
+        </ul>
+        <button className="btn glass" style={{ marginTop: 14, width: "100%" }} onClick={close}>Done</button>
+      </div>
     </div>
   );
 }
