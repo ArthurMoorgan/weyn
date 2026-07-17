@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { AnimatePresence, motion } from "motion/react";
 import { api, VENUE_CATS, type Venue, type VenueCategory, type PriceRange, type Reservation, type VenueAvailabilitySlot, type FloorTable, type FloorTableInput, type Campaign, type VenueSegment, type VenueWorkflow, type VenueWorkflowTrigger, type VenueConditionField, type VenueWorkflowAction, type WFNode, type WFEdge, type WFNodeType, type WinBackStats, type VenueLoyaltyGuest, type VenueMarketingLink, type VenueMarketingCalendarItem, type VenueBrandKit, type SocialAccountConnection, type VenueSocialPost, type VenueMarketingContact, type AdVariant, type PersuasionAngle, type VenueWaitlistEntry } from "../../api";
 import { useAsync } from "../../hooks";
 import { useAccount } from "../../store";
@@ -8,7 +9,7 @@ import WorkflowCanvas from "../../components/WorkflowCanvas";
 import DashboardShell from "../../components/dashboard/DashboardShell";
 import DesktopOnlyBanner from "../../components/DesktopOnlyBanner";
 import { layoutGraph, unreachableNodeIds } from "../../lib/workflowLayout";
-import { MotionButton, MotionLink } from "../../motion";
+import { MotionButton, MotionLink, tabSwitchVariants, pageTransition } from "../../motion";
 
 type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
 
@@ -96,17 +97,28 @@ function VenueBody({ tab, venue }: { tab: VenueTabKey; venue: OwnedVenue }) {
     setRows((list) => list.map((r) => (r.id === id ? { ...r, status: updated.status ?? status } : r)));
   }
 
-  if (tab === "reservations") return <VenueReservationsTab venueId={venue.id} rows={rows} loading={loading} error={error} setStatus={setStatus} onCreated={reload} />;
-  if (tab === "waitlist") return <VenueWaitlistTab venueId={venue.id} />;
-  if (tab === "calendar") return <VenueCalendar rows={rows} loading={loading} />;
-  if (tab === "tables") return <VenueTables venueId={venue.id} />;
-  if (tab === "venue") return <VenueProfileEditor venue={venue} />;
-  if (tab === "guests") return <VenueGuests venueId={venue.id} rows={rows} />;
-  if (tab === "marketing") return <VenueMarketing venueId={venue.id} />;
-  if (tab === "marketing-hub") return <VenueMarketingHub venueId={venue.id} />;
-  if (tab === "workflows") return <VenueWorkflows venueId={venue.id} />;
-  if (tab === "analytics") return <VenueAnalyticsPanel venueId={venue.id} />;
-  return <VenueAvailabilityEditor venue={venue} />;
+  // The shared reservations fetch above stays mounted; only the body below is
+  // keyed by tab, so switching tabs cross-fades the content without refetching.
+  let body: ReactNode;
+  if (tab === "reservations") body = <VenueReservationsTab venueId={venue.id} rows={rows} loading={loading} error={error} setStatus={setStatus} onCreated={reload} />;
+  else if (tab === "waitlist") body = <VenueWaitlistTab venueId={venue.id} />;
+  else if (tab === "calendar") body = <VenueCalendar rows={rows} loading={loading} />;
+  else if (tab === "tables") body = <VenueTables venueId={venue.id} />;
+  else if (tab === "venue") body = <VenueProfileEditor venue={venue} />;
+  else if (tab === "guests") body = <VenueGuests venueId={venue.id} rows={rows} />;
+  else if (tab === "marketing") body = <VenueMarketing venueId={venue.id} />;
+  else if (tab === "marketing-hub") body = <VenueMarketingHub venueId={venue.id} />;
+  else if (tab === "workflows") body = <VenueWorkflows venueId={venue.id} />;
+  else if (tab === "analytics") body = <VenueAnalyticsPanel venueId={venue.id} />;
+  else body = <VenueAvailabilityEditor venue={venue} />;
+
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div key={tab} variants={tabSwitchVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}>
+        {body}
+      </motion.div>
+    </AnimatePresence>
+  );
 }
 
 function statusClass(status?: string) {

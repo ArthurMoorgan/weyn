@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
+import { motion } from "motion/react";
 import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, captureUtmFromUrl, type Weyn } from "../api";
 import { useAsync, useClosing } from "../hooks";
 import { isSaved, toggleSave, useSaved, addTicket, ticketFor, getDeviceId, useAccount } from "../store";
@@ -222,7 +223,7 @@ export default function EventDetail() {
   return (
     <div className="detail" style={themeStyle}>
       <div className="detail-grid">
-      <div className={"cover" + (hasCarousel ? " has-carousel" : "")} style={hasCarousel ? undefined : coverStyle}>
+      <motion.div layoutId={`event-cover-${ev.id}`} className={"cover" + (hasCarousel ? " has-carousel" : "")} style={hasCarousel ? undefined : coverStyle}>
         {hasCarousel && (
           <>
             <div className="cover-carousel-track" ref={trackRef} onScroll={onTrackScroll}>
@@ -258,7 +259,7 @@ export default function EventDetail() {
           )}
         </div>
         {!hasCarousel && !ev.image && <span className="glyph">{ev.glyph}</span>}
-      </div>
+      </motion.div>
       {listSheet && <AddToListSheet eventId={ev.id} onClose={() => setListSheet(false)} />}
       {ticketSheet && (() => {
         const rec = ticketFor(ev.id);

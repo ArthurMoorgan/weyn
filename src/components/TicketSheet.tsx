@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
+import { AnimatePresence, motion } from "motion/react";
 import { api } from "../api";
 import { useClosing } from "../hooks";
-import { MotionButton } from "../motion";
+import { MotionButton, settleSpring, usePrefersReducedMotion } from "../motion";
 
 // The one thing every ticketing app needs and this one didn't have: a place
 // to actually SEE a ticket after booking. Free RSVP and paid checkout both
@@ -25,6 +26,8 @@ export default function TicketSheet({
   // one-time sheen sweep across the stub. `revealed` gates that transition so
   // it plays exactly once, when the real ticket data arrives.
   const [revealed, setRevealed] = useState(false);
+  const reducedMotion = usePrefersReducedMotion();
+  const morphTransition = reducedMotion ? { duration: 0 } : settleSpring;
 
   useEffect(() => {
     let cancelled = false;
@@ -53,39 +56,64 @@ export default function TicketSheet({
 
         {err && <p className="errline">{err}</p>}
 
-        {!err && !revealed && (
-          <div className="ticket-generating" aria-busy="true" aria-label="Preparing your ticket">
-            <span className="ticket-generating-mark" />
-          </div>
-        )}
+        <AnimatePresence mode="popLayout" initial={false}>
+          {!err && !revealed && (
+            <motion.div
+              key="generating"
+              layoutId="ticket-shape"
+              className="ticket-generating"
+              aria-busy="true"
+              aria-label="Preparing your ticket"
+              transition={morphTransition}
+            >
+              <span className="ticket-generating-mark" />
+            </motion.div>
+          )}
 
-        {revealed && tickets?.map((t) => (
-          <div key={t.code} className="ticket-stub reveal">
-            <span className="ticket-success-check" aria-hidden="true"><i className="icon-circle-check" /></span>
-            {/* Dark header band — intentionally near-black in both themes
-                (the Editorial handoff's ticket stub reads as a printed
-                physical ticket, not a themed UI surface). */}
-            <div className="ticket-stub-header">
-              <span className="ticket-stub-type">{t.checkedInAt ? "Checked in" : "General Admission"}</span>
-              <b className="ticket-stub-event">{eventTitle}</b>
-              <span className="ticket-stub-meta">{[dateLabel, venue].filter(Boolean).join(" · ")}</span>
-            </div>
-            <div className="ticket-stub-divider" aria-hidden="true">
-              <span className="ticket-stub-notch left" /><span className="ticket-stub-notch right" />
-            </div>
-            <div className="ticket-stub-body">
-              {qrDataUrls[t.code] ? (
-                <div className="qr-sticker">
-                  <img src={qrDataUrls[t.code]} alt="Ticket QR code" width={220} height={220} />
-                </div>
-              ) : (
-                <div className="detail-skel-cover" style={{ height: 220, width: 220, borderRadius: 12, margin: "0 auto" }} />
-              )}
-              <div className="ticket-qr-code">{t.code}</div>
-              {t.checkedInAt && <span className="ec-badge confirmed"><i className="icon-circle-check" /> Checked in</span>}
-            </div>
-          </div>
-        ))}
+          {revealed && tickets?.map((t, i) => (
+            <motion.div
+              key={t.code}
+              layoutId={i === 0 ? "ticket-shape" : undefined}
+              layout
+              className="ticket-stub reveal"
+              initial={reducedMotion ? false : { opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={morphTransition}
+            >
+              <motion.span
+                className="ticket-success-check"
+                aria-hidden="true"
+                initial={reducedMotion ? false : { scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={reducedMotion ? { duration: 0 } : { ...settleSpring, delay: 0.15 }}
+              >
+                <i className="icon-circle-check" />
+              </motion.span>
+              {/* Dark header band — intentionally near-black in both themes
+                  (the Editorial handoff's ticket stub reads as a printed
+                  physical ticket, not a themed UI surface). */}
+              <div className="ticket-stub-header">
+                <span className="ticket-stub-type">{t.checkedInAt ? "Checked in" : "General Admission"}</span>
+                <b className="ticket-stub-event">{eventTitle}</b>
+                <span className="ticket-stub-meta">{[dateLabel, venue].filter(Boolean).join(" · ")}</span>
+              </div>
+              <div className="ticket-stub-divider" aria-hidden="true">
+                <span className="ticket-stub-notch left" /><span className="ticket-stub-notch right" />
+              </div>
+              <div className="ticket-stub-body">
+                {qrDataUrls[t.code] ? (
+                  <div className="qr-sticker">
+                    <img src={qrDataUrls[t.code]} alt="Ticket QR code" width={220} height={220} />
+                  </div>
+                ) : (
+                  <div className="detail-skel-cover" style={{ height: 220, width: 220, borderRadius: 12, margin: "0 auto" }} />
+                )}
+                <div className="ticket-qr-code">{t.code}</div>
+                {t.checkedInAt && <span className="ec-badge confirmed"><i className="icon-circle-check" /> Checked in</span>}
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         {revealed && tickets && !err && (
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>

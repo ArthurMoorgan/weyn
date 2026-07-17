@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
+import { motion } from "motion/react";
 import Discover from "./pages/Discover";
 import Skeleton from "./components/Skeleton";
 import ThemeToggle from "./components/ThemeToggle";
 import CityPill from "./components/CityPill";
 import { useAccount } from "./store";
-import { MotionButton, MotionNavLink, MotionLink } from "./motion";
+import { MotionButton, MotionNavLink, MotionLink, usePrefersReducedMotion, shellEntrance, settleSpring } from "./motion";
+import { splashActive, onSplashExit } from "./splash";
 
 // Lazy, same as every other non-critical-path route (see main.tsx) — these
 // just aren't *routed* through main.tsx anymore, App renders them directly.
@@ -42,7 +44,25 @@ const MAIN_TABS: { path: string; Component: React.ComponentType }[] = [
   { path: "/you", Component: You },
 ];
 
+// Hold the shell hidden while the splash still covers it, then surface it up in
+// the same window the splash lifts off (see splash.ts / index.html) so the
+// handoff reads as one motion. A load with no splash — already dismissed, or
+// reduced motion — goes straight to rest with no entrance.
+function useShellEntrance() {
+  const reduced = usePrefersReducedMotion();
+  // Snapshot at mount: only play the entrance if the splash is actually still
+  // over us. Recomputing per render could flip mid-exit.
+  const [holds] = useState(() => !reduced && splashActive());
+  const [entered, setEntered] = useState(!holds);
+  useEffect(() => {
+    if (!holds) { setEntered(true); return; }
+    return onSplashExit(() => setEntered(true));
+  }, [holds]);
+  return { holds, entered };
+}
+
 export default function App() {
+  const { holds, entered } = useShellEntrance();
   const location = useLocation();
   const account = useAccount();
   const activeMainTab = MAIN_TABS.find((t) => t.path === location.pathname);
@@ -74,7 +94,13 @@ export default function App() {
   useEffect(() => { setHostOpen(false); }, [location.pathname]);
 
   return (
-    <div className="shell">
+    <motion.div
+      className="shell"
+      variants={shellEntrance}
+      initial={holds ? "hidden" : false}
+      animate={entered ? "shown" : "hidden"}
+      transition={settleSpring}
+    >
       {MAIN_TABS.map(({ path, Component }) =>
         visited.has(path) ? (
           <div key={path} className="tab-page" data-active={location.pathname === path}>
@@ -190,6 +216,6 @@ export default function App() {
           </Link>
         </div>
       </nav>
-    </div>
+    </motion.div>
   );
 }

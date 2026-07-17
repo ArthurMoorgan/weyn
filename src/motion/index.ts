@@ -45,6 +45,24 @@ export const pageVariants: Variants = {
   exit: { opacity: 0, y: -8, scale: 0.99 },
 };
 
+// Cross-fade + slight scale for swapping a panel's body in place (dashboard
+// tab switches) — no y-translate, since the surrounding chrome (nav, header)
+// stays put and only the content underneath it changes. Under reduced motion
+// MotionConfig drops the scale and leaves a plain fade.
+export const tabSwitchVariants: Variants = {
+  initial: { opacity: 0, scale: 0.98 },
+  animate: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 0.98 },
+};
+
+// The app shell surfacing up as the splash lifts off it — paired with the
+// splash exit (index.html keyframes + splash.ts timing) so the handoff reads
+// as one continuous motion rather than a hard swap. Driven with settleSpring.
+export const shellEntrance: Variants = {
+  hidden: { opacity: 0, scale: 0.985, y: 10 },
+  shown: { opacity: 1, scale: 1, y: 0 },
+};
+
 // Stagger a list's children in after the container mounts — e.g. Explore's
 // event feed.
 export const staggerContainer: Variants = {

@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
+import { motion } from "motion/react";
 import { type Weyn, ticketsLeft, isSoldOut, isTonight, dayLabel, timeLabel } from "../api";
 import { isSaved, toggleSave, useSaved } from "../store";
+import { preloadEventDetail } from "../eventDetailChunk";
 import Icon3D from "./Icon3D";
 
 // Card variants — one component, four densities, so different surfaces get
@@ -56,6 +58,11 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
     ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
     : { background: fallbackGradient(e.cat) };
 
+  // Warm the EventDetail chunk the instant this card is pressed or hovered,
+  // so its hero (the layoutId morph target) is mounted in time for the
+  // shared-element transition — spread onto every /e/:id <Link> below.
+  const preload = { onPointerDown: preloadEventDetail, onMouseEnter: preloadEventDetail };
+
   const statusBadge = ticket ? (
     <span className="ec-badge confirmed"><i className="icon-circle-check" />{e.cancelled ? "Cancelled" : "Confirmed"}</span>
   ) : out ? (
@@ -69,8 +76,8 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   // ---- dense horizontal list row (default) ----
   if (variant === "list") {
     return (
-      <Link to={`/e/${e.id}`} viewTransition className={"ec-row" + (ticket ? " ticket" : "")}>
-        <div className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={48} /></span>}</div>
+      <Link to={`/e/${e.id}`} {...preload} className={"ec-row" + (ticket ? " ticket" : "")}>
+        <motion.div layoutId={`event-cover-${e.id}`} className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={48} /></span>}</motion.div>
         <div className="ec-main">
           <div className="ec-top">
             <span className="ec-when">{dayLabel(e)} · {timeLabel(e)}</span>
@@ -97,13 +104,13 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   // ---- full-width editorial card (image top, text below) ----
   if (variant === "card") {
     return (
-      <Link to={`/e/${e.id}`} viewTransition className="ec-card">
-        <div className="ec-card-cover" style={coverStyle}>
+      <Link to={`/e/${e.id}`} {...preload} className="ec-card">
+        <motion.div layoutId={`event-cover-${e.id}`} className="ec-card-cover" style={coverStyle}>
           {statusBadge}
           <SaveHeart id={e.id} />
           {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={76} /></span>}
           {scarce && <span className="ec-card-scarce">{left} left</span>}
-        </div>
+        </motion.div>
         <div className="ec-card-body">
           <span className="ec-when">{dayLabel(e)} · {timeLabel(e)}</span>
           <h3 className="ec-title">{e.title}</h3>
@@ -121,12 +128,12 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   // ---- compact vertical card for horizontal rails ----
   if (variant === "rail") {
     return (
-      <Link to={`/e/${e.id}`} viewTransition className="ec-rail">
-        <div className="ec-rail-cover" style={coverStyle}>
+      <Link to={`/e/${e.id}`} {...preload} className="ec-rail">
+        <motion.div layoutId={`event-cover-${e.id}`} className="ec-rail-cover" style={coverStyle}>
           {statusBadge}
           <SaveHeart id={e.id} />
           {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={48} /></span>}
-        </div>
+        </motion.div>
         <h3 className="ec-title">{e.title}</h3>
         <div className="ec-meta">
           <span>{dayLabel(e)}</span>
@@ -139,8 +146,8 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
 
   // ---- large featured hero card ----
   return (
-    <Link to={`/e/${e.id}`} viewTransition className="ec-feature">
-      <div className="ec-feature-cover" style={coverStyle}>
+    <Link to={`/e/${e.id}`} {...preload} className="ec-feature">
+      <motion.div layoutId={`event-cover-${e.id}`} className="ec-feature-cover" style={coverStyle}>
         {statusBadge}
         <SaveHeart id={e.id} className="ec-save-lg" />
         {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={76} /></span>}
@@ -157,7 +164,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
             <span className={"ec-price ec-price-pill" + (e.price === 0 ? " free" : "")}>{priceText}</span>
           </div>
         </div>
-      </div>
+      </motion.div>
     </Link>
   );
 }

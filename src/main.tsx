@@ -8,6 +8,7 @@ import "./ikonate.css";
 import "./index.css";
 import App from "./App";
 import { setTokenGetter } from "./store";
+import { preloadEventDetail } from "./eventDetailChunk";
 // Onboarding (the first-run redirect target) stays eagerly bundled — it's
 // critical path for a brand new visitor. The 4 bottom-tab pages (Explore,
 // Reservations, Tickets, You) are imported and rendered by App.tsx itself,
@@ -26,7 +27,7 @@ import { getAuthToken } from "./store";
 import { markSplashShown, dismissSplash } from "./splash";
 import { initPostHog, identifyPostHog, resetPostHog } from "./posthog";
 
-const EventDetail = lazy(() => import("./pages/EventDetail"));
+const EventDetail = lazy(preloadEventDetail);
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Saved = lazy(() => import("./pages/Saved"));
 const Organizer = lazy(() => import("./pages/Organizer"));

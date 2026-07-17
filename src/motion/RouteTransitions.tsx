@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { Routes, useLocation } from "react-router-dom";
-import { AnimatePresence, motion, type Variants } from "motion/react";
+import { AnimatePresence, LayoutGroup, motion, type Variants } from "motion/react";
 import { pageTransition, pageVariants, usePrefersReducedMotion } from "./index";
 import Skeleton from "../components/Skeleton";
 
@@ -44,27 +44,37 @@ export default function RouteTransitions({ children }: { children: ReactNode }) 
   const reduce = usePrefersReducedMotion();
 
   return (
-    // mode="wait" so the outgoing page finishes exiting before the next mounts
-    // — that ordering is also what keeps a lazy route's Suspense fallback from
-    // flashing mid-transition: the exit runs on the already-loaded old page,
-    // and the Skeleton (if the new chunk is still downloading) only appears
-    // once inside the freshly-mounted page. initial={false} skips an entry
-    // animation on first paint (the splash screen already covers that).
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={routeGroupKey(location.pathname)}
-        variants={reduce ? reducedVariants : pageVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        transition={reduce ? { duration: 0 } : pageTransition}
-      >
-        <Suspense fallback={<Skeleton variant="generic" />}>
-          {/* Frozen location so the exiting page keeps rendering its own route
-              while the next one is matched against the new URL. */}
-          <Routes location={location}>{children}</Routes>
-        </Suspense>
-      </motion.div>
-    </AnimatePresence>
+    // LayoutGroup gives the exiting page's tapped card cover and the entering
+    // EventDetail hero a shared layout context, so their matching
+    // layoutId={`event-cover-<id>`} pair up into a morph across the
+    // AnimatePresence swap (see Stub.tsx / Explore.tsx / EventDetail.tsx). When
+    // the ids don't pair (any other navigation), the target chunk isn't mounted
+    // yet, or reduced-motion neutralizes layout animation, nothing morphs and
+    // the directional page transition below just plays — the morph is additive.
+    <LayoutGroup>
+      {/* mode="wait" so the outgoing page finishes exiting before the next
+          mounts — that ordering is also what keeps a lazy route's Suspense
+          fallback from flashing mid-transition: the exit runs on the
+          already-loaded old page, and the Skeleton (if the new chunk is still
+          downloading) only appears once inside the freshly-mounted page.
+          initial={false} skips an entry animation on first paint (the splash
+          screen already covers that). */}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={routeGroupKey(location.pathname)}
+          variants={reduce ? reducedVariants : pageVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={reduce ? { duration: 0 } : pageTransition}
+        >
+          <Suspense fallback={<Skeleton variant="generic" />}>
+            {/* Frozen location so the exiting page keeps rendering its own route
+                while the next one is matched against the new URL. */}
+            <Routes location={location}>{children}</Routes>
+          </Suspense>
+        </motion.div>
+      </AnimatePresence>
+    </LayoutGroup>
   );
 }

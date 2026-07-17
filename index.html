@@ -63,7 +63,9 @@
                   (see the reduced min-hold in src/splash.ts)
            idle   (only reached if something's genuinely still loading):
                   the mark "breathes" over a slow glow pulse
-           exit   mark lifts + defocuses, glow collapses, scrim fades
+           exit   mark hands off to the app: flies into the header brand
+                  (desktop) or settles+shrinks in place (mobile) as the glow
+                  collapses, the scrim fades, and the shell surfaces up beneath
          Everything is transform/opacity/dashoffset — compositor-cheap.
          Runs before React exists, so it's all hand-inlined here.
          ============================================================ */
@@ -154,13 +156,20 @@
         to { opacity: .45; letter-spacing: .35em; transform: translateY(0); }
       }
 
-      /* Exit: the mark lifts toward the viewer and defocuses while the
-         glow collapses — reads as the app surfacing up through it. */
-      html.show-splash.splash-exit #splash svg { animation: splash-mark-out .32s cubic-bezier(.4,0,.2,1) both; }
+      /* Exit: the mark hands off to the app underneath rather than blurring
+         away. On desktop it flies to the header brand's rest spot and shrinks
+         into it — a FLIP translate/scale from custom props splash.ts measures
+         and sets just before this runs. With no header target (mobile's bottom
+         bar has no logo; routes like /e/:id have no shell) it settles down a
+         touch and scales as it fades — a cross-fade into the shell surfacing up
+         beneath (see the motion entrance in App.tsx, timed to overlap this). */
+      html.show-splash.splash-exit #splash svg { animation: splash-mark-settle .42s cubic-bezier(.4,0,.2,1) both; }
+      html.show-splash.splash-exit.splash-morph #splash svg { animation: splash-mark-morph .46s cubic-bezier(.5,0,.2,1) both; }
       html.show-splash.splash-exit #splash-glow { animation: splash-glow-out .26s ease both; }
       html.show-splash.splash-exit #splash-word { animation: splash-word-out .22s ease both; }
-      html.show-splash.splash-exit #splash { animation: splash-scrim-out .36s ease .03s both; pointer-events: none; }
-      @keyframes splash-mark-out { from { opacity: 1; transform: scale(1); filter: blur(0); } to { opacity: 0; transform: scale(1.08); filter: blur(8px); } }
+      html.show-splash.splash-exit #splash { animation: splash-scrim-out .4s ease .06s both; pointer-events: none; }
+      @keyframes splash-mark-settle { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(10px) scale(.94); } }
+      @keyframes splash-mark-morph { from { opacity: 1; transform: translate(0, 0) scale(1); } to { opacity: 0; transform: translate(var(--splash-mx, 0), var(--splash-my, 0)) scale(var(--splash-ms, .2)); } }
       @keyframes splash-glow-out { to { opacity: 0; transform: scale(.9); } }
       @keyframes splash-word-out { to { opacity: 0; transform: translateY(6px); } }
       @keyframes splash-scrim-out { from { opacity: 1; } to { opacity: 0; } }

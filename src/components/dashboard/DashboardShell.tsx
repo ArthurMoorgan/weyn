@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
+import { motion } from "motion/react";
+import { settleSpring } from "../../motion";
 import Logo from "../Logo";
 
 // The nav+content grid (.organizer-shell / .profile-tabs.organizer-nav /
@@ -26,14 +28,27 @@ export interface DashboardShellNavItem {
   active?: boolean;
 }
 
-function NavItem({ item }: { item: DashboardShellNavItem }) {
+// `indicatorId` is the layoutId the sliding active-pill shares — items in the
+// same nav strip pass the same id so the pill morphs between them. The desktop
+// sidebar and the mobile compact strip (both rendered by the `primary` variant)
+// get different ids so their two pills don't fight over one shared layoutId
+// while both are in the DOM. MotionConfig's reducedMotion="user" disables the
+// layout animation, so the pill just snaps into place when motion is reduced.
+function NavItem({ item, indicatorId }: { item: DashboardShellNavItem; indicatorId: string }) {
   return (
     <NavLink
       to={item.to}
       end={item.end}
       className={({ isActive }) => "profile-tab" + ((item.active ?? isActive) ? " on" : "")}
     >
-      <i className={`icon-${item.icon}`} /> {item.label}
+      {({ isActive }) => (
+        <>
+          {(item.active ?? isActive) && (
+            <motion.span layoutId={indicatorId} className="dash-nav-indicator" transition={settleSpring} />
+          )}
+          <span className="dash-nav-label"><i className={`icon-${item.icon}`} /> {item.label}</span>
+        </>
+      )}
     </NavLink>
   );
 }
@@ -66,7 +81,7 @@ export default function DashboardShell({
       {primary && (
         <div className="organizer-nav-compact">
           <nav className="organizer-nav-primary" aria-label={ariaLabel}>
-            {primaryItems.map((item) => <NavItem key={item.to} item={item} />)}
+            {primaryItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator-compact" />)}
           </nav>
           {moreItems.length > 0 && (
             <div className="organizer-more">
@@ -107,7 +122,7 @@ export default function DashboardShell({
         </div>
       )}
       <nav className={"profile-tabs organizer-nav" + (primary ? " organizer-nav-desktop-only" : "")} aria-label={ariaLabel}>
-        {navItems.map((item) => <NavItem key={item.to} item={item} />)}
+        {navItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator" />)}
       </nav>
       <div className="organizer-content">{children}</div>
     </div>

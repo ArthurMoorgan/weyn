@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { AnimatePresence, motion } from "motion/react";
+import { tabSwitchVariants, pageTransition } from "../../motion";
 import { Html5Qrcode } from "html5-qrcode";
 import QRCode from "qrcode";
 import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type TeamMember, type PromoCode, type Campaign, type Sponsor, type Vendor, type FloorTable, type FloorTableInput, type MarketingScheduleItem } from "../../api";
@@ -105,13 +107,21 @@ export default function EventWorkspace() {
           active: tab === t.key,
         }))}
       >
-        {tab === "overview" && <OverviewTab event={event} features={features} reload={events.reload} />}
-        {tab === "attendees" && <AttendeesTab event={event} features={features} />}
-        {tab === "marketing" && <MarketingTab event={event} features={features} />}
-        {tab === "seating" && <SeatingTab event={event} />}
-        {tab === "team" && <TeamTab event={event} />}
-        {tab === "checkin" && <CheckInTab event={event} />}
-        {tab === "settings" && <SettingsTab event={event} features={features} reload={events.reload} />}
+        {/* Cross-fade + slight scale between tabs. Keyed by `tab` so each body
+            swaps as its own presence; mode="wait" lets the old one fade out
+            first. The bodies already unmount/remount on tab change (they were
+            conditionally rendered before), so this adds no extra refetch. */}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={tab} variants={tabSwitchVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}>
+            {tab === "overview" && <OverviewTab event={event} features={features} reload={events.reload} />}
+            {tab === "attendees" && <AttendeesTab event={event} features={features} />}
+            {tab === "marketing" && <MarketingTab event={event} features={features} />}
+            {tab === "seating" && <SeatingTab event={event} />}
+            {tab === "team" && <TeamTab event={event} />}
+            {tab === "checkin" && <CheckInTab event={event} />}
+            {tab === "settings" && <SettingsTab event={event} features={features} reload={events.reload} />}
+          </motion.div>
+        </AnimatePresence>
       </DashboardShell>
     </>
   );

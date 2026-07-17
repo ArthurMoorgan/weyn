@@ -87,7 +87,6 @@ type MotionLinkProps = Omit<
   | "onAnimationStart"
   | "onAnimationEnd"
   | "onAnimationIteration"
-  | "style"
 >;
 
 export const MotionLink = forwardRef<HTMLAnchorElement, MotionLinkProps>(

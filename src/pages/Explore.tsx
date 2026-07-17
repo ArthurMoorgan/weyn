@@ -6,6 +6,7 @@ import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isP
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import Stub from "../components/Stub";
+import { preloadEventDetail } from "../eventDetailChunk";
 import Icon3D, { type Icon3DName } from "../components/Icon3D";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
@@ -57,6 +58,12 @@ function heroTimeLabel(e: Weyn): string {
   return "This " + new Date(e.startsAt).toLocaleDateString("en-GB", { month: "long" });
 }
 
+// The spotlight card IS its own cover (the photo is its background), so the
+// layoutId that morphs it into EventDetail's hero has to sit on the <Link>
+// itself — hence a motion-wrapped Link rather than a nested motion.div like
+// Stub's card covers use.
+const MotionLink = motion.create(Link);
+
 // One card's worth of the spotlight carousel's content — pulled out of the
 // old single-slide HeroCard so HeroCarousel below can render N of these in
 // a swipeable track instead of one static card.
@@ -68,7 +75,7 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
     // category-grey treatment as Stub.tsx's fallback covers.
     : { background: `linear-gradient(150deg, var(--cat-${e.cat}, #3A3A3A), var(--fallback-scrim))` };
   return (
-    <Link to={`/e/${e.id}`} viewTransition className="ex-hero-card" style={coverStyle}>
+    <MotionLink to={`/e/${e.id}`} layoutId={`event-cover-${e.id}`} onPointerDown={preloadEventDetail} onMouseEnter={preloadEventDetail} className="ex-hero-card" style={coverStyle}>
       {/* Editorial handoff: a "FEATURED" pill badge top-left — pixel-checked
           against screenshots/01, was missing entirely. Suppressed when
           HeroCarousel is showing its own progress bar in the same top-left
@@ -90,7 +97,7 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
           <span className="ex-hero-card-price">{e.price === 0 ? "Free" : <>from <b>{e.price} OMR</b></>}</span>
         </div>
       </div>
-    </Link>
+    </MotionLink>
   );
 }
 

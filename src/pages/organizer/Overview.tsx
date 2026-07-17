@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { motion } from "motion/react";
 import { api, dayLabel, timeLabel, API_BASE, type Expense, type OrganizerFinance } from "../../api";
 import { useAsync } from "../../hooks";
 import { getAuthToken, useAccount } from "../../store";
+import { staggerContainer, staggerChild, usePrefersReducedMotion } from "../../motion";
 
 const omr = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 
@@ -45,6 +47,17 @@ export default function OrganizerOverview() {
   const f = finance.data;
   const maxTrend = o ? Math.max(1, ...o.revenueTrend.map((d) => d.revenue)) : 1;
 
+  // One-shot staggered reveal for the stat cards and the "Coming up" rows.
+  // motion's initial→animate only runs on mount and is never re-triggered by a
+  // re-render, so it plays once when the page (or, for the async list, its
+  // container) first appears and stays put through data reloads — no per-render
+  // replay flag needed. Under reduced motion we drop the variants entirely so
+  // the content is simply there. The elements carry a `.is-staggered` marker so
+  // they opt out of the global CSS `rise-in` entrance and don't double-animate.
+  const reduce = usePrefersReducedMotion();
+  const containerProps = reduce ? {} : { variants: staggerContainer, initial: "initial" as const, animate: "animate" as const };
+  const childProps = reduce ? {} : { variants: staggerChild };
+
   return (
     <>
       {summary.error && <p className="errline">{summary.error}</p>}
@@ -60,13 +73,13 @@ export default function OrganizerOverview() {
         </div>
       </div>
 
-      <div className="stat-grid">
-        <div className="stat"><div className="k">Net revenue</div><div className="v">{f ? omr(f.netRevenue) : "—"} <small>OMR</small></div></div>
-        <div className="stat"><div className="k">Tickets sold</div><div className="v">{s ? s.totalAttendees.toLocaleString() : "—"}</div></div>
-        <div className="stat"><div className="k">Live events</div><div className="v">{s ? s.totalEvents : "—"}</div></div>
-        <div className="stat"><div className="k">New today</div><div className="v">{s ? s.newRegistrationsToday : "—"}</div></div>
-        {o?.reputationScore && <div className="stat"><div className="k">Reputation score</div><div className="v">{o.reputationScore.score} <small>/ 100</small></div></div>}
-      </div>
+      <motion.div className="stat-grid is-staggered" {...containerProps}>
+        <motion.div className="stat" {...childProps}><div className="k">Net revenue</div><div className="v">{f ? omr(f.netRevenue) : "—"} <small>OMR</small></div></motion.div>
+        <motion.div className="stat" {...childProps}><div className="k">Tickets sold</div><div className="v">{s ? s.totalAttendees.toLocaleString() : "—"}</div></motion.div>
+        <motion.div className="stat" {...childProps}><div className="k">Live events</div><div className="v">{s ? s.totalEvents : "—"}</div></motion.div>
+        <motion.div className="stat" {...childProps}><div className="k">New today</div><div className="v">{s ? s.newRegistrationsToday : "—"}</div></motion.div>
+        {o?.reputationScore && <motion.div className="stat" {...childProps}><div className="k">Reputation score</div><div className="v">{o.reputationScore.score} <small>/ 100</small></div></motion.div>}
+      </motion.div>
 
       {/* Editorial handoff's mobile dashboard: a solid black/coral "Scan
           tickets" CTA + an outline "Create event" button, side by side —
@@ -105,32 +118,38 @@ export default function OrganizerOverview() {
           {o && o.nextUpcoming.length === 0 && (
             <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 6px 8px" }}>Nothing scheduled yet.</p>
           )}
-          {o && o.nextUpcoming.map((e) => {
-            // Sell-through — sold/capacity as a percent. Capacity >= 9000 is
-            // the same "no meaningful cap" placeholder used elsewhere
-            // (registration-only events, huge venue placeholders), where a
-            // percent bar would be meaningless — falls back to a plain count.
-            const hasCapacity = e.capacity > 0 && e.capacity < 9000;
-            const pct = hasCapacity ? Math.min(100, Math.round((e.sold / e.capacity) * 100)) : null;
-            // Real status pill (handoff spec) derived from real sold/capacity —
-            // no "Draft" state here since this summary doesn't carry isDraft.
-            const soldOut = hasCapacity && e.sold >= e.capacity;
-            return (
-              <Link key={e.id} to={`/organizer/events/${e.id}`} className="dash-row dash-row-progress">
-                <div className="thumb" style={e.image ? { backgroundImage: `url(${e.image})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: e.color }}>
-                  {!e.image && e.glyph}
-                </div>
-                <div className="info">
-                  <div className="dash-row-top">
-                    <b>{e.title}</b>
-                    <span className={"status-pill" + (soldOut ? " soldout" : " onsale")}>{soldOut ? "Sold out" : "On sale"}</span>
-                  </div>
-                  <span>{dayLabel({ startsAt: e.startsAt } as any)} · {timeLabel({ startsAt: e.startsAt } as any)}</span>
-                  {pct != null && <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${pct}%` }} /></div>}
-                </div>
-              </Link>
-            );
-          })}
+          {o && o.nextUpcoming.length > 0 && (
+            <motion.div className="is-staggered" {...containerProps}>
+              {o.nextUpcoming.map((e) => {
+                // Sell-through — sold/capacity as a percent. Capacity >= 9000 is
+                // the same "no meaningful cap" placeholder used elsewhere
+                // (registration-only events, huge venue placeholders), where a
+                // percent bar would be meaningless — falls back to a plain count.
+                const hasCapacity = e.capacity > 0 && e.capacity < 9000;
+                const pct = hasCapacity ? Math.min(100, Math.round((e.sold / e.capacity) * 100)) : null;
+                // Real status pill (handoff spec) derived from real sold/capacity —
+                // no "Draft" state here since this summary doesn't carry isDraft.
+                const soldOut = hasCapacity && e.sold >= e.capacity;
+                return (
+                  <motion.div key={e.id} {...childProps}>
+                    <Link to={`/organizer/events/${e.id}`} className="dash-row dash-row-progress">
+                      <div className="thumb" style={e.image ? { backgroundImage: `url(${e.image})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: e.color }}>
+                        {!e.image && e.glyph}
+                      </div>
+                      <div className="info">
+                        <div className="dash-row-top">
+                          <b>{e.title}</b>
+                          <span className={"status-pill" + (soldOut ? " soldout" : " onsale")}>{soldOut ? "Sold out" : "On sale"}</span>
+                        </div>
+                        <span>{dayLabel({ startsAt: e.startsAt } as any)} · {timeLabel({ startsAt: e.startsAt } as any)}</span>
+                        {pct != null && <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${pct}%` }} /></div>}
+                      </div>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
         </div>
 
         <div className="dash-col dash-col-chart">
