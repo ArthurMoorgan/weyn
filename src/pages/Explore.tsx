@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { motion, MotionConfig, AnimatePresence } from "motion/react";
+import { motion, MotionConfig } from "motion/react";
 import { MotionButton } from "../motion";
 import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
@@ -101,42 +101,42 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
   );
 }
 
-// One big featured spotlight that rotates over time (not a swipeable
-// carousel — removed per direct request). It cycles through the events that
-// paid for the featured tag (see `heroPool` in the memo below: `.featured`
-// events first, most-popular only as a fallback when none are featured), one
-// at a time, with a soft cross-dissolve on each change. Rotation pauses on
-// a single-event pool and for reduced-motion users.
-const SPOTLIGHT_INTERVAL_MS = 6000;
-
+// A real swipeable, horizontally snapping carousel of the events that paid
+// for the featured tag (see `heroPool` in the memo below: `.featured` events
+// first, most-popular only as a fallback when none are featured) — each card
+// is sized so the next one peeks in from the edge, same as the reference.
+// Dots below track the nearest-snapped card via a scroll listener rather
+// than driving scroll position themselves, so native touch/trackpad
+// scrolling stays the source of truth (no fighting the user's gesture).
 function FeaturedSpotlight({ events }: { events: Weyn[] }) {
-  const [idx, setIdx] = useState(0);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
 
-  useEffect(() => {
-    if (events.length <= 1) return;
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return; // don't auto-advance if the user asked for less motion
-    const t = setInterval(() => setIdx((i) => (i + 1) % events.length), SPOTLIGHT_INTERVAL_MS);
-    return () => clearInterval(t);
-  }, [events.length]);
+  function onScroll() {
+    const el = trackRef.current;
+    if (!el) return;
+    const cardW = el.scrollWidth / events.length;
+    setActive(Math.round(el.scrollLeft / cardW));
+  }
 
-  const ev = events[Math.min(idx, events.length - 1)];
-  if (!ev) return null;
+  if (events.length === 0) return null;
 
   return (
     <div className="ex-spotlight">
-      <AnimatePresence mode="popLayout" initial={false}>
-        <motion.div
-          key={ev.id}
-          className="ex-spotlight-layer"
-          initial={{ opacity: 0, scale: 1.015 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <HeroSlide e={ev} showBadge />
-        </motion.div>
-      </AnimatePresence>
+      <div className="ex-spotlight-track" ref={trackRef} onScroll={onScroll}>
+        {events.map((ev) => (
+          <div className="ex-spotlight-slide" key={ev.id}>
+            <HeroSlide e={ev} showBadge />
+          </div>
+        ))}
+      </div>
+      {events.length > 1 && (
+        <div className="ex-spotlight-dots">
+          {events.map((ev, i) => (
+            <span key={ev.id} className={"ex-spotlight-dot" + (i === active ? " on" : "")} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
