@@ -97,6 +97,40 @@ This document tracks backend work needed to fully power the HomeFeed personalize
 | Pull-to-Refresh Native | ⚠️ Web only | Low | No (Capacitor upgrade) |
 | Deep-Linking Sections | ❌ Not started | Medium | Yes (new filters/sorts) |
 
+### 6. Heatmap on Map Page
+**Status:** Future enhancement  
+**Current behavior:** Map page renders event pins; heatmap visualization not implemented  
+**What it needs:**
+- Update `google-maps.ts` to load Google Maps Visualization Library when Map page mounts
+- Verify API key has `Visualization` library scope enabled (may require adding to GCP console)
+- Aggregate event locations into heatmap layer (currently uses `event.sold` count as proxy for popularity)
+- Toggle between pin view and heatmap view in Map.tsx
+
+**Integration point:** Map.tsx (component entry point for heatmap toggle)
+
+### 7. Live Attendance on Map Page
+**Status:** Future enhancement  
+**Current behavior:** Map page displays event.sold as popularity indicator  
+**What it needs:**
+- Backend endpoint: `GET /api/events/:id/checkins-count` returning live check-in count
+- Returns current number of attendees who have checked in (requires checkin table)
+- Cache with short TTL (5-10s) to avoid excessive DB queries
+- Frontend can replace `event.sold` with live count when available for real-time UX
+
+**Integration point:** Map.tsx EventPinSheet component (display live count instead of sold)
+
+### 8. Nearby Places on Map Page
+**Status:** Future enhancement  
+**Current behavior:** Map shows only events, no nearby venues/points of interest  
+**What it needs:**
+- Google Places API integration (separate API key scopes: Places API + Nearby Search + Geocoding)
+- Reverse geocoding endpoint to find places near event coordinates
+- Backend endpoint: `GET /api/places/nearby?lat=X&lng=Y&type=venue|restaurant|etc&radius=1000`
+- **Cost consideration:** Places API has per-request pricing; cache results and consider usage limits
+- Optional: cluster nearby places to avoid map clutter at high zoom levels
+
+**Integration point:** Map.tsx (optional layer toggle for nearby places)
+
 ## Recommended Priority
 
 1. **AI Recommendations** — biggest UX impact, enables discovery for non-logged-in users
@@ -104,3 +138,6 @@ This document tracks backend work needed to fully power the HomeFeed personalize
 3. **Because You Liked** — easy win once saving/likes are prioritized
 4. **Native Pull-to-Refresh** — polish, can wait for iOS/Android optimization phase
 5. **Organizer Profiles** — likely already exists, just needs HomeFeed integration
+6. **Live Attendance** — low effort backend (checkin count query); high UX value on Map page
+7. **Heatmap** — moderate effort; visualize event density; currently blocked on Visualization lib scoping
+8. **Nearby Places** — highest backend cost; defer until Places API usage is budgeted

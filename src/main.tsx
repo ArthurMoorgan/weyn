@@ -56,6 +56,7 @@ const OrganizerAiStudio = lazy(() => import("./pages/organizer/AiStudio"));
 const OrganizerSettings = lazy(() => import("./pages/organizer/Settings"));
 const VenueList = lazy(() => import("./pages/venue-os/VenueList"));
 const VenueWorkspace = lazy(() => import("./pages/venue-os/Workspace"));
+const Map = lazy(() => import("./pages/Map"));
 
 // as close to page-load as this module can get, so the splash's minimum
 // on-screen duration is measured from real first-paint, not from whenever
@@ -272,6 +273,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               <Route path="/invite/:token" element={<InviteAccept />} />
               <Route path="/collections/:id" element={<CollectionPage />} />
               <Route path="/search" element={<Search />} />
+              <Route path="/map" element={<Map />} />
               <Route path="/support" element={<Support />} />
               <Route path="/account" element={<Account />} />
               {/* Catch-all — unknown paths used to render a bare black
