@@ -1,94 +1,60 @@
-import { useMemo } from "react";
-import { motion, MotionConfig } from "motion/react";
-import { api, CATS, type Cat, type Weyn } from "../api";
-import { useAsync } from "../hooks";
-import { MotionLink } from "../motion";
-import HorizontalRail from "../components/HorizontalRail";
-import {
-  getDateNightEvents,
-  getFamilyWeekendEvents,
-  getStudentFriendlyEvents,
-  getLuxuryEvents,
-  getAdventureEvents,
-  getFreeEvents,
-  getHiddenGemsEvents,
-} from "../components/section-helpers";
+import { lazy, Suspense, useState } from "react";
+import { Link } from "react-router-dom";
+import Explore from "./Explore";
+import Skeleton from "../components/Skeleton";
 
-const CAT_ICON: Record<Cat | "all", string> = {
-  all: "layout-grid",
-  music: "music",
-  sports: "trophy",
-  food: "utensils",
-  culture: "theater",
-  workshop: "hammer",
-  community: "users",
-};
+// Reservations (venue browsing) is now folded into Discover as a second
+// mode rather than living on its own bottom-tab slot — events and venues
+// are the same "what's on near me" intent, so switching between them is a
+// segmented toggle at the top, not a separate destination. Reservations
+// stays lazy: a visitor who never flips to Venues never downloads it.
+const Reservations = lazy(() => import("./Reservations"));
 
 export default function Discover() {
-  const { data: eventsData, loading } = useAsync(() => api.listEvents(), [], { cacheKey: "events:all" });
-  const events: Weyn[] = eventsData || [];
-
-  const upcomingEvents = useMemo(
-    () => (events || []).filter((e) => !e.cancelled && new Date(e.startsAt).getTime() > Date.now()),
-    [events]
-  );
-
-  const collections = useMemo(
-    () => {
-      if (!upcomingEvents) return [];
-      return [
-        { name: "Date Night", events: getDateNightEvents(upcomingEvents), empty: "No date night events coming up" },
-        { name: "Family Weekend", events: getFamilyWeekendEvents(upcomingEvents), empty: "No family events available" },
-        { name: "Student Friendly", events: getStudentFriendlyEvents(upcomingEvents), empty: "No student-friendly events available" },
-        { name: "Luxury", events: getLuxuryEvents(upcomingEvents), empty: "No luxury events coming up" },
-        { name: "Free", events: getFreeEvents(upcomingEvents), empty: "No free events available" },
-        { name: "Adventure", events: getAdventureEvents(upcomingEvents), empty: "No adventure events coming up" },
-        { name: "Hidden Gems", events: getHiddenGemsEvents(upcomingEvents), empty: "No hidden gems available" },
-      ];
-    },
-    [upcomingEvents]
-  );
+  const [mode, setMode] = useState<"events" | "venues">("events");
 
   return (
-    <MotionConfig reducedMotion="user">
-      <div className="discover">
-        {/* Category Grid */}
-        <motion.div className="discover-cats" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          {CATS.map((cat) => (
-            <MotionLink
-              key={cat.key}
-              to={`/explore?cat=${cat.key}`}
-              className="discover-cat-btn"
-              aria-label={cat.label}
-              title={cat.label}
-            >
-              <div className="discover-cat-icon">
-                <i className={`icon-${CAT_ICON[cat.key as Cat | "all"]}`} />
-              </div>
-              <span className="discover-cat-label">{cat.label}</span>
-            </MotionLink>
-          ))}
-        </motion.div>
-
-        {/* Collection Rails */}
-        <div className="discover-collections">
-          {collections.map((col, idx) => (
-            <motion.div
-              key={col.name}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: idx * 0.05 }}
-            >
-              <HorizontalRail
-                title={col.name}
-                events={col.events}
-                loading={loading}
-                emptyMessage={col.empty}
-              />
-            </motion.div>
-          ))}
+    <>
+      <div className="discover-head">
+        <div className="seg-toggle" role="tablist" aria-label="Browse">
+          {/* Sliding thumb — a single element that transforms between the
+              two slot positions, rather than each button re-painting its
+              own background on click, is what actually reads as "sliding"
+              instead of an instant color swap. */}
+          <div className={"seg-toggle-thumb" + (mode === "venues" ? " slot-2" : "")} aria-hidden="true" />
+          <button
+            role="tab"
+            aria-selected={mode === "events"}
+            className={"seg-btn seg-btn-events" + (mode === "events" ? " on" : "")}
+            onClick={() => setMode("events")}
+          >
+            Events
+          </button>
+          <button
+            role="tab"
+            aria-selected={mode === "venues"}
+            className={"seg-btn seg-btn-venues" + (mode === "venues" ? " on" : "")}
+            onClick={() => setMode("venues")}
+          >
+            Venues
+          </button>
         </div>
+        <Link to="/host/events" className="ex-hero-host">Host <i className="icon-arrow-right" /></Link>
       </div>
-    </MotionConfig>
+
+      {/* key={mode} + .discover-mode's rise-in animation (same entrance
+          motion as feed cards elsewhere) gives the Events/Venues content
+          swap a real transition instead of an instant hard cut, matching
+          the thumb slide above it. */}
+      <div key={mode} className="discover-mode">
+        {mode === "events" ? (
+          <Explore embedded />
+        ) : (
+          <Suspense fallback={<Skeleton variant="discover" />}>
+            <Reservations embedded />
+          </Suspense>
+        )}
+      </div>
+    </>
   );
 }

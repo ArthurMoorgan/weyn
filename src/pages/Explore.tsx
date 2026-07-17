@@ -9,7 +9,6 @@ import { addRecentSearch, getRecentSearches, clearRecentSearches } from "../hook
 import Stub from "../components/Stub";
 import PullToRefresh from "../components/PullToRefresh";
 import { preloadEventDetail } from "../eventDetailChunk";
-import Icon3D, { type Icon3DName } from "../components/Icon3D";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
 import { capture } from "../posthog";
@@ -437,22 +436,25 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               <motion.button
                 key={c.key}
                 className={"cat-circle" + (isOn ? " on" : "")}
-                style={{ "--tile-cat": `var(--tile-${c.key})`, "--icon-hue": `var(--hue-${c.key})` } as React.CSSProperties}
+                style={{ "--tile-cat": `var(--tile-${c.key})` } as React.CSSProperties}
                 onClick={() => setCat(c.key as Cat | "all")}
                 aria-pressed={isOn}
                 aria-label={c.label}
                 whileTap={{ scale: 0.96 }}
               >
-                {/* Niche grid: each tile's icon is recolored to its category
-                    hue via a CSS filter (--icon-hue, set inline above; see
-                    .cat-circle-ring img in components.css) — the color lives
-                    in the icon art itself, not a glow behind it. */}
+                {/* Niche grid: a plain icon-font glyph colored directly via
+                    --tile-cat (set inline above), not the photographic 3D
+                    renders — those are grey/white studio shots with no
+                    chroma of their own, so faking color onto them with a
+                    CSS filter came out muddy/unreliable. A colored glyph on
+                    a dark card is the reliable version of the reference's
+                    colorful-icon-on-dark-tile look. */}
                 <motion.span
                   className="cat-circle-ring"
                   animate={{ scale: isOn ? 1.06 : 1 }}
                   transition={{ type: "spring", stiffness: 500, damping: 14 }}
                 >
-                  <Icon3D name={c.key as Icon3DName} size={38} />
+                  <i className={"icon-" + CAT_ICON[c.key as Cat]} />
                 </motion.span>
                 <span className="cat-circle-label">{c.label}</span>
               </motion.button>

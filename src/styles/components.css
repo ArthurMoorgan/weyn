@@ -194,9 +194,11 @@
    chip, nothing else. Row is shorter now (no permanent labels under every
    icon), reclaiming vertical space for the events themselves. */
 /* Niche grid: 3-column grid of dark tiles, each carrying its own category
-   color on the icon itself (see .cat-circle-ring img below) — replaces the
-   earlier monochrome horizontal-scroll rail. Reference: dark near-black
-   cards, colorful icon per niche, label under the icon, 3 per row. */
+   color directly on the icon glyph (see .cat-circle-ring i below) —
+   replaces the earlier monochrome horizontal-scroll rail. Reference: dark
+   near-black cards, colorful icon per niche, label under the icon, 3 per
+   row on mobile; widens to a single row on desktop (see the 900px block
+   at the end of this section). */
 .cat-circles {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
   padding: 4px 20px 4px;
@@ -205,7 +207,7 @@
   flex-direction: column; display: flex; align-items: center; justify-content: center;
   gap: 10px; background: var(--surface); border: 1px solid var(--card-border);
   border-radius: var(--radius-lg); padding: 18px 8px 14px; min-height: 108px;
-  box-shadow: var(--card-shadow); transition: background-color .2s ease, border-color .2s ease;
+  box-shadow: var(--card-shadow); transition: background-color .2s ease, border-color .2s ease, transform .15s ease;
 }
 .cat-circle.on {
   border-color: var(--tile-cat, var(--text));
@@ -213,21 +215,31 @@
 .cat-circle-ring {
   width: 52px; height: 52px; border-radius: 50%;
   display: grid; place-items: center; flex: 0 0 auto;
-  background: var(--surface-hover);
-  color: var(--text);
+  background: color-mix(in srgb, var(--tile-cat, var(--surface-hover)) 16%, var(--surface-hover));
   transition: transform .15s ease;
 }
-/* Colorize the icon art itself, not just a badge behind it — the renders
-   are grey/white 3D product shots with no chroma of their own, so a plain
-   hue-rotate does nothing (rotating a hue that doesn't exist). sepia(1)
-   first injects a brownish tint (real chroma to work with), then
-   hue-rotate(--hue-cat) spins that tint to the category's real hue,
-   saturate boosts it back up to a vivid, non-washed-out color. */
-.cat-circle-ring img {
-  filter: sepia(1) saturate(6) hue-rotate(var(--icon-hue, 0deg)) brightness(1.05) contrast(1.05);
+/* Color lives directly on the glyph — reliable and vivid, unlike trying to
+   fake color onto the old grey/white photographic 3D renders with filters
+   (came out muddy). */
+.cat-circle-ring i {
+  font-size: 24px;
+  color: var(--tile-cat, var(--text));
 }
 .cat-circle-label {
   font: var(--t-meta); font-weight: 600; color: var(--text); white-space: nowrap;
+}
+/* Desktop: a wide toolbar-style row instead of a cramped 3-column mobile
+   grid — cards shrink to fit all 6 across, spacing loosens to match the
+   rest of the >=900px chrome (see App.tsx's own mobile/desktop split). */
+@media (min-width: 900px) {
+  .cat-circles {
+    grid-template-columns: repeat(6, minmax(0, 160px));
+    justify-content: center; gap: 16px; padding: 8px 24px 12px;
+  }
+  .cat-circle { padding: 22px 10px 16px; min-height: 124px; }
+  .cat-circle:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--tile-cat, var(--border-strong)) 60%, var(--card-border)); }
+  .cat-circle-ring { width: 60px; height: 60px; }
+  .cat-circle-ring i { font-size: 28px; }
 }
 
 /* ---------- date section header ---------- */
