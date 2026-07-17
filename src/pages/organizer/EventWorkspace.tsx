@@ -24,13 +24,13 @@ import DashboardShell from "../../components/dashboard/DashboardShell";
 // "grow this event" tools an organizer reaches for together, not everyday
 // destinations that need their own place in the nav. 6 tabs, not 8.
 const TABS = [
-  { key: "overview", label: "Overview", icon: "chart-bar" },
-  { key: "attendees", label: "Attendees", icon: "users" },
-  { key: "marketing", label: "Marketing", icon: "megaphone" },
-  { key: "seating", label: "Seating", icon: "grid-2x2" },
-  { key: "team", label: "Team", icon: "users-round" },
-  { key: "checkin", label: "Check-in", icon: "qr-code" },
-  { key: "settings", label: "Settings", icon: "settings" },
+  { key: "overview", label: "Overview", icon: "chart-bar", group: "operations" },
+  { key: "attendees", label: "Attendees", icon: "users", group: "operations" },
+  { key: "checkin", label: "Check-in", icon: "qr-code", group: "operations" },
+  { key: "seating", label: "Seating", icon: "grid-2x2", group: "tools" },
+  { key: "team", label: "Team", icon: "users-round", group: "tools" },
+  { key: "marketing", label: "Marketing", icon: "megaphone", group: "growth" },
+  { key: "settings", label: "Settings", icon: "settings", group: "tools" },
 ];
 
 // UX-only role gate — the server routes (requireEventAccess / *Strict) are
@@ -104,6 +104,7 @@ export default function EventWorkspace() {
           to: `/organizer/events/${event.id}/${t.key}`,
           icon: t.icon,
           label: t.label,
+          group: t.group,
           active: tab === t.key,
         }))}
       >

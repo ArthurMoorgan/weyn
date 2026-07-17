@@ -20,17 +20,17 @@ type OwnedVenue = Venue & { _count?: { reservations: number; slots: number } };
 // EventWorkspace.tsx's shape (route param tab, NavLink sidebar, flat
 // conditional render chain) rather than the old internal chip-switcher.
 const VENUE_TABS = [
-  { key: "reservations", label: "Reservations", icon: "calendar-check" },
-  { key: "waitlist", label: "Waitlist", icon: "clock" },
-  { key: "calendar", label: "Calendar", icon: "calendar" },
-  { key: "tables", label: "Tables", icon: "grid-2x2" },
-  { key: "venue", label: "Venue", icon: "store" },
-  { key: "guests", label: "Guests", icon: "user" },
-  { key: "marketing", label: "Marketing", icon: "megaphone" },
-  { key: "marketing-hub", label: "Marketing Hub", icon: "sparkles" },
-  { key: "workflows", label: "Workflows", icon: "zap" },
-  { key: "analytics", label: "Analytics", icon: "bar-chart" },
-  { key: "hours", label: "Hours", icon: "clock" },
+  { key: "reservations", label: "Reservations", icon: "calendar-check", group: "operations" },
+  { key: "waitlist", label: "Waitlist", icon: "clock", group: "operations" },
+  { key: "calendar", label: "Calendar", icon: "calendar", group: "operations" },
+  { key: "analytics", label: "Analytics", icon: "bar-chart", group: "operations" },
+  { key: "guests", label: "Guests", icon: "user", group: "growth" },
+  { key: "marketing", label: "Marketing", icon: "megaphone", group: "growth" },
+  { key: "marketing-hub", label: "Marketing Hub", icon: "sparkles", group: "growth" },
+  { key: "workflows", label: "Workflows", icon: "zap", group: "growth" },
+  { key: "tables", label: "Tables", icon: "grid-2x2", group: "tools" },
+  { key: "venue", label: "Venue", icon: "store", group: "tools" },
+  { key: "hours", label: "Hours", icon: "clock", group: "tools" },
 ] as const;
 type VenueTabKey = typeof VENUE_TABS[number]["key"];
 
@@ -76,7 +76,7 @@ export default function VenueWorkspace() {
 
       <DashboardShell
         ariaLabel="Venue sections"
-        navItems={VENUE_TABS.map((t) => ({ to: `/venue-os/${venue.id}/${t.key}`, icon: t.icon, label: t.label }))}
+        navItems={VENUE_TABS.map((t) => ({ to: `/venue-os/${venue.id}/${t.key}`, icon: t.icon, label: t.label, group: t.group, active: tab === t.key }))}
       >
         <VenueBody tab={tab} venue={venue} />
       </DashboardShell>

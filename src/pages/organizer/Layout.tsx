@@ -22,13 +22,13 @@ export type OrganizerCtx = { isHost: boolean; reloadEvents: () => void; eventsLo
 // one new top-level addition — a real distinct destination, not something
 // that folds naturally into an existing tab.
 const NAV = [
-  { to: "/organizer", end: true, icon: "layout-dashboard", label: "Overview" },
-  { to: "/organizer/events", icon: "calendar", label: "Events" },
-  { to: "/organizer/attendees", icon: "users", label: "Attendees" },
-  { to: "/organizer/marketing", icon: "megaphone", label: "Marketing" },
-  { to: "/organizer/workflows", icon: "zap", label: "Workflows" },
-  { to: "/organizer/ai-studio", icon: "sparkles", label: "AI Studio" },
-  { to: "/organizer/settings", icon: "settings", label: "Settings" },
+  { to: "/organizer", end: true, icon: "layout-dashboard", label: "Overview", group: "operations" },
+  { to: "/organizer/events", icon: "calendar", label: "Events", group: "operations" },
+  { to: "/organizer/attendees", icon: "users", label: "Attendees", group: "operations" },
+  { to: "/organizer/marketing", icon: "megaphone", label: "Marketing", group: "growth" },
+  { to: "/organizer/workflows", icon: "zap", label: "Workflows", group: "growth" },
+  { to: "/organizer/ai-studio", icon: "sparkles", label: "AI Studio", group: "tools" },
+  { to: "/organizer/settings", icon: "settings", label: "Settings", group: "tools" },
 ];
 
 export default function OrganizerLayout() {

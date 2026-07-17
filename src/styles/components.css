@@ -1004,6 +1004,61 @@
 .organizer-nav.profile-tabs::-webkit-scrollbar { display: none; }
 .organizer-nav.profile-tabs .profile-tab { flex: 0 0 auto; }
 
+/* Mobile grouped tab organization — collapsible groups with progressive disclosure.
+   Desktop shows all items flat; mobile shows groups with expand/collapse toggles.
+   Default state: 'operations' expanded, others collapsed. */
+.organizer-nav-mobile { display: flex; flex-direction: column; gap: 0; }
+.organizer-nav-desktop { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px 10px; border-bottom: 1px solid var(--hair); }
+
+.dash-group { display: flex; flex-direction: column; border-bottom: 1px solid var(--divider); }
+.dash-group-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; font: var(--t-meta); font-weight: 600; color: var(--text-2);
+  letter-spacing: 0.3px;
+  background: none; border: none; text-align: left; cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+.dash-group-header:hover { background: var(--surface-hover); color: var(--text); }
+.dash-group-header:active { background: var(--surface); }
+.dash-group-chevron {
+  flex: 0 0 auto; font-size: 15px; transition: transform .22s cubic-bezier(.16,1,.3,1);
+  color: var(--text-3);
+}
+.dash-group-chevron.expanded { transform: rotate(180deg); }
+
+.dash-group-items {
+  display: flex; flex-direction: column; gap: 0; padding: 0;
+  animation: expand-group .22s cubic-bezier(.16,1,.3,1);
+}
+@keyframes expand-group {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dash-group-items .profile-tab { flex: 1; padding: 11px 20px; margin: 0; }
+
+/* Desktop groups: stack each group's items in a column (the sidebar itself
+   is a flex column at 900px+ — see .organizer-nav.profile-tabs below — so
+   each group wrapper needs to be one too, or its items would try to sit
+   side by side inside it). */
+.dash-group-desktop { display: flex; flex-direction: column; gap: 2px; }
+.dash-group-desktop:not(:first-child) {
+  border-top: 1px solid var(--divider);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+.dash-group-desktop-label {
+  font: var(--t-meta); font-size: 11px; font-weight: 600; color: var(--text-3);
+  letter-spacing: 0.4px; text-transform: uppercase;
+  padding: 0 10px 6px;
+}
+
+/* Desktop: hide mobile grouped nav, show regular nav */
+@media (min-width: 900px) {
+  .organizer-nav-mobile { display: none; }
+  .organizer-nav-desktop { display: flex; }
+}
+
 /* ---------- "More" hub (You tab) ---------- */
 .more-page { padding-bottom: 24px; }
 .more-head { padding: 14px 16px 8px; }
@@ -3062,3 +3117,4 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: underline;
   text-underline-offset: 2px; background: none; border: none; cursor: pointer; padding: 0;
 }
+

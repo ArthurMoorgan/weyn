@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { motion } from "motion/react";
 import { settleSpring } from "../../motion";
 import Logo from "../Logo";
+import { DASHBOARD_GROUPS } from "../../lib/dashboardGroups";
 
 // The nav+content grid (.organizer-shell / .profile-tabs.organizer-nav /
 // .organizer-content) was copy-pasted three times — organizer/Layout.tsx,
@@ -26,6 +27,8 @@ export interface DashboardShellNavItem {
    * than letting NavLink re-derive it from the URL.
    */
   active?: boolean;
+  /** Semantic group for tab organization — see DASHBOARD_GROUPS for the canonical set. */
+  group?: string;
 }
 
 // `indicatorId` is the layoutId the sliding active-pill shares — items in the
@@ -76,6 +79,53 @@ export default function DashboardShell({
   const primaryItems = navItems.slice(0, 4);
   const moreItems = navItems.slice(4);
 
+  // Group nav items if any have a group property. Order follows
+  // DASHBOARD_GROUPS (the one taxonomy shared by organizer/event/venue);
+  // any item whose group isn't one of those keys still renders, bucketed
+  // under "Other" at the end, rather than silently vanishing.
+  const hasGroups = navItems.some((item) => item.group);
+  const knownGroups = Object.keys(DASHBOARD_GROUPS);
+  const groupedItems = hasGroups
+    ? (() => {
+        const acc: Record<string, DashboardShellNavItem[]> = {};
+        for (const groupName of knownGroups) {
+          const items = navItems.filter((item) => item.group === groupName);
+          if (items.length > 0) acc[groupName] = items;
+        }
+        const rest = navItems.filter((item) => item.group && !knownGroups.includes(item.group));
+        if (rest.length > 0) acc.other = rest;
+        return acc;
+      })()
+    : null;
+
+  const groupLabel = (groupName: string) => (DASHBOARD_GROUPS as Record<string, string>)[groupName] ?? "Other";
+
+  // Auto-expand groups containing active items; default to 'operations' if none active
+  const getInitialExpandedGroups = (): Set<string> => {
+    if (!groupedItems) return new Set();
+    const groupsWithActive = Object.entries(groupedItems)
+      .filter(([, items]) => items.some((item) => item.active === true))
+      .map(([groupName]) => groupName);
+    return groupsWithActive.length > 0 ? new Set(groupsWithActive) : new Set(["operations"]);
+  };
+
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(getInitialExpandedGroups());
+
+  const toggleGroup = (group: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(group) ? next.delete(group) : next.add(group);
+      return next;
+    });
+  };
+
+  const handleGroupKeyDown = (e: React.KeyboardEvent, groupName: string) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      toggleGroup(groupName);
+    }
+  };
+
   return (
     <div className="organizer-shell">
       {primary && (
@@ -121,9 +171,48 @@ export default function DashboardShell({
           <span className="organizer-sidebar-brand-caption">For business</span>
         </div>
       )}
-      <nav className={"profile-tabs organizer-nav" + (primary ? " organizer-nav-desktop-only" : "")} aria-label={ariaLabel}>
-        {navItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator" />)}
+      {/* Desktop: show all items (with group separators if grouped). Hidden
+          below 900px whenever there's a dedicated mobile nav instead — the
+          `primary` compact strip above, or the grouped collapsible nav
+          below — so mobile never renders two navs at once. */}
+      <nav className={"profile-tabs organizer-nav organizer-nav-desktop" + ((primary || hasGroups) ? " organizer-nav-desktop-only" : "")} aria-label={ariaLabel}>
+        {groupedItems
+          ? Object.entries(groupedItems).map(([groupName, groupItems], index) => (
+              <div key={groupName} className="dash-group-desktop" data-group={groupName}>
+                {index > 0 && <span className="dash-group-desktop-label">{groupLabel(groupName)}</span>}
+                {groupItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator" />)}
+              </div>
+            ))
+          : navItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator" />)}
       </nav>
+
+      {/* Mobile: grouped, collapsible tabs — but only for workspace sub-navs
+          (per-event/per-venue). `primary` top-level navs already have their
+          own mobile treatment above (the 4 + More strip); rendering both
+          here too would duplicate the nav on small screens. */}
+      {hasGroups && groupedItems && !primary && (
+        <nav className="organizer-nav organizer-nav-mobile" aria-label={ariaLabel}>
+          {Object.entries(groupedItems).map(([groupName, groupItems]) => (
+            <div key={groupName} className="dash-group">
+              <button
+                type="button"
+                className="dash-group-header"
+                aria-expanded={expandedGroups.has(groupName)}
+                onClick={() => toggleGroup(groupName)}
+                onKeyDown={(e) => handleGroupKeyDown(e, groupName)}
+              >
+                <span className="dash-group-title">{groupLabel(groupName)}</span>
+                <i className={`icon-chevron-down dash-group-chevron${expandedGroups.has(groupName) ? ' expanded' : ''}`} />
+              </button>
+              {expandedGroups.has(groupName) && (
+                <div className="dash-group-items">
+                  {groupItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator" />)}
+                </div>
+              )}
+            </div>
+          ))}
+        </nav>
+      )}
       <div className="organizer-content">{children}</div>
     </div>
   );
