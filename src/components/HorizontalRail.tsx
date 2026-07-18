@@ -49,7 +49,9 @@ export default function HorizontalRail({
                 {renderItem(event, index)}
               </motion.div>
             ) : (
-              <Stub key={event.id} e={event} variant="rail" />
+              <motion.div key={event.id} style={{ flex: "0 0 auto" }} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }}>
+                <Stub e={event} variant="rail" />
+              </motion.div>
             )
           )}
         </div>

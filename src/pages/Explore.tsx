@@ -576,7 +576,13 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
       {/* ---- "when" quick filter: same editorial cards as the agenda ---- */}
       {!loading && !error && S.mode === "when" && (
         S.results.length ? (
-          <div className="ex-agenda">{S.results.map((e) => <Stub key={e.id} e={e} variant="card" />)}</div>
+          <div className="ex-agenda">
+            {S.results.map((e) => (
+              <motion.div key={e.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }}>
+                <Stub e={e} variant="card" />
+              </motion.div>
+            ))}
+          </div>
         ) : (
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing found for that time.</p></div>
         )
@@ -613,7 +619,13 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                   <h2>All events</h2>
                   <span className="ex-sub">{S.rest.length}</span>
                 </div>
-                <div className="ex-agenda">{S.rest.map((e) => <Stub key={e.id} e={e} variant="card" />)}</div>
+                <div className="ex-agenda">
+                  {S.rest.map((e) => (
+                    <motion.div key={e.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }}>
+                      <Stub e={e} variant="card" />
+                    </motion.div>
+                  ))}
+                </div>
               </section>
             )}
           </>
