@@ -8,6 +8,8 @@ import { useAccount } from "../store";
 import { addRecentSearch, getRecentSearches, clearRecentSearches } from "../hooks/useRecentSearches";
 import Stub from "../components/Stub";
 import Icon3D from "../components/Icon3D";
+import HorizontalRail from "../components/HorizontalRail";
+import { useRecommendations } from "../hooks/useRecommendations";
 import { preloadEventDetail } from "../eventDetailChunk";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
@@ -207,6 +209,9 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { data, loading, error, reload } = useAsync(() => api.listEvents(), [], { cacheKey: "events:all" });
   const searching = q.trim().length > 0;
+  // Personalized "for you" row — derived client-side from saved + recently
+  // viewed (see useRecommendations). Re-ranks live as the user saves events.
+  const recs = useRecommendations(data);
 
   // Explore is the app's root route, so the initial-content-loading period
   // here is exactly what the first-launch splash should cover.
@@ -557,6 +562,17 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 </div>
                 <FeaturedSpotlight events={S.heroPool} />
               </section>
+            )}
+            {/* Personalized row — only on the unfiltered home (a category filter
+                is already an explicit intent; don't compete with it) and only
+                once there's enough saved/viewed signal to be genuinely personal
+                (useRecommendations gates on MIN_SIGNAL). */}
+            {cat === "all" && recs.hasSignal && recs.events.length > 0 && (
+              <HorizontalRail
+                title="Recommended for you"
+                events={recs.events}
+                emptyMessage=""
+              />
             )}
             {S.rest.length > 0 && (
               <section className="ex-section">
