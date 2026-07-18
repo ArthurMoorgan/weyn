@@ -2003,6 +2003,20 @@ reference's "Sector 79, Gurugram") was **not** built — Weyn has no
 city/area-selection data model, and faking one wasn't in scope. If revisited,
 scope a real location feature first rather than a decorative dropdown.
 
+**Follow-up compaction (same day, further trim on top of `cdaf814`)**:
+`.discover-head` top padding trimmed `14px→10px`, `.search` vertical
+padding/margin trimmed a further 2px+2px, `.cat-circles` top padding
+trimmed `4px→2px` — the 16px horizontal gutter established above is
+untouched. Live-measured with Playwright at `390×844`, dark theme:
+`.discover-head` renders **58px**, `.search` renders **46px**,
+`.cat-circles`' own tile (`.cat-circle`) stays at its existing **92px**
+min-height (deliberately not shrunk — §35 item 2 above already tried and
+reverted a smaller-tile layout). These three numbers don't land on the
+~44/56/42px figures this compaction pass was originally framed around;
+see §37 item 1 for the full measurement writeup and honest discussion of
+that mismatch — this entry only records what the CSS in
+`src/styles/components.css:236-239,527-531,1663-1670` actually renders.
+
 ## 36. Discover header/spotlight/animation refinement (2026-07-18, spec-grounded revision)
 
 Built on exactly the methodology HANDOFF §35 warned against (build assumptions,

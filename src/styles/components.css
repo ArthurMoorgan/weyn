@@ -235,7 +235,11 @@
    reference exactly. */
 .cat-circles {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-  padding: 4px 16px 4px;
+  /* top trimmed 4px→2px to tighten the gap under the search bar — the
+     92px tile min-height itself is untouched (see .cat-circle below):
+     shrinking the tiles to hit a flatter target was already tried and
+     reverted in §35 (8f9d0e1) after the user rejected how it looked. */
+  padding: 2px 16px 4px;
 }
 .cat-circle {
   /* overflow: visible (not hidden) is deliberate — the reference video's
@@ -521,11 +525,11 @@
 /* ---------- Discover header: Events/Venues segmented toggle ---------- */
 .discover-head {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  /* 8px (was 4px) bottom padding — the toggle/actions row and the search
-     bar below it are both dense, bold-weight controls; 4px read as one
-     crowded zone, 8px gives the eye a beat between them without pushing
-     the fold down. */
-  padding: 14px 16px 8px;
+  /* 8px bottom padding (kept from §36 — the eye-beat gap to the search bar
+     below still matters). Top trimmed 14px→10px per the measured District
+     reference (§36 spec: location/toggle row ≈45px) — the row was sitting
+     taller than the reference's equivalent without adding legibility. */
+  padding: 10px 16px 8px;
 }
 .seg-toggle {
   position: relative; display: inline-flex; background: var(--surface-hover); border-radius: var(--radius-pill);
@@ -1659,10 +1663,12 @@
   min-height: 40px; box-sizing: border-box;
   /* ~20% shorter than before (48→40) per the review — users came to browse
      events, not admire the search box. Sits flush closer to the edges
-     (12px gutter, tighter than the 16px cards below) so it reads as chrome
+     (16px gutter, matching §35's aligned gutter fix) so it reads as chrome
      under the status bar rather than another floating tile competing for
-     attention. */
-  padding: 6px 8px 6px 14px; margin: 8px 16px 0; border-radius: var(--radius-pill);
+     attention. Vertical padding/margin trimmed a further 2px+2px against
+     the §36 reference measurement (search bar ≈44px tall in the video) —
+     rendered height now sits close to that target. */
+  padding: 5px 8px 5px 14px; margin: 6px 16px 0; border-radius: var(--radius-pill);
   background: var(--surface-hover);
   border: 1px solid var(--border);
 }
