@@ -4,6 +4,7 @@ import Explore from "./Explore";
 import Skeleton from "../components/Skeleton";
 import PageTopBar from "../components/PageTopBar";
 import UserAvatar from "../components/UserAvatar";
+import Tooltip from "../components/Tooltip";
 import { useAccount } from "../store";
 
 // Reservations (venue browsing) is now folded into Discover as a second
@@ -20,6 +21,11 @@ export default function Discover() {
   return (
     <>
       <PageTopBar>
+        <Tooltip text="Saved">
+          <Link to="/saved" className="page-top-bar-icon-btn" aria-label="Saved">
+            <i className="icon-bookmark" />
+          </Link>
+        </Tooltip>
         <UserAvatar account={account} />
       </PageTopBar>
 

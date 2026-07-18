@@ -213,14 +213,14 @@
    every tile looks the same regardless of selection state, matching the
    reference exactly. */
 .cat-circles {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
   padding: 4px 20px 4px;
 }
 .cat-circle {
   position: relative; overflow: hidden;
   flex-direction: column; display: flex; align-items: center; justify-content: center;
-  gap: 10px; background: var(--surface); border: 1px solid var(--card-border);
-  border-radius: var(--radius-lg); padding: 18px 8px 14px; min-height: 108px;
+  gap: 14px; background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg); padding: 28px 8px 20px; min-height: 168px;
   box-shadow: var(--card-shadow); transition: transform .15s ease;
 }
 /* Soft white fade behind the icon, top-center of each tile (reference) —
@@ -235,16 +235,16 @@
 }
 .cat-circle-ring, .cat-circle-label { position: relative; z-index: 1; }
 .cat-circle-ring {
-  width: 52px; height: 52px;
+  width: 84px; height: 84px;
   display: grid; place-items: center; flex: 0 0 auto;
   transition: transform .15s ease;
 }
 /* Photographic 3D render fills the ring (Icon3D <img>). */
 .cat-circle-ring img { width: 100%; height: 100%; object-fit: contain; }
 .cat-circle-label {
-  font: var(--t-meta); font-weight: 600; color: var(--text); white-space: nowrap;
+  font: var(--t-section); font-weight: 700; color: var(--text); white-space: nowrap;
 }
-/* Desktop: a wide toolbar-style row instead of a cramped 3-column mobile
+/* Desktop: a wide toolbar-style row instead of a cramped 2-column mobile
    grid — cards shrink to fit all 6 across, spacing loosens to match the
    rest of the >=900px chrome (see App.tsx's own mobile/desktop split). */
 @media (min-width: 900px) {
@@ -252,9 +252,10 @@
     grid-template-columns: repeat(6, minmax(0, 160px));
     justify-content: center; gap: 16px; padding: 8px 24px 12px;
   }
-  .cat-circle { padding: 22px 10px 16px; min-height: 124px; }
+  .cat-circle { padding: 22px 10px 16px; min-height: 124px; gap: 10px; }
   .cat-circle:hover { transform: translateY(-2px); }
   .cat-circle-ring { width: 60px; height: 60px; }
+  .cat-circle-label { font: var(--t-meta); font-weight: 600; }
 }
 
 /* ---------- date section header ---------- */
@@ -3588,10 +3589,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: var(--space-2);
   padding: 0 var(--space-3);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+.page-top-bar-icon-btn {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  background: transparent;
+  transition: background .15s ease, color .15s ease;
+}
+.page-top-bar-icon-btn:hover { background: var(--surface-hover); color: var(--text); }
+.page-top-bar-icon-btn i { font-size: 18px; }
 .page-top-bar-avatar {
   width: 32px;
   height: 32px;
