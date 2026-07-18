@@ -67,6 +67,18 @@
    layering a second one — Discover.tsx sets this attribute on .shell
    while its own route is active (see Discover.tsx). */
 .shell[data-ambient="venues"] { --ambient-top: var(--ambient-venues); }
+/* Bloom pulse on top of the hue transition above: a genuine spike→settle
+   shape (reference video: bright flash, settles, holds through the
+   skeleton window), not just a flat color fade. Discover.tsx adds this
+   class for one animation cycle on every mode switch, then removes it —
+   re-adding the class re-triggers the keyframes even on the same mode. */
+.shell.ambient-pulse::before { animation: ambient-bloom 900ms ease-out; }
+@keyframes ambient-bloom {
+  0% { opacity: 0.55; }
+  15% { opacity: 1.6; }
+  40% { opacity: 1; }
+  100% { opacity: 1; }
+}
 
 /* ---------- top bar ---------- flat, minimal-height, not a floating pill */
 .topbar {
@@ -766,7 +778,12 @@
    this used to have was eating into the peek, not sitting outside it, so
    removing it (not the flex-basis) is what actually restores the video's
    proportions. Native touch/trackpad scroll as the only input, dots below
-   tracking the nearest-snapped card. See FeaturedSpotlight in Explore.tsx. */
+   tracking the nearest-snapped card. See FeaturedSpotlight in Explore.tsx.
+   Leading/trailing `.ex-spotlight-spacer` elements (matching a real slide's
+   peek amount) let the FIRST and LAST card snap with the same both-sides
+   peek interior cards get — without them, scroll-snap-align:center has
+   nothing to center against at either end of the track, so slide 1 and the
+   last slide sat flush against the viewport edge with zero peek. */
 .ex-spotlight { margin-top: 4px; }
 .ex-spotlight-track {
   display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
@@ -775,6 +792,9 @@
 .ex-spotlight-track::-webkit-scrollbar { display: none; }
 .ex-spotlight-slide {
   flex: 0 0 78%; scroll-snap-align: center;
+}
+.ex-spotlight-spacer {
+  flex: 0 0 11%; scroll-snap-align: none;
 }
 .ex-spotlight-slide .ex-hero-card { margin: 0; }
 .ex-spotlight-dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }

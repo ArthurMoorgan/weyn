@@ -13,13 +13,18 @@ import { useAccount } from "../store";
 const Reservations = lazy(() => import("./Reservations"));
 
 // How long the toggle-switch skeleton stays up before crossfading to real
-// content. A flash under ~250ms doesn't register as a loading state on
-// screen (or in a screenshot) — it just reads as a glitch — so this floors
-// the skeleton's visible time regardless of how fast the target mode's
-// content actually is. For Venues' first-ever visit, the lazy chunk can
-// still take longer than this to download: Suspense's own fallback (the
-// same "discover" skeleton) keeps covering that case once this timer ends.
-const SWITCH_SKELETON_MS = 650;
+// content. The reference video holds its skeleton for ~2.3-2.9s per switch,
+// but that's real network latency (District is fetching over the wire);
+// Weyn's Events/Venues toggle has no such wait once Venues' chunk is
+// downloaded, so a literally-as-long synthetic delay would read as a fake
+// spinner rather than matching the video's *feel*. This is a deliberate,
+// shorter middle ground — long enough to register as an intentional
+// loading beat (and be reliably screenshot-able) without feeling sluggish
+// on an already-fast switch. For Venues' first-ever visit, the lazy chunk
+// can still take longer than this to download: Suspense's own fallback
+// (the same "discover" skeleton) keeps covering that case once this timer
+// ends.
+const SWITCH_SKELETON_MS = 900;
 
 export default function Discover() {
   const [mode, setMode] = useState<"events" | "venues">("events");
@@ -37,6 +42,25 @@ export default function Discover() {
     const shell = document.querySelector(".shell");
     shell?.setAttribute("data-ambient", mode);
     return () => shell?.removeAttribute("data-ambient");
+  }, [mode, location.pathname]);
+
+  // Re-trigger the bloom keyframes (see .shell.ambient-pulse, components.css)
+  // on every mode switch — a plain CSS custom-property transition alone is
+  // a flat fade, not the spike-then-settle "bloom" the reference video
+  // shows. Toggling the class off/on (via a rAF so the browser sees the
+  // removal before the re-add) restarts the animation even when switching
+  // back to a mode it's already mid-fade toward.
+  useEffect(() => {
+    if (location.pathname !== "/") return;
+    const shell = document.querySelector(".shell");
+    if (!shell) return;
+    shell.classList.remove("ambient-pulse");
+    const raf = requestAnimationFrame(() => shell.classList.add("ambient-pulse"));
+    const t = setTimeout(() => shell.classList.remove("ambient-pulse"), 900);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
   }, [mode, location.pathname]);
 
   // Every Events⇄Venues switch briefly shows a skeleton before crossfading

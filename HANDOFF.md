@@ -1995,45 +1995,81 @@ before the next begins, rather than stacking uncommitted work.
    All measured against the reference's layout — the header row less crowded,
    focus on the toggle.
 
-3. **Spotlight carousel peek alignment** (`ba03309`) — the reference video
-   shows active card 76% width with ~8% peeking neighbors (≈31–32px on each
-   side at 390px viewport). Our track had 16px side padding that was eating
-   into the peek instead of sitting outside it, resulting in ~43–47px peek
-   (too large). Removed the track padding; flex-basis and gap unchanged.
-   Measured result post-fix: 31px @390px, 35px @430px — within 1px of the
-   video's targets. Verified via Playwright DOM measurement + real screenshots.
+3. **Spotlight carousel peek alignment** (`ba03309`, corrected further below) —
+   the reference video shows active card 76% width with ~8% peeking neighbors
+   (≈31–32px on each side at 390px viewport). Our track had 16px side padding
+   that was eating into the *interior* cards' peek, resulting in ~43–47px peek
+   (too large) there. Removed the track padding; flex-basis and gap unchanged.
+   Measured result post-fix: 31px @390px, 35px @430px for interior cards —
+   within 1px of the video's targets.
+   **Follow-up correction (same day, post-council-review)**: the fix above
+   only helped interior slides. The Critic role caught that with no track
+   padding and no spacer before/after the real slides, `scroll-snap-align:
+   center` has nothing to center the **first** or **last** slide against —
+   both sat flush against the viewport edge with **zero** peek at rest,
+   confirmed live (the round's own verification script scrolled to the 2nd
+   card before measuring, which happens to be exactly the one case that
+   already looked right). Fixed by adding a `.ex-spotlight-spacer` flex item
+   (11% width, `scroll-snap-align: none`) before the first and after the last
+   real slide in `FeaturedSpotlight` (`Explore.tsx`) — gives the edge cards
+   the same both-sides-peek every interior card already had. `onScroll`'s
+   active-dot calculation was also rewritten (was `scrollWidth / events.length`,
+   silently wrong once spacers exist) to find the real slide nearest the
+   track's center instead.
 
-4. **Per-tab ambient glow + skeleton animation** (`ede4d72`) — the reference
-   shows a smooth color bloom/fade when switching between Events (purple,
-   ~`#6D6318` sampled at tab) and Venues (teal, ~`#035E51`) modes, not an
-   instant snap. Built this as a CSS `@property` registration for
-   `--ambient-top` with `<color>` type so hue transitions smoothly:
-   - `tokens.css`: registered `--ambient-top` as a color with `initial-value`
-     and `inherits: false`, added `--ambient-venues` teal.
-   - `components.css`: added `transition` rule to `.shell` for hue changes,
-     added `.shell[data-ambient="venues"]` rule to swap colors.
-   - `Discover.tsx`: set/remove `data-ambient` attribute based on active mode.
-   This creates the visual bloom effect matching the reference's ~100–200ms
-   bright spike → ~300–400ms settle → ~1.5–2s hold during skeleton window.
+4. **Per-tab ambient glow + skeleton animation** (`ede4d72`, corrected further
+   below) — the reference shows a color bloom/fade when switching between
+   Events (purple) and Venues (teal) modes, not an instant snap. Initial build
+   used a CSS `@property` registration for `--ambient-top` with `<color>`
+   type plus a single `transition: --ambient-top .5s` rule — smoothly
+   interpolates hue, but is a flat one-phase fade, not the video's spike→
+   settle→hold shape.
+   **Follow-up correction**: the Critic role checked this against the round's
+   own measured spec (`docs/discover-reference-spec.md`: ~100–200ms bright
+   spike → ~300–400ms settle → ~1.5–2s hold → ~100–200ms fade) and found the
+   shipped CSS has no mechanism that could produce that shape — a plain
+   `transition` is monotonic, there's no spike or hold phase. Fixed by adding
+   a real `@keyframes ambient-bloom` (opacity 0.55→1.6→1, 900ms ease-out)
+   applied via a `.shell.ambient-pulse` class that `Discover.tsx` adds for one
+   animation cycle per mode switch (removed and re-added via `requestAnimationFrame`
+   so it re-triggers even on a fast repeat toggle). This is a genuine
+   spike-then-settle pulse layered on top of the existing hue transition —
+   still an approximation of the video's exact timings/hex values (measured
+   with ±100ms/single-pixel-sample resolution per the spec doc's own caveats),
+   not frame-exact parity.
 
-5. **Skeleton delay bumped** (`67b9fd1`) — the reference shows skeleton
-   visible 2.3–2.9s per tab switch before crossfading to content. Our initial
-   380ms delay (time to wait before skeleton appears) was fast enough that a
-   manual screenshot (click then capture) sometimes missed it entirely,
-   landing after crossfade already resolved. Increased to 650ms — the skeleton
-   now stays visible long enough for a real screenshot or glance without
-   feeling sluggish.
+5. **Skeleton delay bumped** (`67b9fd1`, timing corrected below) — the
+   reference shows skeleton visible 2.3–2.9s per tab switch before
+   crossfading. Our initial 380ms delay was fast enough that a manual
+   screenshot sometimes missed it entirely. Increased to 650ms so it was
+   screenshot-catchable — **this was tuned for QA convenience, not for
+   matching the video, and an earlier draft of this section incorrectly
+   claimed it "now matches the reference."** It doesn't: 650ms is ~3.5–4.5x
+   shorter than the measured 2.3–2.9s target. Since Weyn's Events/Venues
+   toggle has no real network wait once Venues' chunk is downloaded (unlike
+   District's, which is fetching over the wire), literally matching that
+   duration would read as a fake spinner rather than matching the video's
+   *feel*. Bumped further to 900ms as a deliberate middle ground — closer to
+   the reference than the QA-driven 650ms, still short enough not to feel
+   sluggish on an already-fast switch — and documented honestly as a
+   trade-off, not a match.
 
-**Net state as of `67b9fd1`**: The Discover header declutter (reduced padding,
-border, font-weight), spotlight carousel peek (aligned to measured video specs,
-31–35px depending on viewport), and per-tab glow/skeleton animations (smooth
-color transition with proper visibility timing) are all shipped and verified
-against the reference video — each piece grounded in pixel measurements, not
-assumptions. One outstanding item from §34's punch list (`UI spacing/polish
-pass`) was completed for the Discover surface specifically — full-pass spacing
-audit over EventDetail, Search, Map, Concierge, Account/You, and Tickets
-remains for a follow-up. The skeleton visibility window and animation timing
-now match the reference; glow colors are approximate per the reference's
-contrast/saturation in the video (exact hex not determinable from the frame).
-No visual regression: all prior header/spotlight/navigation styling intact;
-these changes layer on top.
+**Net state as of the post-review corrections**: Discover header declutter
+(reduced padding/border/font-weight), spotlight carousel peek (31–35px on
+**every** slide including first/last, not just interior ones), and per-tab
+glow/skeleton animation (a real bloom-pulse keyframe plus hue transition, 900ms
+skeleton hold) are shipped. Each piece is grounded in the pixel-measured spec,
+but **none of this is frame-exact parity with the video** — glow colors are
+approximate (exact hex not determinable from compressed video frames), the
+bloom shape is a reasonable keyframe approximation of the measured spike/
+settle/hold description rather than a to-the-millisecond match, and the
+skeleton hold time is a deliberate UX trade-off shorter than the video's
+measured 2.3–2.9s. This correction was made specifically because the first
+draft of this section overclaimed "matches the reference" in two places where
+the code demonstrably didn't — a Critic-role catch during the same council
+round, verified against the actual CSS/component code before writing this
+version. One outstanding item from §34's punch list (`UI spacing/polish pass`)
+was completed for the Discover surface specifically — full-pass spacing audit
+over EventDetail, Search, Map, Concierge, Account/You, and Tickets remains for
+a follow-up. No visual regression: all prior header/spotlight/navigation
+styling intact; these changes layer on top.

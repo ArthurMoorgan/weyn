@@ -104,8 +104,22 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   function onScroll() {
     const el = trackRef.current;
     if (!el) return;
-    const cardW = el.scrollWidth / events.length;
-    setActive(Math.round(el.scrollLeft / cardW));
+    // Find the real slide (not a spacer) whose center is closest to the
+    // track's center — robust to the leading spacer shifting every slide's
+    // offsetLeft, unlike the old scrollWidth/events.length division.
+    const slides = el.querySelectorAll<HTMLElement>(".ex-spotlight-slide");
+    const center = el.scrollLeft + el.clientWidth / 2;
+    let closest = 0;
+    let closestDist = Infinity;
+    slides.forEach((slide, i) => {
+      const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
+      const dist = Math.abs(slideCenter - center);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = i;
+      }
+    });
+    setActive(closest);
   }
 
   if (events.length === 0) return null;
@@ -113,11 +127,19 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   return (
     <div className="ex-spotlight">
       <div className="ex-spotlight-track" ref={trackRef} onScroll={onScroll}>
+        {/* Spacer slides so the FIRST and LAST real card can still peek on
+            both edges once snapped — without these, a card at either end of
+            the track has nothing to scroll past on that side and sits flush
+            against the viewport edge (confirmed via Playwright: 0px peek at
+            rest, only interior cards showed the measured ~31px). Same width
+            as a real card's peek gap, not decorative. */}
+        <div className="ex-spotlight-spacer" aria-hidden="true" />
         {events.map((ev) => (
           <div className="ex-spotlight-slide" key={ev.id}>
             <HeroSlide e={ev} showBadge />
           </div>
         ))}
+        <div className="ex-spotlight-spacer" aria-hidden="true" />
       </div>
       {events.length > 1 && (
         <div className="ex-spotlight-dots">
