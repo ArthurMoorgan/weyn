@@ -8,8 +8,6 @@ import ThemeToggle from "../components/ThemeToggle";
 import CityPill from "../components/CityPill";
 import InstallPrompt from "../components/InstallPrompt";
 import AccountWidget from "../components/AccountWidget";
-import PageTopBar from "../components/PageTopBar";
-import UserAvatar from "../components/UserAvatar";
 import { webPushStatus, webPushSupported, subscribeWebPush, unsubscribeWebPush } from "../webpush";
 
 // "More" hub: instead of a wrapping tab strip, this tab is now an
@@ -81,7 +79,6 @@ export default function You() {
   if (view === "menu") {
     return (
       <>
-        <PageTopBar><UserAvatar account={account} /></PageTopBar>
         <MoreMenu
           account={!!account}
           isHost={isHost}
@@ -101,7 +98,6 @@ export default function You() {
   };
   return (
     <>
-      <PageTopBar><UserAvatar account={account} /></PageTopBar>
       <SectionHeader title={SECTION_TITLES[view]} onBack={() => setView("menu")} />
 
       {view === "overview" && (

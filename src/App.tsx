@@ -14,10 +14,14 @@ import { splashActive, onSplashExit } from "./splash";
 const Tickets = lazy(() => import("./pages/Tickets"));
 const You = lazy(() => import("./pages/You"));
 
+// Profile deliberately isn't a bottom-tab slot — it's reached from the
+// top-right avatar (see PageTopBar / Discover's header) so the persistent
+// nav stays down to the two "what's on / what I've got" browse intents plus
+// Host, and the profile entry point lives once, at the top, instead of
+// competing in two places.
 const TABS = [
   { to: "/", icon: "sparkles", label: "Discover" },
   { to: "/tickets", icon: "ticket", label: "Tickets" },
-  { to: "/you", icon: "user", label: "Profile" },
 ];
 
 // Hosting an event and listing a venue are different setup flows with

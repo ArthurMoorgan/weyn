@@ -88,7 +88,14 @@ export default function Discover() {
           </button>
         </div>
         <div className="discover-head-actions">
-          <Link to="/concierge" className="ex-hero-link">Ask our AI</Link>
+          {/* "Ask our AI" collapsed from a text link to a single icon button:
+              at text width it crowded the Host pill + avatar into an
+              overflowing three-control cluster on a 375px row. As an icon it
+              reads as one quiet utility affordance next to the primary Host
+              CTA, matching the clean icon cluster in the reference. */}
+          <Link to="/concierge" className="discover-head-icon-btn" aria-label="Ask our AI">
+            <i className="icon-sparkles" />
+          </Link>
           <Link to="/host/events" className="ex-hero-host">Host <i className="icon-arrow-right" /></Link>
           <UserAvatar account={account} />
         </div>

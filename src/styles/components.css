@@ -601,6 +601,20 @@
   transition: color .15s ease;
 }
 .ex-hero-link:hover { color: var(--text); }
+/* Compact round utility button for "Ask our AI" in the Discover header —
+   sized to sit level with the Host pill and the avatar so the right cluster
+   reads as one aligned row of controls, not three mismatched shapes. Same
+   hairline-surface treatment as the Host pill (quiet, present) with the
+   accent reserved for the glyph, matching .ex-hero-host's icon color. */
+.discover-head-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; flex: 0 0 36px; border-radius: var(--radius-pill);
+  color: var(--accent); background: var(--surface);
+  border: 1px solid var(--border-strong);
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.discover-head-icon-btn:hover { background: var(--surface-hover); border-color: var(--text-3); }
+.discover-head-icon-btn i { font-size: 17px; }
 
 /* Category Grid + Collection Rails Hub — responsive discovery page with
    category shortcuts and horizontally-scrollable event collections. */
