@@ -1929,3 +1929,41 @@ had never been applied before — it's applied now too.
   beyond what FEATURES.md found already built, Settings/Trust & Safety/
   Gamification (streaks/badges/loyalty — `VenueLoyalty` exists per
   FEATURES.md but no consumer-facing gamification UI does).
+
+## 35. Discover header/spacing iteration (2026-07-18, direct-feedback pass)
+
+Fast, no-council, direct-edit fixes on top of §34's work, done live against
+user screenshots/feedback rather than a planned pass — reflects a few
+back-and-forth corrections, not a single clean design decision, so read the
+whole sequence before assuming any one commit is the final state.
+
+1. `d08fb69` — **real bug fix**: `.page-top-bar-avatar` had zero CSS, so the
+   profile `<img>` rendered at its native uploaded-photo resolution (easily
+   1000px+) instead of as a small avatar, covering the whole screen.
+   Constrained to a 32px circle, `object-fit: cover`.
+2. `f119867` — first attempt at matching a District (Zomato)-style
+   reference screenshot: category grid 3-col small icons → 2-col large
+   tiles (84px icons), plus a bookmark icon in the top bar. **Reverted next
+   commit** — the 2-column/84px version looked worse in practice than the
+   original, and the user didn't want a separate top bar at all.
+3. `8f9d0e1` — corrections per direct feedback: category grid back to the
+   original 3-column/52px layout; removed the standalone `PageTopBar` usage
+   from `Discover.tsx` entirely (component still exists, still used by
+   `Tickets.tsx`/`You.tsx` — just not Discover) — the profile avatar now
+   sits inline in the existing `discover-head` row (next to "Ask our
+   AI"/"Host") instead of its own sticky strip; spotlight carousel slide
+   width tightened 86%→78% so neighboring cards peek more visibly on both
+   edges.
+4. `cdaf814` — **real bug fix**: `.search` used a 12px side margin,
+   `.discover-head` used 16px padding, `.cat-circles` used 20px padding —
+   three different horizontal gutters stacked vertically on the same
+   screen, so the search bar's edges didn't line up with the row above or
+   the category grid below. Aligned all three to 16px (`--space-4`).
+
+**Net state as of `cdaf814`**: Discover's category grid is back to its
+pre-§34 3-column/52px look (not the reference screenshot's 2-column large
+tiles — that was explicitly rejected). Profile avatar lives inline in the
+existing header row, no separate top bar. A city/area location picker (the
+reference's "Sector 79, Gurugram") was **not** built — Weyn has no
+city/area-selection data model, and faking one wasn't in scope. If revisited,
+scope a real location feature first rather than a decorative dropdown.
