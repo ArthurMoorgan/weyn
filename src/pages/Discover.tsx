@@ -2,9 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router-dom";
 import Explore from "./Explore";
 import Skeleton from "../components/Skeleton";
-import PageTopBar from "../components/PageTopBar";
 import UserAvatar from "../components/UserAvatar";
-import Tooltip from "../components/Tooltip";
 import { useAccount } from "../store";
 
 // Reservations (venue browsing) is now folded into Discover as a second
@@ -20,15 +18,6 @@ export default function Discover() {
 
   return (
     <>
-      <PageTopBar>
-        <Tooltip text="Saved">
-          <Link to="/saved" className="page-top-bar-icon-btn" aria-label="Saved">
-            <i className="icon-bookmark" />
-          </Link>
-        </Tooltip>
-        <UserAvatar account={account} />
-      </PageTopBar>
-
       <div className="discover-head">
         <div className="seg-toggle" role="tablist" aria-label="Browse">
           {/* Sliding thumb — a single element that transforms between the
@@ -56,6 +45,7 @@ export default function Discover() {
         <div className="discover-head-actions">
           <Link to="/concierge" className="ex-hero-link">Ask our AI</Link>
           <Link to="/host/events" className="ex-hero-host">Host <i className="icon-arrow-right" /></Link>
+          <UserAvatar account={account} />
         </div>
       </div>
 
