@@ -490,7 +490,11 @@
 /* ---------- Discover header: Events/Venues segmented toggle ---------- */
 .discover-head {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 14px 16px 4px;
+  /* 8px (was 4px) bottom padding — the toggle/actions row and the search
+     bar below it are both dense, bold-weight controls; 4px read as one
+     crowded zone, 8px gives the eye a beat between them without pushing
+     the fold down. */
+  padding: 14px 16px 8px;
 }
 .seg-toggle {
   position: relative; display: inline-flex; background: var(--surface-hover); border-radius: var(--radius-pill);
@@ -533,15 +537,24 @@
    stays visually present without competing with the primary CTA color. */
 .ex-hero-host {
   display: inline-flex; align-items: center; gap: 6px; font: var(--t-card); font-weight: 600;
-  color: var(--text); padding: 10px 16px; white-space: nowrap; flex: 0 0 auto;
-  border: 1.5px solid var(--border-strong); border-radius: var(--radius-pill);
+  /* Padding/border trimmed from 10px 16px / 1.5px — at the old size this
+     pill rendered at essentially the same height and weight as the
+     Events/Venues toggle right next to it, so the row read as two
+     competing pill controls. Thinner border + tighter padding keeps it a
+     real button (still bordered, still visible) without matching the
+     toggle's footprint. */
+  color: var(--text); padding: 8px 14px; white-space: nowrap; flex: 0 0 auto;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-pill);
   background: var(--surface); transition: background-color .15s ease, border-color .15s ease;
 }
 .ex-hero-host:hover { background: var(--surface-hover); border-color: var(--text-3); }
 .ex-hero-host [class^="icon-"] { font-size: 14px; color: var(--accent); }
 .discover-head-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .ex-hero-link {
-  font: var(--t-card); font-weight: 600; color: var(--text-2);
+  /* 500 (was 600) — at the same bold weight as the active toggle tab and
+     the Host pill, this plain-text link was competing for attention
+     instead of reading as the row's quietest, tertiary action. */
+  font: var(--t-card); font-weight: 500; color: var(--text-2);
   transition: color .15s ease;
 }
 .ex-hero-link:hover { color: var(--text); }
