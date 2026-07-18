@@ -1857,21 +1857,58 @@ had never been applied before — it's applied now too.
 
 ### Outstanding / not done — pick up here
 
-- **UI spacing/polish pass — PARTIALLY COMPLETE (Discover only).** The user
-  asked to "fix spacing in the UI and more" in the same request as the
-  feature-gap work. §35 shipped Discover-specific spacing/alignment fixes
+- **UI spacing/polish pass — PARTIALLY COMPLETE (Discover + Account/You audited).**
+  The user asked to "fix spacing in the UI and more" in the same request as
+  the feature-gap work. §35 shipped Discover-specific spacing/alignment fixes
   (`d08fb69`–`cdaf814`): avatar CSS bug, category grid refinements, and
-  horizontal-gutter alignment (all 3 now use 16px). **Still outstanding:**
-  the full spacing/8pt-grid audit over EventDetail, Search, Map, Concierge,
-  Account/You, Tickets (§35 only touched Discover); restrained purple accent
-  touches extending the existing purple glow motif (District/Zomato-style
+  horizontal-gutter alignment (all 3 now use 16px). Personal Profile
+  (Account.tsx/You.tsx) has now been audited — see the checklist below;
+  no code changed in that pass. **Still outstanding:** the full
+  spacing/8pt-grid audit over EventDetail, Search, Map, Concierge, Tickets
+  (none of these have been touched); restrained purple accent touches
+  extending the existing purple glow motif (District/Zomato-style
   single-accent-on-neutral), not a new color; and the profile/account entry
   point move from bottom tab bar to a small top bar showing the user's real
   profile picture (or initials avatar from `WhosGoing.tsx` pattern, if no
   photo). Bottom tab bar otherwise unchanged — the user explicitly declined
-  moving the whole nav to the top. These three items (EventDetail+Search+Map
-  +Concierge+Account/You+Tickets spacing, purple touches, profile top bar)
-  remain to be picked up in a follow-up pass.
+  moving the whole nav to the top. These items (EventDetail+Search+Map
+  +Concierge+Tickets spacing, purple touches, profile top bar) remain to be
+  picked up in a follow-up pass.
+- **Personal Profile spacing audit complete; 2 items flagged for next pass.**
+  Audited `Account.tsx` and `You.tsx` (the "More" hub — note the brief's
+  assumed Organizer/Tickets/Settings *tabs* inside `You.tsx` don't exist:
+  Organizer and Tickets are their own top-level routes, and Settings-like
+  prefs live in `MoreMenu`'s `.more-prefs` block, not a tab). Checklist:
+  1. **Account name/email/password sections — OK.** All five `Account.tsx`
+     sections use the same `var(--space-5) var(--space-4) var(--space-2)`
+     section padding + `.date-head`/`.field` pattern; 8pt-grid compliant via
+     tokens throughout.
+  2. **You.tsx "Organizer" tab — N/A.** No such tab exists in `You.tsx`;
+     Organizer dashboard is `/organizer` (its own route, out of scope here).
+  3. **You.tsx "Tickets" tab — N/A.** No such tab exists in `You.tsx` either;
+     `Tickets.tsx` is a standalone bottom-tab route. The Overview tab's
+     ticket count card + "Up next" list (`OverviewTab`) reuse the shared
+     `Stub` card component and `--space-*` tokens — OK.
+  4. **You.tsx Saved events — OK.** `SavedTab` uses `.date-head`, `.feed`,
+     and the same `Stub` cards Discover uses — fully consistent, including
+     the empty state (`var(--space-5)`/`var(--space-6)`).
+  5. **You.tsx "Settings" — NEEDS_FIX (minor).** No dedicated tab; prefs live
+     in `MoreMenu`. `.more-head`, `.more-dock`, `.section-head` (in
+     `components.css`) use hardcoded px (`14px 16px 8px`, gap `10px`,
+     `18px 16px 2px`) instead of `--space-*` tokens. Values already land on
+     8pt-grid multiples, so this is token-hygiene only, not a visible bug —
+     low priority.
+  6. **Follow button / saved count / card hierarchy — NEEDS_FIX.**
+     `FollowButton.tsx` reuses the shared `.chip` class — consistent. But
+     `src/pages/Friends.tsx` (linked from `You.tsx`'s dock as "Friends") is
+     written entirely in inline `style={}` props — hardcoded px paddings,
+     avatar sizing, and a bespoke loading skeleton, none of it using
+     `--space-*` tokens or the shared `list-row-skel`/`feed`/`Stub` classes
+     the rest of the app's lists use. This is the one substantive layout
+     inconsistency found; recommend a small follow-up rewriting `Friends.tsx`
+     onto the existing list/card system rather than deferring the whole
+     surface (only 2 items total, well under the 5-item threshold for a
+     bigger follow-up pass).
 - **Dashboard polish pass — requested, not started.** Organizer + Venue
   ("Venue OS") dashboards need a design/UX polish pass — no scope defined
   yet beyond "polish." Before starting: check `FEATURES.md` for what's
@@ -2073,3 +2110,98 @@ was completed for the Discover surface specifically — full-pass spacing audit
 over EventDetail, Search, Map, Concierge, Account/You, and Tickets remains for
 a follow-up. No visual regression: all prior header/spotlight/navigation
 styling intact; these changes layer on top.
+
+## 37. Discover design-system tightening pass (2026-07-18)
+
+Scoped deliberately to Discover/Explore only — not a full-app pass. Each
+piece below is its own commit; nothing here was stacked uncommitted.
+
+### What shipped
+
+1. **Header/search/category compaction** (`628da9d` region + follow-ups) —
+   further trims on top of §36's already-shipped compaction, re-measured live
+   with Playwright (`390×844` viewport, dark theme) rather than eyeballed:
+   - `.discover-head` top padding trimmed `14px→10px` (`src/styles/
+     components.css:527`) — measured rendered height **58px** (was taller
+     pre-§36/§37).
+   - `.search` vertical padding/margin trimmed a further 2px+2px
+     (`components.css:1667`) — measured rendered height **46px**.
+   - `.cat-circles` top padding trimmed `4px→2px` (`components.css:238`);
+     individual `.cat-circle` tile `min-height` **92px** on mobile (`108px`
+     was the pre-§36 value), `.seg-toggle` (Events/Venues control) measures
+     **40px**.
+   - **Honest gap to the ~44/56/42px targets this subtask was framed
+     around**: none of the three measured values land on those exact
+     numbers — `.discover-head` (58px) and `.search` (46px) are close-ish to
+     the reverse pairing (~56/~44) rather than the stated order, and no
+     single measured element sits at ~42px (`.seg-toggle` at 40px is the
+     nearest). Rather than force a number to match by further shrinking
+     controls past what §35 already tried and the user rejected (see the
+     `.cat-circles` comment in `components.css:236-240`), these are reported
+     as the real, live-measured values. Anyone continuing this thread should
+     re-derive the target numbers directly from the reference video/spec
+     doc (`docs/discover-reference-spec.md`) rather than treating ~44/56/42
+     as ground truth — this pass could not confirm where those specific
+     numbers came from.
+2. **Entrance-animation audit** (`b52876b`) — found 3 Discover/Explore
+   elements mounting with a hard cut instead of the fade+rise-in used
+   elsewhere (`.ex-agenda` cards, rail covers): spotlight carousel slides,
+   category tiles, and search-result rows. All three now use the same
+   `motion.div` `opacity 0→1` / `y: 8→0`, 200ms ease-out pattern
+   (`src/pages/Explore.tsx`, `FeaturedSpotlight` + category grid + `ex-list`
+   search results). No other Discover/Explore surface was found missing an
+   entrance animation — this was 3 gaps, not a partial fix of a longer list.
+3. **Color-palette audit (grep only, no changes needed)** — searched
+   `src/styles/components.css` for hardcoded hex outside `var(--*)` tokens.
+   Nearly every hit is a structural `#fff`/`#000`-family overlay color (badge
+   scrims, icon-button fills, switch thumbs) that isn't a brand hue and isn't
+   a design-system violation. Two real non-token hex values exist:
+   `#B8B8B8` (`.ticket-stub-type`, `components.css:1619`) and the `#EDEDED`/
+   `#121212` pair used for the ticket-stub surface (`components.css:1612`) —
+   both are on the Tickets surface, out of this pass's scope, left as-is.
+   Discover's own accent color (the ambient glow) is already fully
+   tokenized: `--ambient-top`/`--ambient-venues` in `src/styles/tokens.css`,
+   consumed via `.shell[data-ambient]` in `components.css:56-69` — nothing
+   to fix there.
+4. **Category-grid video reanalysis** (`3b7a0d4`) — re-watched the District
+   reference and found its category icons (Dining's cloche dome, Movies'
+   clapperboard, Play's racket) visually break the tile's top edge rather
+   than sitting fully contained. Changed `.cat-circle` from `overflow:
+   hidden` to `overflow: visible` plus a negative `margin-top` on
+   `.cat-circle-ring` so the icon spills over the top, with `border-radius:
+   inherit` added to the `::before` glow pseudo so it still clips to the
+   tile's rounded corners now that the parent no longer clips anything.
+   Verified live at 375px in both themes: icons overflow as intended, no
+   corner-clipping artifacts.
+
+### Deferred / not attempted this pass
+
+- **Full-app spacing/8pt-grid audit** (EventDetail, Search, Map, Concierge,
+  Tickets) — still not started; this pass stayed inside Discover/Explore
+  only, per the chosen scope. See §34's Outstanding list, unchanged by this
+  pass except for the header/search/category numbers above.
+- **Personal Profile implementation** — the *audit* (Account.tsx/You.tsx)
+  was completed in a prior pass (documented in §34's Outstanding list, items
+  1-6); no implementation work happened this pass. The one substantive gap
+  that audit found (`Friends.tsx` using inline styles instead of the shared
+  `--space-*`/list-row token system) is still unaddressed.
+- **1:1 District 6-tab bottom-nav replication, category-grid column-count
+  change, new sticky bars, Home-feed regression fix** — explicitly out of
+  scope for this pass (per the chosen approach); none attempted, none
+  reverted, no change in status from §34/§36.
+- **Reconciling the ~44/56/42px targets against the actual reference** — see
+  item 1 above. This is a newly-surfaced gap: the numbers this subtask was
+  framed around don't match live measurements or the existing measured spec
+  doc's own figures, and neither this pass nor the spec doc it inherited
+  from documents where ~44/56/42 came from.
+
+### Outstanding section changes
+
+No entries moved from "outstanding" to "done" in the top-level Outstanding
+list this pass — the full spacing audit, Personal Profile *build*, dashboard
+polish, friend-adding, and profiles items listed under §34's "Outstanding /
+not done" all remain exactly as they were. This pass's work (header/search/
+category compaction, entrance animations, color audit, category-icon
+overflow) was scoped narrowly enough that it didn't correspond to any of the
+Outstanding list's named items, and doesn't retire any of them — it's
+additive polish on top of what §35/§36 already shipped for Discover.
