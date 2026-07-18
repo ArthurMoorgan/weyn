@@ -1857,23 +1857,21 @@ had never been applied before — it's applied now too.
 
 ### Outstanding / not done — pick up here
 
-- **UI spacing/polish pass — in progress.** The user asked to "fix spacing
-  in the UI and more" in the same request as the feature-gap work; a first
-  council run (shipping the 6 gaps, `2a4f508`) prioritized the schema/
-  migration work and never reached it. A dedicated follow-up pass (council
-  tier `sonnet-low` — sonnet model, low effort, added to
-  `council-workflow.js` this session for tasks wanting sonnet's judgment
-  without full reasoning effort) covers: the spacing/8pt-grid audit over
-  Explore/Discover, EventDetail, Search, Map, Concierge, Account/You,
-  Tickets; restrained purple accent touches extending the existing purple
-  glow motif (District/Zomato-style single-accent-on-neutral), not a new
-  color; and moving the profile/account entry point from the bottom tab bar
-  to a small top bar showing the user's real profile picture (or an
-  initials avatar, reusing the same pattern already in
-  `WhosGoing.tsx`/Friends, if no photo exists) — bottom tab bar otherwise
-  unchanged, the user explicitly declined moving the whole nav to the top
-  for now. Check `git log` for whether this landed before trusting this
-  bullet as still-outstanding.
+- **UI spacing/polish pass — PARTIALLY COMPLETE (Discover only).** The user
+  asked to "fix spacing in the UI and more" in the same request as the
+  feature-gap work. §35 shipped Discover-specific spacing/alignment fixes
+  (`d08fb69`–`cdaf814`): avatar CSS bug, category grid refinements, and
+  horizontal-gutter alignment (all 3 now use 16px). **Still outstanding:**
+  the full spacing/8pt-grid audit over EventDetail, Search, Map, Concierge,
+  Account/You, Tickets (§35 only touched Discover); restrained purple accent
+  touches extending the existing purple glow motif (District/Zomato-style
+  single-accent-on-neutral), not a new color; and the profile/account entry
+  point move from bottom tab bar to a small top bar showing the user's real
+  profile picture (or initials avatar from `WhosGoing.tsx` pattern, if no
+  photo). Bottom tab bar otherwise unchanged — the user explicitly declined
+  moving the whole nav to the top. These three items (EventDetail+Search+Map
+  +Concierge+Account/You+Tickets spacing, purple touches, profile top bar)
+  remain to be picked up in a follow-up pass.
 - **Dashboard polish pass — requested, not started.** Organizer + Venue
   ("Venue OS") dashboards need a design/UX polish pass — no scope defined
   yet beyond "polish." Before starting: check `FEATURES.md` for what's
