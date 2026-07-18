@@ -1857,14 +1857,48 @@ had never been applied before — it's applied now too.
 
 ### Outstanding / not done — pick up here
 
-- **UI spacing/polish pass** — the user asked to "fix spacing in the UI and
-  more" in the same request as the feature-gap work. The council run that
-  shipped the 6 gaps (§ above) prioritized the schema/migration work and
-  never reached the spacing pass (no `components.css`/`tokens.css` changes
-  landed in `2a4f508`). Still needed: an audit pass over Explore/Discover,
-  EventDetail, Search, Map, Concierge, Account/You, Tickets against the
-  8pt-grid tokens in `src/styles/tokens.css` — inconsistent padding/margins,
-  misaligned elements, touch targets under 44px.
+- **UI spacing/polish pass — in progress.** The user asked to "fix spacing
+  in the UI and more" in the same request as the feature-gap work; a first
+  council run (shipping the 6 gaps, `2a4f508`) prioritized the schema/
+  migration work and never reached it. A dedicated follow-up pass (council
+  tier `sonnet-low` — sonnet model, low effort, added to
+  `council-workflow.js` this session for tasks wanting sonnet's judgment
+  without full reasoning effort) covers: the spacing/8pt-grid audit over
+  Explore/Discover, EventDetail, Search, Map, Concierge, Account/You,
+  Tickets; restrained purple accent touches extending the existing purple
+  glow motif (District/Zomato-style single-accent-on-neutral), not a new
+  color; and moving the profile/account entry point from the bottom tab bar
+  to a small top bar showing the user's real profile picture (or an
+  initials avatar, reusing the same pattern already in
+  `WhosGoing.tsx`/Friends, if no photo exists) — bottom tab bar otherwise
+  unchanged, the user explicitly declined moving the whole nav to the top
+  for now. Check `git log` for whether this landed before trusting this
+  bullet as still-outstanding.
+- **Dashboard polish pass — requested, not started.** Organizer + Venue
+  ("Venue OS") dashboards need a design/UX polish pass — no scope defined
+  yet beyond "polish." Before starting: check `FEATURES.md` for what's
+  already built, and do a quick visual audit of both dashboards' routes
+  (Overview, Events, Attendees, Marketing, Workflows, AI Studio, Settings on
+  the organizer side; Reservations, Floor Plan, Guest CRM, Analytics on the
+  venue side) to find concrete issues before generating a task list, same
+  approach as the consumer-app spacing pass above.
+- **Friend-adding system — requested, not started.** The Friends page and
+  Who's Going attendee list already exist (`b0c8ef1`, this week) using the
+  existing user→organizer `Follow` Prisma model per `FEATURES.md`. What's
+  missing: an actual way to *add* a friend as a peer (not follow an
+  organizer) — search, send/accept a friend request, a pending-requests
+  inbox. Check whether `Follow` can reasonably represent symmetric
+  friendship (e.g. two one-directional follows both existing = "friends"),
+  or whether a real schema change (a `FriendRequest` model with
+  pending/accepted/declined state) is the honest way to build this — don't
+  fake a friend-request flow on top of a model that doesn't support it.
+- **Profiles — requested, not started.** Scope not yet defined beyond
+  "profiles" — likely the buyer/attendee-facing personal profile (separate
+  from `OrganizerProfile`, which already exists) covering the brief's
+  "Personal Profile" section (§ Outstanding below): upcoming/past tickets,
+  saved events, followers/following, interests, reviews, photos. Needs a
+  scoping pass before building — check what `Account`/`src/store.ts`
+  already captures vs. what a real profile page would need to add.
 - **Campaign ROI rollup** (District/Platinumlist gap #4 above) — not
   attempted; needs either real click/open tracking added to
   `EmailCampaignSend` first, or an explicitly-labeled estimate view built
