@@ -19,7 +19,7 @@ const Reservations = lazy(() => import("./Reservations"));
 // content actually is. For Venues' first-ever visit, the lazy chunk can
 // still take longer than this to download: Suspense's own fallback (the
 // same "discover" skeleton) keeps covering that case once this timer ends.
-const SWITCH_SKELETON_MS = 380;
+const SWITCH_SKELETON_MS = 650;
 
 export default function Discover() {
   const [mode, setMode] = useState<"events" | "venues">("events");
