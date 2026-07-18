@@ -1353,7 +1353,7 @@ export const api = {
   async getAttendees(id: string): Promise<Attendee[]> {
     return fetch(`${API_BASE}/api/events/${id}/attendees`, { headers: await authHeaders() }).then((r) => json<Attendee[]>(r));
   },
-  async getEventAttendeesSummary(id: string): Promise<{ attendees: { name: string | null }[]; totalCount: number }> {
+  async getEventAttendeesSummary(id: string): Promise<{ attendees: { initials: string }[]; totalCount: number }> {
     return fetch(`${API_BASE}/api/events/${id}/attendees-summary`).then((r) => json(r));
   },
   // Identity itself now comes from Clerk — this just returns the app-side

@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 
 export interface EventAttendee {
-  name: string | null;
-  initials?: string;
+  initials: string;
 }
 
 export default function WhosGoing({ eventId, currentUserId }: { eventId: string; currentUserId?: string | null }) {
@@ -44,16 +43,6 @@ export default function WhosGoing({ eventId, currentUserId }: { eventId: string;
 
   if (!attendees || count === 0) return null;
 
-  const getInitials = (name: string | null) => {
-    if (!name) return "?";
-    return name
-      .split(" ")
-      .slice(0, 2)
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase();
-  };
-
   const displayed = attendees.slice(0, 6);
   const moreCount = Math.max(0, count - 6);
 
@@ -61,12 +50,8 @@ export default function WhosGoing({ eventId, currentUserId }: { eventId: string;
     <div className="whos-going">
       <div className="whos-going-avatars">
         {displayed.map((a, i) => (
-          <div
-            key={i}
-            className="whos-going-avatar"
-            title={a.name || "Anonymous"}
-          >
-            {getInitials(a.name)}
+          <div key={i} className="whos-going-avatar">
+            {a.initials}
           </div>
         ))}
         {moreCount > 0 && (
