@@ -1736,3 +1736,162 @@ used `onesignal-cordova-plugin` (native/Capacitor) + `react-onesignal`
   of an already-dirty working tree (venue waitlist / check-in / budget
   work from §32 is still sitting there too). Review and commit
   deliberately, don't assume either is already landed.
+
+## 34. Consumer-app rebuild pass (2026-07-18) + District/Platinumlist feature audit
+
+*Multiple Claude Code sessions worked in this same working tree concurrently
+during this pass — expect to see direct-to-`main` commits under "Dhairya
+Saluja" interleaved with council-workflow commits. That's not drift, it's two
+sessions coordinating live.*
+
+### What shipped, in order, each its own commit on `main`
+
+1. **Home feed rebuild** (`8e009fe`) — personalized-feed HomeFeed.tsx +
+   HorizontalRail.tsx, then **reverted** (`f82360b`) because it showed
+   mostly-empty sections (Recently Viewed/Friends Are Going/Popular
+   Organizers) to any zero-history user — a real regression. **Not
+   re-fixed** — deferred at the user's explicit instruction. If picked back
+   up, the fix is: hide/skip sections that would render empty rather than
+   showing them sparse, and prioritize sections that always have content
+   (Trending/Near You/Tonight/Free) first so new users still see a full feed.
+2. **Search page** (`92a3f24`) — new `/search` route, unified event+venue
+   search, category/when/price bottom-sheet filters, recent + popular
+   searches, lightweight client-side NL query parsing
+   (`src/utils/queryParser.ts` — no LLM). Still live, not reverted.
+3. **Discovery rebuild** (`c26109b`) — category grid + collection rails,
+   then **reverted** (`b29a839`) because it replaced Discover's real
+   Events/Venues toggle + embedded Explore with a standalone icon grid,
+   orphaning the actual search/filter page and the Venues tab. Current
+   `Discover.tsx` is back to the toggle + `<Explore embedded />`, with icon
+   coloring switched from a CSS filter (muddy/unreliable) to a colored glyph,
+   plus a `>=900px` desktop row layout. Don't re-attempt the category-grid
+   replacement — if curated collections (Date Night, Free, etc.) are still
+   wanted, they need to live *alongside* the real Explore page, not replace it.
+4. **Maps page** (`9b5b09a`) — new `/map` route, Google Maps (reuses the
+   existing `google-maps.ts` loader, not a new library), client-side grid
+   clustering (`src/utils/clustering.ts`), `EventPinSheet` bottom sheet on
+   pin tap, opt-in geolocation blue dot. Heatmap, live attendance, and
+   nearby restaurants/parking/hotels are noted as backend/API-scope gaps in
+   `BACKEND_TODO.md`, not built — no Places API wired, no check-in-count
+   endpoint, no attendance model.
+5. **Event Card + Event Page upgrade** (`f49162a`) — real verified/
+   selling-fast/only-N-left badges on `Stub.tsx` (backed by real
+   `organizerVerified`/ticket-inventory fields), a new public
+   `GET /api/event-venues/:id` for parking/accessibility display on
+   EventDetail, a Contact Organizer sheet. A CSS regression from the
+   automated pass (badge-group wrapper broke the old
+   `.ec-card-cover > .ec-badge` direct-child selector) was caught and fixed
+   in the same commit. Reviews, weather, video/reel, AI summary, FAQ are
+   *not* built — no backing data model, intentionally skipped rather than
+   faked.
+6. **AI Concierge** (`64e6882`) — new `/concierge` page + `POST
+   /api/concierge`, genuinely LLM-backed (reuses `server/ai.js`'s existing
+   multi-provider helper), rate-limited 10/15min, every returned event id
+   validated server-side against the real query results before responding
+   (no hallucinated events possible). Restaurant/parking/transport legs of
+   the itinerary are scoped out — no restaurant-specific data model exists.
+7. **Social features (partial)** — Friends page + Who's Going attendee
+   avatars (`b0c8ef1`, by the other session). **Privacy fix applied this
+   session**: the public `/api/events/:id/attendees-summary` endpoint
+   originally returned real attendee full names to *any* unauthenticated
+   caller; changed to compute initials server-side (`server/db.js`
+   `attendeesSummary`) so raw names never leave the server. Group
+   booking/split payments, event chat/comments, stories/post-event photos
+   are **not built** — no real chat/comments/stories data model exists;
+   properly scoping any of these needs a schema migration, not a quick pass.
+
+### District/Platinumlist feature audit (`FEATURES.md`, by the other session)
+
+The user asked for "ALL the features of District and Platinumlist." Before
+building anything, the other session audited the actual schema (130 Prisma
+models) and routes (~200) and found **Weyn already implements essentially the
+entire combined feature set of both** — this is a mature codebase, not one
+missing features. Read `FEATURES.md` in full before adding anything from
+either platform's feature list — check there first, don't re-build something
+that already exists (that's how the App/Discovery reverts above happened).
+
+Only **6 genuine gaps** were identified and built this session (`2a4f508`):
+
+1. **Invoice/receipt PDF** — `server/invoice.js` (pdfkit), buyer route gated
+   on `accessToken` (`GET /api/bookings/:id/invoice.pdf`), organizer route
+   gated on event ownership (`GET /api/events/:id/bookings/:bookingId/invoice.pdf`).
+2. **Paid seat-selection checkout — real bug fix, not a new feature.** The
+   seat picker in `EventDetail.tsx` only ever loaded for free events
+   (`ePayPrice === 0` gate), and `Checkout.tsx` never forwarded the selected
+   seat to the server at all — paid reserved-seating checkout silently
+   dropped the seat. Now: `Checkout.tsx` forwards `selectedSeatId`,
+   `POST /api/events/:id/checkout` atomically claims it (`UPDATE "FloorSeat"
+   ... WHERE status='available'`, preventing double-booking), releases it on
+   payment failure/abandonment, issues a real `Ticket.seatId` row on success.
+3. **Custom booking-form builder** — `Event.checkoutFormFields` (organizer-
+   defined extra fields: text/email/phone/dropdown/checkbox),
+   `Booking.customFieldValues` (buyer answers), validated server-side at
+   checkout, `src/components/CheckoutFormFields.tsx` renders them, `PATCH
+   /api/events/:id/checkout-form` for organizers to edit the field list.
+4. **Multi-currency display polish** — `Event.currency` (real new column,
+   defaults `"OMR"` — FEATURES.md's claim that `Payment.currency` already
+   existed was checked and found **false**, only `Budget.currency` existed).
+   Price displays now read `ev.currency || "OMR"` instead of hardcoding
+   `"OMR"`. Display-only — no FX conversion logic anywhere, amounts stored
+   are unaffected.
+5. Marketing-link (UTM) UI and campaign-send tracking — **verified already
+   built** (`MarketingHub.tsx`'s `UtmLinksSection`), not rebuilt.
+6. Campaign ROI rollup — **not attempted this pass** (see Outstanding below);
+   the underlying `EmailCampaignSend` data has no click/open tracking, only
+   `recipientCount`/`sentAt`, so any "ROI" would be a labeled estimate at
+   best — flagged as a follow-up, not shipped.
+
+**Schema migrations — already applied to production.** Three additive-only
+migrations (`ADD COLUMN ... DEFAULT`, no drops/renames — `Booking.seatIds`,
+`Event.checkoutFormFields` + `Booking.customFieldValues`, `Event.currency`)
+were generated, confirmed with the user, and run against the live prod DB
+(the only `DATABASE_URL` this repo has — see §weyn-prod-ops memory). **Note
+for next session:** the pooled connection string in `.env`
+(`...pooler.supabase.com:6543...?pgbouncer=true`) hangs indefinitely against
+Prisma's migration engine — `prisma migrate deploy` needs the *direct*
+connection (swap port `6543`→`5432`, strip `pgbouncer=true`) or it will sit
+with zero output forever. `prisma generate`/normal app runtime queries are
+fine on the pooled URL; only the migration engine has this problem. This same
+run also picked up one older pending migration (`venue_team_members`) that
+had never been applied before — it's applied now too.
+
+### Outstanding / not done — pick up here
+
+- **UI spacing/polish pass** — the user asked to "fix spacing in the UI and
+  more" in the same request as the feature-gap work. The council run that
+  shipped the 6 gaps (§ above) prioritized the schema/migration work and
+  never reached the spacing pass (no `components.css`/`tokens.css` changes
+  landed in `2a4f508`). Still needed: an audit pass over Explore/Discover,
+  EventDetail, Search, Map, Concierge, Account/You, Tickets against the
+  8pt-grid tokens in `src/styles/tokens.css` — inconsistent padding/margins,
+  misaligned elements, touch targets under 44px.
+- **Campaign ROI rollup** (District/Platinumlist gap #4 above) — not
+  attempted; needs either real click/open tracking added to
+  `EmailCampaignSend` first, or an explicitly-labeled estimate view built
+  on the sparse data that exists (`recipientCount`+`sentAt`+matching
+  bookings by `utmCampaign`/timing) — don't present it as precise ROI.
+- **Home feed regression** (§34.1 above) — deferred at user's request, not
+  forgotten. Needs real always-populated sections, not empty-state handling
+  alone, before it's safe to re-land.
+- **Group booking/split payments, event chat/comments, stories/post-event
+  photos** (Social Features brief section) — none of these have a backing
+  data model. Each needs its own schema migration + real scoping
+  conversation before a build attempt; don't fake any of them with
+  client-only state.
+- **Older, still-pending item from a prior session** (unrelated to this
+  pass): a cleanup on an earlier RBAC/publish/payments council run —
+  verify the event-publish timezone fix end-to-end against a real test
+  event, downgrade `hardFail`'s Sentry logging to non-error level (routine
+  validation rejections shouldn't page anyone), decide finish-or-revert on
+  the half-shipped `VenueTeamMember` RBAC UI (the migration is applied per
+  §34 above, but no Team UI was ever built on top of it), and replace the
+  tautological PayTabs idempotency test (it re-implements the logic instead
+  of testing the real function) with one that exercises the actual closure.
+- **Remaining brief sections never started this pass**: Personal Profile,
+  Tickets (deeper — Apple/Google Wallet, transfer, gift, PDF download, seat
+  selection is now real but the rest of the brief's ticket-section list
+  isn't), Notifications (price drops/selling-fast/etc. beyond what
+  OneSignal §33 already covers), Organizer/Venue dashboard extensions
+  beyond what FEATURES.md found already built, Settings/Trust & Safety/
+  Gamification (streaks/badges/loyalty — `VenueLoyalty` exists per
+  FEATURES.md but no consumer-facing gamification UI does).
