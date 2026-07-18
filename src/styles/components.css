@@ -933,7 +933,7 @@
 /* full-page tab/route skeleton layouts — mirror each tab's real chrome so
    the swap into the loaded page has no layout jump. */
 .skel-page { animation: fade .2s ease; padding-bottom: 8px; }
-.sk-search { display: block; height: 40px; border-radius: 999px; margin: 8px 12px 0; }
+.sk-search { display: block; height: 40px; border-radius: 999px; margin: 8px 16px 0; }
 .skel-cats { display: flex; gap: 10px; padding: 8px 16px 4px; }
 .sk-cat { width: 52px; height: 52px; border-radius: 50%; flex: 0 0 auto; }
 .sk-hero { display: block; margin: 12px 16px 0; aspect-ratio: 4/5; border-radius: var(--radius-lg); }
