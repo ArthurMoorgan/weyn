@@ -3592,4 +3592,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+.page-top-bar-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: var(--t-caption);
+  font-weight: 600;
+}
+.page-top-bar-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
