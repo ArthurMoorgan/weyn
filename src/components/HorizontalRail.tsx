@@ -78,7 +78,7 @@ const stubPlaceholder: Weyn = {
   capacity: 0,
   sold: 0,
   image: null,
-  color: "#3A3A3A",
+  color: "#3A3A3A", // mirrors tokens.css's --cat-music; unused for styling (see Stub.tsx's greyscale-system note), placeholder-shape only
   glyph: "music",
   blurb: "",
   tags: [],

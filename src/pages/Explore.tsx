@@ -61,8 +61,10 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
   const coverStyle: React.CSSProperties = e.image
     ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
     // Greyscale system: ignore the server-stored per-event hue — same
-    // category-grey treatment as Stub.tsx's fallback covers.
-    : { background: `linear-gradient(150deg, var(--cat-${e.cat}, #3A3A3A), var(--fallback-scrim))` };
+    // category-grey treatment as Stub.tsx's fallback covers. Fallback
+    // references --cat-music itself (not a duplicated hex) so it can't
+    // silently drift from that token.
+    : { background: `linear-gradient(150deg, var(--cat-${e.cat}, var(--cat-music)), var(--fallback-scrim))` };
   return (
     <MotionLink to={`/e/${e.id}`} layoutId={`event-cover-${e.id}`} onPointerDown={preloadEventDetail} onMouseEnter={preloadEventDetail} className="ex-hero-card" style={coverStyle}>
       {/* Editorial handoff: a "FEATURED" pill badge top-left — pixel-checked

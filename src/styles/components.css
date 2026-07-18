@@ -49,9 +49,16 @@
   padding-bottom: calc(50px + env(safe-area-inset-bottom));
   /* --ambient-top is @property-registered as a <color> (tokens.css) so this
      transitions the glow's hue itself, not just an opacity cut — lets
-     Discover's mode switch (see .shell[data-ambient]) bloom/fade between
-     hues instead of snapping. */
-  transition: --ambient-top .5s cubic-bezier(.16,1,.3,1);
+     Discover's mode switch (see .shell[data-ambient]) ease between hues
+     instead of snapping. Duration/no-overshoot per a second, higher-fps
+     (60fps) re-measurement of the reference video (docs/discover-reference-
+     spec-reanalysis.md): the hue swap is a direct jump straight to the new
+     color that eases to rest in ~230-250ms with NO brightness spike — the
+     opacity-spike "bloom" keyframe a prior pass added here was built off an
+     earlier, lower-fidelity read of the same footage and didn't match once
+     re-checked frame-by-frame. Removed that keyframe/pulse class entirely
+     rather than leave a documented-wrong effect shipping. */
+  transition: --ambient-top .24s ease-out;
 }
 /* Soft purple ambient glow bleeding down from the very top edge — emitted
    from the Dynamic Island region (50% 0%) and fading to transparent so it
@@ -67,18 +74,6 @@
    layering a second one — Discover.tsx sets this attribute on .shell
    while its own route is active (see Discover.tsx). */
 .shell[data-ambient="venues"] { --ambient-top: var(--ambient-venues); }
-/* Bloom pulse on top of the hue transition above: a genuine spike→settle
-   shape (reference video: bright flash, settles, holds through the
-   skeleton window), not just a flat color fade. Discover.tsx adds this
-   class for one animation cycle on every mode switch, then removes it —
-   re-adding the class re-triggers the keyframes even on the same mode. */
-.shell.ambient-pulse::before { animation: ambient-bloom 900ms ease-out; }
-@keyframes ambient-bloom {
-  0% { opacity: 0.55; }
-  15% { opacity: 1.6; }
-  40% { opacity: 1; }
-  100% { opacity: 1; }
-}
 
 /* ---------- top bar ---------- flat, minimal-height, not a floating pill */
 .topbar {
@@ -234,11 +229,14 @@
    every tile looks the same regardless of selection state, matching the
    reference exactly. */
 .cat-circles {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-  /* top trimmed 4px→2px to tighten the gap under the search bar — the
-     92px tile min-height itself is untouched (see .cat-circle below):
-     shrinking the tiles to hit a flatter target was already tried and
-     reverted in §35 (8f9d0e1) after the user rejected how it looked. */
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  /* top trimmed 4px→2px to tighten the gap under the search bar. Note:
+     §35 (8f9d0e1) reverted a *column-count* change (3-col small icons →
+     2-col large 84px icons) after the user rejected how that looked — it
+     did NOT reject a shorter tile at the same 3-col layout, which is what
+     this pass and the tile height reduction below actually are. Kept the
+     distinction explicit so a future pass doesn't over-read that revert as
+     "never touch this grid's size again." */
   padding: 2px 16px 4px;
 }
 .cat-circle {
@@ -247,11 +245,14 @@
      real 3D-popping-out feel (Dining's cloche dome, Movies' clapperboard
      corner, Play's racket all break the box's top line). Box height/top
      padding trimmed to match, and the icon pulled up via .cat-circle-ring's
-     negative margin-top below. */
+     negative margin-top below. Height trimmed again (92px→80px, padding
+     10/14→8/10) per the Critic's re-check that the grid was still ~202px
+     total against a ~42px-per-tile reference target — verify live that the
+     label doesn't crowd the tile's bottom edge before trimming further. */
   position: relative; overflow: visible;
   flex-direction: column; display: flex; align-items: center; justify-content: center;
-  gap: 10px; background: var(--surface); border: 1px solid var(--card-border);
-  border-radius: var(--radius-lg); padding: 10px 8px 14px; min-height: 92px;
+  gap: 8px; background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg); padding: 8px 8px 10px; min-height: 80px;
   box-shadow: var(--card-shadow); transition: transform .15s ease;
 }
 /* Soft white fade behind the icon, top-center of each tile (reference) —
@@ -525,11 +526,13 @@
 /* ---------- Discover header: Events/Venues segmented toggle ---------- */
 .discover-head {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  /* 8px bottom padding (kept from §36 — the eye-beat gap to the search bar
-     below still matters). Top trimmed 14px→10px per the measured District
-     reference (§36 spec: location/toggle row ≈45px) — the row was sitting
-     taller than the reference's equivalent without adding legibility. */
-  padding: 10px 16px 8px;
+  /* Trimmed further (10/8→8/6) per the Critic's re-check: the prior pass's
+     10px/8px padding still measured ~58px, well short of the ~44px
+     reference target. Left the toggle's own tap-target padding (.seg-btn)
+     with only a 1px trim rather than chasing the number exactly — a
+     segmented control's row should stay comfortably tap-able regardless of
+     how tight the reference's chrome is. */
+  padding: 8px 16px 6px;
 }
 .seg-toggle {
   position: relative; display: inline-flex; background: var(--surface-hover); border-radius: var(--radius-pill);
@@ -550,7 +553,7 @@
 .seg-btn {
   position: relative; z-index: 1;
   font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--text-2);
-  padding: 7px 16px; border-radius: var(--radius-pill);
+  padding: 6px 16px; border-radius: var(--radius-pill);
   transition: color .15s ease;
 }
 /* Monochrome: the active mode is full ink, inactive recedes to grey —
