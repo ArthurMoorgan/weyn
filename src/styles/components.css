@@ -203,12 +203,15 @@
    the whole point of this pass, so color is spent only on the one selected
    chip, nothing else. Row is shorter now (no permanent labels under every
    icon), reclaiming vertical space for the events themselves. */
-/* Niche grid: 3-column grid of dark tiles, each carrying its own category
-   color directly on the icon glyph (see .cat-circle-ring i below) —
-   replaces the earlier monochrome horizontal-scroll rail. Reference: dark
-   near-black cards, colorful icon per niche, label under the icon, 3 per
-   row on mobile; widens to a single row on desktop (see the 900px block
-   at the end of this section). */
+/* Niche grid: 3-column grid of dark tiles, each carrying its own colorful
+   3D icon render (see Icon3D) — replaces the earlier monochrome
+   horizontal-scroll rail. Reference: uniform dark near-black cards, no
+   selected-state outline/tint — color lives only in the icon art itself,
+   label under the icon, 3 per row on mobile; widens to a single row on
+   desktop (see the 900px block at the end of this section). Deliberately
+   NOT styling .on with a colored border/tint per direct user request —
+   every tile looks the same regardless of selection state, matching the
+   reference exactly. */
 .cat-circles {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
   padding: 4px 20px 4px;
@@ -217,19 +220,8 @@
   flex-direction: column; display: flex; align-items: center; justify-content: center;
   gap: 10px; background: var(--surface); border: 1px solid var(--card-border);
   border-radius: var(--radius-lg); padding: 18px 8px 14px; min-height: 108px;
-  box-shadow: var(--card-shadow);
-  transition: transform .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
+  box-shadow: var(--card-shadow); transition: transform .15s ease;
 }
-/* Selected niche: the tile fills with a wash of its own category color and
-   grows an accent ring, so which category is filtering the feed is obvious
-   at a glance (there was previously no .on styling at all — the class was
-   applied in JSX but had no visual). --tile-cat is set inline per tile. */
-.cat-circle.on {
-  border-color: var(--tile-cat, var(--accent));
-  background: color-mix(in srgb, var(--tile-cat, var(--accent)) 14%, var(--surface));
-  box-shadow: inset 0 0 0 1px var(--tile-cat, var(--accent)), var(--card-shadow);
-}
-.cat-circle.on .cat-circle-label { color: var(--tile-cat, var(--accent)); }
 .cat-circle-ring {
   width: 52px; height: 52px;
   display: grid; place-items: center; flex: 0 0 auto;
@@ -251,7 +243,6 @@
   .cat-circle { padding: 22px 10px 16px; min-height: 124px; }
   .cat-circle:hover { transform: translateY(-2px); }
   .cat-circle-ring { width: 60px; height: 60px; }
-  .cat-circle-ring i { font-size: 28px; }
 }
 
 /* ---------- date section header ---------- */
@@ -3575,5 +3566,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+.page-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 

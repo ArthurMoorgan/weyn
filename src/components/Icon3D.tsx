@@ -1,12 +1,9 @@
-// Uber-style 3D category icons — real monochrome silver/white product
-// renders (soft studio lighting, contact shadows), generated as one sprite
-// sheet, chroma-keyed to transparency, and sliced into per-category WebP
-// assets in public/icons3d/ (~8-16KB each, 256×256 with alpha).
-//
-// Replaces the earlier hand-drawn SVG pseudo-3D set, which read as flat
-// clip-art next to the Uber reference. Same component API as before, so
-// call sites (Discover's category circles, Stub's fallback event covers)
-// didn't need to change.
+// Uber-style 3D category icons — colorful glossy product renders (soft
+// studio lighting, one real hue per category), generated as one sprite
+// sheet, color-keyed to transparency, and sliced into per-category WebP
+// assets in public/icons3d/ (~8-16KB each, 256×256 with alpha). Replaced
+// the original monochrome silver/white batch per direct user request —
+// same component API, so call sites didn't need to change.
 
 export type Icon3DName =
   | "all" | "music" | "sports" | "food" | "culture" | "workshop" | "community";

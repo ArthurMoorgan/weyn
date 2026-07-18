@@ -117,18 +117,6 @@
   --cat-culture: #333333; --cat-cars: #3F3F3F; --cat-workshop: #383838;
   --cat-community: #2B2B2B;
 
-  /* Niche-grid tile accents — real hue per category, colors the icon glyph
-     directly on the discovery grid's dark tiles (reference: colorful
-     category cards on a near-black canvas). Kept separate from --cat-*
-     above so the monochrome fallback-cover system is untouched. */
-  --tile-all:       #8A8AFF;
-  --tile-music:     #B24CFF;
-  --tile-sports:    #FF6A3D;
-  --tile-food:      #FF4D6D;
-  --tile-culture:   #FFC24C;
-  --tile-workshop:  #4CFFB0;
-  --tile-community: #4C7FFF;
-
   /* fallback scrim used by Stub.tsx cover gradients */
   --fallback-scrim: rgba(0,0,0,0.35);
 

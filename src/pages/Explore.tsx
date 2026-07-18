@@ -428,18 +428,14 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               <motion.button
                 key={c.key}
                 className={"cat-circle" + (isOn ? " on" : "")}
-                style={{ "--tile-cat": `var(--tile-${c.key})` } as React.CSSProperties}
                 onClick={() => setCat(c.key as Cat | "all")}
                 aria-pressed={isOn}
                 aria-label={c.label}
                 whileTap={{ scale: 0.96 }}
               >
-                {/* Uber-style photographic 3D niche renders (see Icon3D) —
-                    the same silver/white product shots the event cards use
-                    for their fallback covers, so the category grid and the
-                    feed share one visual language. Selection reads through
-                    the tile's own .on state (accent border + tint) rather
-                    than tinting the render itself. */}
+                {/* Colorful photographic 3D niche renders (see Icon3D) —
+                    every tile looks the same regardless of selection state,
+                    matching the reference exactly (no colored outline). */}
                 <motion.span
                   className="cat-circle-ring"
                   animate={{ scale: isOn ? 1.06 : 1 }}
