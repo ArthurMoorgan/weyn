@@ -135,9 +135,15 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
             as a real card's peek gap, not decorative. */}
         <div className="ex-spotlight-spacer" aria-hidden="true" />
         {events.map((ev) => (
-          <div className="ex-spotlight-slide" key={ev.id}>
+          <motion.div
+            className="ex-spotlight-slide"
+            key={ev.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
             <HeroSlide e={ev} showBadge />
-          </div>
+          </motion.div>
         ))}
         <div className="ex-spotlight-spacer" aria-hidden="true" />
       </div>
@@ -453,6 +459,9 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 onClick={() => setCat(c.key as Cat | "all")}
                 aria-pressed={isOn}
                 aria-label={c.label}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
                 whileTap={{ scale: 0.96 }}
               >
                 {/* Colorful photographic 3D niche renders (see Icon3D) —
@@ -552,7 +561,13 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
       {/* ---- search results: dense list ---- */}
       {!loading && !error && S.mode === "search" && (
         S.results.length ? (
-          <div className="ex-list">{S.results.map((e) => <Stub key={e.id} e={e} />)}</div>
+          <div className="ex-list">
+            {S.results.map((e) => (
+              <motion.div key={e.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }}>
+                <Stub e={e} />
+              </motion.div>
+            ))}
+          </div>
         ) : (
           <div className="empty"><div className="ic"><i className="icon-search-x" /></div><p>No matches for "{q}".</p></div>
         )
