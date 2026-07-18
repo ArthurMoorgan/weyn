@@ -5,6 +5,15 @@
    changes. See src/index.css for the v9 overhaul history.
    ============================================================ */
 
+/* Registered so --ambient-top can be transitioned like a normal color
+   (browsers only animate custom properties whose type is declared) — lets
+   .shell's per-tab hue swap bloom/fade instead of cutting instantly. */
+@property --ambient-top {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
 :root {
   color-scheme: dark;
   /* Monochrome system (Uber/Apple direction): one neutral grey family on
@@ -124,6 +133,10 @@
      purple radial bleeding down from the very top edge (the Dynamic Island
      region), fading to transparent so it melts into --bg. Drives .shell::before. */
   --ambient-top: rgba(139, 61, 255, 0.30);
+  /* Discover's Venues mode swaps --ambient-top to this teal via
+     .shell[data-ambient="venues"] (components.css) — same shape/alpha as
+     the purple default, only the hue differs. */
+  --ambient-venues: rgba(30, 175, 190, 0.30);
 
   /* Tab-switch spark burst (see .tab-spark below) */
   --spark-color-1: var(--primary);
@@ -203,6 +216,8 @@
   --fallback-scrim: rgba(0,0,0,0.1);
   /* Lighter, gentler purple on the white canvas so it reads as a tint, not a stain. */
   --ambient-top: rgba(139, 61, 255, 0.14);
+  /* Same teal as dark theme, same lower alpha step as --ambient-top gets. */
+  --ambient-venues: rgba(30, 175, 190, 0.14);
 
   --spark-color-1: var(--primary);
   --spark-color-2: var(--primary-hover);

@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState } from "react";
-import { Link } from "react-router-dom";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import Explore from "./Explore";
 import Skeleton from "../components/Skeleton";
 import UserAvatar from "../components/UserAvatar";
@@ -12,9 +12,47 @@ import { useAccount } from "../store";
 // stays lazy: a visitor who never flips to Venues never downloads it.
 const Reservations = lazy(() => import("./Reservations"));
 
+// How long the toggle-switch skeleton stays up before crossfading to real
+// content. A flash under ~250ms doesn't register as a loading state on
+// screen (or in a screenshot) — it just reads as a glitch — so this floors
+// the skeleton's visible time regardless of how fast the target mode's
+// content actually is. For Venues' first-ever visit, the lazy chunk can
+// still take longer than this to download: Suspense's own fallback (the
+// same "discover" skeleton) keeps covering that case once this timer ends.
+const SWITCH_SKELETON_MS = 380;
+
 export default function Discover() {
   const [mode, setMode] = useState<"events" | "venues">("events");
+  const [switching, setSwitching] = useState(false);
   const account = useAccount();
+  const location = useLocation();
+
+  // Re-hue .shell's ambient glow (see .shell::before, components.css) to
+  // match whichever mode is active — Discover stays mounted once visited
+  // (see App.tsx's MAIN_TABS), so this only touches the shared glow while
+  // Discover's own route is on screen, and hands it back to the default
+  // purple the moment the visitor navigates to another bottom tab.
+  useEffect(() => {
+    if (location.pathname !== "/") return;
+    const shell = document.querySelector(".shell");
+    shell?.setAttribute("data-ambient", mode);
+    return () => shell?.removeAttribute("data-ambient");
+  }, [mode, location.pathname]);
+
+  // Every Events⇄Venues switch briefly shows a skeleton before crossfading
+  // to real content, matching the reference video's every-switch behavior
+  // (not just Venues' first, chunk-download visit).
+  useEffect(() => {
+    if (!switching) return;
+    const t = setTimeout(() => setSwitching(false), SWITCH_SKELETON_MS);
+    return () => clearTimeout(t);
+  }, [switching]);
+
+  function selectMode(next: "events" | "venues") {
+    if (next === mode) return;
+    setMode(next);
+    setSwitching(true);
+  }
 
   return (
     <>
@@ -29,7 +67,7 @@ export default function Discover() {
             role="tab"
             aria-selected={mode === "events"}
             className={"seg-btn seg-btn-events" + (mode === "events" ? " on" : "")}
-            onClick={() => setMode("events")}
+            onClick={() => selectMode("events")}
           >
             Events
           </button>
@@ -37,7 +75,7 @@ export default function Discover() {
             role="tab"
             aria-selected={mode === "venues"}
             className={"seg-btn seg-btn-venues" + (mode === "venues" ? " on" : "")}
-            onClick={() => setMode("venues")}
+            onClick={() => selectMode("venues")}
           >
             Venues
           </button>
@@ -52,15 +90,22 @@ export default function Discover() {
       {/* key={mode} + .discover-mode's rise-in animation (same entrance
           motion as feed cards elsewhere) gives the Events/Venues content
           swap a real transition instead of an instant hard cut, matching
-          the thumb slide above it. */}
+          the thumb slide above it. The inner key (loading vs. ready)
+          remounts separately from that, so the skeleton-to-content swap
+          gets its own crossfade instead of jumping straight to real
+          content mid rise-in. */}
       <div key={mode} className="discover-mode">
-        {mode === "events" ? (
-          <Explore embedded />
-        ) : (
-          <Suspense fallback={<Skeleton variant="discover" />}>
-            <Reservations embedded />
-          </Suspense>
-        )}
+        <div key={switching ? "loading" : "ready"} className="discover-mode-frame">
+          {switching ? (
+            <Skeleton variant="discover" />
+          ) : mode === "events" ? (
+            <Explore embedded />
+          ) : (
+            <Suspense fallback={<Skeleton variant="discover" />}>
+              <Reservations embedded />
+            </Suspense>
+          )}
+        </div>
       </div>
     </>
   );
