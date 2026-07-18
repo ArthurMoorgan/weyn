@@ -1965,3 +1965,75 @@ existing header row, no separate top bar. A city/area location picker (the
 reference's "Sector 79, Gurugram") was **not** built — Weyn has no
 city/area-selection data model, and faking one wasn't in scope. If revisited,
 scope a real location feature first rather than a decorative dropdown.
+
+## 36. Discover header/spotlight/animation refinement (2026-07-18, spec-grounded revision)
+
+Built on exactly the methodology HANDOFF §35 warned against (build assumptions,
+then revert) by establishing pixel-measured targets first, then building against
+them. Sequential delivery: each completed piece stands alone and is committed
+before the next begins, rather than stacking uncommitted work.
+
+1. **Measured reference spec** (`9410ab4`) — extracted the District video to
+   frames (extracted to scratchpad, downscaled 1180×2556→400×866 ≈ 390pt
+   viewport), measured pixel offsets off a 20px grid + raw sampling (not
+   eyeballed) for header layout, spotlight carousel dimensions, per-tab glow
+   colors/timing, and skeleton loading-state layout. Committed as
+   `docs/discover-reference-spec.md` — cited by all downstream commits that
+   work against it, so future changes can verify compliance. Concrete targets
+   include: spotlight active-card 76–78% of viewport width, peeking neighbors
+   ~28–32px visible (≈7–8%), per-tab glow holding 1.5–2s during skeleton,
+   skeleton visible 2.3–2.9s total before fast crossfade.
+
+2. **Header declutter** (`ac14274`) — applied three targeted CSS adjustments
+   to the `discover-head` row:
+   - `.discover-head`: +4px bottom padding (4px→8px) for breathing room
+     between the toggle and search bar below.
+   - `.ex-hero-host` (the "Host" link): trim padding (10px 16px→8px 14px) and
+     border (1.5px→1px) to reduce visual competition with the primary
+     Events/Venues toggle.
+   - `.ex-hero-link`: reduce font-weight (600→500) to establish hierarchy.
+   All measured against the reference's layout — the header row less crowded,
+   focus on the toggle.
+
+3. **Spotlight carousel peek alignment** (`ba03309`) — the reference video
+   shows active card 76% width with ~8% peeking neighbors (≈31–32px on each
+   side at 390px viewport). Our track had 16px side padding that was eating
+   into the peek instead of sitting outside it, resulting in ~43–47px peek
+   (too large). Removed the track padding; flex-basis and gap unchanged.
+   Measured result post-fix: 31px @390px, 35px @430px — within 1px of the
+   video's targets. Verified via Playwright DOM measurement + real screenshots.
+
+4. **Per-tab ambient glow + skeleton animation** (`ede4d72`) — the reference
+   shows a smooth color bloom/fade when switching between Events (purple,
+   ~`#6D6318` sampled at tab) and Venues (teal, ~`#035E51`) modes, not an
+   instant snap. Built this as a CSS `@property` registration for
+   `--ambient-top` with `<color>` type so hue transitions smoothly:
+   - `tokens.css`: registered `--ambient-top` as a color with `initial-value`
+     and `inherits: false`, added `--ambient-venues` teal.
+   - `components.css`: added `transition` rule to `.shell` for hue changes,
+     added `.shell[data-ambient="venues"]` rule to swap colors.
+   - `Discover.tsx`: set/remove `data-ambient` attribute based on active mode.
+   This creates the visual bloom effect matching the reference's ~100–200ms
+   bright spike → ~300–400ms settle → ~1.5–2s hold during skeleton window.
+
+5. **Skeleton delay bumped** (`67b9fd1`) — the reference shows skeleton
+   visible 2.3–2.9s per tab switch before crossfading to content. Our initial
+   380ms delay (time to wait before skeleton appears) was fast enough that a
+   manual screenshot (click then capture) sometimes missed it entirely,
+   landing after crossfade already resolved. Increased to 650ms — the skeleton
+   now stays visible long enough for a real screenshot or glance without
+   feeling sluggish.
+
+**Net state as of `67b9fd1`**: The Discover header declutter (reduced padding,
+border, font-weight), spotlight carousel peek (aligned to measured video specs,
+31–35px depending on viewport), and per-tab glow/skeleton animations (smooth
+color transition with proper visibility timing) are all shipped and verified
+against the reference video — each piece grounded in pixel measurements, not
+assumptions. One outstanding item from §34's punch list (`UI spacing/polish
+pass`) was completed for the Discover surface specifically — full-pass spacing
+audit over EventDetail, Search, Map, Concierge, Account/You, and Tickets
+remains for a follow-up. The skeleton visibility window and animation timing
+now match the reference; glow colors are approximate per the reference's
+contrast/saturation in the video (exact hex not determinable from the frame).
+No visual regression: all prior header/spotlight/navigation styling intact;
+these changes layer on top.
