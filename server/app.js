@@ -883,7 +883,9 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
       // existence, is what the pipeline gates. See server/moderation.js.
       const moderation = await runModerationPipeline(ev, { triggeredBy: "publish" });
       if (moderation.hardFail) {
-        captureError(new Error("Event publish hardFail"), { route: "POST /api/events", eventId: ev.id, hardFail: moderation.hardFail, startsAt: ev.startsAt, nowIso: new Date().toISOString() });
+        // Routine validation rejection (bad title/date/price etc), not a
+        // real error — worth seeing in Sentry, not worth paging anyone.
+        captureWarning("Event publish hardFail", { route: "POST /api/events", eventId: ev.id, hardFail: moderation.hardFail, startsAt: ev.startsAt, nowIso: new Date().toISOString() });
         return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `Couldn't publish: ${moderation.hardFail.join(", ")}` } });
       }
 
@@ -919,7 +921,8 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
     if (!req.event.isDraft) return res.json(req.event);
     const moderation = await runModerationPipeline(req.event, { triggeredBy: "publish" });
     if (moderation.hardFail) {
-      captureError(new Error("Event publish hardFail"), { route: "POST /api/events/:id/publish", eventId: req.event.id, hardFail: moderation.hardFail, startsAt: req.event.startsAt, nowIso: new Date().toISOString() });
+      // Same as POST /api/events above — routine rejection, warning not error.
+      captureWarning("Event publish hardFail", { route: "POST /api/events/:id/publish", eventId: req.event.id, hardFail: moderation.hardFail, startsAt: req.event.startsAt, nowIso: new Date().toISOString() });
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `Couldn't publish: ${moderation.hardFail.join(", ")}` } });
     }
     const updated = await db.update(req.event.id, { isDraft: false, discoveryStatus: moderation.discoveryStatus, draftData: null });
