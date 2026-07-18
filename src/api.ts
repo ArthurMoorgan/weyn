@@ -24,6 +24,16 @@ export interface Tier {
   releaseAt?: string | null;
 }
 
+// Custom booking-form builder — see Event.checkoutFormFields / PATCH
+// /api/events/:id/checkout-form. "options" only applies to type "dropdown".
+export interface CheckoutFormField {
+  id: string;
+  type: "text" | "email" | "phone" | "dropdown" | "checkbox";
+  label: string;
+  required: boolean;
+  options?: string[];
+}
+
 export interface EventVenue {
   id: string;
   organizerId: string;
@@ -198,6 +208,7 @@ export interface Weyn {
   lng: number;
   distanceKm: number;
   price: number;          // OMR, 0 = free
+  currency?: string;      // display label only — no conversion, defaults to "OMR"
   capacity: number;
   sold: number;
   image: string | null;   // /uploads/xxx or null
@@ -231,6 +242,10 @@ export interface Weyn {
   // not part of the Event row itself, see GET /api/events/:id.
   hideWeynBranding?: boolean;
   tiers?: Tier[];         // multiple ticket types (weyn ticketing only)
+  // Custom booking-form builder: ordered extra fields collected below the
+  // tier/qty picker at book/checkout time (see EventDetail.tsx/Checkout.tsx).
+  // Empty/absent = no extra fields.
+  checkoutFormFields?: CheckoutFormField[];
   sourceUrl?: string | null;
   importedFromInstagram?: boolean;
   // Real signals, not yet populated by the backend — the UI supports them so
@@ -468,6 +483,19 @@ export interface EmailCampaignSend {
   bodyHtml: string;
   recipientCount: number;
   sentAt: string;
+}
+
+// Best-effort revenue-attribution row for one EmailCampaignSend — see
+// GET /api/organizer/marketing/campaign-roi. Not real click/open tracking,
+// just "bookings placed in the window after this send".
+export interface CampaignRoi {
+  id: string;
+  eventId: string | null;
+  subject: string;
+  sentAt: string;
+  recipientCount: number;
+  bookingCount: number;
+  attributedRevenue: number;
 }
 
 export type PersuasionAngle = "scarcity" | "social_proof" | "urgency" | "exclusivity";
@@ -1168,20 +1196,20 @@ export const api = {
   // the event (see server/app.js's POST /api/events/:id/book) — the type
   // here previously said Promise<Weyn>, silently hiding them, which is
   // exactly why free RSVPs had a bookingId to persist but never did.
-  bookEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string, inviteCode?: string, seatIds?: string[]): Promise<Weyn & { bookingId: string; accessToken: string }> {
+  bookEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string, inviteCode?: string, seatIds?: string[], customFieldValues?: Record<string, string | boolean>): Promise<Weyn & { bookingId: string; accessToken: string }> {
     return fetch(`${API_BASE}/api/events/${id}/book`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, seatIds, ...getStoredUtm(id) }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, seatIds, customFieldValues, ...getStoredUtm(id) }),
     }).then((r) => json<Weyn & { bookingId: string; accessToken: string }>(r)).then(absMedia);
   },
   // paid tickets: returns a hosted Thawani checkout URL to redirect to — the
   // ticket isn't actually booked until Thawani confirms payment (see BookingStatus)
-  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string, inviteCode?: string, promoCode?: string): Promise<{ checkoutUrl: string; bookingId: string; accessToken?: string }> {
+  checkoutEvent(id: string, qty = 1, deviceId?: string, account?: Account | null, tierId?: string, inviteCode?: string, promoCode?: string, seatIds?: string[], customFieldValues?: Record<string, string | boolean>): Promise<{ checkoutUrl: string; bookingId: string; accessToken?: string }> {
     return fetch(`${API_BASE}/api/events/${id}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, promoCode, ...getStoredUtm(id) }),
+      body: JSON.stringify({ qty, deviceId, email: account?.email, name: account?.name, tierId, inviteCode, promoCode, seatIds, customFieldValues, ...getStoredUtm(id) }),
     }).then((r) => json(r));
   },
   getBooking(bookingId: string): Promise<BookingStatus> {
@@ -1308,6 +1336,13 @@ export const api = {
       headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify(patch),
     }).then((r) => json<Weyn>(r)).then(absMedia);
+  },
+  async updateCheckoutFormFields(id: string, fields: CheckoutFormField[]): Promise<{ id: string; checkoutFormFields: CheckoutFormField[] }> {
+    return fetch(`${API_BASE}/api/events/${id}/checkout-form`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify({ fields }),
+    }).then((r) => json(r));
   },
   async cancelEvent(id: string): Promise<Weyn> {
     return fetchWithTimeout(`${API_BASE}/api/events/${id}/cancel`, { method: "POST", headers: await authHeaders() }).then((r) => json<Weyn>(r)).then(absMedia);
@@ -1465,6 +1500,9 @@ export const api = {
   },
   async listEmailCampaignSends(): Promise<EmailCampaignSend[]> {
     return fetch(`${API_BASE}/api/organizer/email-campaign-sends`, { headers: await authHeaders() }).then((r) => json(r));
+  },
+  async campaignRoi(): Promise<CampaignRoi[]> {
+    return fetch(`${API_BASE}/api/organizer/marketing/campaign-roi`, { headers: await authHeaders() }).then((r) => json(r));
   },
 
   // ---- Growth tools ----

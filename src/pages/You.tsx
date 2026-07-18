@@ -176,9 +176,9 @@ function OverviewTab({ account, tickets, saved, isHost, summary, onNavigate }: {
 
       {!isHost && (
         <section>
-          <div className="host-cta" style={{ margin: "18px 16px 0" }}>
+          <div className="host-cta" style={{ margin: "16px 16px 0" }}>
             <div><b>Running an event?</b><span>Publish it free and track sales here.</span></div>
-            <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "11px 16px" }}><i className="icon-plus" /> Host</Link>
+            <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "12px 16px" }}><i className="icon-plus" /> Host</Link>
           </div>
         </section>
       )}
@@ -283,7 +283,7 @@ function CollectionsSection() {
   return (
     <section>
       <div className="date-head"><h2>My lists</h2><span>{data?.length || 0}</span></div>
-      <div style={{ display: "flex", gap: 8, padding: "0 16px 10px" }}>
+      <div style={{ display: "flex", gap: 8, padding: "0 16px 8px" }}>
         <input
           className="toolbar-field"
           value={name}
@@ -313,7 +313,7 @@ function CollectionsSection() {
           ))}
         </ul>
       ) : (
-        <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 16px 10px" }}>No lists yet — group events you want to remember or share.</p>
+        <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 16px 8px" }}>No lists yet — group events you want to remember or share.</p>
       )}
     </section>
   );

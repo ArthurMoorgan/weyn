@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, captureUtmFromUrl, type Weyn } from "../api";
+import { api, CATS, ticketsLeft, isSoldOut, dayLabel, timeLabel, captureUtmFromUrl, type Weyn, type CheckoutFormField } from "../api";
+import CheckoutFormFields from "../components/CheckoutFormFields";
 import { useAsync, useClosing } from "../hooks";
 import { addRecentlyViewed } from "../hooks/useRecentlyViewed";
 import { isSaved, toggleSave, useSaved, addTicket, ticketFor, getDeviceId, useAccount } from "../store";
@@ -82,18 +83,16 @@ export default function EventDetail() {
   // `booked`-aware `ev` derived below — `booked` can't be set yet this
   // early in the component's life) so they run on every render regardless
   // of loading state.
-  const eHasTiers = (e?.tiers?.length ?? 0) > 0;
-  const eSelectedTier = eHasTiers ? e!.tiers!.find((t) => t.id === tierId) || null : null;
-  const ePayPrice = eHasTiers ? (eSelectedTier?.price ?? 0) : (e?.price ?? 0);
   const seatMapQuery = useAsync(
-    () => (e && ePayPrice === 0 ? api.eventSeatMap(e.id).then((p) => (p.mode === "seat" ? p : null)).catch(() => null) : Promise.resolve(null)),
-    [e?.id, ePayPrice]
+    () => (e ? api.eventSeatMap(e.id).then((p) => (p.mode === "seat" ? p : null)).catch(() => null) : Promise.resolve(null)),
+    [e?.id]
   );
   const venueQuery = useAsync(
     () => (e?.venueProfileId ? api.getEventVenue(e.venueProfileId).catch(() => null) : Promise.resolve(null)),
     [e?.venueProfileId]
   );
   const [selectedSeatId, setSelectedSeatId] = useState<string | null>(null);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string | boolean>>({});
 
   if (loading) return (
     <div className="detail">
@@ -166,6 +165,8 @@ export default function EventDetail() {
   async function book() {
     if (hasTiers && !selectedTier) { setBookErr("Choose a ticket type first."); return; }
     if (seatMapQuery.data && !selectedSeatId) { setBookErr("Pick a seat first."); return; }
+    const missingField = (ev.checkoutFormFields || []).find((f) => f.required && f.type !== "checkbox" && !String(customFieldValues[f.id] || "").trim());
+    if (missingField) { setBookErr(`${missingField.label} is required.`); return; }
     setBooking(true); setBookErr("");
     try {
       if (ev.ticketingType === "organizer_payment") {
@@ -182,7 +183,7 @@ export default function EventDetail() {
         // paid ticket: redirect to Thawani's hosted checkout — the booking is
         // only confirmed once payment succeeds (see /checkout/success), so
         // there's nothing to show optimistically here.
-        const { checkoutUrl } = await api.checkoutEvent(ev.id, qty, getDeviceId(), account, selectedTier?.id, inviteCode);
+        const { checkoutUrl } = await api.checkoutEvent(ev.id, qty, getDeviceId(), account, selectedTier?.id, inviteCode, undefined, undefined, customFieldValues);
         window.location.href = checkoutUrl;
         return;
       }
@@ -192,7 +193,7 @@ export default function EventDetail() {
       // pre-book state (and undo the local ticket-list write) on failure.
       setBooked(ev);
       try {
-        const confirmed = await api.bookEvent(ev.id, qty, getDeviceId(), account, selectedTier?.id, inviteCode, selectedSeatId ? [selectedSeatId] : undefined);
+        const confirmed = await api.bookEvent(ev.id, qty, getDeviceId(), account, selectedTier?.id, inviteCode, selectedSeatId ? [selectedSeatId] : undefined, customFieldValues);
         setBooked(confirmed);
         addTicket(ev.id, confirmed.bookingId, confirmed.accessToken);
         capture("ticket_booked", { eventId: ev.id, bookingId: confirmed.bookingId, paid: false });
@@ -313,29 +314,29 @@ export default function EventDetail() {
           <div className="fact"><i className="icon-calendar-days" /><div><b>{dayLabel(ev)} · {timeLabel(ev)}</b><span>Add to your calendar after you book</span></div></div>
           <div className="fact"><i className="icon-map-pin" /><div><b>{ev.venue}</b><span>{ev.area} · {ev.distanceKm} km away</span></div></div>
           {ev.ticketingType === "weyn" && !hasTiers && (
-            <div className="fact"><i className="icon-ticket" /><div><b>{ev.price === 0 ? "Free entry" : `${ev.price} OMR per ticket`}</b><span>{out ? "Sold out" : ev.capacity >= 9000 ? "Open entry" : `${left} of ${ev.capacity} tickets left`}</span></div></div>
+            <div className="fact"><i className="icon-ticket" /><div><b>{ev.price === 0 ? "Free entry" : `${ev.price} ${ev.currency || "OMR"} per ticket`}</b><span>{out ? "Sold out" : ev.capacity >= 9000 ? "Open entry" : `${left} of ${ev.capacity} tickets left`}</span></div></div>
           )}
           {ev.ticketingType === "weyn" && hasTiers && (
-            <div className="fact"><i className="icon-ticket" /><div><b>From {Math.min(...tiers.map((t) => t.price))} OMR</b><span>{tiers.length} ticket types available</span></div></div>
+            <div className="fact"><i className="icon-ticket" /><div><b>From {Math.min(...tiers.map((t) => t.price))} {ev.currency || "OMR"}</b><span>{tiers.length} ticket types available</span></div></div>
           )}
           {ev.ticketingType === "external" && (
-            <div className="fact"><i className="icon-ticket" /><div><b>Tickets via external site</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR`}</span></div></div>
+            <div className="fact"><i className="icon-ticket" /><div><b>Tickets via external site</b><span>{ev.price === 0 ? "Free" : `${ev.price} ${ev.currency || "OMR"}`}</span></div></div>
           )}
           {ev.ticketingType === "registration" && (
-            <div className="fact"><i className="icon-clipboard-list" /><div><b>Registration required</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR`}</span></div></div>
+            <div className="fact"><i className="icon-clipboard-list" /><div><b>Registration required</b><span>{ev.price === 0 ? "Free" : `${ev.price} ${ev.currency || "OMR"}`}</span></div></div>
           )}
           {ev.ticketingType === "cash" && (
-            <div className="fact"><i className="icon-banknote" /><div><b>Pay at the door</b><span>{ev.price === 0 ? "Free" : `${ev.price} OMR, cash`}</span></div></div>
+            <div className="fact"><i className="icon-banknote" /><div><b>Pay at the door</b><span>{ev.price === 0 ? "Free" : `${ev.price} ${ev.currency || "OMR"}, cash`}</span></div></div>
           )}
           {ev.ticketingType === "organizer_payment" && (
-            <div className="fact"><i className="icon-wallet" /><div><b>Pay the organizer directly</b><span>{ev.price} OMR · ticket issued once they confirm</span></div></div>
+            <div className="fact"><i className="icon-wallet" /><div><b>Pay the organizer directly</b><span>{ev.price} {ev.currency || "OMR"} · ticket issued once they confirm</span></div></div>
           )}
           {ev.minAge > 0 && <div className="fact"><i className="icon-shield" /><div><b>Ages {ev.minAge}+</b><span>{ev.refundPolicy}</span></div></div>}
         </div>
 
         <p className="blurb">{ev.blurb}</p>
 
-        <div style={{ marginTop: 18 }}>
+        <div style={{ marginTop: 16 }}>
           <MiniMap lat={ev.lat} lng={ev.lng} />
           <a className="gmaps-link" href={`https://www.google.com/maps/search/?api=1&query=${ev.lat},${ev.lng}`} target="_blank" rel="noreferrer">
             <i className="icon-map" /> Open in Google Maps
@@ -343,7 +344,7 @@ export default function EventDetail() {
         </div>
 
         {venueQuery.data && (
-          <div className="facts" style={{ marginTop: 18 }}>
+          <div className="facts" style={{ marginTop: 16 }}>
             <h3 style={{ marginBottom: 12 }}>Venue Details</h3>
             {venueQuery.data.parkingAvailable !== undefined && (
               <div className="fact">
@@ -383,7 +384,7 @@ export default function EventDetail() {
                       <b>{t.name}</b>
                       <span>{soldOut ? "Sold out" : `${tierLeft(t)} left`}</span>
                     </div>
-                    <div className="tier-opt-price">{t.price === 0 ? "Free" : `${t.price} OMR`}</div>
+                    <div className="tier-opt-price">{t.price === 0 ? "Free" : `${t.price} ${ev.currency || "OMR"}`}</div>
                   </div>
                   {isSel && !soldOut && (
                     <div className="qty-stepper" onClick={(ev2) => ev2.stopPropagation()}>
@@ -419,19 +420,27 @@ export default function EventDetail() {
           </div>
         )}
 
+        {(ev.checkoutFormFields || []).length > 0 && !booked && (
+          <CheckoutFormFields
+            fields={ev.checkoutFormFields!}
+            values={customFieldValues}
+            onChange={(id, value) => setCustomFieldValues((prev) => ({ ...prev, [id]: value }))}
+          />
+        )}
+
         {ev.ticketingType === "weyn" && payPrice > 0 && !out && (
           <div className="fee-box">
-            <div className="ln"><span>{qty} × {selectedTier ? selectedTier.name : "Ticket"}</span><span>{payPrice.toFixed(2)} OMR</span></div>
-            <div className="ln"><span>Weyn service fee (8%)</span><span>{payFee.toFixed(2)} OMR</span></div>
-            <div className="ln total"><span>Total</span><span>{(payPrice + payFee).toFixed(2)} OMR</span></div>
+            <div className="ln"><span>{qty} × {selectedTier ? selectedTier.name : "Ticket"}</span><span>{payPrice.toFixed(2)} {ev.currency || "OMR"}</span></div>
+            <div className="ln"><span>Weyn service fee (8%)</span><span>{payFee.toFixed(2)} {ev.currency || "OMR"}</span></div>
+            <div className="ln total"><span>Total</span><span>{(payPrice + payFee).toFixed(2)} {ev.currency || "OMR"}</span></div>
           </div>
         )}
-        {bookErr && <p className="errline" style={{ marginTop: 14 }}>{bookErr}</p>}
+        {bookErr && <p className="errline" style={{ marginTop: 12 }}>{bookErr}</p>}
         {/* "reducedWeynBranding" Pro feature hides this — see GET
             /api/events/:id's hideWeynBranding, derived server-side from the
             owner's plan so a free-tier organizer can't just omit it client-side. */}
         {!ev.hideWeynBranding && (
-          <p style={{ textAlign: "center", fontSize: 11.5, color: "var(--text-3)", marginTop: 20 }}>
+          <p style={{ textAlign: "center", fontSize: 11.5, color: "var(--text-3)", marginTop: 16 }}>
             Powered by <a href="https://weynevents.com" style={{ color: "inherit" }}>Weyn</a>
           </p>
         )}
@@ -486,7 +495,7 @@ export default function EventDetail() {
         ) : (
           <>
             <div className="lead">
-              <div className="p">{hasTiers && !selectedTier ? `From ${Math.min(...tiers.map((t) => t.price))} OMR` : payPrice === 0 ? "Free" : `${(payPrice + payFee).toFixed(2)} OMR`}</div>
+              <div className="p">{hasTiers && !selectedTier ? `From ${Math.min(...tiers.map((t) => t.price))} ${ev.currency || "OMR"}` : payPrice === 0 ? "Free" : `${(payPrice + payFee).toFixed(2)} ${ev.currency || "OMR"}`}</div>
               <div className="s">{hasTiers && !selectedTier ? "Pick a ticket type" : payPrice === 0 ? "RSVP to reserve" : "incl. 8% fee"}</div>
             </div>
             <button
@@ -497,7 +506,9 @@ export default function EventDetail() {
                 // redirecting straight out — everything else (free RSVP,
                 // organizer_payment's own external flow) keeps booking directly.
                 if (ev.ticketingType === "weyn" && payPrice > 0) {
-                  nav(`/e/${ev.id}/checkout`, { state: { tierId, qty, selectedSeatId, inviteCode } });
+                  const missingField = (ev.checkoutFormFields || []).find((f) => f.required && f.type !== "checkbox" && !String(customFieldValues[f.id] || "").trim());
+                  if (missingField) { setBookErr(`${missingField.label} is required.`); return; }
+                  nav(`/e/${ev.id}/checkout`, { state: { tierId, qty, selectedSeatId, inviteCode, customFieldValues } });
                 } else {
                   book();
                 }
@@ -549,7 +560,7 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
         ) : (
           <>
             {lists.length > 0 && (
-              <ul className="steps" style={{ marginBottom: 14 }}>
+              <ul className="steps" style={{ marginBottom: 12 }}>
                 {lists.map((c) => (
                   <li key={c.id}>
                     <i className="icon-list" />
@@ -567,7 +578,7 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
             </div>
           </>
         )}
-        <button className="btn glass" style={{ marginTop: 14 }} onClick={close}>Done</button>
+        <button className="btn glass" style={{ marginTop: 12 }} onClick={close}>Done</button>
       </div>
     </div>
   );
@@ -595,17 +606,17 @@ function FeedbackWidget({ eventId, bookingId }: { eventId: string; bookingId?: s
     }
   }
 
-  if (sent) return <p style={{ textAlign: "center", fontSize: 13.5, color: "var(--accent)", marginTop: 20 }}>Thanks for the feedback!</p>;
+  if (sent) return <p style={{ textAlign: "center", fontSize: 13.5, color: "var(--accent)", marginTop: 16 }}>Thanks for the feedback!</p>;
 
   return (
-    <div className="dash-card" style={{ padding: 16, marginTop: 20 }}>
-      <b style={{ display: "block", marginBottom: 10 }}>How was it?</b>
-      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+    <div className="dash-card" style={{ padding: 16, marginTop: 16 }}>
+      <b style={{ display: "block", marginBottom: 8 }}>How was it?</b>
+      <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button key={n} onClick={() => setRating(n)} aria-label={`${n} star`} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: n <= rating ? "var(--accent)" : "var(--text-3)" }}>★</button>
         ))}
       </div>
-      <textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Anything you'd like the organizer to know? (optional)" style={{ width: "100%", marginBottom: 10 }} />
+      <textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Anything you'd like the organizer to know? (optional)" style={{ width: "100%", marginBottom: 8 }} />
       {err && <p className="errline">{err}</p>}
       <button className="btn" onClick={submit} disabled={busy || (!rating && !comment.trim())}>{busy ? "Sending…" : "Send feedback"}</button>
     </div>
@@ -631,7 +642,7 @@ function ContactOrganizerSheet({ contact, onClose }: { contact: string; onClose:
     <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
       <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 16 }}>Contact organizer</h3>
-        <p style={{ marginBottom: 14, color: "var(--text-2)", fontSize: 14 }}>{contact}</p>
+        <p style={{ marginBottom: 12, color: "var(--text-2)", fontSize: 14 }}>{contact}</p>
         <ul className="steps">
           {isEmail && (
             <li>
@@ -657,7 +668,7 @@ function ContactOrganizerSheet({ contact, onClose }: { contact: string; onClose:
             {!copied && <i className="copy-btn" style={{ marginLeft: "auto", cursor: "pointer" }}>→</i>}
           </li>
         </ul>
-        <button className="btn glass" style={{ marginTop: 14, width: "100%" }} onClick={close}>Done</button>
+        <button className="btn glass" style={{ marginTop: 12, width: "100%" }} onClick={close}>Done</button>
       </div>
     </div>
   );
@@ -681,8 +692,8 @@ function InviteFriendsSheet({ eventId, eventTitle, onClose }: { eventId: string;
     <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
       <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 12 }}>Invite friends</h3>
-        <p style={{ marginBottom: 14, color: "var(--text-2)", fontSize: 14 }}>Event: <b>{eventTitle}</b></p>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: 12, backgroundColor: "var(--bg-2)", borderRadius: 8, marginBottom: 14 }}>
+        <p style={{ marginBottom: 12, color: "var(--text-2)", fontSize: 14 }}>Event: <b>{eventTitle}</b></p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: 12, backgroundColor: "var(--bg-2)", borderRadius: "var(--radius-sm)", marginBottom: 12 }}>
           <code style={{ flex: 1, fontSize: 13, wordBreak: "break-all" }}>{inviteLink}</code>
           <button
             className="copy-btn"

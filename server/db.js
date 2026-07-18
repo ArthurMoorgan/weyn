@@ -514,7 +514,7 @@ export const db = {
   },
 
   // ---- checkout / payments ----
-  async createPendingBooking({ eventId, tierId, deviceId, account, qty, utm, refCode }) {
+  async createPendingBooking({ eventId, tierId, deviceId, account, qty, utm, refCode, seatIds, customFieldValues }) {
     // Marketing Hub referral program: ?ref=CODE is captured the same way
     // ?utm_source/etc is above — resolved to the real ReferralCode row
     // (never trusted as anything but attribution) and its tally bumped
@@ -537,6 +537,8 @@ export const db = {
         email: account?.email || null, name: account?.name || null,
         utmSource: utm?.source || null, utmMedium: utm?.medium || null, utmCampaign: utm?.campaign || null,
         referredByCodeId,
+        seatIds: seatIds || [],
+        customFieldValues: customFieldValues || {},
       },
     });
   },
@@ -550,13 +552,20 @@ export const db = {
     // held against them until the organizer confirms (see
     // POST /api/events/:id/organizer-checkout), so there's nothing this
     // sweep would even be reclaiming for them.
-    await prisma.booking.updateMany({
-      where: {
-        status: "pending", bookedAt: { lt: new Date(Date.now() - olderThanMs) },
-        event: { ticketingType: { not: "organizer_payment" } },
-      },
-      data: { status: "expired" },
-    });
+    const where = {
+      status: "pending", bookedAt: { lt: new Date(Date.now() - olderThanMs) },
+      event: { ticketingType: { not: "organizer_payment" } },
+    };
+    // Seat-mode checkouts claim their seats ("reserved") up front, before
+    // payment confirms (see POST /api/events/:id/checkout) — an abandoned
+    // checkout must give those specific seats back, not just stop counting
+    // against qty capacity, or they'd stay unavailable forever.
+    const withSeats = await prisma.booking.findMany({ where: { ...where, seatIds: { isEmpty: false } }, select: { seatIds: true } });
+    if (withSeats.length) {
+      const seatIds = withSeats.flatMap((b) => b.seatIds);
+      await prisma.floorSeat.updateMany({ where: { id: { in: seatIds }, status: "reserved" }, data: { status: "available" } });
+    }
+    await prisma.booking.updateMany({ where, data: { status: "expired" } });
   },
 
   // ---- users (real identity, backing auth — see server/auth.js) ----

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type Weyn, type MarketingLink, type ReferralCode, type MarketingCalendarItem, type BrandKit, type AdVariant, type SocialAccountConnection, type SocialPost, type MarketingContact, type GrowthIdea, type FreeToolIdea, type PersuasionAngle } from "../../api";
+import { api, type Weyn, type MarketingLink, type ReferralCode, type MarketingCalendarItem, type BrandKit, type AdVariant, type SocialAccountConnection, type SocialPost, type MarketingContact, type GrowthIdea, type FreeToolIdea, type PersuasionAngle, type CampaignRoi } from "../../api";
 import { useAsync } from "../../hooks";
 import FeatureLock from "../../components/FeatureLock";
 
@@ -730,7 +730,37 @@ function EmailListSection({ events, loading, enabled }: { events: Weyn[]; loadin
           <i className="icon-send" /> {sending ? "Sending…" : `Send to ${subscribedCount} subscriber${subscribedCount === 1 ? "" : "s"}`}
         </button>
       </div>
+
+      <CampaignRoiSection />
     </FeatureLock>
+  );
+}
+
+/* ---------- Campaign ROI: best-effort revenue rollup per send, no click/open tracking ---------- */
+function CampaignRoiSection() {
+  const { data: rows, loading } = useAsync(() => api.campaignRoi(), []);
+
+  if (loading) return <p className="hint" style={{ marginTop: 14 }}>Loading campaign ROI…</p>;
+  if (!rows || rows.length === 0) return null;
+
+  return (
+    <>
+      <p className="section-label" style={{ marginTop: 18 }}>Campaign ROI (estimate)</p>
+      <p className="hint" style={{ margin: "0 0 10px", color: "var(--text-3)" }}>
+        Bookings placed after this send (approximate — no click tracking yet). This is not precise attribution: it just sums bookings made in the window before the next send.
+      </p>
+      <ul className="steps">
+        {(rows as CampaignRoi[]).map((r) => (
+          <li key={r.id}>
+            <i className="icon-trending-up" />
+            <span>
+              <b>{r.subject}</b>{" "}
+              <span className="hint">{new Date(r.sentAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · {r.recipientCount} sent · {r.bookingCount} booking{r.bookingCount === 1 ? "" : "s"} · ~${r.attributedRevenue.toFixed(2)} attributed</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 

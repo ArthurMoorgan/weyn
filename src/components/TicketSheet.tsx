@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { AnimatePresence, motion } from "motion/react";
-import { api } from "../api";
+import { api, API_BASE } from "../api";
 import { useClosing } from "../hooks";
 import { MotionButton, settleSpring, usePrefersReducedMotion } from "../motion";
 
@@ -123,6 +123,13 @@ export default function TicketSheet({
             >
               <i className="icon-wallet" /> Add to Wallet
             </MotionButton>
+            <a
+              className="btn glass"
+              href={`${API_BASE}/api/bookings/${bookingId}/invoice.pdf${accessToken ? `?accessToken=${encodeURIComponent(accessToken)}` : ""}`}
+              download
+            >
+              <i className="icon-download" /> Invoice
+            </a>
             {typeof lat === "number" && typeof lng === "number" && (
               <a
                 className="btn glass"

@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { tabSwitchVariants, pageTransition } from "../../motion";
 import { Html5Qrcode } from "html5-qrcode";
 import QRCode from "qrcode";
-import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type TeamMember, type PromoCode, type Campaign, type Sponsor, type Vendor, type FloorTable, type FloorTableInput, type MarketingScheduleItem } from "../../api";
+import { api, API_BASE, TEAM_PERMISSIONS, isValidEmail, type Weyn, type TeamRole, type TeamPermission, type TeamMember, type PromoCode, type Campaign, type Sponsor, type Vendor, type FloorTable, type FloorTableInput, type MarketingScheduleItem, type CheckoutFormField } from "../../api";
 import { useAsync } from "../../hooks";
 import { getAuthToken } from "../../store";
 import FeatureLock from "../../components/FeatureLock";
@@ -142,7 +142,7 @@ function OverviewTab({ event, features, reload }: { event: Weyn; features: Recor
         <>
           <div className="stat-grid">
             <div className="stat"><div className="k">Tickets sold</div><div className="v">{data.ticketsSold} <small>/ {data.capacity >= 9000 ? "∞" : data.capacity}</small></div></div>
-            <div className="stat"><div className="k">Revenue</div><div className="v">{data.revenue.toLocaleString()} <small>OMR</small></div></div>
+            <div className="stat"><div className="k">Revenue</div><div className="v">{data.revenue.toLocaleString()} <small>{event.currency || "OMR"}</small></div></div>
             {data.views !== undefined && <div className="stat"><div className="k">Page views</div><div className="v">{data.views}</div></div>}
             {data.checkIn && <div className="stat"><div className="k">Checked in</div><div className="v">{data.checkIn.checkedIn}/{data.checkIn.total}</div></div>}
           </div>
@@ -153,7 +153,7 @@ function OverviewTab({ event, features, reload }: { event: Weyn; features: Recor
               {data.tierBreakdown.map((t) => (
                 <div key={t.id} style={{ marginBottom: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                    <span>{t.name}</span><span style={{ color: "var(--text-2)" }}>{t.sold}/{t.capacity} · {t.revenue.toLocaleString()} OMR</span>
+                    <span>{t.name}</span><span style={{ color: "var(--text-2)" }}>{t.sold}/{t.capacity} · {t.revenue.toLocaleString()} {event.currency || "OMR"}</span>
                   </div>
                   <div className="bar"><i style={{ width: `${Math.round((t.sold / maxTier) * 100)}%` }} /></div>
                 </div>
@@ -334,7 +334,7 @@ function PendingPaymentsPanel({ event }: { event: Weyn }) {
             {b.name || b.email || "Anonymous"}{b.tierName ? ` · ${b.tierName}` : ""} · {b.qty} ticket{b.qty === 1 ? "" : "s"}
             <br />
             <small style={{ color: "var(--text-3)" }}>
-              {b.amount.toFixed(2)} OMR{b.claimedPaidAt ? " · says they've paid" : " · not yet claimed as paid"}
+              {b.amount.toFixed(2)} {event.currency || "OMR"}{b.claimedPaidAt ? " · says they've paid" : " · not yet claimed as paid"}
             </small>
           </span>
           <button className="btn glass sm" style={{ marginLeft: "auto" }} onClick={() => confirm(b.id)} disabled={confirmingId === b.id}>
@@ -536,11 +536,11 @@ function PromoCodesSection({ event, enabled }: { event: Weyn; enabled: boolean }
           <label>Discount</label>
           <select value={discountType} onChange={(e) => setDiscountType(e.target.value as any)}>
             <option value="percent">Percent off</option>
-            <option value="flat">Flat OMR off</option>
+            <option value="flat">{`Flat ${event.currency || "OMR"} off`}</option>
           </select>
         </div>
         <div className="field" style={{ flex: 1 }}>
-          <label>{discountType === "percent" ? "Percent" : "OMR"}</label>
+          <label>{discountType === "percent" ? "Percent" : event.currency || "OMR"}</label>
           <input inputMode="decimal" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} />
         </div>
       </div>
@@ -559,7 +559,7 @@ function PromoCodesSection({ event, enabled }: { event: Weyn; enabled: boolean }
               <li key={p.id}>
                 <i className="icon-ticket-percent" />
                 <span>
-                  <b>{p.code}</b> <small style={{ color: "var(--text-3)" }}>· {p.discountType === "percent" ? `${p.discountValue}% off` : `${p.discountValue} OMR off`} · {p.usedCount}{p.maxUses ? `/${p.maxUses}` : ""} used{p.minQuantity ? ` · min ${p.minQuantity} tickets` : ""}</small>
+                  <b>{p.code}</b> <small style={{ color: "var(--text-3)" }}>· {p.discountType === "percent" ? `${p.discountValue}% off` : `${p.discountValue} ${event.currency || "OMR"} off`} · {p.usedCount}{p.maxUses ? `/${p.maxUses}` : ""} used{p.minQuantity ? ` · min ${p.minQuantity} tickets` : ""}</small>
                 </span>
                 <button className="copy-btn" style={{ marginLeft: "auto" }} onClick={() => toggleActive(p)}>{p.active ? "Deactivate" : "Activate"}</button>
               </li>
@@ -1032,7 +1032,7 @@ function BudgetSection({ event }: { event: Weyn }) {
       <p className="hint" style={{ margin: "0 0 10px" }}>Set a spending cap per category — matched against Expenses logged with the same category on the Overview dashboard.</p>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category, e.g. Venue" style={{ flex: 2 }} />
-        <input value={allocatedAmount} onChange={(e) => setAllocatedAmount(e.target.value)} placeholder="Allocated OMR" inputMode="decimal" style={{ flex: 1 }} />
+        <input value={allocatedAmount} onChange={(e) => setAllocatedAmount(e.target.value)} placeholder={`Allocated ${event.currency || "OMR"}`} inputMode="decimal" style={{ flex: 1 }} />
         <button className="btn" onClick={add} disabled={saving || !category.trim() || !(Number(allocatedAmount) > 0)}>{saving ? "Adding…" : "Add"}</button>
       </div>
       {err && <p className="errline">{err}</p>}
@@ -1084,7 +1084,7 @@ function SponsorsSection({ event }: { event: Weyn }) {
     <>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Sponsor name" style={{ flex: 2 }} />
-        <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="OMR" inputMode="decimal" style={{ flex: 1 }} />
+        <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={event.currency || "OMR"} inputMode="decimal" style={{ flex: 1 }} />
         <button className="btn" onClick={add} disabled={saving || !name.trim()}>{saving ? "Adding…" : "Add"}</button>
       </div>
       {loading && <p className="hint">Loading…</p>}
@@ -1093,7 +1093,7 @@ function SponsorsSection({ event }: { event: Weyn }) {
           {data!.map((s) => (
             <li key={s.id} style={{ flexWrap: "wrap" }}>
               <i className="icon-award" />
-              <span>{s.name}{s.amount ? ` · ${s.amount} OMR` : ""}{s.roi != null ? ` · ROI ${s.roi > 0 ? "+" : ""}${s.roi}%` : ""}</span>
+              <span>{s.name}{s.amount ? ` · ${s.amount} ${event.currency || "OMR"}` : ""}{s.roi != null ? ` · ROI ${s.roi > 0 ? "+" : ""}${s.roi}%` : ""}</span>
               <button className="chip" style={{ marginLeft: "auto" }} onClick={() => cycleStatus(s)}>{s.status}</button>
               <button className="copy-btn" onClick={() => remove(s.id)}>Delete</button>
               <div style={{ display: "flex", gap: 8, width: "100%", marginTop: 8 }}>
@@ -1208,7 +1208,7 @@ function PromotionSection({ event }: { event: Weyn }) {
             <li key={s.source}>
               <i className="icon-link" />
               <span>{s.source}<br /><small style={{ color: "var(--text-3)" }}>{s.bookings} booking{s.bookings === 1 ? "" : "s"} · {s.tickets} ticket{s.tickets === 1 ? "" : "s"}</small></span>
-              <b style={{ marginLeft: "auto" }}>{s.revenue.toFixed(2)} OMR</b>
+              <b style={{ marginLeft: "auto" }}>{s.revenue.toFixed(2)} {event.currency || "OMR"}</b>
             </li>
           ))}
         </ul>
@@ -1559,7 +1559,7 @@ function SettingsTab({ event, features, reload }: { event: Weyn; features: Recor
 
   return (
     <>
-      <div className="field"><label>Price (OMR)</label><input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" /></div>
+      <div className="field"><label>Price ({event.currency || "OMR"})</label><input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" /></div>
       <div className="field"><label>Capacity</label><input value={capacity} onChange={(e) => setCapacity(e.target.value)} inputMode="numeric" /></div>
       <div className="field"><label>Description</label><textarea rows={3} value={blurb} onChange={(e) => setBlurb(e.target.value)} /></div>
 
@@ -1611,6 +1611,100 @@ function SettingsTab({ event, features, reload }: { event: Weyn; features: Recor
 
       <p className="section-label" style={{ marginTop: 22 }}>Invite-only</p>
       <InviteOnlyPanel event={event} onChanged={reload} />
+
+      <p className="section-label" style={{ marginTop: 22 }}>Booking form</p>
+      <CheckoutFormBuilder event={event} onChanged={reload} />
+    </>
+  );
+}
+
+const CHECKOUT_FIELD_TYPES: { value: CheckoutFormField["type"]; label: string }[] = [
+  { value: "text", label: "Text" },
+  { value: "email", label: "Email" },
+  { value: "phone", label: "Phone" },
+  { value: "dropdown", label: "Dropdown" },
+  { value: "checkbox", label: "Checkbox" },
+];
+
+// Custom booking-form builder: a fixed set of field types the organizer can
+// add/remove/reorder (simple up/down buttons, not a drag-and-drop engine —
+// per the brief's scoping, this isn't a generic form-builder). Answers are
+// collected below the tier/qty picker on EventDetail.tsx/Checkout.tsx and
+// land on Booking.customFieldValues.
+function CheckoutFormBuilder({ event, onChanged }: { event: Weyn; onChanged: () => void }) {
+  const [fields, setFields] = useState<CheckoutFormField[]>(event.checkoutFormFields || []);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  function addField() {
+    setFields((list) => [...list, { id: `new-${Date.now()}`, type: "text", label: "", required: false }]);
+    setSaved(false);
+  }
+  function updateField(id: string, patch: Partial<CheckoutFormField>) {
+    setFields((list) => list.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+    setSaved(false);
+  }
+  function removeField(id: string) {
+    setFields((list) => list.filter((f) => f.id !== id));
+    setSaved(false);
+  }
+  function moveField(index: number, dir: -1 | 1) {
+    setFields((list) => {
+      const next = [...list];
+      const target = index + dir;
+      if (target < 0 || target >= next.length) return list;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    setSaved(false);
+  }
+
+  async function save() {
+    setBusy(true); setErr(""); setSaved(false);
+    try {
+      await api.updateCheckoutFormFields(event.id, fields);
+      setSaved(true);
+      onChanged();
+    } catch (e: any) {
+      setErr(e.message || "Couldn't save the booking form.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ margin: "0 0 12px" }}>
+        Extra questions guests answer when they book — shown below the ticket type/quantity picker.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {fields.map((f, i) => (
+          <div key={f.id} className="dash-card" style={{ padding: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <input style={{ flex: "1 1 160px" }} placeholder="Label (e.g. Phone number)" value={f.label} onChange={(e) => updateField(f.id, { label: e.target.value })} />
+            <select value={f.type} onChange={(e) => updateField(f.id, { type: e.target.value as CheckoutFormField["type"], options: e.target.value === "dropdown" ? (f.options || [""]) : undefined })}>
+              {CHECKOUT_FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            {f.type === "dropdown" && (
+              <input style={{ flex: "1 1 160px" }} placeholder="Options, comma-separated" value={(f.options || []).join(", ")}
+                onChange={(e) => updateField(f.id, { options: e.target.value.split(",").map((o) => o.trim()).filter(Boolean) })} />
+            )}
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+              <input type="checkbox" checked={f.required} onChange={(e) => updateField(f.id, { required: e.target.checked })} /> Required
+            </label>
+            <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+              <button type="button" className="btn glass sm" disabled={i === 0} onClick={() => moveField(i, -1)}><i className="icon-chevron-up" /></button>
+              <button type="button" className="btn glass sm" disabled={i === fields.length - 1} onClick={() => moveField(i, 1)}><i className="icon-chevron-down" /></button>
+              <button type="button" className="btn glass sm" onClick={() => removeField(f.id)}><i className="icon-x" /></button>
+            </div>
+          </div>
+        ))}
+        {fields.length === 0 && <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No extra fields — guests just pick a ticket type and quantity.</p>}
+      </div>
+      <button type="button" className="btn glass" style={{ marginTop: 10 }} onClick={addField}><i className="icon-plus" /> Add field</button>
+
+      {err && <p className="errline">{err}</p>}
+      <button className="btn" style={{ marginTop: 10 }} onClick={save} disabled={busy}>{busy ? "Saving…" : saved ? "Saved ✓" : "Save booking form"}</button>
     </>
   );
 }

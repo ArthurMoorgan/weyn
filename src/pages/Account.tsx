@@ -225,7 +225,7 @@ export default function Account() {
           </>
         ) : (
           <>
-            <p className="hint" style={{ marginBottom: 10 }}>We sent a code to {newEmail} — enter it below to make it your new sign-in email.</p>
+            <p className="hint" style={{ marginBottom: 8 }}>We sent a code to {newEmail} — enter it below to make it your new sign-in email.</p>
             <div className="field"><label>Verification code</label><input value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder="123456" /></div>
             {emailErr && <p className="errline">{emailErr}</p>}
             <div style={{ display: "flex", gap: 10 }}>

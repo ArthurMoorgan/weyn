@@ -83,7 +83,7 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
           {/* Handoff spec: "white pill CTA button" over the photo — a
               distinct style from the app's standard black/coral .btn. */}
           <span className="ex-hero-card-btn">Get tickets</span>
-          <span className="ex-hero-card-price">{e.price === 0 ? "Free" : <>from <b>{e.price} OMR</b></>}</span>
+          <span className="ex-hero-card-price">{e.price === 0 ? "Free" : <>from <b>{e.price} {e.currency || "OMR"}</b></>}</span>
         </div>
       </div>
     </MotionLink>

@@ -4,6 +4,7 @@ import { api, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { getDeviceId, useAccount } from "../store";
 import Tooltip from "../components/Tooltip";
+import CheckoutFormFields from "../components/CheckoutFormFields";
 
 // The Editorial handoff's checkout screen: order summary, a promo code row,
 // a payment section, and a sticky "Pay" footer — inserted between tier/seat
@@ -11,7 +12,7 @@ import Tooltip from "../components/Tooltip";
 // this page still performs at the end (see api.checkoutEvent). Reached only
 // for paid Weyn-hosted tickets (see EventDetail's buy button); free RSVP and
 // organizer_payment keep booking directly, they never had a "checkout" step.
-type CheckoutState = { tierId?: string | null; qty?: number; selectedSeatId?: string | null; inviteCode?: string };
+type CheckoutState = { tierId?: string | null; qty?: number; selectedSeatId?: string | null; inviteCode?: string; customFieldValues?: Record<string, string | boolean> };
 
 export default function Checkout() {
   const { id } = useParams();
@@ -27,6 +28,7 @@ export default function Checkout() {
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountType: "percent" | "flat"; discountValue: number } | null>(null);
   const [paying, setPaying] = useState(false);
   const [payErr, setPayErr] = useState("");
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string | boolean>>(state.customFieldValues || {});
 
   if (loading) return <div className="route-loading" aria-busy="true" />;
   if (error || !ev) return <p className="errline" style={{ padding: 16 }}>Couldn't load this event.</p>;
@@ -76,9 +78,11 @@ export default function Checkout() {
   }
 
   async function pay() {
+    const missingField = (ev!.checkoutFormFields || []).find((f) => f.required && f.type !== "checkbox" && !String(customFieldValues[f.id] || "").trim());
+    if (missingField) { setPayErr(`${missingField.label} is required.`); return; }
     setPaying(true); setPayErr("");
     try {
-      const { checkoutUrl } = await api.checkoutEvent(ev!.id, qty, getDeviceId(), account, selectedTier?.id, state.inviteCode, appliedPromo?.code);
+      const { checkoutUrl } = await api.checkoutEvent(ev!.id, qty, getDeviceId(), account, selectedTier?.id, state.inviteCode, appliedPromo?.code, state.selectedSeatId ? [state.selectedSeatId] : undefined, customFieldValues);
       window.location.href = checkoutUrl;
     } catch (err: any) {
       setPayErr(err.message || "Couldn't start checkout");
@@ -107,9 +111,9 @@ export default function Checkout() {
         {/* Plain rows, no card/box background — pixel-checked against the
             handoff, which has no fee-box surface around these lines. */}
         <div className="checkout-lines" style={{ borderTop: "1px solid var(--hair)", paddingTop: 14, marginTop: 14 }}>
-          <div className="ln"><span>{qty} × {selectedTier ? selectedTier.name : "Ticket"}</span><span>{subtotal.toFixed(2)} OMR</span></div>
+          <div className="ln"><span>{qty} × {selectedTier ? selectedTier.name : "Ticket"}</span><span>{subtotal.toFixed(2)} {ev.currency || "OMR"}</span></div>
           {appliedPromo && (
-            <div className="ln"><span>Promo · {appliedPromo.code}</span><span>−{discount.toFixed(2)} OMR</span></div>
+            <div className="ln"><span>Promo · {appliedPromo.code}</span><span>−{discount.toFixed(2)} {ev.currency || "OMR"}</span></div>
           )}
         </div>
 
@@ -135,6 +139,14 @@ export default function Checkout() {
           {promoErr && <p className="errline" style={{ marginTop: 6 }}>{promoErr}</p>}
         </div>
 
+        {(ev.checkoutFormFields || []).length > 0 && (
+          <CheckoutFormFields
+            fields={ev.checkoutFormFields!}
+            values={customFieldValues}
+            onChange={(id, value) => setCustomFieldValues((prev) => ({ ...prev, [id]: value }))}
+          />
+        )}
+
         <h3 className="tier-picker-title" style={{ marginTop: 20 }}>Payment</h3>
         {/* No stored-card system exists yet — showing a real saved-card row
             here would be fabricated data. The buyer enters payment details
@@ -148,15 +160,15 @@ export default function Checkout() {
         </div>
 
         <div className="checkout-lines" style={{ marginTop: 20 }}>
-          <div className="ln"><span>Subtotal</span><span>{discountedSubtotal.toFixed(2)} OMR</span></div>
-          <div className="ln"><span>Service fee</span><span>{fee.toFixed(2)} OMR</span></div>
+          <div className="ln"><span>Subtotal</span><span>{discountedSubtotal.toFixed(2)} {ev.currency || "OMR"}</span></div>
+          <div className="ln"><span>Service fee</span><span>{fee.toFixed(2)} {ev.currency || "OMR"}</span></div>
         </div>
         {payErr && <p className="errline" style={{ marginTop: 14 }}>{payErr}</p>}
       </div>
 
       <div className="buybar">
         <button className="btn lg" onClick={pay} disabled={paying}>
-          {paying ? "Starting checkout…" : `Pay ${total.toFixed(2)} OMR`}
+          {paying ? "Starting checkout…" : `Pay ${total.toFixed(2)} ${ev.currency || "OMR"}`}
         </button>
       </div>
     </div>

@@ -190,6 +190,11 @@ model Event {
   lng                   Float
   distanceKm            Float
   price                 Float
+  // Display-only label for `price`/tier/fee amounts across buyer and
+  // organizer views — no conversion or FX math anywhere, the stored
+  // numbers stay whatever unit they were entered in. Defaults to OMR to
+  // match every event created before this column existed.
+  currency              String    @default("OMR")
   capacity              Int
   sold                  Int       @default(0)
   image                 String?
@@ -244,6 +249,14 @@ model Event {
   reminderSchedule      Int[]     @default([])
   sourceUrl             String?
   importedFromInstagram Boolean   @default(false)
+  // Custom booking-form builder: an ordered array of extra field defs the
+  // organizer collects at booking/checkout time, e.g.
+  // [{ id, type: "text"|"email"|"phone"|"dropdown"|"checkbox", label,
+  // required, options? }]. Rendered dynamically below the tier/qty picker
+  // in EventDetail.tsx/Checkout.tsx; answers land on Booking.customFieldValues.
+  // Empty array = no extra fields (the common case), not null, so frontend
+  // code can always .map() it directly.
+  checkoutFormFields    Json      @default("[]")
   createdAt             DateTime  @default(now())
   deletedAt             DateTime? // soft delete — reads filter this out by default
 
@@ -465,6 +478,17 @@ model Booking {
   // way utmSource/etc are captured from ?utm_source=... — null means this
   // booking wasn't referred.
   referredByCodeId  String?
+  // Seat-mode events only (see FloorSeat): the specific seats claimed
+  // ("reserved") at POST /checkout time, before payment is confirmed —
+  // carried through to the webhook so it can create the matching
+  // Ticket.seatId row(s) once the booking actually gets paid. Empty for
+  // every non-seated/free booking (those seats, if any, go straight onto
+  // the Ticket row at book() time instead — see POST /:id/book).
+  seatIds           String[]         @default([])
+  // Answers to the event's Event.checkoutFormFields, keyed by field id:
+  // { [fieldId]: string | boolean }. Empty object for events with no
+  // custom fields configured.
+  customFieldValues Json             @default("{}")
 
   event           Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tier            Tier?            @relation(fields: [tierId], references: [id])

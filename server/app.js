@@ -33,6 +33,7 @@ import { runModerationPipeline } from "./moderation.js";
 import { resolveVenueSegment, LOYALTY_TIERS, loyaltyTierForVisits, venueGuestVisitCounts, winBackConversion, PERSUASION_ANGLE_KEYS as VENUE_PERSUASION_ANGLE_KEYS, generateVenueGrowthIdeas, generateVenueAngledCopy, generateVenueBulkAdVariants, generateVenueFreeToolIdeas } from "./venue-marketing.js";
 import { runVenueWorkflows, validateWorkflowGraph } from "./venue-workflows.js";
 import { runEventWorkflows, validateEventWorkflowGraph, redeemPromoCode } from "./event-workflows.js";
+import { renderBookingInvoicePdf } from "./invoice.js";
 
 // Module-scope (not inside createApp): runCampaignScan/runAutomationScan
 // below are top-level exports, called from a cron/interval outside any
@@ -1045,6 +1046,28 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
     return source || medium || campaign ? { source, medium, campaign } : undefined;
   }
 
+  // Custom booking-form builder: checks the buyer's answers against the
+  // event's configured extra fields (Event.checkoutFormFields), rejecting
+  // the booking if a required field is missing/empty. Returns the cleaned
+  // { [fieldId]: value } map to store on Booking.customFieldValues, or
+  // { error } if validation fails.
+  function validateCustomFieldValues(e, submitted) {
+    const fields = Array.isArray(e.checkoutFormFields) ? e.checkoutFormFields : [];
+    if (!fields.length) return { values: {} };
+    const values = {};
+    for (const field of fields) {
+      const raw = submitted?.[field.id];
+      if (field.type === "checkbox") {
+        values[field.id] = !!raw;
+      } else {
+        const value = typeof raw === "string" ? raw.trim() : "";
+        if (field.required && !value) return { error: `${field.label} is required` };
+        values[field.id] = value;
+      }
+    }
+    return { values };
+  }
+
   app.post("/api/events/:id/book", bookingLimiter, async (req, res) => {
     const e = await db.get(req.params.id);
     if (!e) return res.status(404).json({ error: "Event not found" });
@@ -1058,6 +1081,8 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
     const qty = Math.min(MAX_TICKETS_PER_BOOKING, Math.max(1, Number(req.body?.qty) || 1));
     const price = priceFor(e, req.body?.tierId);
     if (price === null) return res.status(400).json({ error: "Please choose a ticket type" });
+    const customFields = validateCustomFieldValues(e, req.body?.customFieldValues);
+    if (customFields.error) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: customFields.error } });
     // A paid ticket must NEVER be issued through this free path. This
     // previously only rejected when paytabsConfigured() was true — meaning
     // with payments unconfigured (the current state), a price>0 event fell
@@ -1142,7 +1167,7 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
 
     const deviceId = req.body?.deviceId;
     const account = req.body?.email ? { email: req.body.email, name: req.body.name } : null;
-    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body), refCode: req.body?.refCode });
+    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body), refCode: req.body?.refCode, customFieldValues: customFields.values });
     await prisma.booking.update({ where: { id: booking.id }, data: { status: "paid" } });
     if (seatIds) {
       await prisma.ticket.createMany({ data: seatIds.map((seatId) => ({ bookingId: booking.id, eventId: e.id, seatId })) });
@@ -1198,10 +1223,41 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
     const basePrice = priceFor(e, tierId);
     if (basePrice === null) return res.status(400).json({ error: "Please choose a ticket type" });
     if (basePrice <= 0) return res.status(400).json({ error: "This ticket is free — use POST /api/events/:id/book instead" });
+    const customFields = validateCustomFieldValues(e, req.body?.customFieldValues);
+    if (customFields.error) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: customFields.error } });
 
     const tier = tierId ? e.tiers.find((t) => t.id === tierId) : null;
     const remaining = tier ? tier.capacity - tier.sold : e.capacity - e.sold;
     if (qty > remaining) return res.status(409).json({ error: tier ? `${tier.name} is sold out` : "Not enough tickets left" });
+
+    // Seat-mode events: claim the buyer's chosen seats up front, same atomic
+    // pattern as POST /:id/book, so nobody else can pick the same seat while
+    // this buyer is on the hosted payment page. Unlike qty/tier capacity
+    // (only claimed once the webhook confirms payment), seats are a specific,
+    // visible resource the buyer just picked — leaving them free until
+    // payment confirms would let two buyers land on the same seat. Released
+    // back to "available" if the checkout is ever abandoned (see
+    // db.expireStalePendingBookings) or if payment fails (below).
+    const eventFloorPlan = await prisma.floorPlan.findUnique({ where: { eventId: e.id } });
+    let seatIds = null;
+    if (eventFloorPlan?.mode === "seat") {
+      seatIds = Array.isArray(req.body?.seatIds) ? [...new Set(req.body.seatIds.filter(Boolean))] : [];
+      if (seatIds.length !== qty) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `Please select exactly ${qty} seat(s)` } });
+      }
+      const validSeats = await prisma.floorSeat.findMany({ where: { id: { in: seatIds }, table: { floorPlanId: eventFloorPlan.id } } });
+      if (validSeats.length !== seatIds.length) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid seat selection" } });
+      }
+      const claims = await prisma.$transaction(
+        seatIds.map((sid) => prisma.$queryRaw`UPDATE "FloorSeat" SET status = 'reserved' WHERE id = ${sid} AND status = 'available' RETURNING id`)
+      );
+      const claimedIds = claims.flat().map((r) => r.id);
+      if (claimedIds.length !== seatIds.length) {
+        if (claimedIds.length) await prisma.floorSeat.updateMany({ where: { id: { in: claimedIds } }, data: { status: "available" } });
+        return res.status(409).json({ error: { code: "SEAT_CONFLICT", message: "One or more selected seats were just taken — please pick different seats." } });
+      }
+    }
 
     const deviceId = req.body?.deviceId;
     const account = req.body?.email ? { email: req.body.email, name: req.body.name } : null;
@@ -1222,7 +1278,7 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
       }
     }
 
-    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body), refCode: req.body?.refCode });
+    const booking = await db.createPendingBooking({ eventId: e.id, tierId, deviceId, account, qty, utm: utmFromBody(req.body), refCode: req.body?.refCode, seatIds, customFieldValues: customFields.values });
 
     const origin = publicOrigin(req);
     try {
@@ -1244,6 +1300,7 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
       trackEvent(req.user?.id || deviceId, "checkout_started", { eventId: e.id, qty, tierId, amount: unitPrice * qty });
       res.json({ checkoutUrl, bookingId: booking.id, accessToken: booking.accessToken });
     } catch (err) {
+      if (seatIds?.length) await prisma.floorSeat.updateMany({ where: { id: { in: seatIds } }, data: { status: "available" } });
       captureError(err, { route: "POST /api/events/:id/checkout", eventId: e.id });
       res.status(502).json({ error: err.message });
     }
@@ -1389,6 +1446,26 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
       sendEmail({ to: booking.email, subject, html }).catch((err) => captureError(err, { route: "POST .../confirm-payment (email)", bookingId: booking.id }));
     }
     res.json(await db.getBooking(booking.id));
+  });
+
+  // Public — the buyer's own invoice/receipt for a booking. Same trust model
+  // as GET /api/bookings/:id/tickets: gated on the unguessable accessToken,
+  // not a login, since a buyer may never have created a Weyn account.
+  app.get("/api/bookings/:id/invoice.pdf", async (req, res) => {
+    const booking = await db.getBooking(req.params.id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (booking.accessToken && req.query.accessToken !== booking.accessToken) {
+      return res.status(403).json({ error: "Access token is required" });
+    }
+    renderBookingInvoicePdf(res, booking);
+  });
+
+  // Organizer-side equivalent — same document, gated on managing the event
+  // instead of holding the buyer's accessToken.
+  app.get("/api/events/:id/bookings/:bookingId/invoice.pdf", requireEventOwner(), async (req, res) => {
+    const booking = await db.getBooking(req.params.bookingId);
+    if (!booking || booking.eventId !== req.event.id) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking not found" } });
+    renderBookingInvoicePdf(res, booking);
   });
 
   // ---- AI Studio ("aiStudio" feature — Gemini/Claude/Groq, whichever key
@@ -1598,6 +1675,13 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
     const { success, raw } = await fetchTransactionStatus(payment.paytabsTranRef);
     if (!success) {
       await prisma.payment.update({ where: { id: payment.id }, data: { rawWebhook: rawWebhook || raw, status: "failed" } });
+      // Give back any seats claimed at checkout time (see POST
+      // /api/events/:id/checkout) — payment didn't go through, so they
+      // shouldn't stay locked out for other buyers.
+      const failedBooking = await prisma.booking.findUnique({ where: { id: payment.bookingId }, select: { seatIds: true } });
+      if (failedBooking?.seatIds?.length) {
+        await prisma.floorSeat.updateMany({ where: { id: { in: failedBooking.seatIds }, status: "reserved" }, data: { status: "available" } });
+      }
       return;
     }
 
@@ -1636,7 +1720,11 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
     if (booking.tierId) await prisma.event.update({ where: { id: booking.eventId }, data: { sold: { increment: booking.qty } } });
 
     await prisma.booking.update({ where: { id: booking.id }, data: { status: "paid" } });
-    await db.issueTickets(booking.id, booking.eventId, booking.qty);
+    if (booking.seatIds?.length) {
+      await prisma.ticket.createMany({ data: booking.seatIds.map((seatId) => ({ bookingId: booking.id, eventId: booking.eventId, seatId })) });
+    } else {
+      await db.issueTickets(booking.id, booking.eventId, booking.qty);
+    }
     {
       const remaining = claimed.capacity - claimed.sold;
       const wfCtx = { eventId: booking.eventId, bookingId: booking.id, tierId: booking.tierId, email: booking.email, qty: booking.qty, quantityRemaining: remaining };
@@ -1906,6 +1994,31 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
     const updated = await prisma.event.update({ where: { id: req.event.id }, data: { inviteCode } });
     await db.audit("event.invite_code_regenerate", { actorId: req.user.id, entityType: "event", entityId: req.event.id });
     res.json({ id: updated.id, inviteCode: updated.inviteCode, inviteUrl: `${publicOrigin(req)}/e/${updated.id}?invite=${updated.inviteCode}` });
+  });
+
+  // ---- Custom booking-form builder: extra fields collected alongside the
+  // tier/qty picker at book/checkout time (see Event.checkoutFormFields).
+  // A dedicated route rather than folding into EDITABLE_FIELDS above since
+  // it needs its own shape validation, not just a passthrough assignment.
+  const CHECKOUT_FIELD_TYPES = ["text", "email", "phone", "dropdown", "checkbox"];
+  app.patch("/api/events/:id/checkout-form", requireEventOwner(), async (req, res) => {
+    const fields = req.body?.fields;
+    if (!Array.isArray(fields)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "fields must be an array" } });
+    const cleaned = [];
+    for (const f of fields) {
+      if (!CHECKOUT_FIELD_TYPES.includes(f?.type)) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: `Invalid field type: ${f?.type}` } });
+      const label = String(f.label || "").trim();
+      if (!label) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Every field needs a label" } });
+      const field = { id: f.id || crypto.randomUUID(), type: f.type, label, required: !!f.required };
+      if (f.type === "dropdown") {
+        field.options = Array.isArray(f.options) ? f.options.map((o) => String(o).trim()).filter(Boolean) : [];
+        if (!field.options.length) return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Dropdown fields need at least one option" } });
+      }
+      cleaned.push(field);
+    }
+    const updated = await prisma.event.update({ where: { id: req.event.id }, data: { checkoutFormFields: cleaned } });
+    await db.audit("event.checkout_form_update", { actorId: req.user.id, entityType: "event", entityId: req.event.id, metadata: { fieldCount: cleaned.length } });
+    res.json({ id: updated.id, checkoutFormFields: updated.checkoutFormFields });
   });
 
   // ---- Marketing: promo codes (covers promoCodes / discountCampaigns /
@@ -5335,6 +5448,45 @@ Return strict JSON only, no other text: {"subject": "...", "message": "..."}`;
 
   app.get("/api/organizer/email-campaign-sends", requireAuth, requireFeature("emailCampaigns"), async (req, res) => {
     res.json(await prisma.emailCampaignSend.findMany({ where: { organizerId: req.user.id }, orderBy: { sentAt: "desc" }, take: 100 }));
+  });
+
+  // ---- Best-effort campaign ROI: EmailCampaignSend has no open/click
+  // tracking, so this is a rough "bookings placed after this send" rollup,
+  // not real attribution. For each send, the window is (send.sentAt, next
+  // send's sentAt in the same scope] — "same scope" meaning the same
+  // eventId, or organizer-wide (eventId null) sends bound each other —
+  // scoped to bookings on events this organizer owns, ending at "now" for
+  // the most recent send in each scope. Done server-side (not shipped as
+  // raw booking rows) so the client can't be tricked into a wrong sum.
+  app.get("/api/organizer/marketing/campaign-roi", requireAuth, requireFeature("emailCampaigns"), async (req, res) => {
+    const sends = await prisma.emailCampaignSend.findMany({ where: { organizerId: req.user.id }, orderBy: { sentAt: "asc" } });
+    const now = new Date();
+
+    const rows = await Promise.all(sends.map(async (send, i) => {
+      const nextInScope = sends.slice(i + 1).find((s) => s.eventId === send.eventId);
+      const windowEnd = nextInScope ? nextInScope.sentAt : now;
+
+      const bookings = await prisma.booking.findMany({
+        where: {
+          bookedAt: { gt: send.sentAt, lt: windowEnd },
+          event: { organizerId: req.user.id, ...(send.eventId ? { id: send.eventId } : {}) },
+        },
+        include: { payment: true },
+      });
+      const attributedRevenue = bookings.reduce((sum, b) => sum + (b.payment?.status === "paid" ? b.payment.amount : 0), 0);
+
+      return {
+        id: send.id,
+        eventId: send.eventId,
+        subject: send.subject,
+        sentAt: send.sentAt,
+        recipientCount: send.recipientCount,
+        bookingCount: bookings.length,
+        attributedRevenue,
+      };
+    }));
+
+    res.json(rows.reverse()); // most recent send first, matching /email-campaign-sends
   });
 
   // ---- Growth tools ----

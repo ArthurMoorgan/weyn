@@ -292,7 +292,7 @@ function PricingTool({ event }: { event: Weyn }) {
       {result && (
         <div className="marketing-card" style={{ marginTop: 12 }}>
           {result.suggestedPrice !== null ? (
-            <div className="marketing-card-head"><b>{result.suggestedPrice} OMR</b><small style={{ color: "var(--text-3)" }}>· based on {result.sampleSize} similar events</small></div>
+            <div className="marketing-card-head"><b>{result.suggestedPrice} {event.currency || "OMR"}</b><small style={{ color: "var(--text-3)" }}>· based on {result.sampleSize} similar events</small></div>
           ) : null}
           <p style={{ fontSize: 13.5, color: "var(--text-2)", marginTop: 6 }}>{result.reasoning}</p>
         </div>
