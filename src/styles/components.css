@@ -238,25 +238,35 @@
   padding: 4px 16px 4px;
 }
 .cat-circle {
-  position: relative; overflow: hidden;
+  /* overflow: visible (not hidden) is deliberate — the reference video's
+     icon renders spill a few px above the tile's rounded top edge for a
+     real 3D-popping-out feel (Dining's cloche dome, Movies' clapperboard
+     corner, Play's racket all break the box's top line). Box height/top
+     padding trimmed to match, and the icon pulled up via .cat-circle-ring's
+     negative margin-top below. */
+  position: relative; overflow: visible;
   flex-direction: column; display: flex; align-items: center; justify-content: center;
   gap: 10px; background: var(--surface); border: 1px solid var(--card-border);
-  border-radius: var(--radius-lg); padding: 18px 8px 14px; min-height: 108px;
+  border-radius: var(--radius-lg); padding: 10px 8px 14px; min-height: 92px;
   box-shadow: var(--card-shadow); transition: transform .15s ease;
 }
 /* Soft white fade behind the icon, top-center of each tile (reference) —
    a light-source cue like the shell-level glow, not a hue, so every tile
    still reads uniformly regardless of its icon color. Sits behind the icon
-   ring/label (z-index: 0), clipped to the tile's own rounded corners via
-   the parent's overflow: hidden. */
+   ring/label (z-index: 0). `border-radius: inherit` clips it to the tile's
+   own rounded top corners now that the parent is overflow: visible (so the
+   icon can spill past the top edge, see .cat-circle) — without this the
+   pseudo's square corners would show past the rounded curve. */
 .cat-circle::before {
   content: ""; position: absolute; top: 0; left: 0; right: 0; height: 70%;
+  border-radius: inherit;
   background: radial-gradient(ellipse 90% 100% at 50% 0%, rgba(255,255,255,.08), transparent 75%);
   pointer-events: none; z-index: 0;
 }
 .cat-circle-ring, .cat-circle-label { position: relative; z-index: 1; }
 .cat-circle-ring {
   width: 52px; height: 52px;
+  margin-top: -18px;
   display: grid; place-items: center; flex: 0 0 auto;
   transition: transform .15s ease;
 }
@@ -273,9 +283,9 @@
     grid-template-columns: repeat(6, minmax(0, 160px));
     justify-content: center; gap: 16px; padding: 8px 24px 12px;
   }
-  .cat-circle { padding: 22px 10px 16px; min-height: 124px; }
+  .cat-circle { padding: 14px 10px 16px; min-height: 108px; }
   .cat-circle:hover { transform: translateY(-2px); }
-  .cat-circle-ring { width: 60px; height: 60px; }
+  .cat-circle-ring { width: 60px; height: 60px; margin-top: -20px; }
 }
 
 /* ---------- date section header ---------- */
