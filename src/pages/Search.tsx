@@ -201,7 +201,7 @@ export default function Search() {
           </Tooltip>
         </div>
         {detectedPatterns.size > 0 && (
-          <div className="chips" style={{ padding: "12px 16px 0" }}>
+          <div className="chips" style={{ padding: "var(--space-3) var(--space-4) 0" }}>
             {Array.from(detectedPatterns).map((pattern) => (
               <span key={pattern} className="chip" style={{ fontSize: 12 }}>
                 {pattern}
@@ -263,7 +263,7 @@ export default function Search() {
         </div>
       )}
 
-      <section style={{ padding: "16px 16px 32px" }}>
+      <section style={{ padding: "var(--space-4) var(--space-4) var(--space-6)" }}>
         {loading ? (
           <div className="ex-list">
             {[0, 1, 2, 3, 4].map((i) => <div key={i} className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>)}
@@ -280,8 +280,8 @@ export default function Search() {
       </section>
 
       {q.trim() && venuesResponse?.venues && venuesResponse.venues.length > 0 && (
-        <section style={{ padding: "0 0 32px 0" }}>
-          <div className="date-head" style={{ padding: "12px 16px 8px" }}>
+        <section style={{ padding: "0 0 var(--space-6) 0" }}>
+          <div className="date-head" style={{ padding: "var(--space-3) var(--space-4) var(--space-2)" }}>
             <h2>Restaurants & Venues</h2>
             <span className="ex-sub">{venuesResponse.venues.length} found</span>
           </div>

@@ -106,10 +106,10 @@ export default function EventDetail() {
   );
   if (error || !e) return (
     <div className="detail">
-      <div className="empty" style={{ paddingTop: 120 }}>
+      <div className="empty" style={{ paddingTop: "var(--space-8)" }}>
         <div className="ic"><i className="icon-cloud-off" /></div>
         <p>{error || "Event not found."}</p>
-        <button className="btn glass" style={{ maxWidth: 200, margin: "0 auto 10px" }} onClick={reload}>Try again</button>
+        <button className="btn glass" style={{ maxWidth: 200, margin: "0 auto var(--space-3)" }} onClick={reload}>Try again</button>
         <button className="btn" style={{ maxWidth: 200, margin: "0 auto" }} onClick={() => nav("/")}>Back to Explore</button>
       </div>
     </div>
@@ -249,7 +249,7 @@ export default function EventDetail() {
           </>
         )}
         <Tooltip text="Back"><button className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></button></Tooltip>
-        <div style={{ position: "relative", zIndex: 2, display: "flex", gap: 8 }}>
+        <div style={{ position: "relative", zIndex: 2, display: "flex", gap: "var(--space-2)" }}>
           <Tooltip text="Share">
             <button className="icon-btn" onClick={() => shareEvent(ev)} aria-label="Share">
               <i className={(shared ? "icon-check" : "icon-share-2")} />
@@ -289,7 +289,7 @@ export default function EventDetail() {
 
       <div className="sheet glass">
         <span className={`catpill cat-${ev.cat}`}>{cat?.label}</span>
-        <h1 style={{ marginTop: 12 }}>{ev.title}</h1>
+        <h1 style={{ marginTop: "var(--space-3)" }}>{ev.title}</h1>
         <div className="host-row">
           {ev.ownerId ? (
             <Link to={`/organizer/${ev.ownerId}`} className="host">Hosted by {ev.organizer}</Link>
@@ -336,7 +336,7 @@ export default function EventDetail() {
 
         <p className="blurb">{ev.blurb}</p>
 
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: "var(--space-4)" }}>
           <MiniMap lat={ev.lat} lng={ev.lng} />
           <a className="gmaps-link" href={`https://www.google.com/maps/search/?api=1&query=${ev.lat},${ev.lng}`} target="_blank" rel="noreferrer">
             <i className="icon-map" /> Open in Google Maps
@@ -344,8 +344,8 @@ export default function EventDetail() {
         </div>
 
         {venueQuery.data && (
-          <div className="facts" style={{ marginTop: 16 }}>
-            <h3 style={{ marginBottom: 12 }}>Venue Details</h3>
+          <div className="facts" style={{ marginTop: "var(--space-4)" }}>
+            <h3 style={{ marginBottom: "var(--space-3)" }}>Venue Details</h3>
             {venueQuery.data.parkingAvailable !== undefined && (
               <div className="fact">
                 <i className="icon-parking" />
@@ -435,12 +435,12 @@ export default function EventDetail() {
             <div className="ln total"><span>Total</span><span>{(payPrice + payFee).toFixed(2)} {ev.currency || "OMR"}</span></div>
           </div>
         )}
-        {bookErr && <p className="errline" style={{ marginTop: 12 }}>{bookErr}</p>}
+        {bookErr && <p className="errline" style={{ marginTop: "var(--space-3)" }}>{bookErr}</p>}
         {/* "reducedWeynBranding" Pro feature hides this — see GET
             /api/events/:id's hideWeynBranding, derived server-side from the
             owner's plan so a free-tier organizer can't just omit it client-side. */}
         {!ev.hideWeynBranding && (
-          <p style={{ textAlign: "center", fontSize: 11.5, color: "var(--text-3)", marginTop: 16 }}>
+          <p style={{ textAlign: "center", fontSize: 11.5, color: "var(--text-3)", marginTop: "var(--space-4)" }}>
             Powered by <a href="https://weynevents.com" style={{ color: "inherit" }}>Weyn</a>
           </p>
         )}
@@ -551,7 +551,7 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
   return (
     <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
       <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 12 }}>Add to a list</h3>
+        <h3 style={{ marginBottom: "var(--space-3)" }}>Add to a list</h3>
         {lists === null ? (
           <>
             <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
@@ -560,7 +560,7 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
         ) : (
           <>
             {lists.length > 0 && (
-              <ul className="steps" style={{ marginBottom: 12 }}>
+              <ul className="steps" style={{ marginBottom: "var(--space-3)" }}>
                 {lists.map((c) => (
                   <li key={c.id}>
                     <i className="icon-list" />
@@ -572,13 +572,13 @@ function AddToListSheet({ eventId, onClose }: { eventId: string; onClose: () => 
                 ))}
               </ul>
             )}
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: "var(--space-2)" }}>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Or create a new list…" onKeyDown={(e) => e.key === "Enter" && createAndAdd()} />
               <button className="btn glass sm" onClick={createAndAdd} disabled={!name.trim()}>Create</button>
             </div>
           </>
         )}
-        <button className="btn glass" style={{ marginTop: 12 }} onClick={close}>Done</button>
+        <button className="btn glass" style={{ marginTop: "var(--space-3)" }} onClick={close}>Done</button>
       </div>
     </div>
   );
@@ -606,17 +606,17 @@ function FeedbackWidget({ eventId, bookingId }: { eventId: string; bookingId?: s
     }
   }
 
-  if (sent) return <p style={{ textAlign: "center", fontSize: 13.5, color: "var(--accent)", marginTop: 16 }}>Thanks for the feedback!</p>;
+  if (sent) return <p style={{ textAlign: "center", fontSize: 13.5, color: "var(--accent)", marginTop: "var(--space-4)" }}>Thanks for the feedback!</p>;
 
   return (
-    <div className="dash-card" style={{ padding: 16, marginTop: 16 }}>
-      <b style={{ display: "block", marginBottom: 8 }}>How was it?</b>
-      <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+    <div className="dash-card" style={{ padding: "var(--space-4)", marginTop: "var(--space-4)" }}>
+      <b style={{ display: "block", marginBottom: "var(--space-2)" }}>How was it?</b>
+      <div style={{ display: "flex", gap: "var(--space-1)", marginBottom: "var(--space-2)" }}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button key={n} onClick={() => setRating(n)} aria-label={`${n} star`} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: n <= rating ? "var(--accent)" : "var(--text-3)" }}>★</button>
         ))}
       </div>
-      <textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Anything you'd like the organizer to know? (optional)" style={{ width: "100%", marginBottom: 8 }} />
+      <textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Anything you'd like the organizer to know? (optional)" style={{ width: "100%", marginBottom: "var(--space-2)" }} />
       {err && <p className="errline">{err}</p>}
       <button className="btn" onClick={submit} disabled={busy || (!rating && !comment.trim())}>{busy ? "Sending…" : "Send feedback"}</button>
     </div>
@@ -641,8 +641,8 @@ function ContactOrganizerSheet({ contact, onClose }: { contact: string; onClose:
   return (
     <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
       <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 16 }}>Contact organizer</h3>
-        <p style={{ marginBottom: 12, color: "var(--text-2)", fontSize: 14 }}>{contact}</p>
+        <h3 style={{ marginBottom: "var(--space-4)" }}>Contact organizer</h3>
+        <p style={{ marginBottom: "var(--space-3)", color: "var(--text-2)", fontSize: 14 }}>{contact}</p>
         <ul className="steps">
           {isEmail && (
             <li>
@@ -668,7 +668,7 @@ function ContactOrganizerSheet({ contact, onClose }: { contact: string; onClose:
             {!copied && <i className="copy-btn" style={{ marginLeft: "auto", cursor: "pointer" }}>→</i>}
           </li>
         </ul>
-        <button className="btn glass" style={{ marginTop: 12, width: "100%" }} onClick={close}>Done</button>
+        <button className="btn glass" style={{ marginTop: "var(--space-3)", width: "100%" }} onClick={close}>Done</button>
       </div>
     </div>
   );
@@ -691,14 +691,14 @@ function InviteFriendsSheet({ eventId, eventTitle, onClose }: { eventId: string;
   return (
     <div className={"sheet-backdrop" + (closing ? " closing" : "")} onClick={close}>
       <div className={"install-sheet glass" + (closing ? " closing" : "")} style={{ textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 12 }}>Invite friends</h3>
-        <p style={{ marginBottom: 12, color: "var(--text-2)", fontSize: 14 }}>Event: <b>{eventTitle}</b></p>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: 12, backgroundColor: "var(--bg-2)", borderRadius: "var(--radius-sm)", marginBottom: 12 }}>
+        <h3 style={{ marginBottom: "var(--space-3)" }}>Invite friends</h3>
+        <p style={{ marginBottom: "var(--space-3)", color: "var(--text-2)", fontSize: 14 }}>Event: <b>{eventTitle}</b></p>
+        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", padding: "var(--space-3)", backgroundColor: "var(--bg-2)", borderRadius: "var(--radius-sm)", marginBottom: "var(--space-3)" }}>
           <code style={{ flex: 1, fontSize: 13, wordBreak: "break-all" }}>{inviteLink}</code>
           <button
             className="copy-btn"
             onClick={copyToClipboard}
-            style={{ marginLeft: 8, flexShrink: 0 }}
+            style={{ marginLeft: "var(--space-2)", flexShrink: 0 }}
             aria-label="Copy link"
           >
             {copied ? <><i className="icon-check" /> Copied</> : <i className="icon-copy" />}

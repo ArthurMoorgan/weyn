@@ -8,6 +8,8 @@ import ThemeToggle from "../components/ThemeToggle";
 import CityPill from "../components/CityPill";
 import InstallPrompt from "../components/InstallPrompt";
 import AccountWidget from "../components/AccountWidget";
+import PageTopBar from "../components/PageTopBar";
+import UserAvatar from "../components/UserAvatar";
 import { webPushStatus, webPushSupported, subscribeWebPush, unsubscribeWebPush } from "../webpush";
 
 // "More" hub: instead of a wrapping tab strip, this tab is now an
@@ -78,14 +80,17 @@ export default function You() {
   // ---- menu hub ----
   if (view === "menu") {
     return (
-      <MoreMenu
-        account={!!account}
-        isHost={isHost}
-        hasVenues={hasVenues}
-        isAdmin={account?.role === "ADMIN"}
-        counts={{ tickets: myTickets.length, saved: savedEvents.length, venues: venues.length, events: summaryData.stats.eventCount }}
-        onOpen={setView}
-      />
+      <>
+        <PageTopBar><UserAvatar account={account} /></PageTopBar>
+        <MoreMenu
+          account={!!account}
+          isHost={isHost}
+          hasVenues={hasVenues}
+          isAdmin={account?.role === "ADMIN"}
+          counts={{ tickets: myTickets.length, saved: savedEvents.length, venues: venues.length, events: summaryData.stats.eventCount }}
+          onOpen={setView}
+        />
+      </>
     );
   }
 
@@ -96,6 +101,7 @@ export default function You() {
   };
   return (
     <>
+      <PageTopBar><UserAvatar account={account} /></PageTopBar>
       <SectionHeader title={SECTION_TITLES[view]} onBack={() => setView("menu")} />
 
       {view === "overview" && (
@@ -134,7 +140,7 @@ function TabSkeletonOrError({ error, onRetry }: { error: string | null; onRetry:
     );
   }
   return (
-    <div className="feed" style={{ paddingTop: 8 }}>
+    <div className="feed" style={{ paddingTop: "var(--space-2)" }}>
       <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
       <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
       <div className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>
@@ -148,7 +154,7 @@ function OverviewTab({ account, tickets, saved, isHost, summary, onNavigate }: {
 }) {
   return (
     <>
-      <div className="ov-grid" style={{ paddingTop: 4 }}>
+      <div className="ov-grid" style={{ paddingTop: "var(--space-1)" }}>
         <Link to="/tickets" className="ov-card">
           <i className="icon-ticket" /><div className="ov-v">{tickets.length}</div><div className="ov-k">Tickets</div>
         </Link>
@@ -170,20 +176,20 @@ function OverviewTab({ account, tickets, saved, isHost, summary, onNavigate }: {
       {tickets.length > 0 && (
         <section>
           <div className="date-head"><h2>Up next</h2><span>{tickets.length}</span></div>
-          <div className="feed" style={{ paddingBottom: 4 }}>{tickets.slice(0, 3).map((e) => <Stub key={e.id} e={e} ticket />)}</div>
+          <div className="feed" style={{ paddingBottom: "var(--space-1)" }}>{tickets.slice(0, 3).map((e) => <Stub key={e.id} e={e} ticket />)}</div>
         </section>
       )}
 
       {!isHost && (
         <section>
-          <div className="host-cta" style={{ margin: "16px 16px 0" }}>
+          <div className="host-cta" style={{ margin: "var(--space-4) var(--space-4) 0" }}>
             <div><b>Running an event?</b><span>Publish it free and track sales here.</span></div>
-            <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "12px 16px" }}><i className="icon-plus" /> Host</Link>
+            <Link to="/host/events" className="btn glass" style={{ width: "auto", padding: "var(--space-3) var(--space-4)" }}><i className="icon-plus" /> Host</Link>
           </div>
         </section>
       )}
 
-      <div style={{ padding: "16px 16px 0" }}><InstallPrompt /></div>
+      <div style={{ padding: "var(--space-4) var(--space-4) 0" }}><InstallPrompt /></div>
     </>
   );
 }
@@ -194,9 +200,9 @@ function SavedTab({ events }: { events: Weyn[] }) {
     <section>
       <div className="date-head"><h2>Saved</h2><span>{events.length}</span></div>
       {events.length > 0 ? (
-        <div className="feed" style={{ paddingTop: 4 }}>{events.map((e) => <Stub key={e.id} e={e} />)}</div>
+        <div className="feed" style={{ paddingTop: "var(--space-1)" }}>{events.map((e) => <Stub key={e.id} e={e} />)}</div>
       ) : (
-        <div className="empty" style={{ padding: "24px 36px 32px" }}>
+        <div className="empty" style={{ padding: "var(--space-5) var(--space-6) var(--space-6)" }}>
           <div className="ic"><i className="icon-heart" /></div>
           <p>Nothing saved yet. Tap the heart on any event to keep it here.</p>
           <Link to="/" className="btn" style={{ maxWidth: 220, margin: "0 auto" }}><i className="icon-compass" /> Explore events</Link>
@@ -251,7 +257,7 @@ function NotificationsPref() {
           </button>
         )}
       </div>
-      {pushErr && <p className="errline" style={{ padding: "0 4px" }}>{pushErr}</p>}
+      {pushErr && <p className="errline" style={{ padding: "0 var(--space-1)" }}>{pushErr}</p>}
     </>
   );
 }
@@ -283,7 +289,7 @@ function CollectionsSection() {
   return (
     <section>
       <div className="date-head"><h2>My lists</h2><span>{data?.length || 0}</span></div>
-      <div style={{ display: "flex", gap: 8, padding: "0 16px 8px" }}>
+      <div style={{ display: "flex", gap: "var(--space-2)", padding: "0 var(--space-4) var(--space-2)" }}>
         <input
           className="toolbar-field"
           value={name}
@@ -301,7 +307,7 @@ function CollectionsSection() {
           <div className="list-row-skel"><div className="s-ic" /><div className="s-txt" /></div>
         </>
       ) : (data || []).length > 0 ? (
-        <ul className="steps" style={{ padding: "0 16px" }}>
+        <ul className="steps" style={{ padding: "0 var(--space-4)" }}>
           {data!.map((c) => (
             <li key={c.id}>
               <i className="icon-list" />
@@ -313,7 +319,7 @@ function CollectionsSection() {
           ))}
         </ul>
       ) : (
-        <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 16px 8px" }}>No lists yet — group events you want to remember or share.</p>
+        <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 var(--space-4) var(--space-2)" }}>No lists yet — group events you want to remember or share.</p>
       )}
     </section>
   );
@@ -390,7 +396,7 @@ function MoreMenu({ account, isHost, hasVenues, isAdmin, counts, onOpen }: {
           </div>
         </div>
       ) : (
-        <div className="signin-card" style={{ margin: "0 16px 12px" }}>
+        <div className="signin-card" style={{ margin: "0 var(--space-4) var(--space-3)" }}>
           <AccountWidget />
         </div>
       )}
@@ -424,7 +430,7 @@ function MoreMenu({ account, isHost, hasVenues, isAdmin, counts, onOpen }: {
         </>
       )}
 
-      <div style={{ padding: "4px 16px 0" }}><InstallPrompt /></div>
+      <div style={{ padding: "var(--space-1) var(--space-4) 0" }}><InstallPrompt /></div>
     </div>
   );
 }

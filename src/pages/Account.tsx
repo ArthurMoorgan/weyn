@@ -187,17 +187,17 @@ export default function Account() {
         <p className="sub">Manage your profile, sign-in, and security.</p>
       </div>
 
-      <section style={{ padding: "0 16px 8px" }}>
-        <div className="date-head" style={{ padding: "8px 0" }}><h2>Profile</h2></div>
+      <section style={{ padding: "0 var(--space-4) var(--space-2)" }}>
+        <div className="date-head" style={{ padding: "var(--space-2) 0" }}><h2>Profile</h2></div>
 
-        <div className="account-row" style={{ marginBottom: 16 }}>
+        <div className="account-row" style={{ marginBottom: "var(--space-4)" }}>
           {user.imageUrl ? <img src={user.imageUrl} alt="" className="account-pic" /> : <i className="icon-circle-user" />}
           <div className="account-info">
             <b>{user.fullName || user.username || "You"}</b>
             <span>{user.primaryEmailAddress?.emailAddress}</span>
           </div>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={onAvatarPick} />
-          <button className="btn glass" style={{ width: "auto", padding: "8px 14px", fontSize: 13 }} disabled={avatarBusy} onClick={() => fileRef.current?.click()}>
+          <button className="btn glass" style={{ width: "auto", padding: "var(--space-2) 14px", fontSize: 13 }} disabled={avatarBusy} onClick={() => fileRef.current?.click()}>
             {avatarBusy ? "Uploading…" : "Change photo"}
           </button>
         </div>
@@ -211,9 +211,9 @@ export default function Account() {
         <button className="btn" disabled={profileBusy} onClick={saveProfile}>{profileBusy ? "Saving…" : "Save profile"}</button>
       </section>
 
-      <section style={{ padding: "20px 16px 8px" }}>
-        <div className="date-head" style={{ padding: "8px 0" }}><h2>Email</h2></div>
-        <p className="sub" style={{ marginBottom: 12 }}>Current: {user.primaryEmailAddress?.emailAddress}</p>
+      <section style={{ padding: "var(--space-5) var(--space-4) var(--space-2)" }}>
+        <div className="date-head" style={{ padding: "var(--space-2) 0" }}><h2>Email</h2></div>
+        <p className="sub" style={{ marginBottom: "var(--space-3)" }}>Current: {user.primaryEmailAddress?.emailAddress}</p>
 
         {emailStep === "idle" ? (
           <>
@@ -225,10 +225,10 @@ export default function Account() {
           </>
         ) : (
           <>
-            <p className="hint" style={{ marginBottom: 8 }}>We sent a code to {newEmail} — enter it below to make it your new sign-in email.</p>
+            <p className="hint" style={{ marginBottom: "var(--space-2)" }}>We sent a code to {newEmail} — enter it below to make it your new sign-in email.</p>
             <div className="field"><label>Verification code</label><input value={emailCode} onChange={(e) => setEmailCode(e.target.value)} placeholder="123456" /></div>
             {emailErr && <p className="errline">{emailErr}</p>}
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", gap: "var(--space-3)" }}>
               <button className="btn" disabled={emailBusy || !emailCode.trim()} onClick={confirmEmailChange}>{emailBusy ? "Verifying…" : "Confirm"}</button>
               <button className="btn glass" disabled={emailBusy} onClick={() => { setEmailStep("idle"); setEmailCode(""); setPendingEmailId(null); }}>Cancel</button>
             </div>
@@ -236,8 +236,8 @@ export default function Account() {
         )}
       </section>
 
-      <section style={{ padding: "20px 16px 8px" }}>
-        <div className="date-head" style={{ padding: "8px 0" }}><h2>Password</h2></div>
+      <section style={{ padding: "var(--space-5) var(--space-4) var(--space-2)" }}>
+        <div className="date-head" style={{ padding: "var(--space-2) 0" }}><h2>Password</h2></div>
         {hasPassword && <div className="field"><label>Current password</label><input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} /></div>}
         <div className="field"><label>{hasPassword ? "New password" : "Set a password"}</label><input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></div>
         {passwordErr && <p className="errline">{passwordErr}</p>}
@@ -247,16 +247,16 @@ export default function Account() {
         </button>
       </section>
 
-      <section style={{ padding: "20px 16px 8px" }}>
-        <div className="date-head" style={{ padding: "8px 0" }}><h2>Connected accounts</h2></div>
+      <section style={{ padding: "var(--space-5) var(--space-4) var(--space-2)" }}>
+        <div className="date-head" style={{ padding: "var(--space-2) 0" }}><h2>Connected accounts</h2></div>
         <div className="settings-row">
-          <span><i className="icon-globe" style={{ marginRight: 8 }} />Google</span>
+          <span><i className="icon-globe" style={{ marginRight: "var(--space-2)" }} />Google</span>
           {googleAccount ? (
-            <button className="btn glass" style={{ width: "auto", padding: "8px 14px", fontSize: 13 }} disabled={connectBusy} onClick={disconnectGoogle}>
+            <button className="btn glass" style={{ width: "auto", padding: "var(--space-2) 14px", fontSize: 13 }} disabled={connectBusy} onClick={disconnectGoogle}>
               {connectBusy ? "…" : "Disconnect"}
             </button>
           ) : (
-            <button className="btn glass" style={{ width: "auto", padding: "8px 14px", fontSize: 13 }} disabled={connectBusy} onClick={connectGoogle}>
+            <button className="btn glass" style={{ width: "auto", padding: "var(--space-2) 14px", fontSize: 13 }} disabled={connectBusy} onClick={connectGoogle}>
               {connectBusy ? "…" : "Connect"}
             </button>
           )}
@@ -264,7 +264,7 @@ export default function Account() {
         {connectErr && <p className="errline">{connectErr}</p>}
       </section>
 
-      <section style={{ padding: "20px 16px 32px" }}>
+      <section style={{ padding: "var(--space-5) var(--space-4) var(--space-6)" }}>
         <div className="danger-zone">
           <b>Delete account</b>
           <p>Permanently deletes your account. Any events you're hosting are cancelled. This can't be undone.</p>

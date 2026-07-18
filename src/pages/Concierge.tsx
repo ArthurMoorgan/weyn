@@ -155,7 +155,7 @@ export default function Concierge() {
             {[0, 1, 2].map((i) => (
               <div key={i} className="concierge-skeleton-item">
                 <div className="skel-cover" style={{ aspectRatio: "16/9" }} />
-                <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ padding: "0 var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                   <span className="sk sk-line" style={{ width: "100%", height: 16 }} />
                   <span className="sk sk-line" style={{ width: "80%", height: 14 }} />
                   <span className="sk sk-line" style={{ width: "60%", height: 12 }} />

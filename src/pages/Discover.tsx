@@ -2,6 +2,9 @@ import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router-dom";
 import Explore from "./Explore";
 import Skeleton from "../components/Skeleton";
+import PageTopBar from "../components/PageTopBar";
+import UserAvatar from "../components/UserAvatar";
+import { useAccount } from "../store";
 
 // Reservations (venue browsing) is now folded into Discover as a second
 // mode rather than living on its own bottom-tab slot — events and venues
@@ -12,9 +15,14 @@ const Reservations = lazy(() => import("./Reservations"));
 
 export default function Discover() {
   const [mode, setMode] = useState<"events" | "venues">("events");
+  const account = useAccount();
 
   return (
     <>
+      <PageTopBar>
+        <UserAvatar account={account} />
+      </PageTopBar>
+
       <div className="discover-head">
         <div className="seg-toggle" role="tablist" aria-label="Browse">
           {/* Sliding thumb — a single element that transforms between the

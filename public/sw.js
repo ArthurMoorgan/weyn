@@ -1,7 +1,13 @@
 // Weyn service worker — offline app shell + installability.
 // Conservative: never caches the API, uploads, or dev modules, so local dev stays live.
 
-const CACHE = "weyn-v1";
+// Bumped to v2: /icons3d/*.webp changed (colored icon art) and the old
+// cache-first strategy below had no version-based invalidation — a visitor
+// who'd loaded the site before would keep seeing the stale cached icons
+// forever, hard refresh included, since the SW intercepts the fetch before
+// it reaches the network. Bumping this string forces `activate` to purge
+// the old cache and re-fetch everything fresh.
+const CACHE = "weyn-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {

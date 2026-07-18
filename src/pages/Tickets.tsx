@@ -5,6 +5,8 @@ import { useAsync } from "../hooks";
 import { useAccount, useTickets } from "../store";
 import Stub from "../components/Stub";
 import AccountWidget from "../components/AccountWidget";
+import PageTopBar from "../components/PageTopBar";
+import UserAvatar from "../components/UserAvatar";
 
 // Promoted from a drilled-in Profile section to its own top-level tab —
 // "my bookings" is core, frequently-checked attendee functionality that was
@@ -29,6 +31,7 @@ export default function Tickets() {
   if (!account) {
     return (
       <>
+        <PageTopBar><UserAvatar account={account} /></PageTopBar>
         <section className="ex-hero">
           <h1>Tickets</h1>
         </section>
@@ -41,6 +44,7 @@ export default function Tickets() {
 
   return (
     <>
+      <PageTopBar><UserAvatar account={account} /></PageTopBar>
       <section className="ex-hero">
         <h1>Tickets</h1>
       </section>

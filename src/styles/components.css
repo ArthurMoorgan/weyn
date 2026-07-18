@@ -1041,7 +1041,7 @@
 .tab-host-item span { font: var(--t-caption); color: var(--text-3); font-weight: 500; text-transform: none; letter-spacing: 0; }
 
 /* ---------- map ---------- */
-.mappick { margin-top: 2px; }
+.mappick { margin-top: var(--space-1); }
 .map-canvas {
   height: 220px; border-radius: var(--radius-sm); overflow: hidden;
   border: 1px solid var(--glass-line); background: var(--surface-hover); z-index: 0;
@@ -1053,11 +1053,11 @@
 .map-canvas.full { width: 100%; height: 100%; border: none; border-radius: 0; }
 .map-back {
   position: absolute; z-index: 3;
-  top: calc(16px + env(safe-area-inset-top)); left: 16px;
+  top: calc(var(--space-4) + env(safe-area-inset-top)); left: var(--space-4);
 }
 .map-loading, .map-fallback {
   position: absolute; inset: 0; z-index: 2;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3);
   background: var(--bg);
 }
 .map-fallback [class^="icon-"] { font-size: 28px; color: var(--text-3); }
@@ -3378,12 +3378,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 
 .concierge-header {
-  padding: 12px 16px; border-bottom: 1px solid var(--hair);
+  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--hair);
   background: var(--surface);
 }
 
 .concierge-title-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
 }
 
 .concierge-back {
@@ -3405,12 +3405,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 /* Scrollable content area */
 .concierge-content {
   flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: 16px; display: flex; flex-direction: column; gap: 16px;
+  padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4);
 }
 
 /* Intro text + example chips */
 .concierge-intro {
-  display: flex; flex-direction: column; gap: 16px; padding: 8px 0;
+  display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-2) 0;
 }
 
 .concierge-intro-text {
@@ -3419,11 +3419,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 
 .concierge-chips {
-  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center;
 }
 
 .concierge-chip {
-  padding: 8px 16px; border-radius: 20px; border: 1px solid var(--hair);
+  padding: var(--space-2) var(--space-4); border-radius: 20px; border: 1px solid var(--hair);
   background: var(--surface-hover); color: var(--text); font-size: 13px;
   font-weight: 500; cursor: pointer; transition: all 0.15s;
   white-space: nowrap; min-height: 36px;
@@ -3434,25 +3434,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 /* Results itinerary */
 .concierge-results {
-  display: flex; flex-direction: column; gap: 16px;
+  display: flex; flex-direction: column; gap: var(--space-4);
 }
 
 .concierge-result-item {
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: var(--space-2);
 }
 
 .concierge-reasoning {
-  font: var(--t-meta); color: var(--text-2); margin: 0 16px;
+  font: var(--t-meta); color: var(--text-2); margin: 0 var(--space-4);
   line-height: 1.5; font-size: 13px;
 }
 
 /* Skeleton loading */
 .concierge-skeletons {
-  display: flex; flex-direction: column; gap: 16px;
+  display: flex; flex-direction: column; gap: var(--space-4);
 }
 
 .concierge-skeleton-item {
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: var(--space-2);
   border-radius: var(--radius-lg); overflow: hidden;
 }
 
@@ -3462,10 +3462,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 /* Error message */
 .concierge-error {
-  padding: 14px 16px; border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4); border-radius: var(--radius);
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+  display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start;
 }
 
 .concierge-error p {
@@ -3473,7 +3473,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 }
 
 .concierge-error-retry {
-  padding: 6px 12px; border-radius: var(--radius-sm); border: none;
+  padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); border: none;
   background: var(--accent); color: #fff; font-size: 13px; font-weight: 600;
   cursor: pointer; transition: opacity 0.15s;
 }
@@ -3482,13 +3482,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 /* Input area - sticky bottom */
 .concierge-input-area {
-  display: flex; align-items: center; gap: 8px; padding: 12px;
+  display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3);
   border-top: 1px solid var(--hair); background: var(--surface);
   flex-shrink: 0;
 }
 
 .concierge-input {
-  flex: 1; padding: 12px 16px; border-radius: 24px;
+  flex: 1; padding: var(--space-3) var(--space-4); border-radius: 24px;
   border: 1px solid var(--hair); background: var(--surface-hover);
   color: var(--text); font-size: 15px; min-height: 44px;
   font-family: inherit; transition: border-color 0.15s;
@@ -3535,7 +3535,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 @media (max-width: 600px) {
   .concierge-page { height: 100dvh; }
   .concierge-chips { justify-content: flex-start; }
-  .concierge-reasoning { margin-left: 12px; margin-right: 12px; }
+  .concierge-reasoning { margin-left: var(--space-3); margin-right: var(--space-3); }
 }
 
 /* ---------- Who's Going (event attendees) ---------- */
