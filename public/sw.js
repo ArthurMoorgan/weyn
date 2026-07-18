@@ -58,12 +58,16 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // map tiles, fonts, cross-origin → network
-  // never intercept live data or dev tooling
+  // never intercept live data, dev tooling, or /icons3d — that art gets
+  // swapped in place under the same filenames (see the CACHE-bump comment
+  // above), so cache-first here would silently strand visitors on
+  // whatever version they first loaded.
   if (
     url.pathname.startsWith("/api") ||
     url.pathname.startsWith("/uploads") ||
     url.pathname.startsWith("/@") ||
     url.pathname.startsWith("/src") ||
+    url.pathname.startsWith("/icons3d") ||
     url.pathname.includes("node_modules")
   ) return;
 
