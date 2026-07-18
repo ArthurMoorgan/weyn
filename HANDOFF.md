@@ -2219,3 +2219,69 @@ category compaction, entrance animations, color audit, category-icon
 overflow) was scoped narrowly enough that it didn't correspond to any of the
 Outstanding list's named items, and doesn't retire any of them — it's
 additive polish on top of what §35/§36 already shipped for Discover.
+
+## 38. §37 Critic-flagged gaps closed (2026-07-18, same day)
+
+The council round that produced §37 included a Critic pass that found real,
+verifiable problems with what §37 shipped — re-checked directly against the
+code (not just the Critic's prose) before acting on it, per this project's
+established "verify before trusting a round's own summary" practice:
+
+1. **Ambient glow overshoot was wrong, not just approximate.** A second,
+   higher-fps (60fps, vs. the original pass's lower-fidelity read) re-analysis
+   of the reference video (`docs/discover-reference-spec-reanalysis.md`,
+   written this same pass) found the hue swap on tab tap is a direct jump
+   straight to the new color that eases to rest in ~230-250ms with **no
+   brightness spike anywhere** — contradicting §36's `ambient-bloom` keyframe
+   (opacity spike to 1.6 at 15%), which was built off an earlier, less
+   precise read of the same footage. Removed the `ambient-bloom` keyframe and
+   the `ambient-pulse` class-toggle effect in `Discover.tsx` entirely rather
+   than leave a documented-wrong effect shipping; the existing `--ambient-top`
+   color transition (retimed `.5s`→`.24s ease-out` to match the
+   re-measurement) now carries the whole effect on its own.
+2. **Skeleton timing comment corrected** — same re-analysis found the
+   reference's skeleton actually holds ~1.0-1.9s per switch, not the
+   ~2.3-2.9s an earlier pass reported. `SWITCH_SKELETON_MS = 900` already
+   sits inside the corrected range, so no value change was needed — only the
+   code comment, which cited the old (wrong) figure.
+3. **Layout compaction pushed further** — §37 honestly reported that its
+   header/search/category numbers (58px/46px/202px) barely moved off the
+   pre-§37 baseline against whatever the ~44/56/42px targets actually meant,
+   but didn't act on that gap. Trimmed further: `.seg-toggle` button padding
+   `7px→6px`, `.discover-head` padding `10/8→8/6`, `.cat-circle` min-height
+   `92px→80px` with matching padding/gap trim. Re-measured live at 375px:
+   `.discover-head` **51.5px** (was 58px), `.cat-circles` **174px** total
+   (was 202px) — a real, verified reduction, not just a smaller reported
+   number. Still short of the stated ~44/42px targets and deliberately so:
+   the toggle's tap target and the category tiles' icon-overflow effect
+   (§37 item 4) both need a floor, and this pass stopped shrinking once
+   further trims started crowding the label against the tile's bottom edge
+   (checked live, not assumed).
+4. **Color-palette duplication fixed, not just flagged.** §37's audit found
+   `#3A3A3A` hardcoded in two places (`Explore.tsx`'s gradient fallback and
+   `HorizontalRail.tsx`'s inert placeholder object) instead of referencing
+   `--cat-music`. Fixed the real one: `Explore.tsx`'s CSS fallback now reads
+   `var(--cat-${e.cat}, var(--cat-music))` instead of duplicating the hex.
+   `HorizontalRail.tsx`'s copy is a plain JS data field with no CSS `var()`
+   equivalent and is never actually rendered (per `Stub.tsx`'s own "greyscale
+   system ignores it" comment) — left as a hardcoded value with a comment
+   noting what it mirrors, since building a shared constant for a dead field
+   isn't worth the indirection.
+5. **Entrance-animation code verified live**, not just code-reviewed — the
+   Critic's objection that §37 shipped `motion.div` wrappers around event
+   cards without ever loading the page was valid at the time. Started the
+   dev server, drove Discover in both modes and both themes via a real
+   Playwright session, scrolled through the "All events" list with the new
+   fade+rise-in wrapper active: no jank, no flex-collapse, no console errors.
+
+**Not addressed** (flagged by the Security Advisor as pre-existing, not
+introduced by any of this work, and out of scope for a UI pass): `Stub.tsx`
+and `Explore.tsx`'s `HeroSlide` inject `e.image`/`e.imageFocalPoint` into
+inline CSS (`backgroundImage: url(...)`, `backgroundPosition`) without client-
+side URL-scheme validation. Low real risk today (requires a compromised
+backend or MITM to matter — modern browsers already reject non-http(s)
+schemes in CSS `url()`), but worth a dedicated pass if the API's image-URL
+validation is ever in question.
+
+Verified before pushing: `tsc -b` clean, `npm test` 15/15, live Playwright
+pass at 375px and 1280px, light+dark, both Discover modes.
