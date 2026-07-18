@@ -217,11 +217,23 @@
   padding: 4px 20px 4px;
 }
 .cat-circle {
+  position: relative; overflow: hidden;
   flex-direction: column; display: flex; align-items: center; justify-content: center;
   gap: 10px; background: var(--surface); border: 1px solid var(--card-border);
   border-radius: var(--radius-lg); padding: 18px 8px 14px; min-height: 108px;
   box-shadow: var(--card-shadow); transition: transform .15s ease;
 }
+/* Soft white fade behind the icon, top-center of each tile (reference) —
+   a light-source cue like the shell-level glow, not a hue, so every tile
+   still reads uniformly regardless of its icon color. Sits behind the icon
+   ring/label (z-index: 0), clipped to the tile's own rounded corners via
+   the parent's overflow: hidden. */
+.cat-circle::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 70%;
+  background: radial-gradient(ellipse 90% 100% at 50% 0%, rgba(255,255,255,.08), transparent 75%);
+  pointer-events: none; z-index: 0;
+}
+.cat-circle-ring, .cat-circle-label { position: relative; z-index: 1; }
 .cat-circle-ring {
   width: 52px; height: 52px;
   display: grid; place-items: center; flex: 0 0 auto;
