@@ -214,7 +214,7 @@
    reference exactly. */
 .cat-circles {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-  padding: 4px 20px 4px;
+  padding: 4px 16px 4px;
 }
 .cat-circle {
   position: relative; overflow: hidden;
@@ -1601,7 +1601,7 @@
      (12px gutter, tighter than the 16px cards below) so it reads as chrome
      under the status bar rather than another floating tile competing for
      attention. */
-  padding: 6px 8px 6px 14px; margin: 8px 12px 0; border-radius: var(--radius-pill);
+  padding: 6px 8px 6px 14px; margin: 8px 16px 0; border-radius: var(--radius-pill);
   background: var(--surface-hover);
   border: 1px solid var(--border);
 }
