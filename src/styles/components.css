@@ -732,14 +732,18 @@
 .ex-hero-card-price b { color: #fff; font-weight: 700; }
 
 /* Swipeable featured spotlight carousel — a horizontal snap-scroll track,
-   each card sized so the next one peeks in from the right edge (reference:
-   partially-visible neighbor cards), native touch/trackpad scroll as the
-   only input, dots below tracking the nearest-snapped card. See
-   FeaturedSpotlight in Explore.tsx. */
+   each card sized so BOTH neighbors peek in from the edges (reference video,
+   measured off actual frames: active card ~77% of viewport, ~8% peeking on
+   each side). No side padding on the track — the video's active card sits
+   flush with the screen edge when snapped at either end; the 16px gutter
+   this used to have was eating into the peek, not sitting outside it, so
+   removing it (not the flex-basis) is what actually restores the video's
+   proportions. Native touch/trackpad scroll as the only input, dots below
+   tracking the nearest-snapped card. See FeaturedSpotlight in Explore.tsx. */
 .ex-spotlight { margin-top: 4px; }
 .ex-spotlight-track {
   display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
-  scrollbar-width: none; padding: 0 16px; overscroll-behavior-x: contain;
+  scrollbar-width: none; padding: 0; overscroll-behavior-x: contain;
 }
 .ex-spotlight-track::-webkit-scrollbar { display: none; }
 .ex-spotlight-slide {
