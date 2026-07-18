@@ -13,6 +13,13 @@ export function captureError(err, context) {
   console.error("[weyn]", err);
   if (sentryReady) Sentry.captureException(err, context ? { extra: context } : undefined);
 }
+// For expected/routine rejections (e.g. a hard validation fail on event
+// publish) that are worth having in Sentry for visibility but shouldn't page
+// anyone as an error — same shape as captureError, "warning" level instead.
+export function captureWarning(message, context) {
+  console.warn("[weyn]", message, context || "");
+  if (sentryReady) Sentry.captureMessage(message, { level: "warning", extra: context });
+}
 export { Sentry, sentryReady };
 
 let posthog = null;

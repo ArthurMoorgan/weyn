@@ -25,7 +25,7 @@ import { AGENT_TOOLS, buildToolExecutor, toolByName } from "./agent-tools.js";
 import { createCheckoutSession, fetchTransactionStatus, verifyIpnSignature, paytabsConfigured } from "./payments.js";
 import { attachUser, requireAuth, requireRole, requireEventOwner, requireEventOwnerStrict, requireEventAccess, requireEventAccessOrPermission, requireVenueAccess, requireVenueOwnerStrict, authConfigured } from "./auth.js";
 import { createEventSchema, updateEventSchema, eventWorkflowSchema, validateBody } from "./validators.js";
-import { initSentry, initPostHog, captureError, trackEvent, Sentry, sentryReady } from "./monitoring.js";
+import { initSentry, initPostHog, captureError, captureWarning, trackEvent, Sentry, sentryReady } from "./monitoring.js";
 import { FEATURES, hasFeature, allFeatures, ensureSubscription, requireFeature } from "./features.js";
 import { sniffImageMime, EXT_BY_MIME } from "./image-utils.js";
 import { sendEmail, emailConfigured, teamInviteEmail, bookingConfirmationEmail, organizerPaymentClaimEmail, organizerTeamInviteEmail, reminderEmail, waitlistWelcomeEmail, waitlistOwnerNotifyEmail } from "./email.js";
