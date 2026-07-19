@@ -112,6 +112,12 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const n = events.length;
+  // Swipe/drag state: the deck is absolutely-stacked cards (no native scroll),
+  // so we drive next/prev off pointer gestures ourselves. `moved` guards the
+  // front card's link — a real swipe must not also navigate into the event.
+  const startX = useRef(0);
+  const dragging = useRef(false);
+  const moved = useRef(false);
 
   useEffect(() => {
     if (n <= 1 || reduced || paused) return;
@@ -122,16 +128,41 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   // Clamp active if the event list shrinks (e.g. category switch).
   useEffect(() => { if (active >= n) setActive(0); }, [n, active]);
 
+  const go = (dir: number) => setActive((a) => (((a + dir) % n) + n) % n);
+
+  function onPointerDown(e: React.PointerEvent) {
+    startX.current = e.clientX;
+    dragging.current = true;
+    moved.current = false;
+    setPaused(true);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    if (dragging.current && Math.abs(e.clientX - startX.current) > 8) moved.current = true;
+  }
+  function endDrag(e: React.PointerEvent) {
+    if (!dragging.current) return;
+    const dx = e.clientX - startX.current;
+    dragging.current = false;
+    setPaused(false);
+    if (n > 1 && Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); // swipe left → next
+  }
+  // If a swipe happened, swallow the click so the front card's link doesn't fire.
+  function onClickCapture(e: React.MouseEvent) {
+    if (moved.current) { e.preventDefault(); e.stopPropagation(); moved.current = false; }
+  }
+
   if (n === 0) return null;
 
   return (
     <div className="ex-spotlight ex-spotlight-deck">
       <div
         className="ex-deck"
-        onPointerEnter={() => setPaused(true)}
-        onPointerLeave={() => setPaused(false)}
-        onTouchStart={() => setPaused(true)}
-        onTouchEnd={() => setPaused(false)}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={() => { dragging.current = false; setPaused(false); }}
+        onPointerLeave={(e) => { endDrag(e); }}
+        onClickCapture={onClickCapture}
       >
         {events.map((ev, i) => {
           const offset = ((i - active) % n + n) % n; // 0 = front … n-1
@@ -475,7 +506,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                   animate={{ scale: isOn ? 1.06 : 1 }}
                   transition={{ type: "spring", stiffness: 500, damping: 14 }}
                 >
-                  <Icon3D name={c.key as Cat} size={64} />
+                  <Icon3D name={c.key as Cat} size={72} />
                 </motion.span>
                 <span className="cat-circle-label">{c.label}</span>
               </motion.button>

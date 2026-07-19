@@ -279,7 +279,7 @@
 }
 .cat-circle-ring, .cat-circle-label { position: relative; z-index: 1; }
 .cat-circle-ring {
-  width: 64px; height: 64px;
+  width: 72px; height: 72px;
   /* Icon sits INSIDE the tile, centered as a group with the label — matches
      the reference grid (Dining/Movies/Events…), where the renders are large
      and fully contained, NOT poking above the box. An earlier pass pulled
@@ -851,11 +851,20 @@
   position: relative; width: 100%; aspect-ratio: 100 / 92;
   /* Room for the scaled side cards to peek without being clipped. */
   overflow: visible;
+  /* Horizontal drag drives the deck (see FeaturedSpotlight); pan-y keeps
+     vertical page scrolling working when the gesture starts on the deck. */
+  touch-action: pan-y;
+  cursor: grab;
 }
+.ex-deck:active { cursor: grabbing; }
 .ex-deck-card {
   position: absolute; top: 0; bottom: 0; left: 50%; width: 72%;
   transform: translateX(-50%);
-  transition: transform .55s cubic-bezier(.16,1,.3,1), opacity .55s ease, filter .55s ease;
+  /* Opacity/brightness settle FASTER than the slide so the incoming front is
+     crisp almost immediately — otherwise it lingers semi-transparent at
+     center over the outgoing card mid-rotation and the front reads as
+     translucent (the reported bug). Transform still eases the full .5s. */
+  transition: transform .5s cubic-bezier(.16,1,.3,1), opacity .2s ease, filter .2s ease;
   will-change: transform, opacity;
 }
 .ex-deck-card .ex-hero-card {

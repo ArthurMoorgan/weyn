@@ -25,8 +25,8 @@ const You = lazy(() => import("./pages/You"));
 // variant for the selected state; the rest read selection through the
 // dim->bright color + scale cue in .tab/.tab.on (components.css).
 const TABS = [
-  { to: "/", icon: "calendar", label: "Events", filled: false },
-  { to: "/venues", icon: "store", label: "Venues", filled: false },
+  { to: "/", icon: "calendar", label: "Events", filled: true },
+  { to: "/venues", icon: "store", label: "Venues", filled: true },
   { to: "/tickets", icon: "ticket", label: "Tickets", filled: true },
   { to: "/concierge", icon: "sparkles", label: "AI", filled: true },
 ];
