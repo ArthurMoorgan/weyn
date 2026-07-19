@@ -573,7 +573,10 @@ a.cat-circle:active { transform: scale(0.96); }
    marketing copy above the fold reads as friction, not welcome. */
 /* top padding carries the whole gap now that the browse screens have no
    topbar — keeps the greeting/title clear of the status bar / notch */
-.ex-hero { padding: 24px 16px 4px; display: flex; align-items: center; justify-content: space-between; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
+.ex-hero { padding: 24px 16px 4px; display: flex; align-items: center; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
+/* Shared-element morph target for a home-hub tile's icon (layoutId) — sized
+   to roughly match the tile ring so the morph doesn't jump size drastically. */
+.ex-hero-nav-icon { font-size: 40px; line-height: 1; flex: 0 0 auto; }
 .ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; white-space: nowrap; }
 
 /* ---------- Discover header: Events/Venues segmented toggle ---------- */

@@ -7,7 +7,6 @@ import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import { addRecentSearch, getRecentSearches, clearRecentSearches } from "../hooks/useRecentSearches";
 import Stub from "../components/Stub";
-import Icon3D from "../components/Icon3D";
 import HorizontalRail from "../components/HorizontalRail";
 import { useRecommendations } from "../hooks/useRecommendations";
 import { preloadEventDetail } from "../eventDetailChunk";
@@ -381,6 +380,12 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
           pill) so a second title here would be redundant clutter. */}
       {!searching && !embedded && (
         <section className="ex-hero">
+          {/* Shared-element morph destination for the home hub's Events tile
+              (see the layoutId="nav-icon-events" tile in the embedded render
+              above) — Framer Motion animates the tapped tile's icon into this
+              slot across the route change, so it visually "merges into the
+              top" of this page instead of just appearing. */}
+          <motion.span layoutId="nav-icon-events" className="ex-hero-nav-icon" aria-hidden="true">🎟️</motion.span>
           <div>
             <Suspense fallback={<h1 style={{ textAlign: "left" }}>Where to next?</h1>}>
               <SplitText
@@ -479,63 +484,68 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
         </div>
       )}
 
-      {!searching && (
-        <div className="chips chips-when chips-desktop-only">
-          {(["all", "today", "tomorrow", "weekend"] as const).map((w) => (
-            <button key={w} className={"chip" + (when === w ? " on" : "")} onClick={() => setWhen(w)}>
-              {w === "all" ? "Any time" : w === "today" ? "Today" : w === "tomorrow" ? "Tomorrow" : "This weekend"}
-            </button>
+      {/* HOME HUB (embedded): just the 3 top-level destinations — Events,
+          Venues, Host — matching the reference's tile-as-navigation model.
+          These NAVIGATE (Link) rather than filter in place; the sub-category
+          filtering that used to live here (Live music/Sports/Food/…) moved to
+          a chip row on the standalone Events page below. Each icon carries a
+          layoutId shared with a small header icon on its destination page
+          (Reservations.tsx / Organizer.tsx / this file's own !embedded hero)
+          so Framer Motion morphs it there across the route change — the tile
+          "merges into the top" instead of just cutting to the new page. */}
+      {!searching && embedded && (
+        <div className="cat-circles cat-circles-hub">
+          {[
+            { to: "/explore", key: "events", label: "Events", emoji: "🎟️" },
+            { to: "/venues", key: "venues", label: "Venues", emoji: "🏬" },
+            { to: "/host/events", key: "host", label: "Host", emoji: "🎪" },
+          ].map((t, i) => (
+            <motion.div
+              key={t.key}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1], delay: i * 0.05 }}
+            >
+              <Link to={t.to} className="cat-circle cat-circle-hub-tile" aria-label={t.label}>
+                <motion.span layoutId={`nav-icon-${t.key}`} className="cat-circle-ring cat-circle-emoji" aria-hidden="true">
+                  {t.emoji}
+                </motion.span>
+                <span className="cat-circle-label">{t.label}</span>
+              </Link>
+            </motion.div>
           ))}
         </div>
       )}
 
-      {!searching && (
-        <div className="cat-circles">
-          {CATS.filter((c) => c.key !== "all").map((c, i) => {
-            const isOn = cat === c.key;
-            return (
-              <motion.button
-                key={c.key}
-                className={"cat-circle" + (isOn ? " on" : "")}
-                onClick={() => setCat(c.key as Cat | "all")}
-                aria-pressed={isOn}
-                aria-label={c.label}
-                // Staggered entrance — tiles rise in one after another (capped
-                // at 6 tiles ≈ 240ms total) instead of one uniform reveal.
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
-                whileTap={{ scale: 0.94 }}
-                whileHover={{ y: -3 }}
-              >
-                {/* Colorful photographic 3D niche renders (see Icon3D) —
-                    every tile looks the same regardless of selection state,
-                    matching the reference exactly (no colored outline). The
-                    ring lifts + settles with a soft spring when selected. */}
-                <motion.span
-                  className="cat-circle-ring"
-                  animate={{ scale: isOn ? 1.12 : 1, y: isOn ? -2 : 0 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 14 }}
+      {/* EVENTS PAGE (standalone /explore): the "When" quick filter and
+          category chips replace the old icon grid here — filtering, not
+          top-level navigation, so a compact chip row fits better than large
+          tiles. */}
+      {!searching && !embedded && (
+        <>
+          <div className="chips chips-when">
+            {(["all", "today", "tomorrow", "weekend"] as const).map((w) => (
+              <button key={w} className={"chip" + (when === w ? " on" : "")} onClick={() => setWhen(w)}>
+                {w === "all" ? "Any time" : w === "today" ? "Today" : w === "tomorrow" ? "Tomorrow" : "This weekend"}
+              </button>
+            ))}
+          </div>
+          <div className="chips chips-categories">
+            {CATS.filter((c) => c.key !== "all").map((c) => {
+              const isOn = cat === c.key;
+              return (
+                <button
+                  key={c.key}
+                  className={"chip" + (isOn ? " on" : "")}
+                  onClick={() => setCat(isOn ? "all" : (c.key as Cat))}
+                  aria-pressed={isOn}
                 >
-                  <Icon3D name={c.key as Cat} size={72} />
-                </motion.span>
-                <span className="cat-circle-label">{c.label}</span>
-              </motion.button>
-            );
-          })}
-          {/* Nav tiles in the hub grid (the bottom bar is gone on mobile):
-              Venues gives the reservations browse a home, Host is the
-              create-an-event entry point. Links, not filters — they navigate
-              rather than filtering the feed in place like the category tiles. */}
-          <Link to="/venues" className="cat-circle cat-circle-nav" aria-label="Browse venues">
-            <span className="cat-circle-ring cat-circle-emoji" aria-hidden="true">🏬</span>
-            <span className="cat-circle-label">Venues</span>
-          </Link>
-          <Link to="/host/events" className="cat-circle cat-circle-nav" aria-label="Host an event">
-            <span className="cat-circle-ring cat-circle-emoji" aria-hidden="true">🎪</span>
-            <span className="cat-circle-label">Host</span>
-          </Link>
-        </div>
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {!searching && when !== "all" && (

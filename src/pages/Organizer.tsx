@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api, CATS, type Cat, type TicketingType, type EventVenue } from "../api";
 import { getOrganizer, setOrganizer, useAccount } from "../store";
@@ -301,6 +302,9 @@ export default function Organizer() {
         <header className="topbar">
           <div className="brand">
             <MotionButton className="icon-btn" onClick={() => nav(-1)} aria-label="Back"><i className="icon-arrow-left" /></MotionButton>
+            {/* Morph destination for the home hub's Host tile — see
+                layoutId="nav-icon-host" there (Explore.tsx). */}
+            <motion.span layoutId="nav-icon-host" className="ex-hero-nav-icon" aria-hidden="true" style={{ fontSize: 28 }}>🎪</motion.span>
             <span className="en">Host an event</span>
           </div>
           <div className="tb-right"><ThemeToggle /></div>

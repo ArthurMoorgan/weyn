@@ -21,7 +21,11 @@ import Skeleton from "../components/Skeleton";
 // intra-shell transitions (drill-in, organizer section→section) are the job
 // of a nested <AnimatePresence> around those layouts' own <Outlet/>, where the
 // swapped content isn't persistent.
-const SHELL_EXACT = new Set(["/", "/venues", "/tickets", "/you", "/saved", "/host/events", "/host/venue", "/admin"]);
+// /venues and /host/events used to be here (a bare tab-swap, no page
+// transition) — both are now reached by tapping a home-hub tile and should
+// get a real page transition + the tapped icon's layoutId morph into the
+// destination's header, so they're normal re-keyed routes like any other.
+const SHELL_EXACT = new Set(["/", "/tickets", "/you", "/saved", "/host/venue", "/admin"]);
 // Everything under /organizer/* is a shell dashboard route EXCEPT
 // /organizer/:id (a public profile), which is a standalone page — same
 // static-segment-vs-dynamic split main.tsx's route table relies on.

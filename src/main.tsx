@@ -29,6 +29,7 @@ import { initPostHog, identifyPostHog, resetPostHog } from "./posthog";
 
 const EventDetail = lazy(preloadEventDetail);
 const Explore = lazy(() => import("./pages/Explore"));
+const Reservations = lazy(() => import("./pages/Reservations"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const Saved = lazy(() => import("./pages/Saved"));
 const Organizer = lazy(() => import("./pages/Organizer"));
@@ -226,10 +227,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   the actual rendering. */}
               <Route element={<App />}>
                 <Route path="/" />
-                {/* Venues is its own bottom-tab destination now (App renders
-                    it via MAIN_TABS, same kept-mounted pattern as "/"), so
-                    like "/" it just needs the router to match and mount App. */}
-                <Route path="/venues" />
+                {/* Venues is now a real pushed destination reached by tapping
+                    the Venues tile on the home hub — a normal route (like
+                    /host/events), not a kept-mounted MAIN_TABS entry, so it
+                    gets its own page-transition + icon morph on the way in
+                    (see RouteTransitions' SHELL_EXACT, which no longer
+                    includes this path). */}
+                <Route path="/venues" element={<Reservations />} />
                 <Route path="/explore" element={<Explore />} />
                 {/* Reservations is no longer its own tab — venue browsing
                     folded into Discover's Venues mode. Keep the old path

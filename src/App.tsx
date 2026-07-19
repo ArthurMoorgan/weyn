@@ -49,14 +49,11 @@ const HOST_OPTIONS = [
 // app," matching how native tab-bar apps behave. Nested subpages
 // (/saved, /host/events, /admin, …) are NOT part of this — those mount
 // fresh via the normal <Outlet/> below.
-// Module-level wrappers (stable identity, so the kept-mounted tab pages
-// aren't remounted every render) that pin each Discover instance to its
-// browse surface. "/" is Events, "/venues" is Venues — see Discover's `mode`.
-const DiscoverEvents = () => <Discover mode="events" />;
-const DiscoverVenues = () => <Discover mode="venues" />;
+// Venues is no longer a kept-mounted tab — it's a normal pushed route
+// (like /host/events) reached by tapping the home hub's Venues tile, so it
+// gets a real page transition + icon morph instead of an instant tab-swap.
 const MAIN_TABS: { path: string; Component: React.ComponentType }[] = [
-  { path: "/", Component: DiscoverEvents },
-  { path: "/venues", Component: DiscoverVenues },
+  { path: "/", Component: Discover },
   { path: "/tickets", Component: Tickets },
   { path: "/you", Component: You },
 ];

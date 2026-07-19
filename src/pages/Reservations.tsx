@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { api, VENUE_CATS, type Venue, type VenueCategory } from "../api";
 import VenueCard from "../components/VenueCard";
 
@@ -126,6 +127,9 @@ export default function Reservations({ embedded = false }: { embedded?: boolean 
           Discover shell's segmented toggle is the header there. */}
       {!embedded && (
         <section className="ex-hero">
+          {/* Morph destination for the home hub's Venues tile — see
+              layoutId="nav-icon-venues" there (Explore.tsx). */}
+          <motion.span layoutId="nav-icon-venues" className="ex-hero-nav-icon" aria-hidden="true">🏬</motion.span>
           <h1>Reserve a table</h1>
         </section>
       )}
