@@ -1181,7 +1181,23 @@ export const api = {
     if (params.cat && params.cat !== "all") sp.set("cat", params.cat);
     if (params.q) sp.set("q", params.q);
     const qs = sp.toString();
-    return fetch(`${API_BASE}/api/events${qs ? "?" + qs : ""}`).then((r) => json<Weyn[]>(r)).then((l) => l.map(absMedia));
+    return fetch(`${API_BASE}/api/events${qs ? "?" + qs : ""}`)
+      .then((r) => json<Weyn[]>(r))
+      .then((l) => l.map(absMedia))
+      .then(async (l) => {
+        // Offline dev/preview: with no backend the fetch above either throws
+        // or (misconfigured) returns nothing — fall back to mock events so the
+        // spotlight/feed/scroll can be exercised. DEV-gated, so production
+        // builds strip this entirely and never show mock data.
+        if (import.meta.env.DEV && l.length === 0) {
+          return (await import("./devEvents")).devEvents();
+        }
+        return l;
+      })
+      .catch(async (err) => {
+        if (import.meta.env.DEV) return (await import("./devEvents")).devEvents();
+        throw err;
+      });
   },
   getEvent(id: string): Promise<Weyn> {
     return fetch(`${API_BASE}/api/events/${id}`).then((r) => json<Weyn>(r)).then(absMedia);

@@ -226,6 +226,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   the actual rendering. */}
               <Route element={<App />}>
                 <Route path="/" />
+                {/* Venues is its own bottom-tab destination now (App renders
+                    it via MAIN_TABS, same kept-mounted pattern as "/"), so
+                    like "/" it just needs the router to match and mount App. */}
+                <Route path="/venues" />
                 <Route path="/explore" element={<Explore />} />
                 {/* Reservations is no longer its own tab — venue browsing
                     folded into Discover's Venues mode. Keep the old path

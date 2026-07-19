@@ -19,9 +19,16 @@ const You = lazy(() => import("./pages/You"));
 // nav stays down to the two "what's on / what I've got" browse intents plus
 // Host, and the profile entry point lives once, at the top, instead of
 // competing in two places.
+// Events and Venues are now two top-level destinations (was one "Discover"
+// tab with an in-header Events/Venues toggle). The AI helper (was a top-bar
+// icon) is a tab here too. `filled` marks tabs that have an -icon-fill
+// variant for the selected state; the rest read selection through the
+// dim->bright color + scale cue in .tab/.tab.on (components.css).
 const TABS = [
-  { to: "/", icon: "sparkles", label: "Discover" },
-  { to: "/tickets", icon: "ticket", label: "Tickets" },
+  { to: "/", icon: "calendar", label: "Events", filled: false },
+  { to: "/venues", icon: "store", label: "Venues", filled: false },
+  { to: "/tickets", icon: "ticket", label: "Tickets", filled: true },
+  { to: "/concierge", icon: "sparkles", label: "AI", filled: true },
 ];
 
 // Hosting an event and listing a venue are different setup flows with
@@ -42,8 +49,14 @@ const HOST_OPTIONS = [
 // app," matching how native tab-bar apps behave. Nested subpages
 // (/saved, /host/events, /admin, …) are NOT part of this — those mount
 // fresh via the normal <Outlet/> below.
+// Module-level wrappers (stable identity, so the kept-mounted tab pages
+// aren't remounted every render) that pin each Discover instance to its
+// browse surface. "/" is Events, "/venues" is Venues — see Discover's `mode`.
+const DiscoverEvents = () => <Discover mode="events" />;
+const DiscoverVenues = () => <Discover mode="venues" />;
 const MAIN_TABS: { path: string; Component: React.ComponentType }[] = [
-  { path: "/", Component: Discover },
+  { path: "/", Component: DiscoverEvents },
+  { path: "/venues", Component: DiscoverVenues },
   { path: "/tickets", Component: Tickets },
   { path: "/you", Component: You },
 ];
@@ -156,9 +169,12 @@ export default function App() {
               {({ isActive }) => (
                 <>
                   {/* Outline glyph when inactive, solid fill when selected
-                      (iOS/Instagram tab-bar convention) — the *-fill
-                      variants live in ikonate.css. */}
-                  <i className={"icon-" + t.icon + (isActive ? "-fill" : "")} />
+                      (iOS/Instagram tab-bar convention) — but only for tabs
+                      that actually have a *-fill variant in ikonate.css.
+                      Fill-less tabs (Events/Venues) show selection through the
+                      dim->bright color + scale cue in .tab.on instead, so the
+                      glyph never blanks out to a missing icon-*-fill class. */}
+                  <i className={"icon-" + t.icon + (isActive && t.filled ? "-fill" : "")} />
                   <span>{t.label}</span>
                 </>
               )}

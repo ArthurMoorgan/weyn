@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
-import { MotionButton } from "../motion";
+import { MotionButton, usePrefersReducedMotion } from "../motion";
 import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
@@ -99,60 +99,61 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
 // Dots below track the nearest-snapped card via a scroll listener rather
 // than driving scroll position themselves, so native touch/trackpad
 // scrolling stays the source of truth (no fighting the user's gesture).
+// Stacked "deck" spotlight: the front event sits centered on top, with the
+// next two peeking out from behind it (scaled down + dimmed on either side),
+// and the deck auto-advances every few seconds so featured events rotate to
+// the front — the layered look from the reference. Positions are driven by
+// each card's offset from `active`; CSS (see .ex-deck-card[data-pos]) owns
+// the actual transforms so the rotation animates smoothly. Auto-advance
+// pauses under prefers-reduced-motion (rotating content is motion too) and
+// while the user is touching the deck.
 function FeaturedSpotlight({ events }: { events: Weyn[] }) {
-  const trackRef = useRef<HTMLDivElement>(null);
+  const reduced = usePrefersReducedMotion();
   const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const n = events.length;
 
-  function onScroll() {
-    const el = trackRef.current;
-    if (!el) return;
-    // Find the real slide (not a spacer) whose center is closest to the
-    // track's center — robust to the leading spacer shifting every slide's
-    // offsetLeft, unlike the old scrollWidth/events.length division.
-    const slides = el.querySelectorAll<HTMLElement>(".ex-spotlight-slide");
-    const center = el.scrollLeft + el.clientWidth / 2;
-    let closest = 0;
-    let closestDist = Infinity;
-    slides.forEach((slide, i) => {
-      const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
-      const dist = Math.abs(slideCenter - center);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closest = i;
-      }
-    });
-    setActive(closest);
-  }
+  useEffect(() => {
+    if (n <= 1 || reduced || paused) return;
+    const t = setInterval(() => setActive((a) => (a + 1) % n), 4500);
+    return () => clearInterval(t);
+  }, [n, reduced, paused]);
 
-  if (events.length === 0) return null;
+  // Clamp active if the event list shrinks (e.g. category switch).
+  useEffect(() => { if (active >= n) setActive(0); }, [n, active]);
+
+  if (n === 0) return null;
 
   return (
-    <div className="ex-spotlight">
-      <div className="ex-spotlight-track" ref={trackRef} onScroll={onScroll}>
-        {/* Spacer slides so the FIRST and LAST real card can still peek on
-            both edges once snapped — without these, a card at either end of
-            the track has nothing to scroll past on that side and sits flush
-            against the viewport edge (confirmed via Playwright: 0px peek at
-            rest, only interior cards showed the measured ~31px). Same width
-            as a real card's peek gap, not decorative. */}
-        <div className="ex-spotlight-spacer" aria-hidden="true" />
-        {events.map((ev) => (
-          <motion.div
-            className="ex-spotlight-slide"
-            key={ev.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-          >
-            <HeroSlide e={ev} showBadge />
-          </motion.div>
-        ))}
-        <div className="ex-spotlight-spacer" aria-hidden="true" />
+    <div className="ex-spotlight ex-spotlight-deck">
+      <div
+        className="ex-deck"
+        onPointerEnter={() => setPaused(true)}
+        onPointerLeave={() => setPaused(false)}
+        onTouchStart={() => setPaused(true)}
+        onTouchEnd={() => setPaused(false)}
+      >
+        {events.map((ev, i) => {
+          const offset = ((i - active) % n + n) % n; // 0 = front … n-1
+          // Only the front (0) and the two directly behind (1,2) are visible;
+          // everything else parks hidden behind the stack (pos 3).
+          const pos = offset <= 2 ? offset : 3;
+          return (
+            <div className="ex-deck-card" data-pos={pos} key={ev.id} aria-hidden={pos !== 0}>
+              <HeroSlide e={ev} showBadge={pos === 0} />
+            </div>
+          );
+        })}
       </div>
-      {events.length > 1 && (
+      {n > 1 && (
         <div className="ex-spotlight-dots">
           {events.map((ev, i) => (
-            <span key={ev.id} className={"ex-spotlight-dot" + (i === active ? " on" : "")} />
+            <button
+              key={ev.id}
+              className={"ex-spotlight-dot" + (i === active ? " on" : "")}
+              onClick={() => setActive(i)}
+              aria-label={`Show spotlight ${i + 1}`}
+            />
           ))}
         </div>
       )}

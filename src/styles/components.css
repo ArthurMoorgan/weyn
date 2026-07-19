@@ -42,11 +42,11 @@
   min-height: 100%;
   position: relative;
   padding-top: env(safe-area-inset-top);
-  /* Must mirror .tabs's own flush-bottom footprint exactly: its 50px tab
-     row + its own safe-area-inset-bottom padding — the bar sits flat
-     against the screen edge now (no floating offset), so there's no extra
-     clearance to add beyond the bar's real height. */
-  padding-bottom: calc(50px + env(safe-area-inset-bottom));
+  /* .tabs's real footprint (50px row + safe-area) PLUS 28px clearance so the
+     last feed card isn't pinned flush under the fixed bar — previously the
+     padding exactly equalled the bar height with zero breathing room, so the
+     final event was always clipped and couldn't be scrolled fully into view. */
+  padding-bottom: calc(50px + 28px + env(safe-area-inset-bottom));
   /* --ambient-top is @property-registered as a <color> (tokens.css) so this
      transitions the glow's hue itself, not just an opacity cut — lets
      Discover's mode switch (see .shell[data-ambient]) ease between hues
@@ -66,8 +66,8 @@
    (see --ambient-top). Sits behind all shell content and never intercepts
    taps. */
 .shell::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 280px;
-  background: radial-gradient(ellipse 95% 78% at 50% 0%, var(--ambient-top), transparent 72%);
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 340px;
+  background: radial-gradient(ellipse 95% 82% at 50% 0%, var(--ambient-top), transparent 74%);
   pointer-events: none; z-index: -1;
 }
 /* Discover's Events/Venues toggle re-hues the same glow rather than
@@ -242,7 +242,10 @@
      this pass and the tile height reduction below actually are. Kept the
      distinction explicit so a future pass doesn't over-read that revert as
      "never touch this grid's size again." */
-  padding: 2px 16px 4px;
+  /* Real breathing room under the search bar (was ~0px — icons sat jammed
+     against it). One 4px-scale step (16px) sets the search apart from the
+     niche grid, matching the reference's clear separation. */
+  padding: 16px 16px 4px;
 }
 .cat-circle {
   /* overflow: visible is kept only so the icon's soft baked-in drop shadow
@@ -266,9 +269,12 @@
    icon can spill past the top edge, see .cat-circle) — without this the
    pseudo's square corners would show past the rounded curve. */
 .cat-circle::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 70%;
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 78%;
   border-radius: inherit;
-  background: radial-gradient(ellipse 90% 100% at 50% 0%, rgba(255,255,255,.08), transparent 75%);
+  /* Brighter top-center bloom (was .08) so each tile reads as lit from above,
+     matching the reference's glossier tiles. Still a white light cue, not a
+     hue, so the monochrome chrome holds. */
+  background: radial-gradient(ellipse 95% 100% at 50% 0%, rgba(255,255,255,.18), transparent 76%);
   pointer-events: none; z-index: 0;
 }
 .cat-circle-ring, .cat-circle-label { position: relative; z-index: 1; }
@@ -284,8 +290,14 @@
   display: grid; place-items: center; flex: 0 0 auto;
   transition: transform .15s ease;
 }
-/* Photographic 3D render fills the ring (Icon3D <img>). */
-.cat-circle-ring img { width: 100%; height: 100%; object-fit: contain; }
+/* Photographic 3D render fills the ring (Icon3D <img>). A soft contact
+   shadow beneath the render grounds it on the tile so it reads as a real 3D
+   object sitting in the box, not a flat sticker — matches the reference's
+   floating-render depth. */
+.cat-circle-ring img {
+  width: 100%; height: 100%; object-fit: contain;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.45));
+}
 .cat-circle-label {
   font: var(--t-meta); font-weight: 700; color: var(--text);
   white-space: nowrap; text-align: center;
@@ -826,18 +838,42 @@
    nothing to center against at either end of the track, so slide 1 and the
    last slide sat flush against the viewport edge with zero peek. */
 .ex-spotlight { margin-top: 4px; }
-.ex-spotlight-track {
-  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
-  scrollbar-width: none; padding: 0; overscroll-behavior-x: contain;
+
+/* ---- Stacked deck spotlight ----
+   Front card centered on top; the next two events peek out from behind it,
+   scaled down and dimmed on either side; the deck auto-advances (see
+   FeaturedSpotlight). The container's aspect-ratio reserves exactly the
+   front card's footprint (front card is 72% wide × 4/5 → ~0.9× its own
+   width tall → container ≈ 100/90). Cards are absolutely stacked and move
+   only via transform, so rotation is GPU-cheap and never reflows the page. */
+.ex-spotlight-deck { padding: 6px 0 0; }
+.ex-deck {
+  position: relative; width: 100%; aspect-ratio: 100 / 92;
+  /* Room for the scaled side cards to peek without being clipped. */
+  overflow: visible;
 }
-.ex-spotlight-track::-webkit-scrollbar { display: none; }
-.ex-spotlight-slide {
-  flex: 0 0 78%; scroll-snap-align: center;
+.ex-deck-card {
+  position: absolute; top: 0; bottom: 0; left: 50%; width: 72%;
+  transform: translateX(-50%);
+  transition: transform .55s cubic-bezier(.16,1,.3,1), opacity .55s ease, filter .55s ease;
+  will-change: transform, opacity;
 }
-.ex-spotlight-spacer {
-  flex: 0 0 11%; scroll-snap-align: none;
+.ex-deck-card .ex-hero-card {
+  margin: 0; width: 100%; height: 100%; aspect-ratio: auto; animation: none;
 }
-.ex-spotlight-slide .ex-hero-card { margin: 0; }
+/* Front */
+.ex-deck-card[data-pos="0"] { z-index: 4; opacity: 1; filter: none; transform: translateX(-50%) scale(1); }
+/* Behind, peeking right */
+.ex-deck-card[data-pos="1"] { z-index: 3; opacity: .6; filter: brightness(.68); transform: translateX(-18%) scale(.9); }
+/* Behind, peeking left */
+.ex-deck-card[data-pos="2"] { z-index: 2; opacity: .5; filter: brightness(.6); transform: translateX(-82%) scale(.9); }
+/* Parked hidden behind the stack */
+.ex-deck-card[data-pos="3"] { z-index: 1; opacity: 0; filter: brightness(.5); transform: translateX(-50%) scale(.82); }
+/* Only the front card is tappable — dimmed back cards shouldn't catch taps. */
+.ex-deck-card:not([data-pos="0"]) { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .ex-deck-card { transition: none; }
+}
 .ex-spotlight-dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
 .ex-spotlight-dot {
   width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong);
@@ -1048,8 +1084,12 @@
   color: var(--text-2);
   transition: color .15s ease;
 }
-.tab [class^="icon-"] { font-size: 25px; display: inline-block; color: var(--text); transition: transform .15s cubic-bezier(.25,1,.5,1); }
-.tab.on [class^="icon-"] { transform: scale(1.04); }
+/* Inactive tabs dim, the selected tab lights to full ink + a subtle scale.
+   This is the universal selection cue (works for every tab, with or without
+   an icon-*-fill variant) — Events/Venues have no fill glyph, so without this
+   they'd have no visible selected state at all. */
+.tab [class^="icon-"] { font-size: 25px; display: inline-block; color: var(--text-3); transition: color .15s ease, transform .15s cubic-bezier(.25,1,.5,1); }
+.tab.on [class^="icon-"] { color: var(--text); transform: scale(1.08); }
 /* Icon-only on mobile (Instagram convention) — labeled again on desktop's
    top bar, see the >=900px block below. */
 .tab span { display: none; }
