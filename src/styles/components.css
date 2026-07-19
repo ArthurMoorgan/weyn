@@ -256,23 +256,22 @@
      this pass and the tile height reduction below actually are. Kept the
      distinction explicit so a future pass doesn't over-read that revert as
      "never touch this grid's size again." */
-  /* Real breathing room under the search bar (was ~0px — icons sat jammed
-     against it). One 4px-scale step (16px) sets the search apart from the
-     niche grid, matching the reference's clear separation. */
-  padding: 16px 16px 4px;
+  /* Extra top room (28 vs 16) so the icons that break out the top of each
+     tile (see .cat-circle-ring margin-top) clear the search bar above
+     instead of crowding it. */
+  padding: 28px 16px 4px;
 }
 .cat-circle {
-  /* overflow: visible is kept only so the icon's soft baked-in drop shadow
-     isn't clipped at the rounded corners — the icon itself now sits fully
-     INSIDE the tile (see .cat-circle-ring: margin-top 0). The tile is a
-     ~100px near-square with the icon (64px) + label centered as a group,
-     matching the user's reference grid (Dining/Movies/Events…). A prior pass
-     made the icon spill above the box against a different reference; that was
-     reverted here per the user's explicit current reference. */
+  /* DEPTH: the icon deliberately breaks out the top edge of the tile by ~1/4
+     of its height (see .cat-circle-ring: margin-top -18px, 1/4 of the 72px
+     render) so the 3D render reads as a real object popping out of the box,
+     not a flat sticker inside it — the shorter box is what creates the
+     protrusion. overflow: visible lets the render (and its baked drop shadow)
+     spill past the rounded top corners. */
   position: relative; overflow: visible;
-  flex-direction: column; display: flex; align-items: center; justify-content: center;
+  flex-direction: column; display: flex; align-items: center; justify-content: flex-end;
   gap: 6px; background: var(--surface); border: 1px solid var(--card-border);
-  border-radius: var(--radius-lg); padding: 12px 8px 12px; min-height: 100px;
+  border-radius: var(--radius-lg); padding: 8px 8px 12px; min-height: 84px;
   box-shadow: var(--card-shadow);
   transition: transform .18s cubic-bezier(.25,1,.5,1), box-shadow .22s ease, background-color .18s ease;
 }
@@ -297,13 +296,10 @@
 .cat-circle-ring, .cat-circle-label { position: relative; z-index: 1; }
 .cat-circle-ring {
   width: 72px; height: 72px;
-  /* Icon sits INSIDE the tile, centered as a group with the label — matches
-     the reference grid (Dining/Movies/Events…), where the renders are large
-     and fully contained, NOT poking above the box. An earlier pass pulled
-     these up with a negative margin-top for a "3D popping out" feel based on
-     a different reference; the user's current reference explicitly shows the
-     icons contained, so the spill was removed. */
-  margin-top: 0;
+  /* Net ~1/4 of the 72px render (18px) breaks out above the tile's top edge
+     for real depth. -26 (not -18) because the tile's 8px top padding offsets
+     the pull: -26 + 8 ≈ -18px of actual protrusion (see .cat-circle). */
+  margin-top: -26px;
   display: grid; place-items: center; flex: 0 0 auto;
   transition: transform .15s ease;
 }
