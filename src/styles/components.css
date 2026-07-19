@@ -89,6 +89,17 @@
    while its own route is active (see Discover.tsx). */
 .shell[data-ambient="venues"] { --ambient-top: var(--ambient-venues); }
 
+/* Mobile (<900px): no bottom tab bar. Navigation lives in the home hub (the
+   niche grid) + a persistent top utility strip (location · saved · tickets ·
+   profile); every other destination is a pushed page with its own back
+   affordance. The .tabs nav stays for desktop (>=900px), where it's a top
+   bar. Reclaim the bottom padding the old bar reserved. */
+@media (max-width: 899px) {
+  .shell { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  /* .tabs is hidden on mobile below (after its base rule at .tabs{}), not
+     here — placing the override before the base rule loses the cascade. */
+}
+
 /* ---------- top bar ---------- flat, minimal-height, not a floating pill */
 .topbar {
   position: sticky; top: 0; z-index: 30;
@@ -277,6 +288,13 @@
 }
 .cat-circle:hover { box-shadow: var(--shadow-md); background: var(--surface-hover); }
 .cat-circle.on { box-shadow: var(--shadow-md); }
+/* Nav tiles (Venues / Host) use a large emoji glyph in place of the
+   photographic 3D render — same tile shell, same top-protrusion depth. */
+.cat-circle-emoji {
+  font-size: 46px; line-height: 1;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.45));
+}
+a.cat-circle:active { transform: scale(0.96); }
 /* Soft white fade behind the icon, top-center of each tile (reference) —
    a light-source cue like the shell-level glow, not a hue, so every tile
    still reads uniformly regardless of its icon color. Sits behind the icon
@@ -634,6 +652,13 @@
 .ex-hero-host:hover { background: var(--surface-hover); border-color: var(--text-3); }
 .ex-hero-host [class^="icon-"] { font-size: 14px; color: var(--accent); }
 .discover-head-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.discover-head-back {
+  display: inline-flex; align-items: center; gap: 8px;
+  font: var(--t-card); font-weight: 700; color: var(--text);
+  transition: opacity .15s ease;
+}
+.discover-head-back:active { opacity: .6; }
+.discover-head-back i { font-size: 20px; }
 .ex-hero-link {
   /* 500 (was 600) — at the same bold weight as the active toggle tab and
      the Host pill, this plain-text link was competing for attention
@@ -1168,6 +1193,12 @@
 /* press scale removed — MotionButton's whileTap spring handles it now; the
    resting translateY(-10px) FAB lift above is untouched (it's not :active). */
 .tab-host > .tab [class^="icon-"] { color: var(--bg); font-size: 20px; }
+/* Mobile (<900px): the whole bottom tab bar is gone — nav lives in the home
+   hub + top strip. Placed AFTER .tabs's base rule so the cascade wins.
+   Desktop (>=900px) keeps .tabs as its top bar. */
+@media (max-width: 899px) {
+  .tabs { display: none; }
+}
 /* Dimmed scrim behind the popover — the outside-tap-to-close behavior
    already existed (App.tsx's pointerdown listener), but with nothing
    darkened behind it there was no visual cue the popover was a dismissable
@@ -3770,12 +3801,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   height: 52px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: var(--space-2);
   padding: 0 var(--space-3);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+/* Back-to-home control on pushed pages (mobile has no bottom bar to return
+   through). */
+.page-top-back {
+  width: 38px; height: 38px; flex: 0 0 38px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-2); background: var(--surface);
+  border: 1px solid var(--border-strong);
+  transition: background-color .15s ease, color .15s ease, transform .12s cubic-bezier(.25,1,.5,1);
+}
+.page-top-back:hover { background: var(--surface-hover); color: var(--text); }
+.page-top-back:active { transform: scale(0.9); }
+.page-top-back i { font-size: 18px; }
 .page-top-bar-icon-btn {
   width: 36px;
   height: 36px;

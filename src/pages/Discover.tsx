@@ -33,10 +33,24 @@ export default function Discover({ mode = "events" }: { mode?: "events" | "venue
   return (
     <>
       <div className="discover-head">
-        <CityPill />
+        {/* Venues is a pushed destination (reached from the home hub's Venues
+            tile), so it gets a back-to-home control in place of the location
+            pill — without a bottom bar there'd otherwise be no way back. */}
+        {mode === "venues" ? (
+          <Link to="/" className="discover-head-back" aria-label="Back to home">
+            <i className="icon-arrow-left" /> <span>Venues</span>
+          </Link>
+        ) : (
+          <CityPill />
+        )}
         <div className="discover-head-actions">
+          {/* Persistent top strip — with the bottom tab bar gone, these are
+              the always-one-tap essentials: saved, tickets, profile. */}
           <Link to="/saved" className="discover-head-icon-btn" aria-label="Saved">
             <i className="icon-bookmark" />
+          </Link>
+          <Link to="/tickets" className="discover-head-icon-btn" aria-label="My tickets">
+            <i className="icon-ticket" />
           </Link>
           <UserAvatar account={account} />
         </div>

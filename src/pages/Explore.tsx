@@ -523,6 +523,18 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               </motion.button>
             );
           })}
+          {/* Nav tiles in the hub grid (the bottom bar is gone on mobile):
+              Venues gives the reservations browse a home, Host is the
+              create-an-event entry point. Links, not filters — they navigate
+              rather than filtering the feed in place like the category tiles. */}
+          <Link to="/venues" className="cat-circle cat-circle-nav" aria-label="Browse venues">
+            <span className="cat-circle-ring cat-circle-emoji" aria-hidden="true">🏬</span>
+            <span className="cat-circle-label">Venues</span>
+          </Link>
+          <Link to="/host/events" className="cat-circle cat-circle-nav" aria-label="Host an event">
+            <span className="cat-circle-ring cat-circle-emoji" aria-hidden="true">🎪</span>
+            <span className="cat-circle-label">Host</span>
+          </Link>
         </div>
       )}
 
