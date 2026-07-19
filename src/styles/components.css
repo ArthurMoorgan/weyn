@@ -229,7 +229,12 @@
    every tile looks the same regardless of selection state, matching the
    reference exactly. */
 .cat-circles {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  /* Asymmetric gaps: columns stay tight (8px) so the 3-up row reads as one
+     band, rows get real breathing room (18px) — matches the reference grid
+     (Dining/Movies/Events…), where the vertical space between the two rows
+     is visibly larger than the space between columns. */
+  column-gap: 8px; row-gap: 18px;
   /* top trimmed 4px→2px to tighten the gap under the search bar. Note:
      §35 (8f9d0e1) reverted a *column-count* change (3-col small icons →
      2-col large 84px icons) after the user rejected how that looked — it
@@ -240,19 +245,17 @@
   padding: 2px 16px 4px;
 }
 .cat-circle {
-  /* overflow: visible (not hidden) is deliberate — the reference video's
-     icon renders spill a few px above the tile's rounded top edge for a
-     real 3D-popping-out feel (Dining's cloche dome, Movies' clapperboard
-     corner, Play's racket all break the box's top line). Box height/top
-     padding trimmed to match, and the icon pulled up via .cat-circle-ring's
-     negative margin-top below. Height trimmed again (92px→80px, padding
-     10/14→8/10) per the Critic's re-check that the grid was still ~202px
-     total against a ~42px-per-tile reference target — verify live that the
-     label doesn't crowd the tile's bottom edge before trimming further. */
+  /* overflow: visible is kept only so the icon's soft baked-in drop shadow
+     isn't clipped at the rounded corners — the icon itself now sits fully
+     INSIDE the tile (see .cat-circle-ring: margin-top 0). The tile is a
+     ~100px near-square with the icon (64px) + label centered as a group,
+     matching the user's reference grid (Dining/Movies/Events…). A prior pass
+     made the icon spill above the box against a different reference; that was
+     reverted here per the user's explicit current reference. */
   position: relative; overflow: visible;
   flex-direction: column; display: flex; align-items: center; justify-content: center;
-  gap: 8px; background: var(--surface); border: 1px solid var(--card-border);
-  border-radius: var(--radius-lg); padding: 8px 8px 10px; min-height: 80px;
+  gap: 6px; background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg); padding: 12px 8px 12px; min-height: 100px;
   box-shadow: var(--card-shadow); transition: transform .15s ease;
 }
 /* Soft white fade behind the icon, top-center of each tile (reference) —
@@ -270,15 +273,22 @@
 }
 .cat-circle-ring, .cat-circle-label { position: relative; z-index: 1; }
 .cat-circle-ring {
-  width: 52px; height: 52px;
-  margin-top: -18px;
+  width: 64px; height: 64px;
+  /* Icon sits INSIDE the tile, centered as a group with the label — matches
+     the reference grid (Dining/Movies/Events…), where the renders are large
+     and fully contained, NOT poking above the box. An earlier pass pulled
+     these up with a negative margin-top for a "3D popping out" feel based on
+     a different reference; the user's current reference explicitly shows the
+     icons contained, so the spill was removed. */
+  margin-top: 0;
   display: grid; place-items: center; flex: 0 0 auto;
   transition: transform .15s ease;
 }
 /* Photographic 3D render fills the ring (Icon3D <img>). */
 .cat-circle-ring img { width: 100%; height: 100%; object-fit: contain; }
 .cat-circle-label {
-  font: var(--t-meta); font-weight: 600; color: var(--text); white-space: nowrap;
+  font: var(--t-meta); font-weight: 700; color: var(--text);
+  white-space: nowrap; text-align: center;
 }
 /* Desktop: a wide toolbar-style row instead of a cramped 3-column mobile
    grid — cards shrink to fit all 6 across, spacing loosens to match the
@@ -288,9 +298,9 @@
     grid-template-columns: repeat(6, minmax(0, 160px));
     justify-content: center; gap: 16px; padding: 8px 24px 12px;
   }
-  .cat-circle { padding: 14px 10px 16px; min-height: 108px; }
+  .cat-circle { padding: 16px 10px 16px; min-height: 116px; }
   .cat-circle:hover { transform: translateY(-2px); }
-  .cat-circle-ring { width: 60px; height: 60px; margin-top: -20px; }
+  .cat-circle-ring { width: 68px; height: 68px; margin-top: 0; }
 }
 
 /* ---------- date section header ---------- */

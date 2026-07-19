@@ -474,7 +474,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                   animate={{ scale: isOn ? 1.06 : 1 }}
                   transition={{ type: "spring", stiffness: 500, damping: 14 }}
                 >
-                  <Icon3D name={c.key as Cat} size={52} />
+                  <Icon3D name={c.key as Cat} size={64} />
                 </motion.span>
                 <span className="cat-circle-label">{c.label}</span>
               </motion.button>
