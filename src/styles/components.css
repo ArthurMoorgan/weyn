@@ -66,9 +66,23 @@
    (see --ambient-top). Sits behind all shell content and never intercepts
    taps. */
 .shell::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 340px;
-  background: radial-gradient(ellipse 95% 82% at 50% 0%, var(--ambient-top), transparent 74%);
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 360px;
+  /* Two stacked radials: a tight, brighter core over a wide soft bloom, so the
+     purple reads as a real light source at the top edge rather than a flat
+     wash. Slowly breathes (opacity + scale) for a living, atmospheric feel. */
+  background:
+    radial-gradient(ellipse 60% 55% at 50% -4%, var(--ambient-top), transparent 70%),
+    radial-gradient(ellipse 100% 85% at 50% 0%, var(--ambient-top), transparent 76%);
   pointer-events: none; z-index: -1;
+  transform-origin: 50% 0;
+  animation: ambient-breathe 9s ease-in-out infinite;
+}
+@keyframes ambient-breathe {
+  0%, 100% { opacity: .82; transform: scaleY(1); }
+  50%      { opacity: 1;   transform: scaleY(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell::before { animation: none; opacity: 1; }
 }
 /* Discover's Events/Venues toggle re-hues the same glow rather than
    layering a second one — Discover.tsx sets this attribute on .shell
@@ -259,8 +273,11 @@
   flex-direction: column; display: flex; align-items: center; justify-content: center;
   gap: 6px; background: var(--surface); border: 1px solid var(--card-border);
   border-radius: var(--radius-lg); padding: 12px 8px 12px; min-height: 100px;
-  box-shadow: var(--card-shadow); transition: transform .15s ease;
+  box-shadow: var(--card-shadow);
+  transition: transform .18s cubic-bezier(.25,1,.5,1), box-shadow .22s ease, background-color .18s ease;
 }
+.cat-circle:hover { box-shadow: var(--shadow-md); background: var(--surface-hover); }
+.cat-circle.on { box-shadow: var(--shadow-md); }
 /* Soft white fade behind the icon, top-center of each tile (reference) —
    a light-source cue like the shell-level glow, not a hue, so every tile
    still reads uniformly regardless of its icon color. Sits behind the icon
@@ -590,6 +607,12 @@
    dropping "both" costs nothing visually and lets the animation actually
    finish. */
 .discover-mode { animation: rise-in .3s cubic-bezier(.16,1,.3,1); }
+/* Never gate content visibility on the entrance animation: reduced-motion
+   users (and any renderer that doesn't tick the animation clock) must land on
+   the fully-visible resting state, not the rise-in's opacity:0 first frame. */
+@media (prefers-reduced-motion: reduce) {
+  .discover-mode { animation: none; }
+}
 /* Skeleton-to-content crossfade on every Events/Venues switch (Discover.tsx
    remounts this via a loading/ready key, separate from .discover-mode's own
    key on the outer wrapper) — a plain fade rather than rise-in's translateY,
@@ -630,13 +653,18 @@
    accent reserved for the glyph, matching .ex-hero-host's icon color. */
 .discover-head-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; flex: 0 0 36px; border-radius: var(--radius-pill);
-  color: var(--accent); background: var(--surface);
+  width: 38px; height: 38px; flex: 0 0 38px; border-radius: var(--radius-pill);
+  /* Neutral ink, not --accent — a lone purple glyph in the otherwise
+     monochrome header read as out-of-place. Matches the avatar's quiet
+     treatment beside it. */
+  color: var(--text-2); background: var(--surface);
   border: 1px solid var(--border-strong);
-  transition: background-color .15s ease, border-color .15s ease;
+  transition: background-color .15s ease, border-color .15s ease,
+              color .15s ease, transform .12s cubic-bezier(.25,1,.5,1);
 }
-.discover-head-icon-btn:hover { background: var(--surface-hover); border-color: var(--text-3); }
-.discover-head-icon-btn i { font-size: 17px; }
+.discover-head-icon-btn:hover { background: var(--surface-hover); border-color: var(--text-3); color: var(--text); }
+.discover-head-icon-btn:active { transform: scale(0.9); }
+.discover-head-icon-btn i { font-size: 18px; }
 
 /* Category Grid + Collection Rails Hub — responsive discovery page with
    category shortcuts and horizontally-scrollable event collections. */
@@ -1099,6 +1127,22 @@
    they'd have no visible selected state at all. */
 .tab [class^="icon-"] { font-size: 25px; display: inline-block; color: var(--text-3); transition: color .15s ease, transform .15s cubic-bezier(.25,1,.5,1); }
 .tab.on [class^="icon-"] { color: var(--text); transform: scale(1.08); }
+/* Active-tab indicator: a small ink dot that springs in under the selected
+   tab's icon — a second, unambiguous selection cue on top of the icon fill +
+   brighten, and a bit of life in the bar. Nav tabs only (not the Host FAB). */
+.tabs-pill .tab { position: relative; }
+.tabs-pill .tab::after {
+  content: ""; position: absolute; bottom: 7px; left: 50%;
+  width: 4px; height: 4px; border-radius: 50%; background: var(--text);
+  transform: translateX(-50%) scale(0); opacity: 0;
+  transition: transform .28s cubic-bezier(.16,1,.3,1), opacity .2s ease;
+}
+.tabs-pill .tab.on::after { transform: translateX(-50%) scale(1); opacity: 1; }
+.tab-host .tab::after { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tabs-pill .tab::after { transition: opacity .15s ease; }
+}
+
 /* Icon-only on mobile (Instagram convention) — labeled again on desktop's
    top bar, see the >=900px block below. */
 .tab span { display: none; }
@@ -1118,16 +1162,16 @@
      otherwise stretch this to fill the whole slot width, squashing the
      circle into an oval — the actual bug this fixes). */
   flex: none;
-  width: 56px; height: 56px; min-height: 56px;
+  width: 50px; height: 50px; min-height: 50px;
   border-radius: 50%;
   background: var(--text); color: var(--bg);
-  transform: translateY(-10px);
+  transform: translateY(-8px);
   box-shadow: var(--shadow-md);
   transition: transform .15s cubic-bezier(.25,1,.5,1), background-color .15s ease;
 }
 /* press scale removed — MotionButton's whileTap spring handles it now; the
    resting translateY(-10px) FAB lift above is untouched (it's not :active). */
-.tab-host > .tab [class^="icon-"] { color: var(--bg); font-size: 24px; }
+.tab-host > .tab [class^="icon-"] { color: var(--bg); font-size: 20px; }
 /* Dimmed scrim behind the popover — the outside-tap-to-close behavior
    already existed (App.tsx's pointerdown listener), but with nothing
    darkened behind it there was no visual cue the popover was a dismissable

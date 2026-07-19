@@ -58,13 +58,20 @@ const MotionLink = motion.create(Link);
 // a swipeable track instead of one static card.
 function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
   const catLabel = CATS.find((c) => c.key === e.cat)?.label || e.cat;
+  // An opaque `backgroundColor` base is set in BOTH branches so a card is
+  // never see-through — critical in the stacked spotlight deck, where cards
+  // overlap: without it, a still-loading photo, an image with alpha, or the
+  // no-image fallback gradient (which ends at the semi-transparent
+  // --fallback-scrim) let the cards *behind* the front card show through, so
+  // the front card read as translucent. The gradient/photo paints on top of
+  // this solid base.
   const coverStyle: React.CSSProperties = e.image
-    ? { backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
+    ? { backgroundColor: "var(--card-bg)", backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
     // Greyscale system: ignore the server-stored per-event hue — same
     // category-grey treatment as Stub.tsx's fallback covers. Fallback
     // references --cat-music itself (not a duplicated hex) so it can't
     // silently drift from that token.
-    : { background: `linear-gradient(150deg, var(--cat-${e.cat}, var(--cat-music)), var(--fallback-scrim))` };
+    : { backgroundColor: "var(--card-bg)", backgroundImage: `linear-gradient(150deg, var(--cat-${e.cat}, var(--cat-music)), var(--fallback-scrim))` };
   return (
     <MotionLink to={`/e/${e.id}`} layoutId={`event-cover-${e.id}`} onPointerDown={preloadEventDetail} onMouseEnter={preloadEventDetail} className="ex-hero-card" style={coverStyle}>
       {/* Editorial handoff: a "FEATURED" pill badge top-left — pixel-checked
@@ -484,7 +491,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
 
       {!searching && (
         <div className="cat-circles">
-          {CATS.filter((c) => c.key !== "all").map((c) => {
+          {CATS.filter((c) => c.key !== "all").map((c, i) => {
             const isOn = cat === c.key;
             return (
               <motion.button
@@ -493,17 +500,21 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 onClick={() => setCat(c.key as Cat | "all")}
                 aria-pressed={isOn}
                 aria-label={c.label}
-                initial={{ opacity: 0, y: 8 }}
+                // Staggered entrance — tiles rise in one after another (capped
+                // at 6 tiles ≈ 240ms total) instead of one uniform reveal.
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                whileTap={{ scale: 0.96 }}
+                transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1], delay: i * 0.04 }}
+                whileTap={{ scale: 0.94 }}
+                whileHover={{ y: -3 }}
               >
                 {/* Colorful photographic 3D niche renders (see Icon3D) —
                     every tile looks the same regardless of selection state,
-                    matching the reference exactly (no colored outline). */}
+                    matching the reference exactly (no colored outline). The
+                    ring lifts + settles with a soft spring when selected. */}
                 <motion.span
                   className="cat-circle-ring"
-                  animate={{ scale: isOn ? 1.06 : 1 }}
+                  animate={{ scale: isOn ? 1.12 : 1, y: isOn ? -2 : 0 }}
                   transition={{ type: "spring", stiffness: 500, damping: 14 }}
                 >
                   <Icon3D name={c.key as Cat} size={72} />

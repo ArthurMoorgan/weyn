@@ -132,11 +132,11 @@
   /* The one sanctioned spot of hue in the otherwise-monochrome chrome: a soft
      purple radial bleeding down from the very top edge (the Dynamic Island
      region), fading to transparent so it melts into --bg. Drives .shell::before. */
-  --ambient-top: rgba(139, 61, 255, 0.48);
+  --ambient-top: rgba(146, 43, 255, 0.66);
   /* Discover's Venues mode swaps --ambient-top to this teal via
      .shell[data-ambient="venues"] (components.css) — same shape/alpha as
      the purple default, only the hue differs. */
-  --ambient-venues: rgba(30, 175, 190, 0.48);
+  --ambient-venues: rgba(24, 180, 200, 0.6);
 
   /* Tab-switch spark burst (see .tab-spark below) */
   --spark-color-1: var(--primary);
@@ -215,9 +215,9 @@
   --card-alt: var(--surface-hover);
   --fallback-scrim: rgba(0,0,0,0.1);
   /* Lighter, gentler purple on the white canvas so it reads as a tint, not a stain. */
-  --ambient-top: rgba(139, 61, 255, 0.22);
+  --ambient-top: rgba(146, 43, 255, 0.30);
   /* Same teal as dark theme, same lower alpha step as --ambient-top gets. */
-  --ambient-venues: rgba(30, 175, 190, 0.22);
+  --ambient-venues: rgba(24, 180, 200, 0.28);
 
   --spark-color-1: var(--primary);
   --spark-color-2: var(--primary-hover);
