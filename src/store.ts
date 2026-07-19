@@ -100,7 +100,7 @@ export interface Account {
 // call the useAuth() hook itself (it's a plain module, not a component) —
 // ClerkAuthBridge (see App.tsx) registers the real getToken() here once
 // ClerkProvider has mounted.
-type TokenGetter = () => Promise<string | null>;
+type TokenGetter = (opts?: { skipCache?: boolean }) => Promise<string | null>;
 let tokenGetter: TokenGetter | null = null;
 export function setTokenGetter(fn: TokenGetter | null) { tokenGetter = fn; }
 
@@ -114,12 +114,16 @@ export function setTokenGetter(fn: TokenGetter | null) { tokenGetter = fn; }
 // account object settles. Polling briefly (instant in the overwhelmingly
 // common case — this only ever waits when called in that exact narrow
 // window) closes the race at the source instead of patching every call site.
-export function getAuthToken(): Promise<string | null> {
-  if (tokenGetter) return tokenGetter();
+// opts.skipCache forces Clerk to mint a fresh token instead of handing back
+// its (possibly stale) cached one — used by AuthGate to self-heal a session
+// that's gone stale client-side without a full sign-out/sign-in (see the
+// SESSION_INVALID retry there).
+export function getAuthToken(opts?: { skipCache?: boolean }): Promise<string | null> {
+  if (tokenGetter) return tokenGetter(opts);
   return new Promise((resolve) => {
     const start = Date.now();
     const poll = () => {
-      if (tokenGetter) return resolve(tokenGetter());
+      if (tokenGetter) return resolve(tokenGetter(opts));
       if (Date.now() - start > 3000) return resolve(null);
       setTimeout(poll, 50);
     };

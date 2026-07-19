@@ -104,7 +104,7 @@ function ClerkAuthBridge() {
   const { user } = useUser();
   useEffect(() => {
     if (!isLoaded) return;
-    setTokenGetter(() => getToken());
+    setTokenGetter((opts) => getToken(opts?.skipCache ? { skipCache: true } : undefined));
     return () => setTokenGetter(null);
   }, [isLoaded, getToken]);
   useEffect(() => {

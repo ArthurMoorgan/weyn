@@ -518,7 +518,19 @@ export function createApp(storage) {
       // middleware only needs to keep /api/* honest.
       if (!req.path.startsWith("/api/")) return next();
       if (req.hostname === "waitlist.weynevents.com" && req.method === "POST" && req.path === "/api/waitlist") return next();
-      const email = req.user?.email?.toLowerCase();
+      // Two distinct failure modes used to collapse into the same 403
+      // PRIVATE_BETA response, which is indistinguishable client-side from
+      // "you're not invited" — a real incident: an already-allowlisted admin
+      // hit this with a stale/expired Clerk session token (attachUser
+      // couldn't verify it, so req.user never got set) and landed on the
+      // public waitlist page, which reads as "your account was rejected"
+      // rather than "your session needs a refresh." Splitting the response
+      // lets AuthGate retry the former with a forced token refresh instead
+      // of bouncing a legitimate admin.
+      if (!req.user) {
+        return res.status(401).json({ error: { code: "SESSION_INVALID", message: "Your session couldn't be verified — please sign in again." } });
+      }
+      const email = req.user.email?.toLowerCase();
       if (email && adminAllowlist.includes(email)) return next();
       res.status(403).json({ error: { code: "PRIVATE_BETA", message: "Weyn is in private preview right now — join the waitlist at waitlist.weynevents.com." } });
     });

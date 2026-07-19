@@ -18,7 +18,12 @@ const AuthWall = lazy(() => import("./AuthWall"));
 // an eventual real signed-in admin session should pay to download.
 const WaitlistLanding = lazy(() => import("../pages/WaitlistLanding"));
 
-type AdminStatus = "checking" | "admin" | "blocked" | "error";
+// "sessionInvalid" is distinct from "blocked": the server couldn't verify
+// the session at all (attachUser found no req.user) even after a forced
+// token refresh — a real Clerk-client/session desync, not "you're not
+// invited." Showing WaitlistLanding for this case reads as account
+// rejection to an already-approved admin; see the effect below.
+type AdminStatus = "checking" | "admin" | "blocked" | "sessionInvalid" | "error";
 
 // An account is now required to use Weyn at all. This is a layout route (see
 // main.tsx) wrapping every route EXCEPT /onboarding — a first-time visitor
@@ -60,16 +65,41 @@ export default function AuthGate() {
     let cancelled = false;
     setAdminStatus("checking");
     (async () => {
-      const token = await getAuthToken();
-      const res = await fetch("/api/me", { headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => null);
+      async function checkOnce(skipCache: boolean) {
+        const token = await getAuthToken(skipCache ? { skipCache: true } : undefined);
+        return fetch("/api/me", { headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => null);
+      }
+      let res = await checkOnce(false);
       if (cancelled) return;
       if (res && res.ok) return setAdminStatus("admin");
+
+      // SESSION_INVALID (401): the server couldn't verify a session at all
+      // (attachUser found no req.user) — most commonly a stale/expired Clerk
+      // token the client hadn't refreshed yet (real incident: this happened
+      // to an already-approved admin, who read the resulting waitlist page as
+      // "my account got rejected"; a manual sign-out/sign-in fixed it by
+      // minting a fresh token). Try that same fix ourselves once, silently,
+      // before ever treating the visitor as anything other than signed in.
+      if (res && res.status === 401) {
+        let code: string | undefined;
+        try { code = (await res.clone().json())?.error?.code; } catch { /* not JSON */ }
+        if (code === "SESSION_INVALID") {
+          res = await checkOnce(true);
+          if (cancelled) return;
+          if (res && res.ok) return setAdminStatus("admin");
+          // Still unverifiable even with a fresh token — a real desync, not
+          // a stale cache. Distinct from "blocked" so the UI says "sign in
+          // again," not "you're not invited."
+          if (res && res.status === 401) return setAdminStatus("sessionInvalid");
+        }
+      }
+
       // A rate limit, a 5xx, or the fetch itself failing (network hiccup)
       // is NOT the same thing as "this account isn't on the allowlist" —
       // QA found this was previously collapsed into one "blocked" state,
       // which bounced an already-signed-in admin to the public waitlist
       // landing page the moment they got rate-limited (e.g. from refreshing
-      // aggressively or having several tabs open). Only a real 401/403/404
+      // aggressively or having several tabs open). Only a real 403/404
       // means "you don't belong here."
       if (!res || res.status === 429 || res.status >= 500) return setAdminStatus("error");
       setAdminStatus("blocked");
@@ -128,6 +158,20 @@ export default function AuthGate() {
         </p>
         <button className="btn glass sm" style={{ width: "auto" }} onClick={() => setRetryCount((n) => n + 1)}>
           Retry now
+        </button>
+      </div>
+    );
+  }
+
+  if (adminStatus === "sessionInvalid") {
+    return (
+      <div className="route-loading" aria-busy="true" style={{ flexDirection: "column", gap: 12 }}>
+        <LoadingMark size={40} />
+        <p style={{ color: "var(--text-2)", fontSize: 14, textAlign: "center", padding: "0 24px" }}>
+          Your session needs a refresh — please sign in again.
+        </p>
+        <button className="btn glass sm" style={{ width: "auto" }} onClick={() => signOut()}>
+          Sign in again
         </button>
       </div>
     );
