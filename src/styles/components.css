@@ -389,7 +389,7 @@ a.cat-circle:active { transform: scale(0.96); }
   font-size: 78px; line-height: 1; pointer-events: none;
   filter: drop-shadow(0 8px 14px rgba(0,0,0,.5));
 }
-.hub-tile-icon img { width: 96px; height: 96px; object-fit: contain; display: block; }
+.hub-tile-icon img { height: 88px; width: auto; max-width: 128px; object-fit: contain; display: block; }
 
 /* ---------- date section header ---------- */
 .date-head {
