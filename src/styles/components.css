@@ -95,7 +95,9 @@
    affordance. The .tabs nav stays for desktop (>=900px), where it's a top
    bar. Reclaim the bottom padding the old bar reserved. */
 @media (max-width: 899px) {
-  .shell { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  /* Clear the floating dock (≈62px tall + 14px offset + breathing room) so
+     the last card scrolls fully above it. */
+  .shell { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   /* .tabs is hidden on mobile below (after its base rule at .tabs{}), not
      here — placing the override before the base rule loses the cascade. */
 }
@@ -699,28 +701,20 @@ a.cat-circle:active { transform: scale(0.96); }
 }
 .ex-hero-host:hover { background: var(--surface-hover); border-color: var(--text-3); }
 .ex-hero-host [class^="icon-"] { font-size: 14px; color: var(--accent); }
-/* Two-line location control (reference: city + region stacked, pin in a soft
-   circle, chevron) — the home hub's version of the single-line .pill. */
-.loc-pill {
-  display: inline-flex; align-items: center; gap: 10px; min-width: 0;
-  padding: 4px 8px 4px 4px; border-radius: var(--radius-pill);
-  transition: background-color .15s ease;
+/* Home header location — clean two lines, no pin-in-a-circle. City (with a
+   chevron cue) over the region; the whole thing is one quiet tap target. */
+.loc-btn {
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 2px 4px; border-radius: var(--radius-sm);
+  transition: opacity .15s ease;
 }
-.loc-pill:hover { background: var(--surface); }
-.loc-pill:active { background: var(--surface-hover); }
-.loc-pill-pin {
-  display: grid; place-items: center; flex: 0 0 auto;
-  width: 36px; height: 36px; border-radius: 50%;
-  background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-2);
+.loc-btn:active { opacity: .6; }
+.loc-btn-city {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 21px; font-weight: 700; letter-spacing: -0.5px; color: var(--text); line-height: 1.1;
 }
-.loc-pill-pin i { font-size: 16px; }
-.loc-pill-text { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.15; }
-.loc-pill-city {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 17px; font-weight: 700; letter-spacing: -0.3px; color: var(--text);
-}
-.loc-pill-city i { font-size: 13px; color: var(--text-2); }
-.loc-pill-sub { font-size: 12px; font-weight: 500; color: var(--text-2); white-space: nowrap; }
+.loc-btn-city i { font-size: 15px; color: var(--text-2); }
+.loc-btn-sub { font-size: 12.5px; font-weight: 500; color: var(--text-2); }
 .discover-head-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .discover-head-back {
   display: inline-flex; align-items: center; gap: 8px;
@@ -1287,11 +1281,74 @@ a.cat-circle:active { transform: scale(0.96); }
 /* press scale removed — MotionButton's whileTap spring handles it now; the
    resting translateY(-10px) FAB lift above is untouched (it's not :active). */
 .tab-host > .tab [class^="icon-"] { color: var(--bg); font-size: 20px; }
-/* Mobile (<900px): the whole bottom tab bar is gone — nav lives in the home
-   hub + top strip. Placed AFTER .tabs's base rule so the cascade wins.
-   Desktop (>=900px) keeps .tabs as its top bar. */
+/* Mobile (<900px): the desktop .tabs top bar is hidden; navigation lives in
+   the floating .dock below instead. Desktop (>=900px) keeps .tabs as its top
+   bar and hides the dock (see the >=900px rule at the end of the dock block).
+   Placed AFTER .tabs's base rule so the cascade wins. */
 @media (max-width: 899px) {
   .tabs { display: none; }
+}
+
+/* ---------- Floating mobile dock ----------
+   A pill-shaped glass bar pinned above the home indicator, with the AI
+   concierge as a raised, glowing orb in the middle. Four flat tabs flank it
+   (Home · Reserve · [AI] · Tickets · Profile). Floats (side margins + big
+   soft shadow) rather than sitting flush to the edge, so it reads as a
+   premium overlay, not stock chrome. */
+.dock {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 50;
+  width: calc(100% - 24px); max-width: 440px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 16px;
+  background: var(--glass-veil);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-float);
+}
+.dock-item {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  color: var(--text-3);
+  transition: color .16s ease, transform .12s cubic-bezier(.25,1,.5,1);
+}
+.dock-item i { font-size: 23px; line-height: 1; }
+.dock-item-label { font-size: 9.5px; font-weight: 600; letter-spacing: .2px; }
+.dock-item.on { color: var(--text); }
+.dock-item:active { transform: scale(.88); }
+/* Signed-in avatar in the profile slot — same footprint as the glyphs. */
+.dock-avatar {
+  width: 23px; height: 23px; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center;
+}
+.dock-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.dock-avatar i { font-size: 23px; }
+.dock-item-profile.on .dock-avatar { box-shadow: 0 0 0 2px var(--text); }
+
+/* AI orb — raised above the bar, purple gradient (the one sanctioned hue),
+   gently breathing to invite a tap. */
+.dock-ai { flex: 1 1 0; display: flex; justify-content: center; }
+.dock-ai-orb {
+  width: 54px; height: 54px; margin-top: -26px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff; font-size: 24px;
+  background: radial-gradient(circle at 50% 32%, #b989ff, #7a2bff 72%);
+  box-shadow: 0 6px 18px rgba(140,60,255,.5), inset 0 1px 1px rgba(255,255,255,.35);
+  animation: orb-breathe 3.4s ease-in-out infinite;
+  transition: transform .14s cubic-bezier(.25,1,.5,1);
+}
+.dock-ai-orb:active { transform: scale(.9); }
+@keyframes orb-breathe {
+  0%, 100% { box-shadow: 0 6px 16px rgba(140,60,255,.42), inset 0 1px 1px rgba(255,255,255,.35); transform: scale(1); }
+  50%      { box-shadow: 0 9px 26px rgba(140,60,255,.72), inset 0 1px 1px rgba(255,255,255,.35); transform: scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-ai-orb { animation: none; }
+}
+@media (min-width: 900px) {
+  .dock { display: none; }
 }
 /* Dimmed scrim behind the popover — the outside-tap-to-close behavior
    already existed (App.tsx's pointerdown listener), but with nothing
