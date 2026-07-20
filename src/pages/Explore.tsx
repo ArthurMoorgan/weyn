@@ -116,7 +116,7 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
 
   useEffect(() => {
     if (n <= 1 || reduced || paused) return;
-    const t = setInterval(() => setActive((a) => (a + 1) % n), 4500);
+    const t = setInterval(() => setActive((a) => (a + 1) % n), 3000);
     return () => clearInterval(t);
   }, [n, reduced, paused]);
 
@@ -272,8 +272,18 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   // null = no price ceiling set yet (slider sits at the catalog's max, so
   // dragging it down is the only way this ever actually filters anything).
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
+  // Home header (search + niche tiles) sticks to the top on scroll and turns
+  // glassy once the page has moved (see .home-topstick / .stuck). The page's
+  // scroll container is <body> (overflow:auto), not window — so the listener
+  // and scroll position both read off document.body.
+  const [stuck, setStuck] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // 1px sentinel above the sticky header; when it scrolls out of view the
+  // header has pinned, so we flip .stuck. IntersectionObserver instead of a
+  // scroll listener because the page scroller is <body>, whose scroll-event
+  // routing is unreliable — IO reacts to layout, not events.
+  const stickSentinelRef = useRef<HTMLDivElement>(null);
   const { data, loading, error, reload } = useAsync(() => api.listEvents(), [], { cacheKey: "events:all" });
   const searching = q.trim().length > 0;
   // Personalized "for you" row — derived client-side from saved + recently
@@ -290,6 +300,23 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
       setRecentSearches(getRecentSearches());
     }
   }, [q]);
+
+  // Sticky-header glass toggle (embedded home only). A 1px sentinel sits just
+  // above the sticky header; once it scrolls out of the viewport the header
+  // has pinned, so we flip .stuck. IntersectionObserver (not a scroll
+  // listener) because <body> is the scroller and its scroll events don't fire
+  // reliably — IO reacts to layout instead.
+  useEffect(() => {
+    if (!embedded) return;
+    const el = stickSentinelRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      ([entry]) => setStuck(!entry.isIntersecting),
+      { threshold: 0 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [embedded]);
 
   const suggestions = useMemo(() => buildSuggestions((data || []).filter((e) => !e.cancelled && !isPast(e)), q), [data, q]);
 
@@ -363,6 +390,108 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
     return { mode: "browse" as const, all: catFiltered, heroPool, rest };
   }, [data, cat, when, q, searching, maxPrice]);
 
+  // Extracted so the embedded home can nest them inside the sticky
+  // .home-topstick wrapper while the standalone page renders them flat —
+  // same markup, one source of truth (no duplication).
+  const searchBlock = (
+    <div className="search-wrap" ref={searchWrapRef}>
+      <div className="search">
+        <span className="search-icon-slot"><i className="icon-search" /></span>
+        <input
+          ref={searchInputRef}
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setShowSuggest(true); setActiveIdx(-1); }}
+          onFocus={() => setShowSuggest(true)}
+          onBlur={() => setTimeout(() => setShowSuggest(false), 120)}
+          onKeyDown={onSearchKeyDown}
+          placeholder="Search events, venues, tags…"
+          role="combobox"
+          aria-expanded={showSuggest && suggestions.length > 0}
+          aria-autocomplete="list"
+          aria-controls="explore-suggest-listbox"
+          aria-activedescendant={activeIdx >= 0 ? `explore-suggest-${activeIdx}` : undefined}
+        />
+        {q && <button className="clearx" onClick={() => { setQ(""); setShowSuggest(false); }} aria-label="Clear"><i className="icon-x" /></button>}
+        <Tooltip text="Filter events" className="search-filter-tooltip">
+          <button
+            className={"search-filter-btn" + (activeFilterCount ? " on" : "")}
+            onClick={() => setShowFilters(true)}
+            aria-label="Filter events"
+          >
+            <i className="icon-sliders-horizontal" />
+            {activeFilterCount > 0 && <span className="search-filter-count">{activeFilterCount}</span>}
+          </button>
+        </Tooltip>
+      </div>
+      {showSuggest && suggestions.length > 0 && (
+        <div className="suggest" role="listbox" id="explore-suggest-listbox">
+          {suggestions.map((s, i) => (
+            <div
+              key={s.kind + s.label}
+              id={`explore-suggest-${i}`}
+              className={"suggest-item" + (i === activeIdx ? " active" : "")}
+              role="option"
+              aria-selected={i === activeIdx}
+              onMouseDown={() => chooseSuggestion(s)}
+              onMouseEnter={() => setActiveIdx(i)}
+            >
+              <i className={"icon-" + SUGGEST_ICON[s.kind]} />
+              <b>{s.label}</b>
+              {s.sub && <span>{s.sub}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const recentBlock = !searching && recentSearches.length > 0 ? (
+    <div className="recent-searches">
+      <div className="recent-searches-header">
+        <span className="recent-searches-label">Recent searches</span>
+        <button
+          className="recent-searches-clear"
+          onClick={() => { clearRecentSearches(); setRecentSearches([]); }}
+          aria-label="Clear recent searches"
+        >
+          Clear
+        </button>
+      </div>
+      <div className="chips">
+        {recentSearches.map((search) => (
+          <button key={search} className="chip" onClick={() => setQ(search)}>
+            {search}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  // The 2-tile home hub (embedded) — nested in the sticky header below.
+  const hubBlock = !searching ? (
+    <div className="cat-circles-hub">
+      {[
+        { to: "/explore", key: "events", label: "Events", img: "/icons3d/events.png" },
+        { to: "/venues", key: "venues", label: "Reserve", img: "/icons3d/reserve.png" },
+      ].map((t, i) => (
+        <motion.div
+          key={t.key}
+          className="hub-tile-cell"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1], delay: i * 0.06 }}
+        >
+          <Link to={t.to} className="hub-tile" aria-label={t.label}>
+            <motion.span layoutId={`nav-icon-${t.key}`} className="hub-tile-icon" aria-hidden="true">
+              <img src={t.img} alt="" />
+            </motion.span>
+            <span className="hub-tile-label">{t.label}</span>
+          </Link>
+        </motion.div>
+      ))}
+    </div>
+  ) : null;
+
   return (
     // reducedMotion="user" makes every motion.* component below (the hero
     // carousel's spring drag, the category circles' spring pop) respect the
@@ -404,155 +533,58 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
         </section>
       )}
 
-      <div className="search-wrap" ref={searchWrapRef}>
-        <div className="search">
-          <span className="search-icon-slot"><i className="icon-search" /></span>
-          <input
-            ref={searchInputRef}
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setShowSuggest(true); setActiveIdx(-1); }}
-            onFocus={() => setShowSuggest(true)}
-            onBlur={() => setTimeout(() => setShowSuggest(false), 120)}
-            onKeyDown={onSearchKeyDown}
-            placeholder="Search events, venues, tags…"
-            role="combobox"
-            aria-expanded={showSuggest && suggestions.length > 0}
-            aria-autocomplete="list"
-            aria-controls="explore-suggest-listbox"
-            aria-activedescendant={activeIdx >= 0 ? `explore-suggest-${activeIdx}` : undefined}
-          />
-          {q && <button className="clearx" onClick={() => { setQ(""); setShowSuggest(false); }} aria-label="Clear"><i className="icon-x" /></button>}
-          <Tooltip text="Filter events" className="search-filter-tooltip">
-            <button
-              className={"search-filter-btn" + (activeFilterCount ? " on" : "")}
-              onClick={() => setShowFilters(true)}
-              aria-label="Filter events"
-            >
-              <i className="icon-sliders-horizontal" />
-              {activeFilterCount > 0 && <span className="search-filter-count">{activeFilterCount}</span>}
-            </button>
-          </Tooltip>
-        </div>
-        {showSuggest && suggestions.length > 0 && (
-          <div className="suggest" role="listbox" id="explore-suggest-listbox">
-            {suggestions.map((s, i) => (
-              <div
-                key={s.kind + s.label}
-                id={`explore-suggest-${i}`}
-                className={"suggest-item" + (i === activeIdx ? " active" : "")}
-                role="option"
-                aria-selected={i === activeIdx}
-                onMouseDown={() => chooseSuggestion(s)}
-                onMouseEnter={() => setActiveIdx(i)}
-              >
-                <i className={"icon-" + SUGGEST_ICON[s.kind]} />
-                <b>{s.label}</b>
-                {s.sub && <span>{s.sub}</span>}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {!searching && recentSearches.length > 0 && (
-        <div className="recent-searches">
-          <div className="recent-searches-header">
-            <span className="recent-searches-label">Recent searches</span>
-            <button
-              className="recent-searches-clear"
-              onClick={() => {
-                clearRecentSearches();
-                setRecentSearches([]);
-              }}
-              aria-label="Clear recent searches"
-            >
-              Clear
-            </button>
-          </div>
-          <div className="chips">
-            {recentSearches.map((search) => (
-              <button
-                key={search}
-                className="chip"
-                onClick={() => setQ(search)}
-              >
-                {search}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* HOME HUB (embedded): just the 3 top-level destinations — Events,
-          Venues, Host — matching the reference's tile-as-navigation model.
-          These NAVIGATE (Link) rather than filter in place; the sub-category
-          filtering that used to live here (Live music/Sports/Food/…) moved to
-          a chip row on the standalone Events page below. Each icon carries a
-          layoutId shared with a small header icon on its destination page
-          (Reservations.tsx / Organizer.tsx / this file's own !embedded hero)
-          so Framer Motion morphs it there across the route change — the tile
-          "merges into the top" instead of just cutting to the new page. */}
-      {!searching && embedded && (
-        <div className="cat-circles-hub">
-          {[
-            { to: "/explore", key: "events", label: "Events", img: "/icons3d/events.png" },
-            { to: "/venues", key: "venues", label: "Reserve", img: "/icons3d/reserve.png" },
-          ].map((t, i) => (
-            <motion.div
-              key={t.key}
-              className="hub-tile-cell"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1], delay: i * 0.06 }}
-            >
-              <Link to={t.to} className="hub-tile" aria-label={t.label}>
-                <motion.span layoutId={`nav-icon-${t.key}`} className="hub-tile-icon" aria-hidden="true">
-                  <img src={t.img} alt="" />
-                </motion.span>
-                <span className="hub-tile-label">{t.label}</span>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {/* EVENTS PAGE (standalone /explore): the "When" quick filter and
-          category chips replace the old icon grid here — filtering, not
-          top-level navigation, so a compact chip row fits better than large
-          tiles. */}
-      {!searching && !embedded && (
+      {/* Embedded home: search + niche tiles live in a sticky glass header
+          (see .home-topstick — pins to the top and frosts once scrolled).
+          Standalone Events page keeps them flat with the filter chips. */}
+      {embedded ? (
         <>
-          <div className="chips chips-when">
-            {(["all", "today", "tomorrow", "weekend"] as const).map((w) => (
-              <button key={w} className={"chip" + (when === w ? " on" : "")} onClick={() => setWhen(w)}>
-                {w === "all" ? "Any time" : w === "today" ? "Today" : w === "tomorrow" ? "Tomorrow" : "This weekend"}
-              </button>
-            ))}
-          </div>
-          <div className="chips chips-categories">
-            {CATS.filter((c) => c.key !== "all").map((c) => {
-              const isOn = cat === c.key;
-              return (
-                <button
-                  key={c.key}
-                  className={"chip" + (isOn ? " on" : "")}
-                  onClick={() => setCat(isOn ? "all" : (c.key as Cat))}
-                  aria-pressed={isOn}
-                >
-                  {c.label}
-                </button>
-              );
-            })}
+          <div ref={stickSentinelRef} className="topstick-sentinel" aria-hidden="true" />
+          <div className={"home-topstick" + (stuck ? " stuck" : "")}>
+            {searchBlock}
+            {recentBlock}
+            {hubBlock}
           </div>
         </>
-      )}
-
-      {!searching && when !== "all" && (
-        <div className="chips chips-mobile-only active-filter-summary">
-          <button className="chip on" onClick={() => setWhen("all")}>
-            {when === "today" ? "Today" : when === "tomorrow" ? "Tomorrow" : "This weekend"} <i className="icon-x" />
-          </button>
-        </div>
+      ) : (
+        <>
+          {searchBlock}
+          {recentBlock}
+          {/* EVENTS PAGE (standalone /explore): the "When" quick filter and
+              category chips — filtering, not top-level navigation. */}
+          {!searching && (
+            <>
+              <div className="chips chips-when">
+                {(["all", "today", "tomorrow", "weekend"] as const).map((w) => (
+                  <button key={w} className={"chip" + (when === w ? " on" : "")} onClick={() => setWhen(w)}>
+                    {w === "all" ? "Any time" : w === "today" ? "Today" : w === "tomorrow" ? "Tomorrow" : "This weekend"}
+                  </button>
+                ))}
+              </div>
+              <div className="chips chips-categories">
+                {CATS.filter((c) => c.key !== "all").map((c) => {
+                  const isOn = cat === c.key;
+                  return (
+                    <button
+                      key={c.key}
+                      className={"chip" + (isOn ? " on" : "")}
+                      onClick={() => setCat(isOn ? "all" : (c.key as Cat))}
+                      aria-pressed={isOn}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          {!searching && when !== "all" && (
+            <div className="chips chips-mobile-only active-filter-summary">
+              <button className="chip on" onClick={() => setWhen("all")}>
+                {when === "today" ? "Today" : when === "tomorrow" ? "Tomorrow" : "This weekend"} <i className="icon-x" />
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {showFilters && (
