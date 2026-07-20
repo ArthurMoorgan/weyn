@@ -1050,28 +1050,31 @@ a.cat-circle:active { transform: scale(0.96); }
 .ex-deck-card {
   position: absolute; top: 0; bottom: 0; left: 50%; width: 72%;
   transform: translateX(-50%);
-  /* Opacity/brightness settle FASTER than the slide so the incoming front is
-     crisp almost immediately — otherwise it lingers semi-transparent at
-     center over the outgoing card mid-rotation and the front reads as
-     translucent (the reported bug). Transform still eases the full .5s. */
-  transition: transform .34s cubic-bezier(.16,1,.3,1), opacity .18s ease, filter .18s ease;
   will-change: transform, opacity;
+}
+/* Transitions gated on .ready — the deck's first paint lands in place (no
+   fly-in from the side), then subsequent position changes animate. Opacity/
+   brightness settle faster than the slide so the incoming front reads crisp
+   almost immediately rather than lingering translucent mid-rotation. */
+.ex-deck.ready .ex-deck-card {
+  transition: transform .34s cubic-bezier(.16,1,.3,1), opacity .2s ease, filter .2s ease;
 }
 .ex-deck-card .ex-hero-card {
   margin: 0; width: 100%; height: 100%; aspect-ratio: auto; animation: none;
 }
-/* Front */
-.ex-deck-card[data-pos="0"] { z-index: 4; opacity: 1; filter: none; transform: translateX(-50%) scale(1); }
-/* Behind, peeking right */
-.ex-deck-card[data-pos="1"] { z-index: 3; opacity: .6; filter: brightness(.68); transform: translateX(-18%) scale(.9); }
-/* Behind, peeking left */
-.ex-deck-card[data-pos="2"] { z-index: 2; opacity: .5; filter: brightness(.6); transform: translateX(-82%) scale(.9); }
-/* Parked hidden behind the stack */
-.ex-deck-card[data-pos="3"] { z-index: 1; opacity: 0; filter: brightness(.5); transform: translateX(-50%) scale(.82); }
+/* Center / front */
+.ex-deck-card[data-pos="c"] { z-index: 4; opacity: 1; filter: none; transform: translateX(-50%) scale(1); }
+/* Peeking right */
+.ex-deck-card[data-pos="r"] { z-index: 3; opacity: .6; filter: brightness(.68); transform: translateX(-18%) scale(.9); }
+/* Peeking left */
+.ex-deck-card[data-pos="l"] { z-index: 2; opacity: .5; filter: brightness(.6); transform: translateX(-82%) scale(.9); }
+/* Parked hidden, tucked behind the front card (opacity 0) — the conveyor's
+   wrap happens here, out of sight. */
+.ex-deck-card[data-pos="h"] { z-index: 1; opacity: 0; filter: brightness(.5); transform: translateX(-50%) scale(.82); }
 /* Only the front card is tappable — dimmed back cards shouldn't catch taps. */
-.ex-deck-card:not([data-pos="0"]) { pointer-events: none; }
+.ex-deck-card:not([data-pos="c"]) { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
-  .ex-deck-card { transition: none; }
+  .ex-deck.ready .ex-deck-card { transition: none; }
 }
 /* Title + blurb below the deck (reference: centered, tappable into the
    event), crossfading as the deck rotates (keyed remount in Explore.tsx). */

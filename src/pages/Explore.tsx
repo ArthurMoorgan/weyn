@@ -50,7 +50,7 @@ const MotionLink = motion.create(Link);
 // the image — see FeaturedSpotlight). The whole card is still the tap target
 // into the event, and still carries the layoutId that morphs into
 // EventDetail's hero.
-function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
+function HeroSlide({ e, showBadge = true, morph = false }: { e: Weyn; showBadge?: boolean; morph?: boolean }) {
   useSaved();
   const saved = isSaved(e.id);
   const catLabel = CATS.find((c) => c.key === e.cat)?.label || e.cat;
@@ -69,7 +69,7 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
     // silently drift from that token.
     : { backgroundColor: "var(--card-bg)", backgroundImage: `linear-gradient(150deg, var(--cat-${e.cat}, var(--cat-music)), var(--fallback-scrim))` };
   return (
-    <MotionLink to={`/e/${e.id}`} layoutId={`event-cover-${e.id}`} onPointerDown={preloadEventDetail} onMouseEnter={preloadEventDetail} className="ex-hero-card" style={coverStyle}>
+    <MotionLink to={`/e/${e.id}`} layoutId={morph ? `event-cover-${e.id}` : undefined} onPointerDown={preloadEventDetail} onMouseEnter={preloadEventDetail} className="ex-hero-card" style={coverStyle}>
       {/* Brand/category pill top-left (reference: "District Live") + a save
           button top-right — the only two things that sit ON the photo now. */}
       {showBadge && <span className="ex-hero-card-featured">{catLabel}</span>}
@@ -106,6 +106,10 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   const reduced = usePrefersReducedMotion();
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Gate the card transitions until after first paint, so the deck appears
+  // already assembled instead of animating in from the side on mount.
+  const [ready, setReady] = useState(false);
+  useEffect(() => { setReady(true); }, []);
   const n = events.length;
   // Swipe/drag state: the deck is absolutely-stacked cards (no native scroll),
   // so we drive next/prev off pointer gestures ourselves. `moved` guards the
@@ -152,7 +156,7 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   return (
     <div className="ex-spotlight ex-spotlight-deck">
       <div
-        className="ex-deck"
+        className={"ex-deck" + (ready ? " ready" : "")}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -161,13 +165,18 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
         onClickCapture={onClickCapture}
       >
         {events.map((ev, i) => {
-          const offset = ((i - active) % n + n) % n; // 0 = front … n-1
-          // Only the front (0) and the two directly behind (1,2) are visible;
-          // everything else parks hidden behind the stack (pos 3).
-          const pos = offset <= 2 ? offset : 3;
+          // SIGNED offset around `active`: 0 = front, +1 = peek right,
+          // -1 = peek left, everything else parks hidden BEHIND the front
+          // card. Advancing then reads as a clean conveyor (right→center→left
+          // →hidden); the wrap (left→hidden→right) happens behind the opaque
+          // front card, so no card ever flies across the deck.
+          let d = (i - active) % n;
+          if (d > n / 2) d -= n;
+          if (d < -n / 2) d += n;
+          const pos = d === 0 ? "c" : d === 1 ? "r" : d === -1 ? "l" : "h";
           return (
-            <div className="ex-deck-card" data-pos={pos} key={ev.id} aria-hidden={pos !== 0}>
-              <HeroSlide e={ev} showBadge={pos === 0} />
+            <div className="ex-deck-card" data-pos={pos} key={ev.id} aria-hidden={pos !== "c"}>
+              <HeroSlide e={ev} showBadge={pos === "c"} morph={pos === "c"} />
             </div>
           );
         })}
