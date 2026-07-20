@@ -132,7 +132,7 @@
   /* The one sanctioned spot of hue in the otherwise-monochrome chrome: a soft
      purple radial bleeding down from the very top edge (the Dynamic Island
      region), fading to transparent so it melts into --bg. Drives .shell::before. */
-  --ambient-top: rgba(146, 43, 255, 0.66);
+  --ambient-top: rgba(140, 60, 255, 0.74);
   /* Discover's Venues mode swaps --ambient-top to this teal via
      .shell[data-ambient="venues"] (components.css) — same shape/alpha as
      the purple default, only the hue differs. */

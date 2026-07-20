@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
 import { MotionButton, usePrefersReducedMotion } from "../motion";
-import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast, dayLabel, timeLabel } from "../api";
+import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast } from "../api";
 import { useAsync } from "../hooks";
-import { useAccount } from "../store";
+import { useAccount, useSaved, isSaved, toggleSave } from "../store";
 import { addRecentSearch, getRecentSearches, clearRecentSearches } from "../hooks/useRecentSearches";
 import Stub from "../components/Stub";
 import HorizontalRail from "../components/HorizontalRail";
@@ -36,16 +36,6 @@ const startTs = (e: Weyn) => new Date(e.startsAt).getTime();
 const bySoonest = (a: Weyn, b: Weyn) => startTs(a) - startTs(b);
 const byPopular = (a: Weyn, b: Weyn) => (b.sold || 0) - (a.sold || 0);
 
-// One eyebrow line up top: category + a broad time framing ("This
-// weekend"/"This July") rather than the exact date — the hero is meant to
-// read at a glance, the exact date/time already has its own row below.
-function heroTimeLabel(e: Weyn): string {
-  if (isToday(e)) return "Today";
-  if (isTomorrow(e)) return "Tomorrow";
-  if (isThisWeekend(e)) return "This weekend";
-  return "This " + new Date(e.startsAt).toLocaleDateString("en-GB", { month: "long" });
-}
-
 // The spotlight card IS its own cover (the photo is its background), so the
 // layoutId that morphs it into EventDetail's hero has to sit on the <Link>
 // itself — hence a motion-wrapped Link rather than a nested motion.div like
@@ -55,7 +45,14 @@ const MotionLink = motion.create(Link);
 // One card's worth of the spotlight carousel's content — pulled out of the
 // old single-slide HeroCard so HeroCarousel below can render N of these in
 // a swipeable track instead of one static card.
+// The spotlight card is now just the photo + a small brand/badge pill and a
+// save button (reference-matched: text lives BELOW the deck, not overlaid on
+// the image — see FeaturedSpotlight). The whole card is still the tap target
+// into the event, and still carries the layoutId that morphs into
+// EventDetail's hero.
 function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
+  useSaved();
+  const saved = isSaved(e.id);
   const catLabel = CATS.find((c) => c.key === e.cat)?.label || e.cat;
   // An opaque `backgroundColor` base is set in BOTH branches so a card is
   // never see-through — critical in the stacked spotlight deck, where cards
@@ -73,27 +70,19 @@ function HeroSlide({ e, showBadge = true }: { e: Weyn; showBadge?: boolean }) {
     : { backgroundColor: "var(--card-bg)", backgroundImage: `linear-gradient(150deg, var(--cat-${e.cat}, var(--cat-music)), var(--fallback-scrim))` };
   return (
     <MotionLink to={`/e/${e.id}`} layoutId={`event-cover-${e.id}`} onPointerDown={preloadEventDetail} onMouseEnter={preloadEventDetail} className="ex-hero-card" style={coverStyle}>
-      {/* Editorial handoff: a "FEATURED" pill badge top-left — pixel-checked
-          against screenshots/01, was missing entirely. Suppressed when
-          HeroCarousel is showing its own progress bar in the same top-left
-          corner (the "top lines thing" overlapping this badge was the bug
-          report) — the progress bar already signals "these are featured,"
-          the badge would be redundant right on top of it. */}
-      {showBadge && <span className="ex-hero-card-featured">Featured</span>}
-      <div className="ex-hero-card-body">
-        <span className="ex-hero-card-eyebrow">{catLabel} · {heroTimeLabel(e)}</span>
-        <h2 className="ex-hero-card-title">{e.title}</h2>
-        <div className="ex-hero-card-meta">
-          <span><i className="icon-map-pin" /> {e.venue || e.area}</span>
-          <span><i className="icon-calendar" /> {dayLabel(e)} · {timeLabel(e)}</span>
-        </div>
-        <div className="ex-hero-card-cta">
-          {/* Handoff spec: "white pill CTA button" over the photo — a
-              distinct style from the app's standard black/coral .btn. */}
-          <span className="ex-hero-card-btn">Get tickets</span>
-          <span className="ex-hero-card-price">{e.price === 0 ? "Free" : <>from <b>{e.price} {e.currency || "OMR"}</b></>}</span>
-        </div>
-      </div>
+      {/* Brand/category pill top-left (reference: "District Live") + a save
+          button top-right — the only two things that sit ON the photo now. */}
+      {showBadge && <span className="ex-hero-card-featured">{catLabel}</span>}
+      {showBadge && (
+        <button
+          className={"ex-hero-card-save" + (saved ? " on" : "")}
+          onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); toggleSave(e.id); }}
+          aria-label={saved ? "Saved — tap to remove" : "Save"}
+          aria-pressed={saved}
+        >
+          <i className="icon-bookmark" />
+        </button>
+      )}
     </MotionLink>
   );
 }
@@ -158,6 +147,7 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   }
 
   if (n === 0) return null;
+  const front = events[active] || events[0];
 
   return (
     <div className="ex-spotlight ex-spotlight-deck">
@@ -182,6 +172,15 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
           );
         })}
       </div>
+
+      {/* Title + blurb sit BELOW the deck (reference), keyed on the active
+          event so they crossfade as the deck rotates. A plain <Link> so the
+          caption is tappable into the same event as its card. */}
+      <Link to={`/e/${front.id}`} className="ex-spotlight-caption" key={front.id} onPointerDown={preloadEventDetail}>
+        <h3 className="ex-spotlight-title">{front.title}</h3>
+        {front.blurb && <p className="ex-spotlight-blurb">{front.blurb}</p>}
+      </Link>
+
       {n > 1 && (
         <div className="ex-spotlight-dots">
           {events.map((ev, i) => (
@@ -494,23 +493,24 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
           so Framer Motion morphs it there across the route change — the tile
           "merges into the top" instead of just cutting to the new page. */}
       {!searching && embedded && (
-        <div className="cat-circles cat-circles-hub">
+        <div className="cat-circles-hub">
           {[
-            { to: "/explore", key: "events", label: "Events", emoji: "🎟️" },
-            { to: "/venues", key: "venues", label: "Venues", emoji: "🏬" },
-            { to: "/host/events", key: "host", label: "Host", emoji: "🎪" },
+            { to: "/explore", key: "events", label: "Events", emoji: "🎟️", wide: false },
+            { to: "/venues", key: "venues", label: "Venues", emoji: "🏬", wide: false },
+            { to: "/host/events", key: "host", label: "Host", emoji: "🎪", wide: true },
           ].map((t, i) => (
             <motion.div
               key={t.key}
-              initial={{ opacity: 0, y: 10 }}
+              className={"hub-tile-cell" + (t.wide ? " hub-tile-cell-wide" : "")}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1], delay: i * 0.05 }}
+              transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1], delay: i * 0.06 }}
             >
-              <Link to={t.to} className="cat-circle cat-circle-hub-tile" aria-label={t.label}>
-                <motion.span layoutId={`nav-icon-${t.key}`} className="cat-circle-ring cat-circle-emoji" aria-hidden="true">
+              <Link to={t.to} className="hub-tile" aria-label={t.label}>
+                <span className="hub-tile-label">{t.label}</span>
+                <motion.span layoutId={`nav-icon-${t.key}`} className="hub-tile-icon" aria-hidden="true">
                   {t.emoji}
                 </motion.span>
-                <span className="cat-circle-label">{t.label}</span>
               </Link>
             </motion.div>
           ))}

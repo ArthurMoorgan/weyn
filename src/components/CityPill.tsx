@@ -7,8 +7,12 @@ export default function CityPill() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button className="pill" onClick={() => setOpen(true)}>
-        <i className="icon-map-pin" /> Muscat
+      <button className="loc-pill" onClick={() => setOpen(true)} aria-label="Change city">
+        <span className="loc-pill-pin"><i className="icon-map-pin" /></span>
+        <span className="loc-pill-text">
+          <span className="loc-pill-city">Muscat <i className="icon-chevron-down" /></span>
+          <span className="loc-pill-sub">Muscat, Oman</span>
+        </span>
       </button>
       {open && (
         <div className="city-popover-backdrop" onClick={() => setOpen(false)}>

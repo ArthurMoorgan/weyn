@@ -66,7 +66,7 @@
    (see --ambient-top). Sits behind all shell content and never intercepts
    taps. */
 .shell::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 360px;
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 400px;
   /* Two stacked radials: a tight, brighter core over a wide soft bloom, so the
      purple reads as a real light source at the top edge rather than a flat
      wash. Slowly breathes (opacity + scale) for a living, atmospheric feel. */
@@ -347,6 +347,53 @@ a.cat-circle:active { transform: scale(0.96); }
   .cat-circle:hover { transform: translateY(-2px); }
   .cat-circle-ring { width: 68px; height: 68px; margin-top: 0; }
 }
+
+/* ---------- Home hub tiles ----------
+   Reference layout (District): the label sits on the LEFT, the 3D icon on the
+   RIGHT breaking out above the top edge. Events + Venues share a 2-up row;
+   Host spans the full width below. Big rounded surface tiles, soft top-lit
+   bloom — the glossy tile look, still monochrome (light cue, not hue). Each
+   icon carries a layoutId shared with its destination page's header icon so
+   Framer Motion morphs it across the route change (it "merges into the top").
+   These are their own classes (not .cat-circle*) so the base grid rules and
+   the >=900px overrides above don't fight this horizontal layout. */
+.cat-circles-hub {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  /* Extra top room so the protruding icons clear the search bar above. */
+  padding: 34px 16px 8px;
+}
+.hub-tile-cell { min-width: 0; }
+.hub-tile-cell-wide { grid-column: 1 / -1; }
+.hub-tile {
+  position: relative; overflow: visible; display: flex; align-items: center;
+  min-height: 128px; padding: 20px;
+  background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: var(--radius-xl); box-shadow: var(--card-shadow);
+  transition: transform .18s cubic-bezier(.25,1,.5,1), box-shadow .22s ease, background-color .18s ease;
+}
+.hub-tile:hover { box-shadow: var(--shadow-md); background: var(--surface-hover); }
+.hub-tile:active { transform: scale(0.97); }
+/* Top-lit bloom (light-source cue, matches the reference's glossy tiles) —
+   clipped to the tile's rounded corners even though the parent is
+   overflow: visible for the icon protrusion. */
+.hub-tile::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(ellipse 95% 82% at 68% 0%, rgba(255,255,255,.15), transparent 72%);
+  pointer-events: none; z-index: 0;
+}
+.hub-tile-label {
+  position: relative; z-index: 2;
+  font: var(--t-card); font-size: 19px; font-weight: 700; letter-spacing: -0.3px;
+  color: var(--text);
+}
+.hub-tile-icon {
+  position: absolute; z-index: 1; top: -20px; right: 14px;
+  font-size: 66px; line-height: 1; pointer-events: none;
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.5));
+}
+/* Full-width Host tile: shorter box, icon eased down a touch to match. */
+.hub-tile-cell-wide .hub-tile { min-height: 96px; }
+.hub-tile-cell-wide .hub-tile-icon { font-size: 58px; top: -14px; right: 22px; }
 
 /* ---------- date section header ---------- */
 .date-head {
@@ -656,6 +703,28 @@ a.cat-circle:active { transform: scale(0.96); }
 }
 .ex-hero-host:hover { background: var(--surface-hover); border-color: var(--text-3); }
 .ex-hero-host [class^="icon-"] { font-size: 14px; color: var(--accent); }
+/* Two-line location control (reference: city + region stacked, pin in a soft
+   circle, chevron) — the home hub's version of the single-line .pill. */
+.loc-pill {
+  display: inline-flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 4px 8px 4px 4px; border-radius: var(--radius-pill);
+  transition: background-color .15s ease;
+}
+.loc-pill:hover { background: var(--surface); }
+.loc-pill:active { background: var(--surface-hover); }
+.loc-pill-pin {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-2);
+}
+.loc-pill-pin i { font-size: 16px; }
+.loc-pill-text { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; line-height: 1.15; }
+.loc-pill-city {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 17px; font-weight: 700; letter-spacing: -0.3px; color: var(--text);
+}
+.loc-pill-city i { font-size: 13px; color: var(--text-2); }
+.loc-pill-sub { font-size: 12px; font-weight: 500; color: var(--text-2); white-space: nowrap; }
 .discover-head-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .discover-head-back {
   display: inline-flex; align-items: center; gap: 8px;
@@ -836,13 +905,12 @@ a.cat-circle:active { transform: scale(0.96); }
    over the top ~55% so the photography reads at full fidelity, then ramps
    only where text sits. Per review point 10: transparent → light → dark
    toward the bottom, so the image pops instead of being dimmed everywhere. */
+/* Text lives below the deck now, so the heavy bottom scrim is gone — just a
+   soft TOP gradient keeps the badge + save button legible while the rest of
+   the photo reads clean (reference). */
 .ex-hero-card::after {
   content: ""; position: absolute; inset: -1px;
-  background: linear-gradient(to top,
-    rgba(0,0,0,0.80) 0%,
-    rgba(0,0,0,0.55) 18%,
-    rgba(0,0,0,0.22) 38%,
-    transparent 62%);
+  background: linear-gradient(to bottom, rgba(0,0,0,0.34) 0%, transparent 26%);
 }
 .ex-hero-card-featured {
   position: absolute; top: 16px; left: 16px; z-index: 1;
@@ -850,6 +918,20 @@ a.cat-circle:active { transform: scale(0.96); }
   background: rgba(20,20,20,0.5); backdrop-filter: blur(8px);
   padding: 6px 12px; border-radius: var(--radius-pill);
 }
+/* Save button on the front card, top-right (reference). Dark glass by
+   default, flips to solid ink-on-white when saved. */
+.ex-hero-card-save {
+  position: absolute; top: 14px; right: 14px; z-index: 2;
+  width: 40px; height: 40px; display: grid; place-items: center;
+  border-radius: var(--radius-pill); color: #fff;
+  background: rgba(20,20,20,0.5); border: 1px solid rgba(255,255,255,.14);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  transition: transform .12s cubic-bezier(.25,1,.5,1), background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.ex-hero-card-save:hover { background: rgba(20,20,20,0.65); }
+.ex-hero-card-save:active { transform: scale(0.88); }
+.ex-hero-card-save.on { background: #fff; color: #131316; border-color: transparent; }
+.ex-hero-card-save i { font-size: 17px; }
 .ex-hero-card-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 18px 18px 20px; }
 /* Eyebrow demoted to plain small caps — the loud translucent-pill eyebrow
    competed with the title for the eye. Now it's quiet supporting text so the
@@ -937,7 +1019,18 @@ a.cat-circle:active { transform: scale(0.96); }
 @media (prefers-reduced-motion: reduce) {
   .ex-deck-card { transition: none; }
 }
-.ex-spotlight-dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+/* Title + blurb below the deck (reference: centered, tappable into the
+   event), crossfading as the deck rotates (keyed remount in Explore.tsx). */
+.ex-spotlight-caption { display: block; margin: 22px 24px 0; text-align: center; animation: fade .3s ease; }
+.ex-spotlight-title {
+  font: var(--t-hero); font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
+  line-height: 1.2; color: var(--text); text-wrap: balance;
+}
+.ex-spotlight-blurb {
+  margin-top: 6px; font-size: 14px; font-weight: 500; line-height: 1.45; color: var(--text-2);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ex-spotlight-dots { display: flex; justify-content: center; gap: 6px; margin-top: 14px; }
 .ex-spotlight-dot {
   width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong);
   transition: background-color .2s ease, transform .2s ease;
