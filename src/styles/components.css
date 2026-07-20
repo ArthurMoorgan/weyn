@@ -349,51 +349,47 @@ a.cat-circle:active { transform: scale(0.96); }
 }
 
 /* ---------- Home hub tiles ----------
-   Reference layout (District): the label sits on the LEFT, the 3D icon on the
-   RIGHT breaking out above the top edge. Events + Venues share a 2-up row;
-   Host spans the full width below. Big rounded surface tiles, soft top-lit
-   bloom — the glossy tile look, still monochrome (light cue, not hue). Each
-   icon carries a layoutId shared with its destination page's header icon so
-   Framer Motion morphs it across the route change (it "merges into the top").
-   These are their own classes (not .cat-circle*) so the base grid rules and
-   the >=900px overrides above don't fight this horizontal layout. */
+   Two big rounded surface tiles (Events + Reserve) in a 2-up row: a large 3D
+   icon centered up top, label centered below (the render-forward mockup
+   layout). Soft top-lit bloom for the glossy look, still monochrome (light
+   cue, not hue). Each icon carries a layoutId shared with its destination
+   page's header icon so Framer Motion morphs it across the route change (it
+   "merges into the top"). Their own classes (not .cat-circle*) so the base
+   grid rules and the >=900px overrides above don't fight this layout. */
 .cat-circles-hub {
   display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-  /* Extra top room so the protruding icons clear the search bar above. */
-  padding: 34px 16px 8px;
+  padding: 20px 16px 8px;
 }
 .hub-tile-cell { min-width: 0; }
-.hub-tile-cell-wide { grid-column: 1 / -1; }
 .hub-tile {
-  position: relative; overflow: visible; display: flex; align-items: center;
-  min-height: 128px; padding: 20px;
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; min-height: 176px; padding: 24px 16px 20px;
   background: var(--surface); border: 1px solid var(--card-border);
   border-radius: var(--radius-xl); box-shadow: var(--card-shadow);
   transition: transform .18s cubic-bezier(.25,1,.5,1), box-shadow .22s ease, background-color .18s ease;
 }
 .hub-tile:hover { box-shadow: var(--shadow-md); background: var(--surface-hover); }
 .hub-tile:active { transform: scale(0.97); }
-/* Top-lit bloom (light-source cue, matches the reference's glossy tiles) —
-   clipped to the tile's rounded corners even though the parent is
-   overflow: visible for the icon protrusion. */
+/* Top-lit bloom (light-source cue, matches the mockup's glossy tiles). */
 .hub-tile::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit;
-  background: radial-gradient(ellipse 95% 82% at 68% 0%, rgba(255,255,255,.15), transparent 72%);
+  background: radial-gradient(ellipse 90% 70% at 50% 0%, rgba(255,255,255,.15), transparent 72%);
   pointer-events: none; z-index: 0;
 }
 .hub-tile-label {
   position: relative; z-index: 2;
-  font: var(--t-card); font-size: 19px; font-weight: 700; letter-spacing: -0.3px;
-  color: var(--text);
+  font: var(--t-card); font-size: 18px; font-weight: 700; letter-spacing: -0.3px;
+  color: var(--text); text-align: center;
 }
+/* Large centered render. font-size drives the emoji placeholder; the real
+   <img> renders (once dropped into public/icons3d/) fill the same box. */
 .hub-tile-icon {
-  position: absolute; z-index: 1; top: -20px; right: 14px;
-  font-size: 66px; line-height: 1; pointer-events: none;
-  filter: drop-shadow(0 6px 10px rgba(0,0,0,.5));
+  position: relative; z-index: 1;
+  font-size: 78px; line-height: 1; pointer-events: none;
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,.5));
 }
-/* Full-width Host tile: shorter box, icon eased down a touch to match. */
-.hub-tile-cell-wide .hub-tile { min-height: 96px; }
-.hub-tile-cell-wide .hub-tile-icon { font-size: 58px; top: -14px; right: 22px; }
+.hub-tile-icon img { width: 96px; height: 96px; object-fit: contain; display: block; }
 
 /* ---------- date section header ---------- */
 .date-head {

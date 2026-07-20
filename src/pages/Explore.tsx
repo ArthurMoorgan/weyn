@@ -495,22 +495,21 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
       {!searching && embedded && (
         <div className="cat-circles-hub">
           {[
-            { to: "/explore", key: "events", label: "Events", emoji: "🎟️", wide: false },
-            { to: "/venues", key: "venues", label: "Venues", emoji: "🏬", wide: false },
-            { to: "/host/events", key: "host", label: "Host", emoji: "🎪", wide: true },
+            { to: "/explore", key: "events", label: "Events", emoji: "🎟️" },
+            { to: "/venues", key: "venues", label: "Reserve", emoji: "🏬" },
           ].map((t, i) => (
             <motion.div
               key={t.key}
-              className={"hub-tile-cell" + (t.wide ? " hub-tile-cell-wide" : "")}
+              className="hub-tile-cell"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1], delay: i * 0.06 }}
             >
               <Link to={t.to} className="hub-tile" aria-label={t.label}>
-                <span className="hub-tile-label">{t.label}</span>
                 <motion.span layoutId={`nav-icon-${t.key}`} className="hub-tile-icon" aria-hidden="true">
                   {t.emoji}
                 </motion.span>
+                <span className="hub-tile-label">{t.label}</span>
               </Link>
             </motion.div>
           ))}
