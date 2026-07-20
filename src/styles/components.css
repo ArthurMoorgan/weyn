@@ -1137,6 +1137,13 @@ a.cat-circle:active { transform: scale(0.96); }
   -webkit-overflow-scrolling: touch;
 }
 .horizontal-rail::-webkit-scrollbar { display: none; }
+/* Soft edge fade on the horizontal carousels — items melt out at the left/
+   right edges instead of hard-clipping, so the rail reads as continuing off
+   screen (premium cue). */
+.horizontal-rail, .ex-rail {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+}
 .horizontal-rail > div { scroll-snap-align: start; }
 
 /* Popular Organizers list — vertical stack of organizer cards with name,
@@ -1224,9 +1231,13 @@ a.cat-circle:active { transform: scale(0.96); }
 .stat-skel .s-tile::after, .sk::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent 0%,
-    color-mix(in srgb, var(--text) 8%, transparent) 50%, transparent 100%);
-  animation: sk-shimmer 1.5s cubic-bezier(.4,0,.2,1) infinite;
+  /* Brighter, wider sweep (was a barely-there 8% at one stop) — reads as a
+     real light passing over the surface, the premium "loading" cue. */
+  background: linear-gradient(100deg, transparent 20%,
+    color-mix(in srgb, var(--text) 10%, transparent) 40%,
+    color-mix(in srgb, var(--text) 18%, transparent) 50%,
+    color-mix(in srgb, var(--text) 10%, transparent) 60%, transparent 80%);
+  animation: sk-shimmer 1.35s cubic-bezier(.4,0,.2,1) infinite;
 }
 .ex-feature-skel, .detail-skel-cover, .stat-skel .s-tile,
 .detail-skel-title, .detail-skel-line, .detail-skel-facts,

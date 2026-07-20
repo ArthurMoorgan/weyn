@@ -237,7 +237,13 @@ export default function App() {
       {/* Floating AI orb (mobile only, hidden >=900px where the top bar has an
           AI tab). The one always-present way to reach the concierge, from any
           screen — a glowing, breathing purple orb bottom-right. */}
-      <MotionLink to="/concierge" className="ai-orb-fab" aria-label="Ask the AI">
+      <MotionLink
+        to="/concierge"
+        className="ai-orb-fab"
+        aria-label="Ask the AI"
+        onPointerDown={() => { import("./pages/Concierge"); }}
+        onMouseEnter={() => { import("./pages/Concierge"); }}
+      >
         <i className="icon-sparkles" />
       </MotionLink>
     </motion.div>

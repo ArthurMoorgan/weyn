@@ -38,11 +38,16 @@ export const settleSpring: Transition = { type: "spring", stiffness: 260, dampin
 
 // Fade + slight scale/translate for route-level transitions when a shared
 // element (layoutId) can't pair up with the outgoing page.
-export const pageTransition: Transition = { duration: 0.22, ease: [0.4, 0, 0.2, 1] };
+// Snappy easeOut so pages settle into place quickly rather than lingering in
+// a slow cross-fade. Short enough that even mode="wait" (exit then enter)
+// stays under ~0.3s total, so navigation feels immediate, not draggy.
+export const pageTransition: Transition = { duration: 0.16, ease: [0.33, 1, 0.68, 1] };
 export const pageVariants: Variants = {
-  initial: { opacity: 0, y: 8, scale: 0.99 },
-  animate: { opacity: 1, y: 0, scale: 1 },
-  exit: { opacity: 0, y: -8, scale: 0.99 },
+  // A gentle slide-up-into-place (the movement leads; opacity is a quick
+  // assist) reads as fluid rather than "a slow fade".
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
 };
 
 // Cross-fade + slight scale for swapping a panel's body in place (dashboard
