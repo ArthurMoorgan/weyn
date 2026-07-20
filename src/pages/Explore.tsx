@@ -543,6 +543,13 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
             {searchBlock}
             {recentBlock}
             {hubBlock}
+            {/* On scroll the tiles collapse into this slim glass bar —
+                Ask AI · Events · Reserve (see .home-collapsed-nav). */}
+            <div className="home-collapsed-nav">
+              <Link to="/concierge" className="hcn-item hcn-ai" aria-label="Ask the AI"><i className="icon-sparkles" /><span>Ask AI</span></Link>
+              <Link to="/explore" className="hcn-item" aria-label="Events"><i className="icon-calendar" /><span>Events</span></Link>
+              <Link to="/venues" className="hcn-item" aria-label="Reserve"><i className="icon-store" /><span>Reserve</span></Link>
+            </div>
           </div>
         </>
       ) : (

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import Discover from "./pages/Discover";
-import MobileDock from "./components/MobileDock";
 import Skeleton from "./components/Skeleton";
 import ThemeToggle from "./components/ThemeToggle";
 import CityPill from "./components/CityPill";
@@ -235,10 +234,12 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Mobile-only floating dock (hidden >=900px). Persistent nav + the AI
-          orb, so drilled pages always have a way back and the assistant is
-          always one tap away. */}
-      <MobileDock />
+      {/* Floating AI orb (mobile only, hidden >=900px where the top bar has an
+          AI tab). The one always-present way to reach the concierge, from any
+          screen — a glowing, breathing purple orb bottom-right. */}
+      <MotionLink to="/concierge" className="ai-orb-fab" aria-label="Ask the AI">
+        <i className="icon-sparkles" />
+      </MotionLink>
     </motion.div>
   );
 }
