@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { api, type Weyn } from "../api";
 import { settleSpring, staggerContainer, staggerChild } from "../motion";
 import Stub from "../components/Stub";
+import PageTopBar from "../components/PageTopBar";
 
 interface Message {
   role: "user" | "assistant";
@@ -24,26 +24,24 @@ const EXAMPLE_PROMPTS = [
 ];
 
 export default function Concierge() {
-  const nav = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ItineraryItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
-  // Auto-focus input on mount
+  // Scroll the newest content into view when results/loading change. No
+  // autofocus-on-mount anymore — this is a persistent bottom-tab now (App.tsx's
+  // MAIN_TABS), not a standalone page landed on fresh each time, so popping the
+  // keyboard open the moment someone taps the AI tab would be a surprise rather
+  // than a convenience. The page itself scrolls (same as every other tab —
+  // Tickets/You/Discover have no internal scroll region either), so this
+  // scrolls the sentinel into view rather than a now-nonexistent inner pane.
   useEffect(() => {
-    if (inputRef.current) inputRef.current.focus();
-  }, []);
-
-  // Scroll to bottom when results change
-  useEffect(() => {
-    if (scrollRef.current) {
-      setTimeout(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-      }, 100);
+    if (endRef.current) {
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 100);
     }
   }, [results, loading]);
 
@@ -96,19 +94,16 @@ export default function Concierge() {
 
   return (
     <div className="concierge-page">
-      {/* Header */}
-      <div className="concierge-header">
-        <div className="concierge-title-row">
-          <button className="concierge-back" onClick={() => nav(-1)} aria-label="Go back">
-            <i className="icon-arrow-left" />
-          </button>
-          <h1 className="concierge-title">Ask our AI Concierge</h1>
-          <div style={{ width: 40 }} /> {/* balance the back button */}
-        </div>
-      </div>
+      {/* AI is now a normal bottom-tab destination (App.tsx's MAIN_TABS), not a
+          standalone pushed page — no back button, same top-level-tab header
+          convention as Tickets.tsx (PageTopBar with back={false} + .ex-hero). */}
+      <PageTopBar back={false} />
+      <section className="ex-hero">
+        <h1>AI Concierge</h1>
+      </section>
 
-      {/* Content area */}
-      <div className="concierge-content" ref={scrollRef}>
+      {/* Content area — normal document flow/scroll, same as every other tab. */}
+      <div className="concierge-content">
         {/* Example prompts (show before first message) */}
         {messages.length === 0 && !loading && (
           <motion.div
@@ -179,6 +174,7 @@ export default function Concierge() {
             </button>
           </motion.div>
         )}
+        <div ref={endRef} aria-hidden="true" />
       </div>
 
       {/* Input area - sticky at bottom */}

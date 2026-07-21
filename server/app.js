@@ -1774,7 +1774,10 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
       try { await confirmPaymentFromPayTabs(booking.payment, null); } catch { /* keep pending, client will poll again */ }
     }
     const fresh = await db.getBooking(req.params.id);
-    res.json({ id: fresh.id, status: fresh.status, eventId: fresh.eventId, eventTitle: fresh.event?.title || null });
+    res.json({
+      id: fresh.id, status: fresh.status, eventId: fresh.eventId, eventTitle: fresh.event?.title || null,
+      eventImage: fresh.event?.image || null, eventColor: fresh.event?.color || null,
+    });
   });
 
   // codes rendered as QR client-side — the booking owner needs these to show

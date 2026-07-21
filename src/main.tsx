@@ -59,7 +59,6 @@ const OrganizerSettings = lazy(() => import("./pages/organizer/Settings"));
 const VenueList = lazy(() => import("./pages/venue-os/VenueList"));
 const VenueWorkspace = lazy(() => import("./pages/venue-os/Workspace"));
 const Map = lazy(() => import("./pages/Map"));
-const Concierge = lazy(() => import("./pages/Concierge"));
 
 // as close to page-load as this module can get, so the splash's minimum
 // on-screen duration is measured from real first-paint, not from whenever
@@ -240,6 +239,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                     working by redirecting it home. */}
                 <Route path="/reservations" element={<Navigate to="/" replace />} />
                 <Route path="/tickets" />
+                {/* AI is a normal kept-mounted tab now too (App.tsx's
+                    MAIN_TABS) — was a standalone route below this block,
+                    which meant tapping the AI bottom-tab dropped onto a
+                    screen with no bottom-bar at all, unlike the other 4
+                    tabs. Rendered by App, same as "/", "/tickets", "/you". */}
+                <Route path="/concierge" />
                 <Route path="/saved" element={<Saved />} />
                 <Route path="/host/events" element={<Organizer />} />
                 <Route path="/host/venue" element={<HostVenue />} />
@@ -283,7 +288,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               <Route path="/invite/:token" element={<InviteAccept />} />
               <Route path="/collections/:id" element={<CollectionPage />} />
               <Route path="/search" element={<Search />} />
-              <Route path="/concierge" element={<Concierge />} />
               <Route path="/map" element={<Map />} />
               <Route path="/support" element={<Support />} />
               <Route path="/account" element={<Account />} />

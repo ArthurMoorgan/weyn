@@ -43,9 +43,25 @@ export default function CheckoutSuccess() {
     return () => { cancelled = true; };
   }, [bookingId]);
 
+  const coverStyle: React.CSSProperties | undefined = status?.eventImage
+    ? { backgroundImage: `url(${status.eventImage})` }
+    : status?.eventColor
+    ? { background: status.eventColor }
+    : undefined;
+
   return (
     <div className="detail">
-      <div className="sheet glass" style={{ marginTop: 100, textAlign: "center" }}>
+      {/* The event's own photo as a celebratory hero — real content, not a
+          stock "Weyn" graphic, matching the design system's rule that hue/
+          imagery lives in event photography, not invented brand chrome.
+          Text never sits on the image itself (image-overlay rule); the
+          confirmation copy stays in the sheet below, and the cover's own
+          bottom gradient (.cover::after — same as EventDetail's hero) is
+          just for a soft, premium fade into the sheet, not for contrast. */}
+      {status?.status === "paid" && coverStyle && (
+        <div className="cover" style={{ height: "28vh", minHeight: 180, maxHeight: 260, ...coverStyle }} />
+      )}
+      <div className="sheet glass" style={{ marginTop: status?.status === "paid" && coverStyle ? 0 : 100, textAlign: "center" }}>
         {!bookingId ? (
           <p>Missing booking reference.</p>
         ) : status?.status === "paid" ? (

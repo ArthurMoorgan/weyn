@@ -36,16 +36,20 @@ export const pressSpring: Transition = { type: "spring", stiffness: 420, damping
 // sheets settling into place) rather than responding to a gesture.
 export const settleSpring: Transition = { type: "spring", stiffness: 260, damping: 30 };
 
-// Route-level transition for when a shared element (layoutId) can't pair up
-// with the outgoing page. Opacity never moves — a clear horizontal push (the
-// incoming page slides in from the right, the outgoing one slides out to the
-// left, like iOS's navigation push) instead. A small vertical nudge read too
-// close to a fade to register as real motion; this is unmistakably a slide.
-export const pageTransition: Transition = { duration: 0.24, ease: [0.22, 1, 0.36, 1] };
+// No page-level transition — deliberately removed. Two rounds of directional
+// slide/fade (a vertical nudge, then a horizontal push) were both tried and
+// neither read as clean; this is a webapp/PWA (no native navigation-controller
+// compositor), so an animated route swap fights the browser's own paint
+// timing and reads as janky rather than polished. Pages now swap instantly.
+// Kept as a no-op transition (rather than deleting the export and every call
+// site) so RouteTransitions' AnimatePresence/LayoutGroup structure — which
+// the event-card→hero shared-element morph still depends on — doesn't need
+// to change shape.
+export const pageTransition: Transition = { duration: 0 };
 export const pageVariants: Variants = {
-  initial: { x: 56 },
-  animate: { x: 0 },
-  exit: { x: -56 },
+  initial: { opacity: 1 },
+  animate: { opacity: 1 },
+  exit: { opacity: 1 },
 };
 
 // Cross-fade + slight scale for swapping a panel's body in place (dashboard

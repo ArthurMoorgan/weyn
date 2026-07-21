@@ -3652,41 +3652,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   text-underline-offset: 2px; background: none; border: none; cursor: pointer; padding: 0;
 }
 
-/* ---- Fullpage Concierge ---- */
-.concierge-page {
-  display: flex; flex-direction: column; height: 100dvh;
-  background: var(--bg); color: var(--text);
-}
+/* ---- Concierge (AI tab) ----
+   A normal bottom-tab page now, not a standalone pushed screen — no fixed
+   height/internal scroll pane, the document scrolls same as every other tab
+   (Tickets/You/Discover). Header is PageTopBar + .ex-hero (see Concierge.tsx),
+   matching Tickets' top-level-tab convention instead of a bespoke back-button
+   bar. */
+.concierge-page { background: var(--bg); color: var(--text); }
 
-.concierge-header {
-  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--hair);
-  background: var(--surface);
-}
-
-.concierge-title-row {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
-}
-
-.concierge-back {
-  display: flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; border-radius: var(--radius-sm);
-  background: var(--surface-hover); border: none; cursor: pointer;
-  color: var(--text); font-size: 18px; flex-shrink: 0;
-  transition: background 0.15s;
-}
-
-.concierge-back:hover { background: var(--surface-active); }
-.concierge-back:active { background: var(--surface-active); }
-
-.concierge-title {
-  font: var(--t-headline); letter-spacing: -0.3px; margin: 0; flex: 1; text-align: center;
-  font-size: clamp(18px, 5vw, 22px);
-}
-
-/* Scrollable content area */
 .concierge-content {
-  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4);
+  padding: var(--space-4);
+  /* Clear the sticky input bar + (on mobile) the fixed bottom-bar underneath
+     it, so the last message/result isn't hidden behind either. */
+  padding-bottom: calc(84px + 70px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: var(--space-4);
+}
+@media (min-width: 900px) {
+  /* Desktop has a top bar only, no fixed bottom-bar to clear. */
+  .concierge-content { padding-bottom: calc(84px + var(--space-6)); }
 }
 
 /* Intro text + example chips */
@@ -3761,11 +3744,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 .concierge-error-retry:hover { opacity: 0.9; }
 
-/* Input area - sticky bottom */
+/* Fixed to the viewport bottom (same centering recipe as .buybar: fixed +
+   margin:0 auto + max-width), not position:sticky — sticky only pins once
+   scrolled content pushes it there, so with a short conversation (little/no
+   content yet) it would sit stranded mid-page instead of at the bottom where
+   a chat composer belongs. Clears the mobile fixed bottom-bar (70px + safe
+   area); on desktop (no bottom-bar) it sits flush to the viewport edge.
+   Surface tone + shadow carries the separation from content scrolling
+   underneath it, not a hard border (project convention). */
 .concierge-input-area {
   display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3);
-  border-top: 1px solid var(--hair); background: var(--surface);
-  flex-shrink: 0;
+  background: var(--surface); box-shadow: var(--shadow-float);
+  position: fixed; left: var(--space-3); right: var(--space-3);
+  margin: 0 auto; max-width: calc(var(--maxw) - 2 * var(--space-3));
+  bottom: calc(70px + var(--space-2) + env(safe-area-inset-bottom));
+  z-index: 45; border-radius: var(--radius-lg);
+}
+@media (min-width: 900px) {
+  .concierge-input-area { bottom: var(--space-3); }
 }
 
 .concierge-input {
@@ -3814,7 +3810,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 
 /* Mobile optimizations */
 @media (max-width: 600px) {
-  .concierge-page { height: 100dvh; }
   .concierge-chips { justify-content: flex-start; }
   .concierge-reasoning { margin-left: var(--space-3); margin-right: var(--space-3); }
 }

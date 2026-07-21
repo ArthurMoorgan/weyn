@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-// Sticky top bar for pushed pages (Tickets / You). With the mobile bottom
-// tab bar gone (nav lives in the home hub), these pages are reached from the
-// home top strip and need their own way back — so a back-to-home control sits
-// on the left, the page's own action (usually the avatar) on the right. Pass
-// `back={false}` for a genuine root screen that shouldn't offer one.
+// Sticky top bar for pushed pages. Pages reached only by drilling in from
+// somewhere else (Saved, Host, Admin, …) get a back-to-home control on the
+// left; the page's own action (usually the avatar) sits on the right. Pass
+// `back={false}` for anything that's actually a bottom-tab destination
+// (Tickets, the AI concierge) — those are peers of Discover, reachable
+// directly from the bar, so a "back" arrow there is a redundant affordance
+// that used to make sense only when the mobile bottom bar didn't exist.
 export default function PageTopBar({ children, back = true }: { children?: ReactNode; back?: boolean }) {
   return (
     <div className="page-top-bar">

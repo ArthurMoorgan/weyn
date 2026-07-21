@@ -270,6 +270,8 @@ export interface BookingStatus {
   status: "pending" | "paid" | "cancelled" | "expired";
   eventId: string;
   eventTitle: string | null;
+  eventImage: string | null;
+  eventColor: string | null;
 }
 
 export interface Attendee {

@@ -15,6 +15,7 @@ import { splashActive, onSplashExit } from "./splash";
 // just aren't *routed* through main.tsx anymore, App renders them directly.
 const Tickets = lazy(() => import("./pages/Tickets"));
 const You = lazy(() => import("./pages/You"));
+const Concierge = lazy(() => import("./pages/Concierge"));
 
 // Profile deliberately isn't a bottom-tab slot — it's reached from the
 // top-right avatar (see PageTopBar / Discover's header) so the persistent
@@ -76,6 +77,7 @@ const MAIN_TABS: { path: string; Component: React.ComponentType }[] = [
   { path: "/", Component: Discover },
   { path: "/tickets", Component: Tickets },
   { path: "/you", Component: You },
+  { path: "/concierge", Component: Concierge },
 ];
 
 // Hold the shell hidden while the splash still covers it, then surface it up in
@@ -143,7 +145,15 @@ export default function App() {
                 as the page arriving, and the logo no longer flashes on every
                 first tab switch. Per-tab variant so the skeleton mirrors that
                 tab's real chrome. */}
-            <Suspense fallback={<Skeleton variant={path === "/tickets" ? "tickets" : path === "/you" ? "profile" : "discover"} />}>
+            <Suspense
+              fallback={
+                <Skeleton
+                  variant={
+                    path === "/tickets" ? "tickets" : path === "/you" ? "profile" : path === "/concierge" ? "generic" : "discover"
+                  }
+                />
+              }
+            >
               <Component />
             </Suspense>
           </div>

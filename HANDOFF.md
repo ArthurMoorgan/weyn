@@ -2285,3 +2285,223 @@ validation is ever in question.
 
 Verified before pushing: `tsc -b` clean, `npm test` 15/15, live Playwright
 pass at 375px and 1280px, light+dark, both Discover modes.
+
+## 39. Home screen: reference-driven rebuild, then partial reversion (2026-07-21)
+
+Two passes in immediate succession. The user supplied platinumlist-style
+light/dark reference screenshots ("these are how i want the colors and the
+layout and stuff, keep our spotlight aswell tho") which drove a large
+Explore/App.tsx rebuild; the very next message reversed several of those
+same decisions after seeing them live. Both passes are recorded here since
+the first pass's discoveries (real bugs, dead tokens) survived even though
+its structural choices mostly didn't.
+
+### Pass 1 — reference rebuild + `/impeccable`
+
+Built: sticky glass search header, a floating pill bottom-nav with a
+separate AI circle (`ai-orb-fab`), a "Top events" peek-rail, and Categories
+using each category's most-popular-event cover photo (a direct read of "u
+will see the categories in the screenshots, copy those"). Then `/impeccable`
+was invoked and turned up real, pre-existing problems, independent of
+whether the structural rebuild survived pass 2:
+
+- **`--glass-shadow-inner` was dead** — the token existed with documented
+  intent but no selector ever referenced it, and only the top sheen
+  highlight was ever wired in, never the bottom edge. This is why every
+  glass surface in the app (not just the new nav) read as weak/flat. Fixed
+  by wiring the full veil+top-sheen+bottom-sheen+inner-shadow recipe
+  everywhere glass is used, and dropping `--glass-veil` opacity to ~72% in
+  both themes for real translucency.
+- **Spotlight was silently showing the wrong event.** `active` was tracked
+  as an array *index* into `heroPool`; a background refetch or sort-tie
+  reorder could shift what sat at that index with zero transition — the
+  deck would just show a different event with no visual cue anything
+  changed. Real bug, fixed (index → `activeId`, id-based tracking) *before*
+  pass 2 decided to delete the whole component anyway (see below) — the fix
+  was correct and verified, the user just chose removal over further
+  iteration once they saw it live.
+- **Ambient top glow was fully dead code.** `.shell[data-ambient="venues"]`
+  and `--ambient-top`/`--ambient-venues` were referenced in CSS, but no JS
+  anywhere ever set the `data-ambient` attribute the rule depended on
+  (confirmed via a `src/`-wide grep, zero matches) — this had been dead
+  since before this session; removing it per "remove the purple gradient at
+  the top" was pure deletion, no behavior changed.
+- **No filled compass/heart icon exists** in either Ikonate or Lucide
+  (confirmed via grep for `-fill`/`icon-compass`/`icon-heart` variants) —
+  built `IconHomeFill`/`IconHeartFill` by hand in
+  `src/components/NavIcons.tsx` rather than force a mismatched-weight
+  outline icon into a filled set.
+- Diamond AI mark went through one iteration here (5-point gem + facet
+  lines) before being simplified further in response to "not clean" — see
+  pass 2's diamond note below for the version that actually shipped.
+
+### Pass 2 — reversion: normal nav, spotlight removed, categories back to icons
+
+The user's very next message, after seeing pass 1 live: "remove the
+floating bar and make it a normal one but use the same icons... remove the
+spotlight since its too glitchy... categories should have the normal logos
+or 3d ones or whatever else you deem fit... transitions are still a fade
+style and there is no flowy cool loading animation."
+
+- **Bottom nav**: floating pill + separate `ai-orb-fab` circle → a single
+  normal, full-width, edge-docked `.bottom-bar` (5 tabs incl. AI as a
+  regular tab, same icon set kept as asked). New `--dock-glass`/
+  `--dock-glass-edge` tokens back this bar specifically — fixed dark
+  values defined **only** in the base `:root`, deliberately not
+  theme-swapped, because the bar's icons are always solid white and a
+  light-mode `--glass-veil` (which goes pale) would have broken contrast.
+  This is the same convention as macOS Dock / iOS Control Center not
+  flipping with system theme. `.shell` mobile bottom padding went from
+  `96px` (old floating cluster) to `70px` (new ~59px docked bar).
+- **Diamond AI mark simplified further**: down to a single plain rhombus
+  (`M12 3L21 12L12 21L3 12Z`, gradient fill, no internal facet lines) —
+  `src/components/AiDiamondMark.tsx`.
+- **Spotlight deleted outright**, not iterated on further: `HeroSlide` and
+  `FeaturedSpotlight` (~190 lines) plus all `.ex-hero-card*`/`.ex-spotlight*`/
+  `.ex-deck*` CSS (~160 lines) removed from `Explore.tsx`/`components.css`.
+  The browse-mode data memo collapsed to a flat chronological list with no
+  hero-pool carve-out. The id-based bug fix from pass 1 is moot now that the
+  component doesn't exist, but is worth knowing about if a spotlight-style
+  carousel is ever rebuilt: track by id, never by array index, into a list
+  that can reorder underneath you.
+- **Categories reverted from photo-cover tiles back to `Icon3D`** — the
+  existing per-category WebP-sprite 3D icon system already used elsewhere
+  in the app (event-card glyphs, `Stub.tsx`) — "whatever else you deem fit"
+  was an explicit delegation, and reusing a proven existing asset beat
+  building a second icon language.
+- **Page transition redone a second time.** Pass 1's first attempt (drop
+  opacity, keep only an 18px `y` translate) still read as a fade to the
+  user. Diagnosis: a small vertical nudge isn't visually distinct enough
+  from a fade to register as directional motion. Replaced with a 56px
+  horizontal push (`src/motion/index.ts` `pageVariants`) — incoming page
+  slides in from the right, outgoing slides out left, iOS-nav-push style.
+  Opacity never moves in either version.
+- **Loading bar given a real shimmer.** The first `PageLoadBar` (flat-color
+  `scaleX` growth) read as too plain. Added a `::after` pseudo-element with
+  an animated `background-position` gradient sweep layered on top of the
+  growth animation for the "flowy" feel that was asked for.
+
+**Standing environment limitation, reconfirmed**: this preview harness
+reports `prefers-reduced-motion: reduce` as unconditionally `true`, so
+*no* animation in either pass (spotlight transition, page slide, loading-
+bar shimmer, glass sheen) could be watched running here — every one of
+these was verified via code review, computed-style/DOM-geometry checks,
+and clean production builds, then flagged to the user to confirm the real
+feel on a real device. If a future pass says a motion change "still isn't
+working," re-check whether it was ever actually seen running anywhere, or
+only verified this same way again.
+
+Shipped: `tsc --noEmit` clean, `vite build` clean (pre-existing >500kB
+chunk-size warning only, unrelated), DOM-geometry pass confirmed the new
+bottom bar (5 tabs, full 375px width, docked flush to bottom), spotlight
+elements absent, category tile rendering an `Icon3D` `<img>` with correct
+label, clean console. Pushed to the `weyn` remote (not `origin`):
+`bd25e66..3531ae7`.
+
+## 40. Transitions removed, AI tab folded into the shell, checkout hero image (2026-07-21, same day)
+
+Follow-up to §39, same session. The user: "remove the transitions since we
+are using a webapp so transitions are always messed up, fix alignments, the
+ai tab is a lil messed up, it has no back button and its just a little
+weird, also we need some images in this that promote weyn, like on the
+checkout page and stuff."
+
+- **Page-slide transition removed outright**, not retuned a third time.
+  `motion/index.ts`'s `pageVariants`/`pageTransition` are now a true no-op
+  (`{ opacity: 1 }` in every state, `duration: 0`) — pages swap instantly.
+  Kept the exports and `RouteTransitions.tsx`'s `AnimatePresence`/
+  `LayoutGroup` structure in place rather than ripping them out, since the
+  event-card→hero shared-element `layoutId` morph (tap a card, its cover
+  grows into `EventDetail`'s hero) depends on that structure and is a
+  different feature from the generic page transition — nobody had
+  complained about the morph, only the directional slide/fade.
+- **Real root cause of the AI tab feeling broken, found and fixed**:
+  `/concierge` was never actually part of the persistent app shell —
+  `main.tsx` routed it as a fully standalone page outside `<App/>`, so
+  tapping the AI bottom-tab icon dropped the user onto a screen with **no
+  bottom bar at all**, unlike the other 4 tabs. `Concierge.tsx` had grown
+  its own bespoke header (back button, `nav(-1)`, 100dvh fixed layout) to
+  compensate for being homeless. Fixed by actually making it a tab:
+  - Added `/concierge` to `App.tsx`'s `MAIN_TABS` (kept-mounted, same as
+    Discover/Tickets/You) and to `RouteTransitions.tsx`'s `SHELL_EXACT`.
+  - Moved its route registration in `main.tsx` from the standalone route
+    list into the `<Route element={<App/>}>` block (no `element` prop,
+    same pattern as `"/"`/`"/tickets"`/`"/you"` — `App` renders it).
+  - Rebuilt `Concierge.tsx`'s header to match `Tickets.tsx`'s actual
+    top-level-tab convention (`PageTopBar back={false}` + `.ex-hero`)
+    instead of a one-off back-button bar — removed `useNavigate`/`nav(-1)`
+    entirely, there's nothing to "back" out of anymore.
+  - Removed the autofocus-on-mount effect — was fine for a page landed on
+    fresh each time, but this now mounts once and stays mounted, so it
+    would only pop the keyboard on the visitor's very first tap of the AI
+    tab, an unexpected surprise for what's now a normal tab.
+  - Reworked the layout from a fixed `height: 100dvh` flex column with an
+    internally-scrolling content pane to normal document flow (same as
+    every other tab — none of them have an inner scroll region either).
+    The input composer changed from flex-anchored-in-a-100dvh-box to
+    `position: fixed` using the same centering recipe as the existing
+    `.buybar` (`left/right` insets + `margin:0 auto` + `max-width:
+    var(--maxw)`), offset to clear the mobile bottom-bar
+    (`bottom: calc(70px + var(--space-2) + env(safe-area-inset-bottom))`)
+    and flush to the edge on desktop (no bottom-bar there). `position:
+    sticky` was tried first and rejected — sticky only pins once scrolled
+    content pushes it there, so with a short conversation it sat stranded
+    mid-page instead of at the bottom where a chat composer belongs.
+    Verified live via DOM geometry: input area sits with clean ~19px
+    clearance above the bottom bar on mobile (375px), correctly centered
+    in the 468px column on desktop (1280px) with the bottom-bar hidden.
+- **A second, real inconsistency found during the alignment pass**:
+  `Tickets.tsx` was still passing no `back` prop to `PageTopBar`, so it
+  defaulted to `true` and showed a "back to home" arrow — leftover from
+  before Tickets was promoted back to a bottom-tab-bar destination
+  (`PageTopBar`'s own comment still said "with the mobile bottom tab bar
+  gone," stale from that same era). Tickets is a peer of Discover, reached
+  directly from the bar, so the arrow was a redundant affordance. Fixed
+  both `PageTopBar` call sites in `Tickets.tsx` to pass `back={false}`, and
+  corrected `PageTopBar.tsx`'s own comment to describe the current
+  bottom-bar-first navigation model instead of the pre-bottom-bar one.
+  DOM/geometry checks elsewhere (category rail spacing, header heights, no
+  horizontal overflow) turned up nothing else — this pass didn't attempt a
+  sitewide hard-border-vs-shadow audit (several other sticky headers in the
+  app use the same `border-bottom: 1px solid var(--hair)` pattern already;
+  that's a pre-existing, pervasive convention rather than something this
+  session's work broke, and rewriting it everywhere was out of scope for
+  what was actually asked).
+- **Checkout: a real branded moment added, not a fabricated stock image.**
+  `Checkout.tsx` already showed the event's own cover photo in the
+  56px `order-line-thumb` (pixel-checked earlier against a handoff spec
+  that explicitly calls for "no card/box background" on this screen —
+  left untouched to avoid diverging from that spec). The actual gap was
+  `CheckoutSuccess.tsx`: a bare icon-only confirmation screen with no
+  imagery at all, no fabricated "Weyn" brand graphic exists to embed (and
+  downloading arbitrary stock photography isn't something to do without
+  explicit user sourcing) — so the real, available fix was to surface data
+  that already existed but wasn't being sent: added `eventImage`/
+  `eventColor` to the `GET /api/bookings/:id` response (`server/app.js` —
+  `booking.event` was already being fetched via `db.getBooking`'s
+  `include: { event: true }`, just never read those two fields out) and to
+  the `BookingStatus` type (`src/api.ts`). `CheckoutSuccess.tsx` now shows
+  a real photographic hero (the same `.cover`/`.cover::after` gradient
+  convention as `EventDetail`'s hero, reused rather than reinvented) above
+  the confirmation card, only on the "paid" success state — falls back to
+  the event's accent color if it has no photo, and shows nothing (the
+  original bare layout) if neither exists. Confirmation copy still never
+  sits on top of the image itself, per the image-overlay rule.
+- **Not done**: no fabricated Weyn-brand imagery was added anywhere (no
+  image-generation tool available in this session, and inventing a stock
+  asset or fetching one from the web wasn't authorized) — every visual
+  added this pass is real event photography already in the database,
+  surfaced somewhere it wasn't being shown before. If genuine Weyn-brand
+  photography/illustration assets exist, dropping them into
+  `CheckoutCancel.tsx` (still bare, no event data fetched there to attach
+  a photo to) and `Checkout.tsx`'s header would be the natural next step.
+
+Verified: `tsc --noEmit` clean, `vite build` clean (same pre-existing
+>500kB chunk warning, unrelated), `node --check server/app.js` clean, and
+live DOM-geometry checks in the browser preview for the tab-switch/back-
+button/input-clearance claims above. Same standing caveat as §39: this
+preview reports `prefers-reduced-motion: reduce`, so the *absence* of
+animation on page swap was verified by reading the zeroed-out transition
+values and confirming instant `pathname` changes on tab-tap, not by
+watching it — worth a quick look on a real device to confirm it now reads
+as truly instant rather than a very fast animation.
