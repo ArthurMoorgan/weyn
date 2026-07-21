@@ -7,6 +7,7 @@ import { useAsync } from "../hooks";
 import { useAccount, useSaved, isSaved, toggleSave } from "../store";
 import { addRecentSearch, getRecentSearches, clearRecentSearches } from "../hooks/useRecentSearches";
 import Stub from "../components/Stub";
+import Icon3D from "../components/Icon3D";
 import HorizontalRail from "../components/HorizontalRail";
 import { useRecommendations } from "../hooks/useRecommendations";
 import { preloadEventDetail } from "../eventDetailChunk";
@@ -545,24 +546,20 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
         </section>
       )}
 
-      {/* Embedded home: search + niche tiles live in a sticky glass header
-          (see .home-topstick — pins to the top and frosts once scrolled).
-          Standalone Events page keeps them flat with the filter chips. */}
+      {/* Embedded home: the search bar lives in a sticky glass header (see
+          .home-topstick — pins to the top and frosts once scrolled). The
+          Events/Reserve tiles now scroll away normally underneath it — the
+          persistent bottom nav (App.tsx) handles navigation globally, so the
+          tiles no longer need to hide/replace themselves on scroll.
+          Standalone Events page keeps everything flat with the filter chips. */}
       {embedded ? (
         <>
           <div ref={stickSentinelRef} className="topstick-sentinel" aria-hidden="true" />
           <div className={"home-topstick" + (stuck ? " stuck" : "")}>
             {searchBlock}
             {recentBlock}
-            {hubBlock}
-            {/* On scroll the tiles collapse into this slim glass bar —
-                Ask AI · Events · Reserve (see .home-collapsed-nav). */}
-            <div className="home-collapsed-nav">
-              <Link to="/concierge" className="hcn-item hcn-ai" aria-label="Ask the AI"><i className="icon-sparkles" /><span>Ask AI</span></Link>
-              <Link to="/explore" className="hcn-item" aria-label="Events"><i className="icon-ticket" /><span>Events</span></Link>
-              <Link to="/venues" className="hcn-item" aria-label="Reserve"><i className="icon-store" /><span>Reserve</span></Link>
-            </div>
           </div>
+          {hubBlock}
         </>
       ) : (
         <>
@@ -717,6 +714,37 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                   <h2>In the spotlight</h2>
                 </div>
                 <FeaturedSpotlight events={S.heroPool} />
+              </section>
+            )}
+            {/* Top events + Categories are home-screen sections (reference-
+                matched) — the standalone /explore page already has its own
+                When/category chip filters, so these would just duplicate
+                that there. Top events pulls from the same chronological pool
+                "All events" below uses (S.rest, already excludes whatever's
+                in the spotlight) so there's no duplicate content between
+                spotlight and here. */}
+            {embedded && S.rest.length > 0 && (
+              <section className="ex-section">
+                <div className="ex-head">
+                  <h2>Top events</h2>
+                  <Link to="/explore" className="ex-see-all">See all <i className="icon-arrow-right" /></Link>
+                </div>
+                <div className="ec-toprow-rail">
+                  {S.rest.slice(0, 8).map((e) => <Stub key={e.id} e={e} variant="toprow" />)}
+                </div>
+              </section>
+            )}
+            {embedded && (
+              <section className="ex-section">
+                <div className="ex-head"><h2>Categories</h2></div>
+                <div className="ex-rail">
+                  {CATS.filter((c) => c.key !== "all").map((c) => (
+                    <Link key={c.key} to={`/explore?cat=${c.key}`} className="category-tile">
+                      <Icon3D name={c.key} size={40} />
+                      <span className="category-tile-label">{c.label}</span>
+                    </Link>
+                  ))}
+                </div>
               </section>
             )}
             {/* Personalized row — only on the unfiltered home (a category filter

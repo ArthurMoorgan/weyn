@@ -31,6 +31,21 @@ const TABS = [
   { to: "/concierge", icon: "sparkles", label: "AI", filled: true },
 ];
 
+// Mobile bottom nav (<900px) — a floating pill (Discover/Reserve/Favourites/
+// Tickets) plus a separate adjacent circular AI button, matching the
+// reference layout exactly: two floating shapes sitting side by side above
+// the home indicator, not one bar. "Calendar" (the reference's 2nd tab) has
+// no Weyn equivalent, so it's swapped for Reserve — Weyn's actual second
+// top-level destination. No -fill icon variants exist for compass/heart, so
+// selection reads through the same dim->bright ink cue the desktop .tabs
+// already use for Events/Venues.
+const BOTTOM_TABS = [
+  { to: "/", end: true, icon: "compass", label: "Discover" },
+  { to: "/venues", icon: "store", label: "Reserve" },
+  { to: "/saved", icon: "heart", label: "Favourites" },
+  { to: "/tickets", icon: "ticket", label: "Tickets" },
+];
+
 // Hosting an event and listing a venue are different setup flows with
 // different forms behind them — collapsing them into one tab meant either
 // picking one (burying the other) or landing on a chooser page. A short
@@ -234,18 +249,41 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Floating AI orb (mobile only, hidden >=900px where the top bar has an
-          AI tab). The one always-present way to reach the concierge, from any
-          screen — a glowing, breathing purple orb bottom-right. */}
-      <MotionLink
-        to="/concierge"
-        className="ai-orb-fab"
-        aria-label="Ask the AI"
-        onPointerDown={() => { import("./pages/Concierge"); }}
-        onMouseEnter={() => { import("./pages/Concierge"); }}
-      >
-        <i className="icon-sparkles" />
-      </MotionLink>
+      {/* Mobile bottom nav (hidden >=900px, where .tabs above is the top bar
+          instead). Two floating shapes side by side, matching the reference:
+          a wide pill (Discover/Reserve/Favourites/Tickets) and a separate
+          circular AI button at the same height, positioned right where the
+          reference has its search shortcut — Weyn's search already lives
+          inline in the home search bar, so this slot is AI instead. */}
+      <div className="bottom-nav-cluster">
+        <nav className="bottom-pill" aria-label="Primary">
+          {BOTTOM_TABS.map((t) => (
+            <MotionNavLink
+              key={t.to}
+              to={t.to}
+              end={t.end}
+              className={({ isActive }) => "bottom-pill-item" + (isActive ? " on" : "")}
+              aria-label={t.label}
+            >
+              {({ isActive }) => (
+                <>
+                  <span className="bottom-pill-icwrap"><i className={"icon-" + t.icon} /></span>
+                  <span className="bottom-pill-label">{t.label}</span>
+                </>
+              )}
+            </MotionNavLink>
+          ))}
+        </nav>
+        <MotionLink
+          to="/concierge"
+          className="ai-orb-fab"
+          aria-label="Ask the AI"
+          onPointerDown={() => { import("./pages/Concierge"); }}
+          onMouseEnter={() => { import("./pages/Concierge"); }}
+        >
+          <i className="icon-sparkles" />
+        </MotionLink>
+      </div>
     </motion.div>
   );
 }

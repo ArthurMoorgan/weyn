@@ -95,9 +95,9 @@
    affordance. The .tabs nav stays for desktop (>=900px), where it's a top
    bar. Reclaim the bottom padding the old bar reserved. */
 @media (max-width: 899px) {
-  /* No bottom bar now — just a corner AI orb (fine to float over content),
-     so only a modest bottom breathing space is needed. */
-  .shell { padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
+  /* Clear the floating bottom-nav cluster (66px tall + 14px offset + some
+     breathing room) so the last card scrolls fully above it. */
+  .shell { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   /* .tabs is hidden on mobile below (after its base rule at .tabs{}), not
      here — placing the override before the base rule loses the cascade. */
 }
@@ -441,33 +441,6 @@ a.cat-circle:active { transform: scale(0.96); }
   padding-top: calc(env(safe-area-inset-top) + 4px);
   padding-bottom: 6px;
 }
-/* Collapsed nav: the tiles' scrolled form — a slim glass pill row of
-   Ask AI · Events · Reserve. Hidden until the header is stuck, then it
-   replaces the big tiles (which hide). */
-.home-collapsed-nav { display: none; gap: 8px; padding: 2px 16px 4px; }
-.home-topstick.stuck .cat-circles-hub { display: none; }
-.home-topstick.stuck .home-collapsed-nav { display: flex; animation: hcn-in .26s cubic-bezier(.16,1,.3,1); }
-.hcn-item {
-  flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  height: 40px; border-radius: var(--radius-pill);
-  background: var(--glass-veil);
-  backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%);
-  border: 1px solid var(--glass-edge);
-  font: var(--t-meta); font-weight: 600; color: var(--text-2);
-  transition: transform .12s cubic-bezier(.25,1,.5,1), color .15s ease;
-}
-.hcn-item i { font-size: 16px; }
-.hcn-item:active { transform: scale(.95); }
-/* The AI pill is the accent — purple, the one sanctioned hue. */
-.hcn-ai { color: #fff; background: radial-gradient(circle at 50% 30%, #b989ff, #7a2bff 78%); border-color: transparent; }
-@keyframes hcn-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .home-topstick.stuck .home-collapsed-nav { animation: none; }
-}
-
 /* ---------- date section header ---------- */
 .date-head {
   display: flex; align-items: baseline; gap: 10px;
@@ -657,6 +630,75 @@ a.cat-circle:active { transform: scale(0.96); }
 .ec-rail-cover .ec-badge-group { position: absolute; top: 8px; left: 8px; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .ec-rail-cover .ec-badge-group .ec-badge { backdrop-filter: blur(6px); background: rgba(10,13,18,0.5); color: #fff; }
 .ec-rail .ec-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+
+/* ---- "Top events" peek-rail: wide rows, thumbnail + stacked text, next
+   row peeking at the edge (reference-matched). Own rail container (not
+   .ex-rail — those are narrow vertical rail cards) so each item can take
+   most of the viewport width instead of a fixed narrow column. ---- */
+.ec-toprow-rail {
+  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: 4px 16px; scrollbar-width: none; overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Same soft edge-fade as the other carousels (.horizontal-rail/.ex-rail). */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+}
+.ec-toprow-rail::-webkit-scrollbar { display: none; }
+.ec-toprow-rail > a { flex: 0 0 86%; scroll-snap-align: start; }
+@media (min-width: 480px) {
+  .ec-toprow-rail > a { flex-basis: 380px; }
+}
+.ec-toprow {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg); padding: 10px;
+  box-shadow: var(--card-shadow);
+  transition: transform .15s cubic-bezier(.25,1,.5,1), box-shadow .2s ease;
+}
+.ec-toprow:active { transform: scale(.98); }
+@media (hover: hover) {
+  .ec-toprow:hover { box-shadow: var(--shadow-md); }
+}
+.ec-toprow-cover {
+  width: 92px; height: 92px; flex: 0 0 auto; border-radius: var(--radius);
+  background-size: cover; background-position: center; background-color: var(--card-bg);
+  position: relative; display: grid; place-items: center;
+}
+.ec-toprow-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding-top: 1px; }
+.ec-toprow-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.ec-toprow-title {
+  font: var(--t-card); font-weight: 700; line-height: 1.25; color: var(--text);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ec-toprow-save { flex: 0 0 auto; color: var(--text-3); transition: color .15s ease, transform .12s cubic-bezier(.25,1,.5,1); }
+.ec-toprow-save:hover { color: var(--text-2); }
+.ec-toprow-save.on { color: var(--danger); }
+.ec-toprow-save.on i { font-weight: 700; }
+.ec-toprow-save:active { transform: scale(.85); }
+.ec-toprow-price { font-size: 14.5px; font-weight: 700; color: var(--text); margin-top: 2px; }
+.ec-toprow-price.free { color: var(--success); }
+.ec-toprow-when { font-size: 13px; font-weight: 500; color: var(--text-2); }
+/* Urgency status text — red, matching the .ec-badge urgency treatment
+   established elsewhere, not a decorative hue. */
+.ec-toprow-status { font-size: 13px; font-weight: 600; color: var(--danger); }
+.ec-toprow-status.out { color: var(--text-3); }
+
+/* ---- Categories rail: a row of category tiles under Top events,
+   reusing the existing Icon3D category renders. Tap filters into the
+   standalone Events page (?cat=). ---- */
+.category-tile {
+  flex: 0 0 auto; width: 84px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 16px 8px 12px; border-radius: var(--radius-lg);
+  background: var(--surface); border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  transition: transform .15s cubic-bezier(.25,1,.5,1), background-color .15s ease, box-shadow .2s ease;
+}
+.category-tile:active { transform: scale(.94); }
+@media (hover: hover) {
+  .category-tile:hover { background: var(--surface-hover); box-shadow: var(--shadow-md); }
+}
+.category-tile-label { font-size: 12px; font-weight: 600; color: var(--text); text-align: center; line-height: 1.2; }
 
 /* ---- large featured hero card ---- */
 /* Sized to dominate the screen on mobile (min(85vw,...) instead of a fixed
@@ -1129,6 +1171,13 @@ a.cat-circle:active { transform: scale(0.96); }
 .ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 14px; }
 .ex-head h2 { font: var(--t-section); letter-spacing: -0.4px; }
 .ex-sub { font: var(--t-meta); color: var(--text-3); flex: 0 0 auto; }
+.ex-see-all {
+  display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto;
+  font: var(--t-meta); font-weight: 600; color: var(--text-2);
+  transition: color .15s ease;
+}
+.ex-see-all i { font-size: 13px; }
+.ex-see-all:hover { color: var(--text); }
 .ex-rail {
   display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
   padding: 2px 16px 4px; scrollbar-width: none;
@@ -1395,13 +1444,54 @@ a.cat-circle:active { transform: scale(0.96); }
   .tabs { display: none; }
 }
 
-/* ---------- Floating AI orb (FAB) ----------
-   The one always-present entry to the concierge (mobile only). A glowing
-   purple orb bottom-right that gently breathes to invite a tap. */
+/* ---------- Bottom nav cluster (mobile only) ----------
+   Two floating shapes side by side, matching the reference exactly: a wide
+   pill (Discover/Reserve/Favourites/Tickets) and a separate circular AI
+   button at the same height. Colors stay Weyn's own monochrome-plus-purple-
+   accent system rather than the reference's literal purple(light)/green
+   (dark) accent — CLAUDE.md reserves hue for the ambient glow/AI only, so
+   selection here reads through an ink-toned filled circle instead of a hue. */
+.bottom-nav-cluster {
+  position: fixed; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 55;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  max-width: var(--maxw); margin: 0 auto; padding: 0 16px;
+  pointer-events: none;
+}
+.bottom-pill, .ai-orb-fab { pointer-events: auto; }
+.bottom-pill {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; justify-content: space-around;
+  height: 66px; padding: 0 6px;
+  background: var(--glass-veil);
+  backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-float);
+}
+.bottom-pill-item {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  color: var(--text-3);
+  transition: color .16s ease;
+}
+.bottom-pill-item:active { transform: scale(.9); }
+.bottom-pill-icwrap {
+  display: grid; place-items: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  transition: background-color .18s cubic-bezier(.25,1,.5,1);
+}
+.bottom-pill-item i { font-size: 20px; line-height: 1; }
+.bottom-pill-label { font-size: 9.5px; font-weight: 600; letter-spacing: .2px; }
+.bottom-pill-item.on { color: var(--text); }
+.bottom-pill-item.on .bottom-pill-icwrap { background: var(--surface-hover); }
+
+/* AI button — a glowing purple circle at the same height as the pill,
+   sitting right where the reference has its search shortcut (Weyn's search
+   already lives inline in the home search bar, so this slot is AI). */
 .ai-orb-fab {
-  position: fixed; z-index: 55;
-  right: 18px; bottom: calc(20px + env(safe-area-inset-bottom));
-  width: 56px; height: 56px; border-radius: 50%;
+  position: relative; z-index: 1; flex: 0 0 auto;
+  width: 66px; height: 66px; border-radius: 50%;
   display: grid; place-items: center; color: #fff; font-size: 25px;
   background: radial-gradient(circle at 50% 32%, #b989ff, #7a2bff 72%);
   box-shadow: 0 8px 22px rgba(140,60,255,.5), inset 0 1px 1px rgba(255,255,255,.35);
@@ -1417,7 +1507,7 @@ a.cat-circle:active { transform: scale(0.96); }
   .ai-orb-fab { animation: none; }
 }
 @media (min-width: 900px) {
-  .ai-orb-fab { display: none; }
+  .bottom-nav-cluster { display: none; }
 }
 /* Dimmed scrim behind the popover — the outside-tap-to-close behavior
    already existed (App.tsx's pointerdown listener), but with nothing
@@ -2029,15 +2119,11 @@ a.cat-circle:active { transform: scale(0.96); }
    embossing to read as a trough). */
 .search {
   display: flex; align-items: center; gap: 4px;
-  min-height: 40px; box-sizing: border-box;
-  /* ~20% shorter than before (48→40) per the review — users came to browse
-     events, not admire the search box. Sits flush closer to the edges
-     (16px gutter, matching §35's aligned gutter fix) so it reads as chrome
-     under the status bar rather than another floating tile competing for
-     attention. Vertical padding/margin trimmed a further 2px+2px against
-     the §36 reference measurement (search bar ≈44px tall in the video) —
-     rendered height now sits close to that target. */
-  padding: 5px 8px 5px 14px; margin: 6px 16px 0; border-radius: var(--radius-pill);
+  /* Bumped back up (40->52) to match the reference's roomier home search
+     bar — this is the screen's headline control now (Top events/Categories
+     sit right below it), not a quiet secondary strip. */
+  min-height: 52px; box-sizing: border-box;
+  padding: 5px 10px 5px 16px; margin: 6px 16px 0; border-radius: var(--radius-pill);
   /* Same --surface-lit-gradient token as the hub tiles (tokens.css) — one
      cohesive surface family, and correctly flat in light mode instead of
      leaking dark mode's gradient onto a white bar. */

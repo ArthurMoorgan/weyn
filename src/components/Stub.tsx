@@ -24,7 +24,7 @@ const MotionLink = motion.create(Link);
 //   rail    — compact vertical card for horizontal-scroll rails.
 //   feature — large hero card (text overlaid on a scrimmed cover) for the
 //             Featured rail / mobile spotlight.
-type Variant = "list" | "card" | "rail" | "feature";
+type Variant = "list" | "card" | "rail" | "feature" | "toprow";
 
 // Monochrome fallback covers: the server still stores a per-event hue in
 // e.color, but the greyscale system ignores it — covers without photos get
@@ -191,6 +191,31 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
           <span>{dayLabel(e)}</span>
           <span className="ec-dot">·</span>
           <span className={e.price === 0 ? "ec-price free" : "ec-price"}>{priceText}</span>
+        </div>
+      </MotionLink>
+    );
+  }
+
+  // ---- wide row for the "Top events" peek-rail: bigger square thumbnail,
+  // title/price/date stacked beside it, save heart top-right of the text
+  // block (not overlaid on the cover) — a different composition from "list"
+  // (ec-row), not just a size change, so it gets its own class rather than
+  // overloading .ec-row with a second layout mode. ----
+  if (variant === "toprow") {
+    const statusText = out ? "Sold out" : left > 0 && left <= 5 ? `${left} left` : scarce ? "Selling fast" : null;
+    return (
+      <MotionLink to={`/e/${e.id}`} {...preload} {...press} className="ec-toprow">
+        <motion.div layoutId={`event-cover-${e.id}`} className="ec-toprow-cover" style={coverStyle}>
+          {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={44} /></span>}
+        </motion.div>
+        <div className="ec-toprow-body">
+          <div className="ec-toprow-top">
+            <h3 className="ec-toprow-title">{e.title}</h3>
+            <SaveHeart id={e.id} className="ec-toprow-save" />
+          </div>
+          <span className={"ec-toprow-price" + (e.price === 0 ? " free" : "")}>{priceText}</span>
+          <span className="ec-toprow-when">{dayLabel(e)}</span>
+          {statusText && <span className={"ec-toprow-status" + (out ? " out" : "")}>{statusText}</span>}
         </div>
       </MotionLink>
     );
