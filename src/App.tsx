@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import Discover from "./pages/Discover";
 import AiDiamondMark from "./components/AiDiamondMark";
-import { IconHomeFill, IconHeartFill } from "./components/NavIcons";
+import { IconHomeFill, IconHeartFill, IconStoreFill, IconTicketFill } from "./components/NavIcons";
 import Skeleton from "./components/Skeleton";
 import ThemeToggle from "./components/ThemeToggle";
 import CityPill from "./components/CityPill";
@@ -33,19 +33,22 @@ const TABS = [
   { to: "/concierge", icon: "sparkles", label: "AI", filled: true },
 ];
 
-// Mobile bottom nav (<900px) — a floating pill (Discover/Reserve/Favourites/
-// Tickets) plus a separate adjacent circular AI button, matching the
-// reference layout exactly: two floating shapes sitting side by side above
-// the home indicator, not one bar. "Calendar" (the reference's 2nd tab) has
-// no Weyn equivalent, so it's swapped for Reserve — Weyn's actual second
-// top-level destination. Every icon here is a solid/filled glyph, always
-// white — Ikonate's -fill variants for store/ticket, custom simple SVGs
-// (NavIcons.tsx) for compass/heart, which have no filled Ikonate variant.
+// Mobile bottom nav (<900px) — a normal, full-width, edge-docked bar (back
+// from the floating pill+separate-AI-circle experiment, which read as
+// "weird"/too novel). Same icons as before (kept per direct feedback —
+// "they are good"), AI folded in as a normal 5th tab instead of a separate
+// floating circle. "Calendar" (the reference screenshot's 2nd tab) has no
+// Weyn equivalent, so it's swapped for Reserve — Weyn's actual second
+// top-level destination. Every icon is a solid/filled glyph, always white —
+// Ikonate's -fill variants for store/ticket, custom simple SVGs (NavIcons.tsx)
+// for compass/heart (no filled Ikonate variant exists), and the same diamond
+// mark for AI.
 const BOTTOM_TABS = [
   { to: "/", end: true, label: "Discover", Glyph: IconHomeFill },
-  { to: "/venues", end: false, label: "Reserve", icon: "store-fill" },
+  { to: "/venues", end: false, label: "Reserve", Glyph: IconStoreFill },
   { to: "/saved", end: false, label: "Favourites", Glyph: IconHeartFill },
-  { to: "/tickets", end: false, label: "Tickets", icon: "ticket-fill" },
+  { to: "/tickets", end: false, label: "Tickets", Glyph: IconTicketFill },
+  { to: "/concierge", end: false, label: "AI", Glyph: AiDiamondMark },
 ];
 
 // Hosting an event and listing a venue are different setup flows with
@@ -252,38 +255,27 @@ export default function App() {
       </nav>
 
       {/* Mobile bottom nav (hidden >=900px, where .tabs above is the top bar
-          instead). Two floating shapes side by side, matching the reference:
-          a wide pill (Discover/Reserve/Favourites/Tickets) and a separate
-          circular AI button at the same height, positioned right where the
-          reference has its search shortcut — Weyn's search already lives
-          inline in the home search bar, so this slot is AI instead. */}
-      <div className="bottom-nav-cluster">
-        <nav className="bottom-pill" aria-label="Primary">
-          {BOTTOM_TABS.map((t) => (
-            <MotionNavLink
-              key={t.to}
-              to={t.to}
-              end={t.end}
-              className={({ isActive }) => "bottom-pill-item" + (isActive ? " on" : "")}
-              aria-label={t.label}
-            >
-              <span className="bottom-pill-icwrap">
-                {t.Glyph ? <t.Glyph className="bottom-pill-svg" /> : <i className={"icon-" + t.icon} />}
-              </span>
-              <span className="bottom-pill-label">{t.label}</span>
-            </MotionNavLink>
-          ))}
-        </nav>
-        <MotionLink
-          to="/concierge"
-          className="ai-orb-fab"
-          aria-label="Ask the AI"
-          onPointerDown={() => { import("./pages/Concierge"); }}
-          onMouseEnter={() => { import("./pages/Concierge"); }}
-        >
-          <AiDiamondMark className="ai-diamond-mark" />
-        </MotionLink>
-      </div>
+          instead) — a normal, full-width, edge-docked bar. Same 5 icons as
+          the earlier floating-pill version, just back in a standard bar
+          shape per direct feedback. */}
+      <nav className="bottom-bar" aria-label="Primary">
+        {BOTTOM_TABS.map((t) => (
+          <MotionNavLink
+            key={t.to}
+            to={t.to}
+            end={t.end}
+            className={({ isActive }) => "bottom-bar-item" + (isActive ? " on" : "")}
+            aria-label={t.label}
+            onPointerDown={t.to === "/concierge" ? () => { import("./pages/Concierge"); } : undefined}
+            onMouseEnter={t.to === "/concierge" ? () => { import("./pages/Concierge"); } : undefined}
+          >
+            <span className="bottom-bar-icwrap">
+              <t.Glyph className="bottom-bar-svg" />
+            </span>
+            <span className="bottom-bar-label">{t.label}</span>
+          </MotionNavLink>
+        ))}
+      </nav>
     </motion.div>
   );
 }

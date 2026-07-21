@@ -54,9 +54,11 @@
    affordance. The .tabs nav stays for desktop (>=900px), where it's a top
    bar. Reclaim the bottom padding the old bar reserved. */
 @media (max-width: 899px) {
-  /* Clear the floating bottom-nav cluster (66px tall + 14px offset + some
-     breathing room) so the last card scrolls fully above it. */
-  .shell { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  /* Clear the docked bottom bar (its own height + a little breathing room)
+     so the last card scrolls fully above it. Flush to the edge now, not
+     floating with a margin, so this is just the bar's height, not extra
+     offset on top of it. */
+  .shell { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
   /* .tabs is hidden on mobile below (after its base rule at .tabs{}), not
      here — placing the override before the base rule loses the cascade. */
 }
@@ -596,24 +598,24 @@ a.cat-circle:active { transform: scale(0.96); }
 .ec-toprow-status { font-size: 13px; font-weight: 600; color: var(--danger); }
 .ec-toprow-status.out { color: var(--text-3); }
 
-/* ---- Categories rail: real event photography standing in for each
-   category (reference-matched), square rounded photo + label below. Tap
-   filters into the standalone Events page (?cat=). ---- */
-.category-photo-tile {
-  flex: 0 0 auto; width: 112px;
-  display: flex; flex-direction: column; gap: 8px;
+/* ---- Categories rail: back to icons (the existing 3D Icon3D renders,
+   already used elsewhere in the app for event-card glyphs — consistent,
+   proven, no new asset style to invent) after a brief photo-tile detour.
+   Square surface tile, icon centered, label below. Tap filters into the
+   standalone Events page (?cat=). ---- */
+.category-tile {
+  flex: 0 0 auto; width: 96px; min-height: 96px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 12px 8px;
+  background: var(--surface); border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg); box-shadow: var(--card-shadow);
+  transition: transform .15s cubic-bezier(.25,1,.5,1), background-color .15s ease, box-shadow .2s ease;
 }
-.category-photo-tile-cover {
-  width: 112px; height: 112px; border-radius: var(--radius-lg);
-  background-size: cover; background-position: center; background-color: var(--card-bg);
-  box-shadow: var(--card-shadow);
-  transition: transform .15s cubic-bezier(.25,1,.5,1);
-}
-.category-photo-tile:active .category-photo-tile-cover { transform: scale(.95); }
+.category-tile:active { transform: scale(.95); }
 @media (hover: hover) {
-  .category-photo-tile:hover .category-photo-tile-cover { box-shadow: var(--shadow-md); }
+  .category-tile:hover { background: var(--surface-hover); box-shadow: var(--shadow-md); }
 }
-.category-photo-tile-label { font-size: 12.5px; font-weight: 600; color: var(--text); text-align: center; line-height: 1.2; }
+.category-tile-label { font-size: 12.5px; font-weight: 600; color: var(--text); text-align: center; line-height: 1.2; }
 
 /* ---- large featured hero card ---- */
 /* Sized to dominate the screen on mobile (min(85vw,...) instead of a fixed
@@ -923,169 +925,10 @@ a.cat-circle:active { transform: scale(0.96); }
   scroll-snap-align: start;
 }
 
-/* Full-bleed hero for the top featured event — one implementation at every
-   breakpoint (see the 900px block for the size-up, not a swap to a
-   different element). inset:-1px on the scrim, see the identical comment on
-   .ec-feature-cover::after — this overlay and the element's own
-   background-image are two separately composited layers sharing one
-   rounded-corner clip, and disagree by a hairline at that boundary without
-   the 1px overdraw. */
-.ex-hero-card {
-  display: block; position: relative; overflow: hidden;
-  /* signature one-corner-tucked shape (Phase 4) — distinguishes the app's
-     single "look at this" moment from every other uniformly-rounded card;
-     kept as Weyn's card signature per the review's "unique card layout" note. */
-  margin: 12px 16px 0; border-radius: var(--radius-lg);
-  /* 4/5, not the old 5/7 — the photo still leads, but it no longer swallows
-     the entire first screen; the feed below gets a visible head start
-     (density pass: "there should be enough screen space"). */
-  aspect-ratio: 4/5;
-  box-shadow: var(--shadow-lg);
-  background-size: cover; background-position: center; background-color: var(--card-bg);
-  animation: rise-in .5s cubic-bezier(.16,1,.3,1) both;
-}
-/* Smooth multi-stop scrim (not a flat 92%-black slab) — stays fully clear
-   over the top ~55% so the photography reads at full fidelity, then ramps
-   only where text sits. Per review point 10: transparent → light → dark
-   toward the bottom, so the image pops instead of being dimmed everywhere. */
-/* Text lives below the deck now, so the heavy bottom scrim is gone — just a
-   soft TOP gradient keeps the badge + save button legible while the rest of
-   the photo reads clean (reference). */
-.ex-hero-card::after {
-  content: ""; position: absolute; inset: -1px;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.34) 0%, transparent 26%);
-}
-.ex-hero-card-featured {
-  position: absolute; top: 16px; left: 16px; z-index: 1;
-  font: var(--t-caption); letter-spacing: 0.5px; text-transform: uppercase; color: #fff;
-  background: rgba(20,20,20,0.5); backdrop-filter: blur(8px);
-  padding: 6px 12px; border-radius: var(--radius-pill);
-}
-/* Save button on the front card, top-right (reference). Dark glass by
-   default, flips to solid ink-on-white when saved. */
-.ex-hero-card-save {
-  position: absolute; top: 14px; right: 14px; z-index: 2;
-  width: 40px; height: 40px; display: grid; place-items: center;
-  border-radius: var(--radius-pill); color: #fff;
-  background: rgba(20,20,20,0.5); border: 1px solid rgba(255,255,255,.14);
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  transition: transform .12s cubic-bezier(.25,1,.5,1), background-color .15s ease, color .15s ease, border-color .15s ease;
-}
-.ex-hero-card-save:hover { background: rgba(20,20,20,0.65); }
-.ex-hero-card-save:active { transform: scale(0.88); }
-.ex-hero-card-save.on { background: #fff; color: #131316; border-color: transparent; }
-.ex-hero-card-save i { font-size: 17px; }
-.ex-hero-card-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 18px 18px 20px; }
-/* Eyebrow demoted to plain small caps — the loud translucent-pill eyebrow
-   competed with the title for the eye. Now it's quiet supporting text so the
-   title clearly wins the hierarchy (review point 9). */
-.ex-hero-card-eyebrow {
-  display: block; font: var(--t-caption); letter-spacing: 0.6px; text-transform: uppercase;
-  color: rgba(255,255,255,0.72); margin-bottom: 8px;
-}
-/* Title is the dominant element now — bigger, tighter, heavier. This is the
-   ~48% of the visual weight the review's hierarchy called for. */
-.ex-hero-card-title { font: var(--t-hero); font-size: 27px; font-weight: 700; color: #fff; letter-spacing: -0.7px; line-height: 1.1; text-wrap: balance; margin: 0 0 10px; max-width: 18ch; }
-/* Single clean metadata row (venue · date) with subtle icons, not a stacked
-   two-line block — the review asked for one calm row. */
-.ex-hero-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.82); margin-bottom: 14px; }
-.ex-hero-card-meta span { display: inline-flex; align-items: center; gap: 6px; }
-.ex-hero-card-meta [class^="icon-"] { font-size: 15px; opacity: 0.7; }
-.ex-hero-card-cta { display: flex; align-items: center; gap: 16px; }
-/* One solid white pill CTA — the single unambiguous action. Price sits
-   beside it as plain text, never a button (review point 6). */
-.ex-hero-card-btn {
-  display: inline-flex; align-items: center; font-size: 14px; font-weight: 700;
-  color: #131316; background: #fff;
-  padding: 11px 20px; border-radius: var(--radius-pill);
-}
-.ex-hero-card-price { font-size: 13.5px; color: rgba(255,255,255,0.78); }
-.ex-hero-card-price b { color: #fff; font-weight: 700; }
-
-/* Swipeable featured spotlight carousel — a horizontal snap-scroll track,
-   each card sized so BOTH neighbors peek in from the edges (reference video,
-   measured off actual frames: active card ~77% of viewport, ~8% peeking on
-   each side). No side padding on the track — the video's active card sits
-   flush with the screen edge when snapped at either end; the 16px gutter
-   this used to have was eating into the peek, not sitting outside it, so
-   removing it (not the flex-basis) is what actually restores the video's
-   proportions. Native touch/trackpad scroll as the only input, dots below
-   tracking the nearest-snapped card. See FeaturedSpotlight in Explore.tsx.
-   Leading/trailing `.ex-spotlight-spacer` elements (matching a real slide's
-   peek amount) let the FIRST and LAST card snap with the same both-sides
-   peek interior cards get — without them, scroll-snap-align:center has
-   nothing to center against at either end of the track, so slide 1 and the
-   last slide sat flush against the viewport edge with zero peek. */
-.ex-spotlight { margin-top: 4px; }
-
-/* ---- Stacked deck spotlight ----
-   Front card centered on top; the next two events peek out from behind it,
-   scaled down and dimmed on either side; the deck auto-advances (see
-   FeaturedSpotlight). The container's aspect-ratio reserves exactly the
-   front card's footprint (front card is 72% wide × 4/5 → ~0.9× its own
-   width tall → container ≈ 100/90). Cards are absolutely stacked and move
-   only via transform, so rotation is GPU-cheap and never reflows the page. */
-.ex-spotlight-deck { padding: 6px 0 0; }
-.ex-deck {
-  position: relative; width: 100%; aspect-ratio: 100 / 92;
-  /* Room for the scaled side cards to peek without being clipped. */
-  overflow: visible;
-  /* Horizontal drag drives the deck (see FeaturedSpotlight); pan-y keeps
-     vertical page scrolling working when the gesture starts on the deck. */
-  touch-action: pan-y;
-  cursor: grab;
-}
-.ex-deck:active { cursor: grabbing; }
-.ex-deck-card {
-  position: absolute; top: 0; bottom: 0; left: 50%; width: 72%;
-  transform: translateX(-50%);
-  will-change: transform, opacity;
-}
-/* Transitions gated on .ready — the deck's first paint lands in place (no
-   fly-in from the side), then subsequent position changes animate. Opacity/
-   brightness settle faster than the slide so the incoming front reads crisp
-   almost immediately rather than lingering translucent mid-rotation. */
-.ex-deck.ready .ex-deck-card {
-  transition: transform .34s cubic-bezier(.16,1,.3,1), opacity .2s ease, filter .2s ease;
-}
-.ex-deck-card .ex-hero-card {
-  margin: 0; width: 100%; height: 100%; aspect-ratio: auto; animation: none;
-}
-/* Center / front */
-.ex-deck-card[data-pos="c"] { z-index: 4; opacity: 1; filter: none; transform: translateX(-50%) scale(1); }
-/* Peeking right */
-.ex-deck-card[data-pos="r"] { z-index: 3; opacity: .6; filter: brightness(.68); transform: translateX(-18%) scale(.9); }
-/* Peeking left */
-.ex-deck-card[data-pos="l"] { z-index: 2; opacity: .5; filter: brightness(.6); transform: translateX(-82%) scale(.9); }
-/* Parked hidden, tucked behind the front card (opacity 0) — the conveyor's
-   wrap happens here, out of sight. */
-.ex-deck-card[data-pos="h"] { z-index: 1; opacity: 0; filter: brightness(.5); transform: translateX(-50%) scale(.82); }
-/* Only the front card is tappable — dimmed back cards shouldn't catch taps. */
-.ex-deck-card:not([data-pos="c"]) { pointer-events: none; }
-@media (prefers-reduced-motion: reduce) {
-  .ex-deck.ready .ex-deck-card { transition: none; }
-}
-/* Title + blurb below the deck (reference: centered, tappable into the
-   event), crossfading as the deck rotates (keyed remount in Explore.tsx). */
-.ex-spotlight-caption { display: block; margin: 22px 24px 0; text-align: center; animation: fade .3s ease; }
-.ex-spotlight-title {
-  font: var(--t-hero); font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
-  line-height: 1.2; color: var(--text); text-wrap: balance;
-}
-.ex-spotlight-blurb {
-  margin-top: 6px; font-size: 14px; font-weight: 500; line-height: 1.45; color: var(--text-2);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.ex-spotlight-dots { display: flex; justify-content: center; gap: 6px; margin-top: 14px; }
-.ex-spotlight-dot {
-  width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong);
-  transition: background-color .2s ease, transform .2s ease;
-}
-.ex-spotlight-dot.on { background: var(--text); transform: scale(1.3); }
-
-/* More air between the spotlight and the list, and between the category row
-   and everything — the review's "nothing feels cramped" note. Restraint is
-   carried by whitespace here, not decoration. */
+/* Air between sections — the review's "nothing feels cramped" note.
+   Restraint is carried by whitespace here, not decoration. (The hero
+   spotlight carousel that used to live above this was removed — too
+   glitchy; see Explore.tsx's home layout for the current structure.) */
 .ex-section { margin-top: 30px; }
 .ex-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 16px 14px; }
 .ex-head h2 { font: var(--t-section); letter-spacing: -0.4px; }
@@ -1364,126 +1207,69 @@ a.cat-circle:active { transform: scale(0.96); }
 }
 
 /* ---------- Page-load bar ----------
-   A thin sweep across the very top of the screen on every route change —
-   the "something is happening" cue for navigation now that the page
-   transition itself never touches opacity (see pageVariants). Re-keyed on
-   pathname (PageLoadBar.tsx) so it replays fresh every time, transform/
-   opacity only so it's cheap regardless of how heavy the page underneath is. */
+   A flowing shimmer sweep across the very top of the screen on every route
+   change — the "something is happening" cue for navigation now that the
+   page transition itself never touches opacity (see pageVariants). Two
+   layered animations: the bar itself grows left-to-right (progress), and a
+   brighter highlight continuously sweeps through it (the "flowy" part —
+   a flat solid-color bar read as static/boring, not premium). Re-keyed on
+   pathname (PageLoadBar.tsx) so both replay fresh every time; transform/
+   background-position only, so it's cheap regardless of the page underneath. */
 .page-load-bar {
   position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 200;
-  background: var(--ai-accent);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ai-accent) 35%, transparent);
   transform-origin: left; transform: scaleX(0);
-  animation: page-load-sweep .5s cubic-bezier(.25,1,.5,1) forwards;
+  animation: page-load-grow .7s cubic-bezier(.16,1,.3,1) forwards;
   pointer-events: none;
 }
-@keyframes page-load-sweep {
+.page-load-bar::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, var(--ai-accent-2) 50%, transparent);
+  background-size: 55% 100%; background-repeat: no-repeat;
+  animation: page-load-shimmer .7s ease-in-out infinite;
+}
+@keyframes page-load-grow {
   0%   { transform: scaleX(0); opacity: 1; }
-  60%  { transform: scaleX(.75); opacity: 1; }
+  70%  { transform: scaleX(.82); opacity: 1; }
   100% { transform: scaleX(1); opacity: 0; }
 }
-
-/* ---------- Bottom nav cluster (mobile only) ----------
-   Two floating shapes side by side, matching the reference: a wide pill
-   (Discover/Reserve/Favourites/Tickets) and a separate circular AI button at
-   the same height. Genuine liquid glass this time — translucent enough to
-   show a hint of what's behind (not a near-opaque frosted disc), a bright
-   top rim + dim bottom edge (light catching real glass), an inner shadow for
-   thickness, and a diagonal sheen sweep for the glossy "liquid" quality.
-   Active-tab selection reads through --ai-accent, the app's one consistent
-   purple (see tokens.css) — not the reference's literal purple(light)/green
-   (dark) split, which reads as an inconsistency once you're looking for it
-   rather than a considered brand color. */
-.bottom-nav-cluster {
-  position: fixed; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom));
-  z-index: 55;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  max-width: var(--maxw); margin: 0 auto; padding: 0 16px;
-  pointer-events: none;
+@keyframes page-load-shimmer {
+  0%   { background-position: -60% 0; }
+  100% { background-position: 160% 0; }
 }
-.bottom-pill, .ai-orb-fab { pointer-events: auto; }
-/* Fixed dark glass (--dock-glass, not the theme-swapping --glass-veil) —
-   the icons on it are always solid white, so the glass behind them has to
-   stay dark enough for contrast in light mode too. Same idea as macOS's
-   Dock or iOS Control Center: a floating chrome surface that doesn't flip
-   with the rest of the UI. */
-.bottom-pill {
-  position: relative; overflow: hidden;
-  flex: 1 1 auto; min-width: 0;
-  display: flex; align-items: center; justify-content: space-around;
-  height: 66px; padding: 0 6px;
+
+/* ---------- Bottom bar (mobile only) ----------
+   A normal, full-width, edge-docked bar — back from the floating-pill
+   experiment per direct feedback ("remove the floating bar and make it a
+   normal one"). Same 5 icons (kept as-is — "they are good"): Discover,
+   Reserve, Favourites, Tickets, AI (the diamond mark, folded in as a normal
+   tab instead of a separate floating circle). Fixed dark glass (--dock-glass,
+   not the theme-swapping --glass-veil) since the icons are always solid
+   white — needs to stay dark enough for contrast in light mode too. */
+.bottom-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 55;
+  display: flex; align-items: stretch;
+  padding-bottom: env(safe-area-inset-bottom);
   background: var(--dock-glass);
   backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid var(--dock-glass-edge);
-  border-radius: var(--radius-pill);
-  box-shadow:
-    var(--shadow-float),
-    inset 0 1px 1px rgba(255,255,255,.16),
-    inset 0 -1px 1px rgba(255,255,255,.04),
-    inset 0 0 18px rgba(0,0,0,.35);
+  border-top: 1px solid var(--dock-glass-edge);
+  box-shadow: 0 -2px 20px rgba(0,0,0,.25);
 }
-/* Diagonal sheen sweep — a static (not animated) highlight catching one
-   corner, the cue that reads "glass" rather than "frosted plastic". */
-.bottom-pill::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
-  background: linear-gradient(115deg,
-    rgba(255,255,255,.14) 0%, transparent 30%,
-    transparent 68%, rgba(255,255,255,.05) 100%);
-  mix-blend-mode: screen;
-  pointer-events: none;
-}
-.bottom-pill-item {
-  position: relative; z-index: 1;
+.bottom-bar-item {
   flex: 1 1 0; min-width: 0;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  /* White, always — dim at rest, full-bright + a solid purple circle when
-     selected. Not theme-dependent (see .bottom-pill's fixed dark glass). */
-  color: rgba(255,255,255,.62);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 10px 4px 8px;
+  color: rgba(255,255,255,.55);
   transition: color .16s ease;
 }
-.bottom-pill-item:active { transform: scale(.9); }
-.bottom-pill-icwrap {
-  display: grid; place-items: center;
-  width: 34px; height: 34px; border-radius: 50%;
-  transition: background-color .18s cubic-bezier(.25,1,.5,1);
-}
-.bottom-pill-item i, .bottom-pill-svg { font-size: 20px; line-height: 1; width: 20px; height: 20px; }
-.bottom-pill-label { font-size: 9.5px; font-weight: 600; letter-spacing: .2px; }
-.bottom-pill-item.on { color: #fff; }
-.bottom-pill-item.on .bottom-pill-icwrap { background: var(--ai-accent); }
-
-/* AI button — same fixed dark glass as the pill (consistent chrome), the
-   diamond mark inside carries the purple instead of the button itself. No
-   glow, no pulse — a static, tasteful drop-shadow only. */
-.ai-orb-fab {
-  position: relative; z-index: 1; flex: 0 0 auto; overflow: hidden;
-  width: 66px; height: 66px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--dock-glass);
-  backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid var(--dock-glass-edge);
-  box-shadow:
-    var(--shadow-float),
-    inset 0 1px 1px rgba(255,255,255,.16),
-    inset 0 -1px 1px rgba(255,255,255,.04),
-    inset 0 0 14px rgba(0,0,0,.35);
-  transition: transform .14s cubic-bezier(.25,1,.5,1);
-}
-.ai-orb-fab::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
-  background: linear-gradient(115deg,
-    rgba(255,255,255,.16) 0%, transparent 32%,
-    transparent 70%, rgba(255,255,255,.06) 100%);
-  mix-blend-mode: screen;
-  pointer-events: none;
-}
-.ai-orb-fab:active { transform: scale(.9); }
-.ai-diamond-mark {
-  position: relative; z-index: 1;
-  width: 26px; height: 26px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,.3));
-}
+.bottom-bar-item:active { transform: scale(.92); }
+.bottom-bar-icwrap { display: grid; place-items: center; width: 24px; height: 24px; }
+.bottom-bar-svg { font-size: 22px; width: 22px; height: 22px; line-height: 1; }
+.bottom-bar-label { font-size: 10px; font-weight: 600; letter-spacing: .2px; }
+.bottom-bar-item.on { color: #fff; }
 @media (min-width: 900px) {
-  .bottom-nav-cluster { display: none; }
+  .bottom-bar { display: none; }
 }
 /* Dimmed scrim behind the popover — the outside-tap-to-close behavior
    already existed (App.tsx's pointerdown listener), but with nothing
@@ -2979,11 +2765,6 @@ body,
   .ec-rail-cover, .ec-feature-cover { transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s; }
   .chip { transition: background-color .15s, color .15s, border-color .15s; }
   .chip:hover { border-color: var(--line); color: var(--text); }
-  /* the big Discover hero card had no hover treatment at all — same
-     restrained lift + slow image zoom as the smaller rail/feature covers,
-     scaled up for its size. */
-  .ex-hero-card { transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s; background-size: cover; }
-  .ex-hero-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); background-size: 106%; }
 
   /* Phase 3 — same restrained lift, extended to the other clickable card
      surfaces (dashboard tiles, quick actions, "More" rows, ticket tiers)
@@ -3100,10 +2881,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   .ex-head { padding-left: 24px; padding-right: 24px; }
   .ex-hero { padding: 32px 24px 8px; }
 
-  /* Hero sizes up (not swapped) on desktop — a real banner instead of a
-     tall mobile card, same element throughout. */
-  .ex-hero-card { aspect-ratio: auto; height: 420px; margin: 20px 24px 0; }
-  .ex-hero-card-title { font-size: 42px; letter-spacing: -1px; }
   /* one editorial card per event on mobile; on desktop the whole list
      becomes a 3-up grid so the width shows more of the catalog */
   .ex-agenda {

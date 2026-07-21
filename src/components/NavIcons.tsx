@@ -18,3 +18,15 @@ export function IconHeartFill({ className }: { className?: string }) {
     </svg>
   );
 }
+
+// Thin wrappers around the existing Ikonate -fill glyphs so every bottom-nav
+// icon shares the same Glyph-component interface (a plain className prop) —
+// one rendering path in App.tsx instead of branching per item on whether an
+// icon is a custom SVG or a font glyph.
+export function IconStoreFill({ className }: { className?: string }) {
+  return <i className={"icon-store-fill " + (className || "")} aria-hidden="true" />;
+}
+
+export function IconTicketFill({ className }: { className?: string }) {
+  return <i className={"icon-ticket-fill " + (className || "")} aria-hidden="true" />;
+}

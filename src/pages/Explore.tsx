@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
-import { MotionButton, usePrefersReducedMotion } from "../motion";
+import { MotionButton } from "../motion";
 import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast } from "../api";
 import { useAsync } from "../hooks";
-import { useAccount, useSaved, isSaved, toggleSave } from "../store";
+import { useAccount } from "../store";
 import { addRecentSearch, getRecentSearches, clearRecentSearches } from "../hooks/useRecentSearches";
 import Stub from "../components/Stub";
+import Icon3D from "../components/Icon3D";
 import HorizontalRail from "../components/HorizontalRail";
 import { useRecommendations } from "../hooks/useRecommendations";
-import { preloadEventDetail } from "../eventDetailChunk";
 import { dismissSplash } from "../splash";
 import Tooltip from "../components/Tooltip";
 import { capture } from "../posthog";
@@ -34,201 +34,6 @@ const SplitText = lazy(() => import("../components/landing/SplitText"));
 
 const startTs = (e: Weyn) => new Date(e.startsAt).getTime();
 const bySoonest = (a: Weyn, b: Weyn) => startTs(a) - startTs(b);
-const byPopular = (a: Weyn, b: Weyn) => (b.sold || 0) - (a.sold || 0);
-
-// The spotlight card IS its own cover (the photo is its background), so the
-// layoutId that morphs it into EventDetail's hero has to sit on the <Link>
-// itself — hence a motion-wrapped Link rather than a nested motion.div like
-// Stub's card covers use.
-const MotionLink = motion.create(Link);
-
-// One card's worth of the spotlight carousel's content — pulled out of the
-// old single-slide HeroCard so HeroCarousel below can render N of these in
-// a swipeable track instead of one static card.
-// The spotlight card is now just the photo + a small brand/badge pill and a
-// save button (reference-matched: text lives BELOW the deck, not overlaid on
-// the image — see FeaturedSpotlight). The whole card is still the tap target
-// into the event, and still carries the layoutId that morphs into
-// EventDetail's hero.
-function HeroSlide({ e, showBadge = true, morph = false }: { e: Weyn; showBadge?: boolean; morph?: boolean }) {
-  useSaved();
-  const saved = isSaved(e.id);
-  const catLabel = CATS.find((c) => c.key === e.cat)?.label || e.cat;
-  // An opaque `backgroundColor` base is set in BOTH branches so a card is
-  // never see-through — critical in the stacked spotlight deck, where cards
-  // overlap: without it, a still-loading photo, an image with alpha, or the
-  // no-image fallback gradient (which ends at the semi-transparent
-  // --fallback-scrim) let the cards *behind* the front card show through, so
-  // the front card read as translucent. The gradient/photo paints on top of
-  // this solid base.
-  const coverStyle: React.CSSProperties = e.image
-    ? { backgroundColor: "var(--card-bg)", backgroundImage: `url(${e.image})`, backgroundPosition: e.imageFocalPoint || "center" }
-    // Greyscale system: ignore the server-stored per-event hue — same
-    // category-grey treatment as Stub.tsx's fallback covers. Fallback
-    // references --cat-music itself (not a duplicated hex) so it can't
-    // silently drift from that token.
-    : { backgroundColor: "var(--card-bg)", backgroundImage: `linear-gradient(150deg, var(--cat-${e.cat}, var(--cat-music)), var(--fallback-scrim))` };
-  return (
-    <MotionLink to={`/e/${e.id}`} layoutId={morph ? `event-cover-${e.id}` : undefined} onPointerDown={preloadEventDetail} onMouseEnter={preloadEventDetail} className="ex-hero-card" style={coverStyle}>
-      {/* Brand/category pill top-left (reference: "District Live") + a save
-          button top-right — the only two things that sit ON the photo now. */}
-      {showBadge && <span className="ex-hero-card-featured">{catLabel}</span>}
-      {showBadge && (
-        <button
-          className={"ex-hero-card-save" + (saved ? " on" : "")}
-          onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); toggleSave(e.id); }}
-          aria-label={saved ? "Saved — tap to remove" : "Save"}
-          aria-pressed={saved}
-        >
-          <i className="icon-bookmark" />
-        </button>
-      )}
-    </MotionLink>
-  );
-}
-
-// A real swipeable, horizontally snapping carousel of the events that paid
-// for the featured tag (see `heroPool` in the memo below: `.featured` events
-// first, most-popular only as a fallback when none are featured) — each card
-// is sized so the next one peeks in from the edge, same as the reference.
-// Dots below track the nearest-snapped card via a scroll listener rather
-// than driving scroll position themselves, so native touch/trackpad
-// scrolling stays the source of truth (no fighting the user's gesture).
-// Stacked "deck" spotlight: the front event sits centered on top, with the
-// next two peeking out from behind it (scaled down + dimmed on either side),
-// and the deck auto-advances every few seconds so featured events rotate to
-// the front — the layered look from the reference. Positions are driven by
-// each card's offset from `active`; CSS (see .ex-deck-card[data-pos]) owns
-// the actual transforms so the rotation animates smoothly. Auto-advance
-// pauses under prefers-reduced-motion (rotating content is motion too) and
-// while the user is touching the deck.
-function FeaturedSpotlight({ events }: { events: Weyn[] }) {
-  const reduced = usePrefersReducedMotion();
-  // Tracked by EVENT ID, not array index — heroPool can legitimately reorder
-  // between renders (a background refetch, tie-breaks in the popularity
-  // sort) without any event actually changing. Indexing by position meant a
-  // reorder would silently swap in whatever event now sat at that number,
-  // with no transition explaining it — the "spotlight shows the wrong thing"
-  // bug. Keying off id keeps the front card pinned to the same EVENT through
-  // a reorder; only an explicit rotation (auto-advance/dot/swipe) moves it.
-  const [activeId, setActiveId] = useState<string | null>(events[0]?.id ?? null);
-  const [paused, setPaused] = useState(false);
-  // Gate the card transitions until after first paint, so the deck appears
-  // already assembled instead of animating in from the side on mount.
-  const [ready, setReady] = useState(false);
-  useEffect(() => { setReady(true); }, []);
-  const n = events.length;
-  const active = Math.max(0, events.findIndex((e) => e.id === activeId));
-  // Swipe/drag state: the deck is absolutely-stacked cards (no native scroll),
-  // so we drive next/prev off pointer gestures ourselves. `moved` guards the
-  // front card's link — a real swipe must not also navigate into the event.
-  const startX = useRef(0);
-  const dragging = useRef(false);
-  const moved = useRef(false);
-
-  // Depends on `active` too — so a dot-click or swipe restarts the full 3s
-  // countdown instead of the OLD timer (still ticking from before the manual
-  // pick) firing moments later and immediately overriding what the user just
-  // chose, which read as the deck "not listening"/double-jumping.
-  useEffect(() => {
-    if (n <= 1 || reduced || paused) return;
-    const t = setInterval(() => {
-      setActiveId((id) => {
-        const i = events.findIndex((e) => e.id === id);
-        return events[((i < 0 ? 0 : i) + 1) % events.length]?.id ?? null;
-      });
-    }, 3000);
-    return () => clearInterval(t);
-  }, [n, reduced, paused, active, events]);
-
-  // If the active event drops out of the pool entirely (category switch,
-  // no longer featured), fall back to the front of whatever's current.
-  useEffect(() => {
-    if (events.length && !events.some((e) => e.id === activeId)) setActiveId(events[0].id);
-  }, [events, activeId]);
-
-  const go = (dir: number) => {
-    const i = events.findIndex((e) => e.id === activeId);
-    const ni = (((i < 0 ? 0 : i) + dir) % n + n) % n;
-    setActiveId(events[ni]?.id ?? null);
-  };
-
-  function onPointerDown(e: React.PointerEvent) {
-    startX.current = e.clientX;
-    dragging.current = true;
-    moved.current = false;
-    setPaused(true);
-  }
-  function onPointerMove(e: React.PointerEvent) {
-    if (dragging.current && Math.abs(e.clientX - startX.current) > 8) moved.current = true;
-  }
-  function endDrag(e: React.PointerEvent) {
-    if (!dragging.current) return;
-    const dx = e.clientX - startX.current;
-    dragging.current = false;
-    setPaused(false);
-    if (n > 1 && Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); // swipe left → next
-  }
-  // If a swipe happened, swallow the click so the front card's link doesn't fire.
-  function onClickCapture(e: React.MouseEvent) {
-    if (moved.current) { e.preventDefault(); e.stopPropagation(); moved.current = false; }
-  }
-
-  if (n === 0) return null;
-  const front = events[active] || events[0];
-
-  return (
-    <div className="ex-spotlight ex-spotlight-deck">
-      <div
-        className={"ex-deck" + (ready ? " ready" : "")}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={() => { dragging.current = false; setPaused(false); }}
-        onPointerLeave={(e) => { endDrag(e); }}
-        onClickCapture={onClickCapture}
-      >
-        {events.map((ev, i) => {
-          // SIGNED offset around `active`: 0 = front, +1 = peek right,
-          // -1 = peek left, everything else parks hidden BEHIND the front
-          // card. Advancing then reads as a clean conveyor (right→center→left
-          // →hidden); the wrap (left→hidden→right) happens behind the opaque
-          // front card, so no card ever flies across the deck.
-          let d = (i - active) % n;
-          if (d > n / 2) d -= n;
-          if (d < -n / 2) d += n;
-          const pos = d === 0 ? "c" : d === 1 ? "r" : d === -1 ? "l" : "h";
-          return (
-            <div className="ex-deck-card" data-pos={pos} key={ev.id} aria-hidden={pos !== "c"}>
-              <HeroSlide e={ev} showBadge={pos === "c"} morph={pos === "c"} />
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Title + blurb sit BELOW the deck (reference), keyed on the active
-          event so they crossfade as the deck rotates. A plain <Link> so the
-          caption is tappable into the same event as its card. */}
-      <Link to={`/e/${front.id}`} className="ex-spotlight-caption" key={front.id} onPointerDown={preloadEventDetail}>
-        <h3 className="ex-spotlight-title">{front.title}</h3>
-        {front.blurb && <p className="ex-spotlight-blurb">{front.blurb}</p>}
-      </Link>
-
-      {n > 1 && (
-        <div className="ex-spotlight-dots">
-          {events.map((ev, i) => (
-            <button
-              key={ev.id}
-              className={"ex-spotlight-dot" + (i === active ? " on" : "")}
-              onClick={() => setActiveId(ev.id)}
-              aria-label={`Show spotlight ${i + 1}`}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Live suggestions are derived client-side from the same events list Explore
 // already fetches — titles, organizers, venues/areas, and categories that
@@ -363,22 +168,6 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   const priceValue = maxPrice ?? priceCeiling;
   const activeFilterCount = (when !== "all" ? 1 : 0) + (cat !== "all" ? 1 : 0) + (maxPrice !== null ? 1 : 0);
 
-  // One representative photo per category for the home Categories rail
-  // (reference-matched: real event photography standing in for the category,
-  // not a generic icon) — the most popular event in that category that has
-  // an image, falling back to the most popular one at all if none do.
-  const categoryCovers = useMemo(() => {
-    const all = (data || []).filter((e) => !e.cancelled && !isPast(e));
-    const map: Record<string, Weyn | undefined> = {};
-    for (const c of CATS) {
-      if (c.key === "all") continue;
-      const inCat = all.filter((e) => e.cat === c.key);
-      const withImage = [...inCat.filter((e) => e.image)].sort(byPopular);
-      map[c.key] = withImage[0] || [...inCat].sort(byPopular)[0];
-    }
-    return map;
-  }, [data]);
-
   function chooseSuggestion(s: Suggestion) {
     setQ(s.value);
     setShowSuggest(false);
@@ -426,17 +215,10 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
       return { mode: "when" as const, results: catFiltered.filter(pred) };
     }
 
-    const featured = [...catFiltered].filter((e) => e.featured).slice(0, 6);
-    const featPool = featured.length ? featured : [...catFiltered].sort(byPopular).slice(0, 5);
-    // Up to 4 swipeable spotlight slides instead of one static hero — see
-    // HeroCarousel below. Still just "the best few of featPool," not a
-    // second data source.
-    const heroPool = featPool.slice(0, 4);
-    const heroIds = new Set(heroPool.map((e) => e.id));
-    // Every other event, one flat chronological list — see the comment
-    // above on why this replaced day/weekend sectioning.
-    const rest = catFiltered.filter((e) => !heroIds.has(e.id));
-    return { mode: "browse" as const, all: catFiltered, heroPool, rest };
+    // One flat chronological list, no spotlight carve-out (removed — it was
+    // glitchy) — see the comment above on why this replaced day/weekend
+    // sectioning.
+    return { mode: "browse" as const, all: catFiltered, rest: catFiltered };
   }, [data, cat, when, q, searching, maxPrice]);
 
   // Extracted so the embedded home can nest them inside the sticky
@@ -715,21 +497,9 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
           <>
-            {S.heroPool.length > 0 && (
-              <section className="ex-section ex-section-spotlight">
-                <div className="ex-head">
-                  <h2>In the spotlight</h2>
-                </div>
-                <FeaturedSpotlight events={S.heroPool} />
-              </section>
-            )}
-            {/* Top events + Categories are home-screen sections (reference-
-                matched) — the standalone /explore page already has its own
-                When/category chip filters, so these would just duplicate
-                that there. Top events pulls from the same chronological pool
-                "All events" below uses (S.rest, already excludes whatever's
-                in the spotlight) so there's no duplicate content between
-                spotlight and here. */}
+            {/* Top events + Categories are home-screen sections — the
+                standalone /explore page already has its own When/category
+                chip filters, so these would just duplicate that there. */}
             {embedded && S.rest.length > 0 && (
               <section className="ex-section">
                 <div className="ex-head">
@@ -745,18 +515,12 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               <section className="ex-section">
                 <div className="ex-head"><h2>Categories</h2></div>
                 <div className="ex-rail">
-                  {CATS.filter((c) => c.key !== "all").map((c) => {
-                    const cover = categoryCovers[c.key];
-                    const coverStyle: React.CSSProperties = cover?.image
-                      ? { backgroundImage: `url(${cover.image})`, backgroundPosition: cover.imageFocalPoint || "center" }
-                      : { backgroundImage: `linear-gradient(150deg, var(--cat-${c.key}, var(--cat-music)), var(--fallback-scrim))` };
-                    return (
-                      <Link key={c.key} to={`/explore?cat=${c.key}`} className="category-photo-tile">
-                        <div className="category-photo-tile-cover" style={coverStyle} />
-                        <span className="category-photo-tile-label">{c.label}</span>
-                      </Link>
-                    );
-                  })}
+                  {CATS.filter((c) => c.key !== "all").map((c) => (
+                    <Link key={c.key} to={`/explore?cat=${c.key}`} className="category-tile">
+                      <Icon3D name={c.key} size={44} />
+                      <span className="category-tile-label">{c.label}</span>
+                    </Link>
+                  ))}
                 </div>
               </section>
             )}

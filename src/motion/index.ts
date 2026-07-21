@@ -37,15 +37,15 @@ export const pressSpring: Transition = { type: "spring", stiffness: 420, damping
 export const settleSpring: Transition = { type: "spring", stiffness: 260, damping: 30 };
 
 // Route-level transition for when a shared element (layoutId) can't pair up
-// with the outgoing page. Deliberately NOT a fade — opacity stays at 1 the
-// whole time; the movement itself (a slide) is what sells the transition,
-// and the top loading bar (see PageLoadBar) is the "something is happening"
-// cue instead of a content cross-fade.
-export const pageTransition: Transition = { duration: 0.18, ease: [0.33, 1, 0.68, 1] };
+// with the outgoing page. Opacity never moves — a clear horizontal push (the
+// incoming page slides in from the right, the outgoing one slides out to the
+// left, like iOS's navigation push) instead. A small vertical nudge read too
+// close to a fade to register as real motion; this is unmistakably a slide.
+export const pageTransition: Transition = { duration: 0.24, ease: [0.22, 1, 0.36, 1] };
 export const pageVariants: Variants = {
-  initial: { y: 18 },
-  animate: { y: 0 },
-  exit: { y: -14 },
+  initial: { x: 56 },
+  animate: { x: 0 },
+  exit: { x: -56 },
 };
 
 // Cross-fade + slight scale for swapping a panel's body in place (dashboard
