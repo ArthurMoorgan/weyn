@@ -47,48 +47,7 @@
      padding exactly equalled the bar height with zero breathing room, so the
      final event was always clipped and couldn't be scrolled fully into view. */
   padding-bottom: calc(50px + 28px + env(safe-area-inset-bottom));
-  /* --ambient-top is @property-registered as a <color> (tokens.css) so this
-     transitions the glow's hue itself, not just an opacity cut — lets
-     Discover's mode switch (see .shell[data-ambient]) ease between hues
-     instead of snapping. Duration/no-overshoot per a second, higher-fps
-     (60fps) re-measurement of the reference video (docs/discover-reference-
-     spec-reanalysis.md): the hue swap is a direct jump straight to the new
-     color that eases to rest in ~230-250ms with NO brightness spike — the
-     opacity-spike "bloom" keyframe a prior pass added here was built off an
-     earlier, lower-fidelity read of the same footage and didn't match once
-     re-checked frame-by-frame. Removed that keyframe/pulse class entirely
-     rather than leave a documented-wrong effect shipping. */
-  transition: --ambient-top .24s ease-out;
 }
-/* Soft purple ambient glow bleeding down from the very top edge — emitted
-   from the Dynamic Island region (50% 0%) and fading to transparent so it
-   melts into --bg. The one sanctioned bit of hue in the monochrome chrome
-   (see --ambient-top). Sits behind all shell content and never intercepts
-   taps. */
-.shell::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 400px;
-  /* Two stacked radials: a tight, brighter core over a wide soft bloom, so the
-     purple reads as a real light source at the top edge rather than a flat
-     wash. Slowly breathes (opacity + scale) for a living, atmospheric feel. */
-  background:
-    radial-gradient(ellipse 60% 55% at 50% -4%, var(--ambient-top), transparent 70%),
-    radial-gradient(ellipse 100% 85% at 50% 0%, var(--ambient-top), transparent 76%);
-  pointer-events: none; z-index: -1;
-  transform-origin: 50% 0;
-  animation: ambient-breathe 9s ease-in-out infinite;
-}
-@keyframes ambient-breathe {
-  0%, 100% { opacity: .82; transform: scaleY(1); }
-  50%      { opacity: 1;   transform: scaleY(1.08); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .shell::before { animation: none; opacity: 1; }
-}
-/* Discover's Events/Venues toggle re-hues the same glow rather than
-   layering a second one — Discover.tsx sets this attribute on .shell
-   while its own route is active (see Discover.tsx). */
-.shell[data-ambient="venues"] { --ambient-top: var(--ambient-venues); }
-
 /* Mobile (<900px): no bottom tab bar. Navigation lives in the home hub (the
    niche grid) + a persistent top utility strip (location · saved · tickets ·
    profile); every other destination is a pushed page with its own back
@@ -349,64 +308,6 @@ a.cat-circle:active { transform: scale(0.96); }
   .cat-circle:hover { transform: translateY(-2px); }
   .cat-circle-ring { width: 68px; height: 68px; margin-top: 0; }
 }
-
-/* ---------- Home hub tiles ----------
-   Two compact tiles (Events + Reserve) in a 2-up row: a flat Ikonate icon
-   sitting in a liquid-glass badge up top, label centered below. Dropped the
-   raster 3D icon renders (screenshot crops, capped at low-res, and
-   inconsistent with the rest of the app's flat icon system — platinumlist,
-   the quality bar for this pass, runs entirely on flat SVG icons too) in
-   favor of this glass treatment, which is sharp at any density and matches
-   the liquid-glass language now used across the app's utility icons. The
-   tile itself is a vertical grey gradient (lighter up top → the search-bar
-   grey at the bottom) so it reads as a lit surface lifted off --bg, not a
-   flat same-as-background box. Each icon carries a layoutId shared with its
-   destination page's header icon so Framer Motion morphs it across the route
-   change. Own classes (not .cat-circle*) so the base grid + >=900px rules
-   above don't fight this layout. */
-.cat-circles-hub {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-  padding: 14px 16px 8px;
-}
-.hub-tile-cell { min-width: 0; }
-.hub-tile {
-  position: relative; overflow: hidden;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 11px; min-height: 126px; padding: 16px 14px;
-  /* Top→bottom grey gradient (dark mode) / flat surface (light mode) — see
-     --surface-lit-gradient in tokens.css. Bottom stop matches the search bar
-     grey so the two read as one cohesive surface family. */
-  background: var(--surface-lit-gradient);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-xl); box-shadow: var(--card-shadow);
-  transition: transform .18s cubic-bezier(.25,1,.5,1), box-shadow .22s ease, filter .18s ease;
-}
-.hub-tile:hover { box-shadow: var(--shadow-md); filter: brightness(1.06); }
-.hub-tile:active { transform: scale(0.97); }
-.hub-tile-label {
-  position: relative; z-index: 2;
-  font: var(--t-card); font-size: 15px; font-weight: 700; letter-spacing: -0.2px;
-  color: var(--text); text-align: center;
-}
-/* Liquid-glass badge behind the flat icon — same recipe as .glass-icon-btn
-   (blurred backdrop, bright top rim, dim bottom edge, inner depth) but sized
-   for a tile's hero icon. Both sheen tokens + --glass-shadow-inner now
-   actually wired in (the inner-shadow token existed but no selector used it
-   — the missing piece that kept this reading flat rather than "glass"). */
-.hub-tile-icon {
-  position: relative; z-index: 1; pointer-events: none;
-  width: 60px; height: 60px; border-radius: 50%;
-  display: grid; place-items: center; color: var(--text);
-  background: var(--glass-veil);
-  backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid var(--glass-edge);
-  box-shadow:
-    inset 0 1px 1px var(--glass-sheen-top),
-    inset 0 -1px 1px var(--glass-sheen-bottom),
-    inset 0 0 8px var(--glass-shadow-inner),
-    0 3px 10px rgba(0,0,0,.25);
-}
-.hub-tile-icon i { font-size: 28px; }
 
 /* Liquid-glass utility icon button — the flat UI glyphs (Tickets, etc.) sit
    on a frosted glass disc: blurred backdrop, bright top rim, dim bottom
@@ -695,22 +596,24 @@ a.cat-circle:active { transform: scale(0.96); }
 .ec-toprow-status { font-size: 13px; font-weight: 600; color: var(--danger); }
 .ec-toprow-status.out { color: var(--text-3); }
 
-/* ---- Categories rail: a row of category tiles under Top events,
-   reusing the existing Icon3D category renders. Tap filters into the
-   standalone Events page (?cat=). ---- */
-.category-tile {
-  flex: 0 0 auto; width: 84px;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  padding: 16px 8px 12px; border-radius: var(--radius-lg);
-  background: var(--surface); border: 1px solid var(--card-border);
+/* ---- Categories rail: real event photography standing in for each
+   category (reference-matched), square rounded photo + label below. Tap
+   filters into the standalone Events page (?cat=). ---- */
+.category-photo-tile {
+  flex: 0 0 auto; width: 112px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.category-photo-tile-cover {
+  width: 112px; height: 112px; border-radius: var(--radius-lg);
+  background-size: cover; background-position: center; background-color: var(--card-bg);
   box-shadow: var(--card-shadow);
-  transition: transform .15s cubic-bezier(.25,1,.5,1), background-color .15s ease, box-shadow .2s ease;
+  transition: transform .15s cubic-bezier(.25,1,.5,1);
 }
-.category-tile:active { transform: scale(.94); }
+.category-photo-tile:active .category-photo-tile-cover { transform: scale(.95); }
 @media (hover: hover) {
-  .category-tile:hover { background: var(--surface-hover); box-shadow: var(--shadow-md); }
+  .category-photo-tile:hover .category-photo-tile-cover { box-shadow: var(--shadow-md); }
 }
-.category-tile-label { font-size: 12px; font-weight: 600; color: var(--text); text-align: center; line-height: 1.2; }
+.category-photo-tile-label { font-size: 12.5px; font-weight: 600; color: var(--text); text-align: center; line-height: 1.2; }
 
 /* ---- large featured hero card ---- */
 /* Sized to dominate the screen on mobile (min(85vw,...) instead of a fixed
@@ -758,8 +661,8 @@ a.cat-circle:active { transform: scale(0.96); }
 /* top padding carries the whole gap now that the browse screens have no
    topbar — keeps the greeting/title clear of the status bar / notch */
 .ex-hero { padding: 24px 16px 4px; display: flex; align-items: center; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
-/* Morph destination for a hub tile's icon (see .hub-tile-icon) — same
-   liquid-glass badge recipe, scaled down to sit beside a page's h1. */
+/* Plain header icon beside a page's h1 — same liquid-glass badge recipe as
+   .glass-icon-btn, scaled up slightly. */
 .ex-hero-nav-icon {
   flex: 0 0 auto; line-height: 1;
   width: 46px; height: 46px; border-radius: 50%;
@@ -1460,6 +1363,25 @@ a.cat-circle:active { transform: scale(0.96); }
   .tabs { display: none; }
 }
 
+/* ---------- Page-load bar ----------
+   A thin sweep across the very top of the screen on every route change —
+   the "something is happening" cue for navigation now that the page
+   transition itself never touches opacity (see pageVariants). Re-keyed on
+   pathname (PageLoadBar.tsx) so it replays fresh every time, transform/
+   opacity only so it's cheap regardless of how heavy the page underneath is. */
+.page-load-bar {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 200;
+  background: var(--ai-accent);
+  transform-origin: left; transform: scaleX(0);
+  animation: page-load-sweep .5s cubic-bezier(.25,1,.5,1) forwards;
+  pointer-events: none;
+}
+@keyframes page-load-sweep {
+  0%   { transform: scaleX(0); opacity: 1; }
+  60%  { transform: scaleX(.75); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
 /* ---------- Bottom nav cluster (mobile only) ----------
    Two floating shapes side by side, matching the reference: a wide pill
    (Discover/Reserve/Favourites/Tickets) and a separate circular AI button at
@@ -1479,38 +1401,43 @@ a.cat-circle:active { transform: scale(0.96); }
   pointer-events: none;
 }
 .bottom-pill, .ai-orb-fab { pointer-events: auto; }
+/* Fixed dark glass (--dock-glass, not the theme-swapping --glass-veil) —
+   the icons on it are always solid white, so the glass behind them has to
+   stay dark enough for contrast in light mode too. Same idea as macOS's
+   Dock or iOS Control Center: a floating chrome surface that doesn't flip
+   with the rest of the UI. */
 .bottom-pill {
   position: relative; overflow: hidden;
   flex: 1 1 auto; min-width: 0;
   display: flex; align-items: center; justify-content: space-around;
   height: 66px; padding: 0 6px;
-  background: var(--glass-veil);
+  background: var(--dock-glass);
   backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid var(--glass-edge);
+  border: 1px solid var(--dock-glass-edge);
   border-radius: var(--radius-pill);
   box-shadow:
     var(--shadow-float),
-    inset 0 1px 1px var(--glass-sheen-top),
-    inset 0 -1px 1px var(--glass-sheen-bottom),
-    inset 0 0 18px var(--glass-shadow-inner);
+    inset 0 1px 1px rgba(255,255,255,.16),
+    inset 0 -1px 1px rgba(255,255,255,.04),
+    inset 0 0 18px rgba(0,0,0,.35);
 }
 /* Diagonal sheen sweep — a static (not animated) highlight catching one
-   corner, the cue that reads "glass" rather than "frosted plastic". Screen
-   blend so it brightens against the dark tint instead of muddying it (dark
-   theme); plain overlay in light mode via --glass-blend. */
+   corner, the cue that reads "glass" rather than "frosted plastic". */
 .bottom-pill::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit;
   background: linear-gradient(115deg,
-    rgba(255,255,255,.16) 0%, transparent 30%,
-    transparent 68%, rgba(255,255,255,.06) 100%);
-  mix-blend-mode: var(--glass-blend);
+    rgba(255,255,255,.14) 0%, transparent 30%,
+    transparent 68%, rgba(255,255,255,.05) 100%);
+  mix-blend-mode: screen;
   pointer-events: none;
 }
 .bottom-pill-item {
   position: relative; z-index: 1;
   flex: 1 1 0; min-width: 0;
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  color: var(--text-3);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  /* White, always — dim at rest, full-bright + a solid purple circle when
+     selected. Not theme-dependent (see .bottom-pill's fixed dark glass). */
+  color: rgba(255,255,255,.62);
   transition: color .16s ease;
 }
 .bottom-pill-item:active { transform: scale(.9); }
@@ -1519,40 +1446,40 @@ a.cat-circle:active { transform: scale(0.96); }
   width: 34px; height: 34px; border-radius: 50%;
   transition: background-color .18s cubic-bezier(.25,1,.5,1);
 }
-.bottom-pill-item i { font-size: 20px; line-height: 1; }
+.bottom-pill-item i, .bottom-pill-svg { font-size: 20px; line-height: 1; width: 20px; height: 20px; }
 .bottom-pill-label { font-size: 9.5px; font-weight: 600; letter-spacing: .2px; }
-.bottom-pill-item.on { color: var(--ai-accent); }
-.bottom-pill-item.on .bottom-pill-icwrap { background: var(--ai-accent-soft); }
+.bottom-pill-item.on { color: #fff; }
+.bottom-pill-item.on .bottom-pill-icwrap { background: var(--ai-accent); }
 
-/* AI button — same liquid-glass recipe as the pill (consistent chrome), the
+/* AI button — same fixed dark glass as the pill (consistent chrome), the
    diamond mark inside carries the purple instead of the button itself. No
    glow, no pulse — a static, tasteful drop-shadow only. */
 .ai-orb-fab {
   position: relative; z-index: 1; flex: 0 0 auto; overflow: hidden;
   width: 66px; height: 66px; border-radius: 50%;
   display: grid; place-items: center;
-  background: var(--glass-veil);
+  background: var(--dock-glass);
   backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border: 1px solid var(--glass-edge);
+  border: 1px solid var(--dock-glass-edge);
   box-shadow:
     var(--shadow-float),
-    inset 0 1px 1px var(--glass-sheen-top),
-    inset 0 -1px 1px var(--glass-sheen-bottom),
-    inset 0 0 14px var(--glass-shadow-inner);
+    inset 0 1px 1px rgba(255,255,255,.16),
+    inset 0 -1px 1px rgba(255,255,255,.04),
+    inset 0 0 14px rgba(0,0,0,.35);
   transition: transform .14s cubic-bezier(.25,1,.5,1);
 }
 .ai-orb-fab::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit;
   background: linear-gradient(115deg,
-    rgba(255,255,255,.18) 0%, transparent 32%,
-    transparent 70%, rgba(255,255,255,.07) 100%);
-  mix-blend-mode: var(--glass-blend);
+    rgba(255,255,255,.16) 0%, transparent 32%,
+    transparent 70%, rgba(255,255,255,.06) 100%);
+  mix-blend-mode: screen;
   pointer-events: none;
 }
 .ai-orb-fab:active { transform: scale(.9); }
 .ai-diamond-mark {
   position: relative; z-index: 1;
-  width: 27px; height: 27px;
+  width: 26px; height: 26px;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,.3));
 }
 @media (min-width: 900px) {

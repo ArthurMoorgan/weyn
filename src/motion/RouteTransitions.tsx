@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import { Routes, useLocation } from "react-router-dom";
 import { AnimatePresence, LayoutGroup, motion, type Variants } from "motion/react";
 import { pageTransition, pageVariants, usePrefersReducedMotion } from "./index";
+import PageLoadBar from "./PageLoadBar";
 import Skeleton from "../components/Skeleton";
 
 // The 3 bottom-tab pages (Discover/Tickets/You) — plus every drilled subpage
@@ -56,6 +57,7 @@ export default function RouteTransitions({ children }: { children: ReactNode }) 
     // yet, or reduced-motion neutralizes layout animation, nothing morphs and
     // the directional page transition below just plays — the morph is additive.
     <LayoutGroup>
+      <PageLoadBar />
       {/* mode="wait" so the outgoing page finishes exiting before the next
           mounts — that ordering is also what keeps a lazy route's Suspense
           fallback from flashing mid-transition: the exit runs on the

@@ -5,15 +5,6 @@
    changes. See src/index.css for the v9 overhaul history.
    ============================================================ */
 
-/* Registered so --ambient-top can be transitioned like a normal color
-   (browsers only animate custom properties whose type is declared) — lets
-   .shell's per-tab hue swap bloom/fade instead of cutting instantly. */
-@property --ambient-top {
-  syntax: "<color>";
-  inherits: true;
-  initial-value: transparent;
-}
-
 :root {
   color-scheme: dark;
   /* Monochrome system (Uber/Apple direction): one neutral grey family on
@@ -117,6 +108,15 @@
      the specular hotspot brightens instead of muddying the dark tint. */
   --glass-shadow-inner: rgba(0,0,0,.35);
   --glass-blend: screen;
+  /* Floating bottom-nav dock glass — fixed dark regardless of app theme
+     (unlike --glass-veil above), NOT redefined in the light-mode block. The
+     dock's icons are always solid white, so the glass behind them must
+     always be dark enough for white-on-glass contrast; a theme-swapping
+     glass would go light in light mode and break that. Same premium
+     "floating dark glass dock" convention as macOS's Dock / iOS Control
+     Center, which don't flip white/light either. */
+  --dock-glass: rgba(28, 26, 34, 0.6);
+  --dock-glass-edge: rgba(255,255,255,.14);
   --lens: none;
   --card-alt: var(--surface-hover);
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -133,21 +133,12 @@
   /* fallback scrim used by Stub.tsx cover gradients */
   --fallback-scrim: rgba(0,0,0,0.35);
 
-  /* The one sanctioned spot of hue in the otherwise-monochrome chrome: a soft
-     purple radial bleeding down from the very top edge (the Dynamic Island
-     region), fading to transparent so it melts into --bg. Drives .shell::before. */
-  --ambient-top: rgba(140, 60, 255, 0.74);
-  /* Discover's Venues mode swaps --ambient-top to this teal via
-     .shell[data-ambient="venues"] (components.css) — same shape/alpha as
-     the purple default, only the hue differs. */
-  --ambient-venues: rgba(24, 180, 200, 0.6);
-  /* Solid-color counterpart to --ambient-top (same hue, no alpha) — for
-     places the AI accent needs to be a real fill/text color, not a glow:
-     the bottom-nav active state, the AI diamond mark. One consistent purple
-     across BOTH themes (not swapped light/dark) — a single deliberate brand
-     hue reads as a considered choice; a hue that flips by theme reads as an
-     inconsistency. Same rgb as --ambient-top so the whole app's "AI purple"
-     traces back to one hue. */
+  /* The one sanctioned spot of hue in the otherwise-monochrome chrome — a
+     solid color (no glow/wash; the top-of-screen ambient glow was removed
+     per direct feedback) used sparingly: the bottom-nav active state, the
+     AI diamond mark. One consistent purple across BOTH themes (not swapped
+     light/dark) — a single deliberate brand hue reads as a considered
+     choice; a hue that flips by theme reads as an inconsistency. */
   --ai-accent: #8C3CFF;
   --ai-accent-2: #B48CFF;
   --ai-accent-soft: color-mix(in srgb, var(--ai-accent) 14%, transparent);
@@ -234,10 +225,6 @@
   --glass-blend: normal;
   --card-alt: var(--surface-hover);
   --fallback-scrim: rgba(0,0,0,0.1);
-  /* Lighter, gentler purple on the white canvas so it reads as a tint, not a stain. */
-  --ambient-top: rgba(146, 43, 255, 0.30);
-  /* Same teal as dark theme, same lower alpha step as --ambient-top gets. */
-  --ambient-venues: rgba(24, 180, 200, 0.28);
   /* Identical to the dark theme's --ai-accent — deliberately not swapped by
      theme (see that block's comment). */
   --ai-accent: #8C3CFF;

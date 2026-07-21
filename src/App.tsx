@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import Discover from "./pages/Discover";
 import AiDiamondMark from "./components/AiDiamondMark";
+import { IconHomeFill, IconHeartFill } from "./components/NavIcons";
 import Skeleton from "./components/Skeleton";
 import ThemeToggle from "./components/ThemeToggle";
 import CityPill from "./components/CityPill";
@@ -37,14 +38,14 @@ const TABS = [
 // reference layout exactly: two floating shapes sitting side by side above
 // the home indicator, not one bar. "Calendar" (the reference's 2nd tab) has
 // no Weyn equivalent, so it's swapped for Reserve — Weyn's actual second
-// top-level destination. No -fill icon variants exist for compass/heart, so
-// selection reads through the same dim->bright ink cue the desktop .tabs
-// already use for Events/Venues.
+// top-level destination. Every icon here is a solid/filled glyph, always
+// white — Ikonate's -fill variants for store/ticket, custom simple SVGs
+// (NavIcons.tsx) for compass/heart, which have no filled Ikonate variant.
 const BOTTOM_TABS = [
-  { to: "/", end: true, icon: "compass", label: "Discover" },
-  { to: "/venues", icon: "store", label: "Reserve" },
-  { to: "/saved", icon: "heart", label: "Favourites" },
-  { to: "/tickets", icon: "ticket", label: "Tickets" },
+  { to: "/", end: true, label: "Discover", Glyph: IconHomeFill },
+  { to: "/venues", end: false, label: "Reserve", icon: "store-fill" },
+  { to: "/saved", end: false, label: "Favourites", Glyph: IconHeartFill },
+  { to: "/tickets", end: false, label: "Tickets", icon: "ticket-fill" },
 ];
 
 // Hosting an event and listing a venue are different setup flows with
@@ -266,12 +267,10 @@ export default function App() {
               className={({ isActive }) => "bottom-pill-item" + (isActive ? " on" : "")}
               aria-label={t.label}
             >
-              {({ isActive }) => (
-                <>
-                  <span className="bottom-pill-icwrap"><i className={"icon-" + t.icon} /></span>
-                  <span className="bottom-pill-label">{t.label}</span>
-                </>
-              )}
+              <span className="bottom-pill-icwrap">
+                {t.Glyph ? <t.Glyph className="bottom-pill-svg" /> : <i className={"icon-" + t.icon} />}
+              </span>
+              <span className="bottom-pill-label">{t.label}</span>
             </MotionNavLink>
           ))}
         </nav>

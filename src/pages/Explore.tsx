@@ -7,7 +7,6 @@ import { useAsync } from "../hooks";
 import { useAccount, useSaved, isSaved, toggleSave } from "../store";
 import { addRecentSearch, getRecentSearches, clearRecentSearches } from "../hooks/useRecentSearches";
 import Stub from "../components/Stub";
-import Icon3D from "../components/Icon3D";
 import HorizontalRail from "../components/HorizontalRail";
 import { useRecommendations } from "../hooks/useRecommendations";
 import { preloadEventDetail } from "../eventDetailChunk";
@@ -105,13 +104,21 @@ function HeroSlide({ e, showBadge = true, morph = false }: { e: Weyn; showBadge?
 // while the user is touching the deck.
 function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   const reduced = usePrefersReducedMotion();
-  const [active, setActive] = useState(0);
+  // Tracked by EVENT ID, not array index — heroPool can legitimately reorder
+  // between renders (a background refetch, tie-breaks in the popularity
+  // sort) without any event actually changing. Indexing by position meant a
+  // reorder would silently swap in whatever event now sat at that number,
+  // with no transition explaining it — the "spotlight shows the wrong thing"
+  // bug. Keying off id keeps the front card pinned to the same EVENT through
+  // a reorder; only an explicit rotation (auto-advance/dot/swipe) moves it.
+  const [activeId, setActiveId] = useState<string | null>(events[0]?.id ?? null);
   const [paused, setPaused] = useState(false);
   // Gate the card transitions until after first paint, so the deck appears
   // already assembled instead of animating in from the side on mount.
   const [ready, setReady] = useState(false);
   useEffect(() => { setReady(true); }, []);
   const n = events.length;
+  const active = Math.max(0, events.findIndex((e) => e.id === activeId));
   // Swipe/drag state: the deck is absolutely-stacked cards (no native scroll),
   // so we drive next/prev off pointer gestures ourselves. `moved` guards the
   // front card's link — a real swipe must not also navigate into the event.
@@ -119,16 +126,32 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   const dragging = useRef(false);
   const moved = useRef(false);
 
+  // Depends on `active` too — so a dot-click or swipe restarts the full 3s
+  // countdown instead of the OLD timer (still ticking from before the manual
+  // pick) firing moments later and immediately overriding what the user just
+  // chose, which read as the deck "not listening"/double-jumping.
   useEffect(() => {
     if (n <= 1 || reduced || paused) return;
-    const t = setInterval(() => setActive((a) => (a + 1) % n), 3000);
+    const t = setInterval(() => {
+      setActiveId((id) => {
+        const i = events.findIndex((e) => e.id === id);
+        return events[((i < 0 ? 0 : i) + 1) % events.length]?.id ?? null;
+      });
+    }, 3000);
     return () => clearInterval(t);
-  }, [n, reduced, paused]);
+  }, [n, reduced, paused, active, events]);
 
-  // Clamp active if the event list shrinks (e.g. category switch).
-  useEffect(() => { if (active >= n) setActive(0); }, [n, active]);
+  // If the active event drops out of the pool entirely (category switch,
+  // no longer featured), fall back to the front of whatever's current.
+  useEffect(() => {
+    if (events.length && !events.some((e) => e.id === activeId)) setActiveId(events[0].id);
+  }, [events, activeId]);
 
-  const go = (dir: number) => setActive((a) => (((a + dir) % n) + n) % n);
+  const go = (dir: number) => {
+    const i = events.findIndex((e) => e.id === activeId);
+    const ni = (((i < 0 ? 0 : i) + dir) % n + n) % n;
+    setActiveId(events[ni]?.id ?? null);
+  };
 
   function onPointerDown(e: React.PointerEvent) {
     startX.current = e.clientX;
@@ -197,7 +220,7 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
             <button
               key={ev.id}
               className={"ex-spotlight-dot" + (i === active ? " on" : "")}
-              onClick={() => setActive(i)}
+              onClick={() => setActiveId(ev.id)}
               aria-label={`Show spotlight ${i + 1}`}
             />
           ))}
@@ -340,6 +363,22 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   const priceValue = maxPrice ?? priceCeiling;
   const activeFilterCount = (when !== "all" ? 1 : 0) + (cat !== "all" ? 1 : 0) + (maxPrice !== null ? 1 : 0);
 
+  // One representative photo per category for the home Categories rail
+  // (reference-matched: real event photography standing in for the category,
+  // not a generic icon) — the most popular event in that category that has
+  // an image, falling back to the most popular one at all if none do.
+  const categoryCovers = useMemo(() => {
+    const all = (data || []).filter((e) => !e.cancelled && !isPast(e));
+    const map: Record<string, Weyn | undefined> = {};
+    for (const c of CATS) {
+      if (c.key === "all") continue;
+      const inCat = all.filter((e) => e.cat === c.key);
+      const withImage = [...inCat.filter((e) => e.image)].sort(byPopular);
+      map[c.key] = withImage[0] || [...inCat].sort(byPopular)[0];
+    }
+    return map;
+  }, [data]);
+
   function chooseSuggestion(s: Suggestion) {
     setQ(s.value);
     setShowSuggest(false);
@@ -477,34 +516,6 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
     </div>
   ) : null;
 
-  // The 2-tile home hub (embedded) — nested in the sticky header below.
-  // Flat Ikonate icons in a liquid-glass badge, not the old raster 3D renders
-  // (see the decision note on HeroSlide/HeroIcon above) — bigger, sharper at
-  // any pixel density, and consistent with the rest of the app's icon system.
-  const hubBlock = !searching ? (
-    <div className="cat-circles-hub">
-      {[
-        { to: "/explore", key: "events", label: "Events", icon: "ticket-fill" },
-        { to: "/venues", key: "venues", label: "Reserve", icon: "store-fill" },
-      ].map((t, i) => (
-        <motion.div
-          key={t.key}
-          className="hub-tile-cell"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1], delay: i * 0.06 }}
-        >
-          <Link to={t.to} className="hub-tile" aria-label={t.label}>
-            <motion.span layoutId={`nav-icon-${t.key}`} className="hub-tile-icon" aria-hidden="true">
-              <i className={"icon-" + t.icon} />
-            </motion.span>
-            <span className="hub-tile-label">{t.label}</span>
-          </Link>
-        </motion.div>
-      ))}
-    </div>
-  ) : null;
-
   return (
     // reducedMotion="user" makes every motion.* component below (the hero
     // carousel's spring drag, the category circles' spring pop) respect the
@@ -521,12 +532,9 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
           pill) so a second title here would be redundant clutter. */}
       {!searching && !embedded && (
         <section className="ex-hero">
-          {/* Shared-element morph destination for the home hub's Events tile
-              (see the layoutId="nav-icon-events" tile in the embedded render
-              above) — Framer Motion animates the tapped tile's icon into this
-              slot across the route change, so it visually "merges into the
-              top" of this page instead of just appearing. */}
-          <motion.span layoutId="nav-icon-events" className="ex-hero-nav-icon" aria-hidden="true"><i className="icon-ticket-fill" /></motion.span>
+          {/* No home-hub tile to morph from anymore (Events/Reserve tiles were
+              removed) — just a plain header icon now. */}
+          <span className="ex-hero-nav-icon" aria-hidden="true"><i className="icon-ticket-fill" /></span>
           <div>
             <Suspense fallback={<h1 style={{ textAlign: "left" }}>Where to next?</h1>}>
               <SplitText
@@ -559,7 +567,6 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
             {searchBlock}
             {recentBlock}
           </div>
-          {hubBlock}
         </>
       ) : (
         <>
@@ -738,12 +745,18 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               <section className="ex-section">
                 <div className="ex-head"><h2>Categories</h2></div>
                 <div className="ex-rail">
-                  {CATS.filter((c) => c.key !== "all").map((c) => (
-                    <Link key={c.key} to={`/explore?cat=${c.key}`} className="category-tile">
-                      <Icon3D name={c.key} size={40} />
-                      <span className="category-tile-label">{c.label}</span>
-                    </Link>
-                  ))}
+                  {CATS.filter((c) => c.key !== "all").map((c) => {
+                    const cover = categoryCovers[c.key];
+                    const coverStyle: React.CSSProperties = cover?.image
+                      ? { backgroundImage: `url(${cover.image})`, backgroundPosition: cover.imageFocalPoint || "center" }
+                      : { backgroundImage: `linear-gradient(150deg, var(--cat-${c.key}, var(--cat-music)), var(--fallback-scrim))` };
+                    return (
+                      <Link key={c.key} to={`/explore?cat=${c.key}`} className="category-photo-tile">
+                        <div className="category-photo-tile-cover" style={coverStyle} />
+                        <span className="category-photo-tile-label">{c.label}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               </section>
             )}

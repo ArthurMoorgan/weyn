@@ -127,9 +127,9 @@ export default function Reservations({ embedded = false }: { embedded?: boolean 
           Discover shell's segmented toggle is the header there. */}
       {!embedded && (
         <section className="ex-hero">
-          {/* Morph destination for the home hub's Venues tile — see
-              layoutId="nav-icon-venues" there (Explore.tsx). */}
-          <motion.span layoutId="nav-icon-venues" className="ex-hero-nav-icon" aria-hidden="true"><i className="icon-store-fill" /></motion.span>
+          {/* No home-hub tile to morph from anymore (Events/Reserve tiles
+              were removed) — just a plain header icon now. */}
+          <span className="ex-hero-nav-icon" aria-hidden="true"><i className="icon-store-fill" /></span>
           <h1>Reserve a table</h1>
         </section>
       )}
