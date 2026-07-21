@@ -351,8 +351,13 @@ a.cat-circle:active { transform: scale(0.96); }
 }
 
 /* ---------- Home hub tiles ----------
-   Two compact tiles (Events + Reserve) in a 2-up row, District-style: a
-   frosted-glass disc holding the 3D icon up top, label centered below. The
+   Two compact tiles (Events + Reserve) in a 2-up row: a flat Ikonate icon
+   sitting in a liquid-glass badge up top, label centered below. Dropped the
+   raster 3D icon renders (screenshot crops, capped at low-res, and
+   inconsistent with the rest of the app's flat icon system — platinumlist,
+   the quality bar for this pass, runs entirely on flat SVG icons too) in
+   favor of this glass treatment, which is sharp at any density and matches
+   the liquid-glass language now used across the app's utility icons. The
    tile itself is a vertical grey gradient (lighter up top → the search-bar
    grey at the bottom) so it reads as a lit surface lifted off --bg, not a
    flat same-as-background box. Each icon carries a layoutId shared with its
@@ -368,9 +373,10 @@ a.cat-circle:active { transform: scale(0.96); }
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 11px; min-height: 126px; padding: 16px 14px;
-  /* Top→bottom grey gradient; bottom stop is --surface-hover, the exact
-     search-bar grey, per the reference. */
-  background: linear-gradient(180deg, #393939 0%, var(--surface-hover) 100%);
+  /* Top→bottom grey gradient (dark mode) / flat surface (light mode) — see
+     --surface-lit-gradient in tokens.css. Bottom stop matches the search bar
+     grey so the two read as one cohesive surface family. */
+  background: var(--surface-lit-gradient);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-xl); box-shadow: var(--card-shadow);
   transition: transform .18s cubic-bezier(.25,1,.5,1), box-shadow .22s ease, filter .18s ease;
@@ -382,16 +388,18 @@ a.cat-circle:active { transform: scale(0.96); }
   font: var(--t-card); font-size: 15px; font-weight: 700; letter-spacing: -0.2px;
   color: var(--text); text-align: center;
 }
-/* The 3D render sits plainly on the tile (no disc) — it's already a rich 3D
-   object; a glass circle behind it just muddied it. Glass belongs on the flat
-   UI icons instead (see .glass-icon-btn). */
+/* Liquid-glass badge behind the flat icon — same recipe as .glass-icon-btn
+   (blurred backdrop, bright top rim) but sized for a tile's hero icon. */
 .hub-tile-icon {
-  position: relative; z-index: 1; pointer-events: none; line-height: 1;
+  position: relative; z-index: 1; pointer-events: none;
+  width: 60px; height: 60px; border-radius: 50%;
+  display: grid; place-items: center; color: var(--text);
+  background: var(--glass-veil);
+  backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 1px var(--glass-sheen-top), 0 3px 10px rgba(0,0,0,.25);
 }
-.hub-tile-icon img {
-  height: 62px; width: auto; max-width: 96px; object-fit: contain; display: block;
-  filter: drop-shadow(0 6px 10px rgba(0,0,0,.5));
-}
+.hub-tile-icon i { font-size: 28px; }
 
 /* Liquid-glass utility icon button — the flat UI glyphs (Tickets, etc.) sit
    on a frosted glass disc: blurred backdrop, bright top rim, soft shadow. */
@@ -425,7 +433,10 @@ a.cat-circle:active { transform: scale(0.96); }
   background: color-mix(in srgb, var(--bg) 66%, transparent);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
-  box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  /* --shadow-float, not a hardcoded rgba(0,0,0,.3) — that read fine in dark
+     mode but was a noticeably heavy black blob under a white bar in light
+     mode; this token is already calibrated per theme (.4 dark / .16 light). */
+  box-shadow: var(--shadow-float);
   border-bottom: 1px solid var(--hair);
   padding-top: calc(env(safe-area-inset-top) + 4px);
   padding-bottom: 6px;
@@ -559,14 +570,22 @@ a.cat-circle:active { transform: scale(0.96); }
   background: var(--surface-2); color: var(--text-2);
 }
 .ec-badge [class^="icon-"] { font-size: 12px; }
-.ec-badge.featured { color: var(--accent); background: var(--accent-soft); }
+/* Featured/Verified are informational/trust badges, not urgency or error
+   states — per the monochrome system, those read through icon + copy, not
+   hue (accent/purple is reserved for the ambient glow and AI). Live/
+   Selling-fast/Only-left stay red: genuine urgency signals ("look now"),
+   the one place besides error the design language tolerates hue. */
+.ec-badge.featured { color: var(--text); background: var(--surface-2); }
 .ec-badge.live { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .ec-badge.out { color: var(--text-3); }
 .ec-badge.confirmed { color: var(--success); background: var(--success-soft); }
-.ec-badge.verified { color: var(--accent); background: var(--accent-soft); }
+.ec-badge.verified { color: var(--text); background: var(--surface-2); }
 .ec-badge.selling-fast { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .ec-badge.only-left { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .ec-badge .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); animation: pulse-dot 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .ec-badge .pulse { animation: none; opacity: .85; }
+}
 
 /* quick-save heart, overlaid on rail/feature card covers (see Stub.tsx) —
    same on-photo scrim treatment as .ec-badge so it reads on any image. */
@@ -685,9 +704,18 @@ a.cat-circle:active { transform: scale(0.96); }
 /* top padding carries the whole gap now that the browse screens have no
    topbar — keeps the greeting/title clear of the status bar / notch */
 .ex-hero { padding: 24px 16px 4px; display: flex; align-items: center; gap: 12px; animation: rise-in .45s cubic-bezier(.16,1,.3,1) both; }
-/* Shared-element morph target for a home-hub tile's icon (layoutId) — sized
-   to roughly match the tile ring so the morph doesn't jump size drastically. */
-.ex-hero-nav-icon { font-size: 40px; line-height: 1; flex: 0 0 auto; }
+/* Morph destination for a hub tile's icon (see .hub-tile-icon) — same
+   liquid-glass badge recipe, scaled down to sit beside a page's h1. */
+.ex-hero-nav-icon {
+  flex: 0 0 auto; line-height: 1;
+  width: 46px; height: 46px; border-radius: 50%;
+  display: grid; place-items: center; color: var(--text);
+  background: var(--glass-veil);
+  backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 1px var(--glass-sheen-top), 0 2px 8px rgba(0,0,0,.22);
+}
+.ex-hero-nav-icon i { font-size: 21px; }
 .ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; white-space: nowrap; }
 
 /* ---------- Discover header: Events/Venues segmented toggle ---------- */
@@ -2010,9 +2038,10 @@ a.cat-circle:active { transform: scale(0.96); }
      the §36 reference measurement (search bar ≈44px tall in the video) —
      rendered height now sits close to that target. */
   padding: 5px 8px 5px 14px; margin: 6px 16px 0; border-radius: var(--radius-pill);
-  /* Same lifted grey gradient as the hub tiles so the search + tiles read as
-     one cohesive surface family, not a flat bar melting into the background. */
-  background: linear-gradient(180deg, #393939 0%, var(--surface-hover) 100%);
+  /* Same --surface-lit-gradient token as the hub tiles (tokens.css) — one
+     cohesive surface family, and correctly flat in light mode instead of
+     leaking dark mode's gradient onto a white bar. */
+  background: var(--surface-lit-gradient);
   border: 1px solid var(--border);
 }
 .search-icon-slot { display: grid; place-items: center; width: 18px; height: 18px; font-size: 17px; color: var(--text-3); flex: 0 0 auto; }
@@ -3260,7 +3289,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
    EventDetail.tsx — only new rules are the venue-specific catpill color
    and the verified badge's position over the cover image.
    ============================================================ */
-.venue-catpill { color: var(--accent); background: var(--accent-soft); }
+/* Monochrome, matching the event cards' .catpill treatment — was
+   var(--accent) (purple), a stray hue with no equivalent on the Events tab's
+   cards and the reason Reservations read as a visually different app. */
+.venue-catpill { color: var(--text-2); background: var(--surface-hover); }
 .venue-card .ec-rail-cover { position: relative; }
 .venue-verified { position: absolute; top: 10px; right: 10px; }
 

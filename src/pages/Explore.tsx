@@ -477,11 +477,14 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   ) : null;
 
   // The 2-tile home hub (embedded) — nested in the sticky header below.
+  // Flat Ikonate icons in a liquid-glass badge, not the old raster 3D renders
+  // (see the decision note on HeroSlide/HeroIcon above) — bigger, sharper at
+  // any pixel density, and consistent with the rest of the app's icon system.
   const hubBlock = !searching ? (
     <div className="cat-circles-hub">
       {[
-        { to: "/explore", key: "events", label: "Events", img: "/icons3d/events.png" },
-        { to: "/venues", key: "venues", label: "Reserve", img: "/icons3d/reserve.png" },
+        { to: "/explore", key: "events", label: "Events", icon: "ticket-fill" },
+        { to: "/venues", key: "venues", label: "Reserve", icon: "store-fill" },
       ].map((t, i) => (
         <motion.div
           key={t.key}
@@ -492,7 +495,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
         >
           <Link to={t.to} className="hub-tile" aria-label={t.label}>
             <motion.span layoutId={`nav-icon-${t.key}`} className="hub-tile-icon" aria-hidden="true">
-              <img src={t.img} alt="" />
+              <i className={"icon-" + t.icon} />
             </motion.span>
             <span className="hub-tile-label">{t.label}</span>
           </Link>
@@ -522,7 +525,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               above) — Framer Motion animates the tapped tile's icon into this
               slot across the route change, so it visually "merges into the
               top" of this page instead of just appearing. */}
-          <motion.span layoutId="nav-icon-events" className="ex-hero-nav-icon" aria-hidden="true">🎟️</motion.span>
+          <motion.span layoutId="nav-icon-events" className="ex-hero-nav-icon" aria-hidden="true"><i className="icon-ticket-fill" /></motion.span>
           <div>
             <Suspense fallback={<h1 style={{ textAlign: "left" }}>Where to next?</h1>}>
               <SplitText
@@ -556,7 +559,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 Ask AI · Events · Reserve (see .home-collapsed-nav). */}
             <div className="home-collapsed-nav">
               <Link to="/concierge" className="hcn-item hcn-ai" aria-label="Ask the AI"><i className="icon-sparkles" /><span>Ask AI</span></Link>
-              <Link to="/explore" className="hcn-item" aria-label="Events"><i className="icon-calendar" /><span>Events</span></Link>
+              <Link to="/explore" className="hcn-item" aria-label="Events"><i className="icon-ticket" /><span>Events</span></Link>
               <Link to="/venues" className="hcn-item" aria-label="Reserve"><i className="icon-store" /><span>Reserve</span></Link>
             </div>
           </div>

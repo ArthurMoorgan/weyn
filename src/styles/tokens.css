@@ -158,6 +158,12 @@
   --radius-asym: 20px 20px 20px 6px;
   --gradient-primary: linear-gradient(135deg, var(--primary-hover), var(--primary-pressed));
   --gradient-accent-top: linear-gradient(90deg, var(--border-strong), var(--border));
+  /* "Lit from above" surface treatment (home hub tiles, search bar) — a
+     lighter-grey top fading to --surface-hover reads as a surface catching
+     light in dark mode. Light mode's own language is flat-plus-shadow (see
+     that block's "never a tinted bg" comment), so it gets a flat override
+     there instead of inheriting this gradient verbatim. */
+  --surface-lit-gradient: linear-gradient(180deg, #393939 0%, var(--surface-hover) 100%);
 }
 
 /* Light mode — Uber/Instagram/Airbnb-style: white cards on a faint
@@ -235,6 +241,12 @@
   --radius-asym: 20px 20px 20px 6px;
   --gradient-primary: linear-gradient(135deg, var(--primary-hover), var(--primary-pressed));
   --gradient-accent-top: linear-gradient(90deg, var(--primary), var(--gulf));
+  /* Flat, not the dark theme's gradient — a hardcoded dark-grey top stop
+     would otherwise leak through onto light mode's white surfaces (that WAS
+     a live bug: .hub-tile/.search hardcoded #393939 unconditionally).
+     Depth here comes from --card-shadow / --shadow-sm, this theme's own
+     established language. */
+  --surface-lit-gradient: var(--surface-hover);
 }
 
 /* Editorial handoff typeface — self-hosted variable Geist fonts (see

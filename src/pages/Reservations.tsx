@@ -129,7 +129,7 @@ export default function Reservations({ embedded = false }: { embedded?: boolean 
         <section className="ex-hero">
           {/* Morph destination for the home hub's Venues tile — see
               layoutId="nav-icon-venues" there (Explore.tsx). */}
-          <motion.span layoutId="nav-icon-venues" className="ex-hero-nav-icon" aria-hidden="true">🏬</motion.span>
+          <motion.span layoutId="nav-icon-venues" className="ex-hero-nav-icon" aria-hidden="true"><i className="icon-store-fill" /></motion.span>
           <h1>Reserve a table</h1>
         </section>
       )}
@@ -180,7 +180,11 @@ export default function Reservations({ embedded = false }: { embedded?: boolean 
         <section className="ex-section">
           <div className="ex-head"><h2>Trending</h2><span className="ex-sub">Verified &amp; newest first</span></div>
           <div className="ex-rail dense">
-            {trending.map((v) => <VenueCard key={v.id} venue={v} />)}
+            {trending.map((v, i) => (
+              <motion.div key={v.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut", delay: i * 0.03 }}>
+                <VenueCard venue={v} />
+              </motion.div>
+            ))}
           </div>
         </section>
       )}
@@ -189,7 +193,11 @@ export default function Reservations({ embedded = false }: { embedded?: boolean 
         <section className="ex-section">
           <div className="ex-head"><h2>Near you</h2></div>
           <div className="ex-rail dense">
-            {nearYou.map((v) => <VenueCard key={v.id} venue={v} />)}
+            {nearYou.map((v, i) => (
+              <motion.div key={v.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut", delay: i * 0.03 }}>
+                <VenueCard venue={v} />
+              </motion.div>
+            ))}
           </div>
         </section>
       )}
@@ -198,7 +206,11 @@ export default function Reservations({ embedded = false }: { embedded?: boolean 
         <section className="ex-section">
           <div className="ex-head"><h2>Venues</h2><span className="ex-sub">{total} found</span></div>
           <div className="ex-rail dense">
-            {venues.map((v) => <VenueCard key={v.id} venue={v} />)}
+            {venues.map((v, i) => (
+              <motion.div key={v.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut", delay: i * 0.03 }}>
+                <VenueCard venue={v} />
+              </motion.div>
+            ))}
           </div>
           {hasMore && (
             <div style={{ padding: "16px" }}>

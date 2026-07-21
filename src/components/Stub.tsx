@@ -107,12 +107,12 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
     }
     if (left > 5 && left <= 20) {
       badges.push(
-        <span key="selling-fast" className="ec-badge selling-fast"><i className="icon-zap" />Selling fast</span>
+        <span key="selling-fast" className="ec-badge selling-fast"><span className="pulse" /><i className="icon-zap" />Selling fast</span>
       );
     }
     if (left > 0 && left <= 5) {
       badges.push(
-        <span key="only-left" className="ec-badge only-left"><i className="icon-warning" />{left} left</span>
+        <span key="only-left" className="ec-badge only-left"><span className="pulse" /><i className="icon-warning" />{left} left</span>
       );
     }
   }
