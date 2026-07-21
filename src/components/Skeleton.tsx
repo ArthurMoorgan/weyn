@@ -18,12 +18,24 @@ export default function Skeleton({ variant = "generic" }: { variant?: Variant })
     return (
       <div className="skel-page" aria-busy="true" aria-label="Loading">
         <span className="sk sk-search" />
+        {/* Top events rail first, then Categories — same order as the real
+            layout (Explore.tsx: Top events → Categories → All events). */}
+        <div className="skel-toprow">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div className="skel-toprow-item" key={i}>
+              <span className="sk sk-toprow-cover" />
+              <div className="skel-toprow-txt">
+                <Line w="90%" />
+                <Line w="60%" h={11} />
+              </div>
+            </div>
+          ))}
+        </div>
         <div className="skel-cats">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <span key={i} className="sk sk-cat" />
           ))}
         </div>
-        <span className="sk sk-hero" />
         <div className="skel-rowlist">
           {Array.from({ length: 2 }).map((_, i) => (
             <div className="skel-cardrow" key={i}>

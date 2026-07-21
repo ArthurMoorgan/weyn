@@ -1094,9 +1094,24 @@ a.cat-circle:active { transform: scale(0.96); }
    the swap into the loaded page has no layout jump. */
 .skel-page { animation: fade .2s ease; padding-bottom: 8px; }
 .sk-search { display: block; height: 40px; border-radius: 999px; margin: 8px 16px 0; }
-.skel-cats { display: flex; gap: 10px; padding: 8px 16px 4px; }
-.sk-cat { width: 52px; height: 52px; border-radius: 50%; flex: 0 0 auto; }
-.sk-hero { display: block; margin: 12px 16px 0; aspect-ratio: 4/5; border-radius: var(--radius-lg); }
+/* Mirrors the real "Top events" horizontal rail (.ec-toprow-rail/.ec-toprow —
+   92x92 cover + two text lines per card), not a single tall hero — the
+   spotlight/hero card this used to stand in for was removed (HANDOFF.md
+   §39/§40); left un-updated this would flash a mismatched shape then jump
+   to the real layout the instant content loads. */
+.skel-toprow { display: flex; gap: 12px; padding: 4px 16px; overflow: hidden; }
+.skel-toprow-item {
+  flex: 0 0 86%; display: flex; gap: 12px; align-items: flex-start;
+  background: var(--surface); border-radius: var(--radius-lg); padding: 10px;
+}
+@media (min-width: 480px) { .skel-toprow-item { flex-basis: 380px; } }
+.sk-toprow-cover { width: 92px; height: 92px; flex: 0 0 auto; border-radius: var(--radius); }
+.skel-toprow-txt { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+/* Square tiles matching .category-tile (96px, Icon3D + label below) — these
+   were circles left over from the old .cat-circle niche-grid design, which
+   this section stopped using once Categories moved to Icon3D tiles. */
+.skel-cats { display: flex; gap: 8px; padding: 8px 16px 4px; }
+.sk-cat { width: 96px; height: 96px; border-radius: var(--radius-lg); flex: 0 0 auto; }
 .skel-rowlist { display: flex; flex-direction: column; gap: 16px; padding: 20px 16px 0; }
 .skel-rowlist.tight { gap: 10px; padding-top: 14px; }
 .skel-cardrow { display: flex; flex-direction: column; gap: 8px; }

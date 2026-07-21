@@ -447,10 +447,30 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
         </div>
       )}
 
+      {/* Shape matches whatever will actually render once loaded — `searching`
+          (the only state known before data arrives) is the same switch the
+          real results below use. Search results render as .ec-row list rows
+          (Stub's default "list" variant), so a row skeleton fits; both
+          "when" and "browse" render full-width .ec-card covers (variant=
+          "card"), so those get the taller card skeleton instead — previously
+          every case got the row skeleton, which flashed a mismatched shape
+          right before the real full-width cards popped in. */}
       {loading && (
-        <div className="ex-list">
-          {[0, 1, 2, 3, 4].map((i) => <div key={i} className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>)}
-        </div>
+        searching ? (
+          <div className="ex-list">
+            {[0, 1, 2, 3, 4].map((i) => <div key={i} className="ec-skel"><div className="s-thumb" /><div className="s-lines"><div className="s-a" /><div className="s-b" /></div></div>)}
+          </div>
+        ) : (
+          <div className="ex-agenda">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="skel-cardrow">
+                <span className="sk sk-cover" />
+                <span className="sk sk-line" style={{ width: "70%", height: 13 }} />
+                <span className="sk sk-line" style={{ width: "45%", height: 11 }} />
+              </div>
+            ))}
+          </div>
+        )
       )}
 
       {error && (
