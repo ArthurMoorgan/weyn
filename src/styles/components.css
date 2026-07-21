@@ -389,28 +389,40 @@ a.cat-circle:active { transform: scale(0.96); }
   color: var(--text); text-align: center;
 }
 /* Liquid-glass badge behind the flat icon — same recipe as .glass-icon-btn
-   (blurred backdrop, bright top rim) but sized for a tile's hero icon. */
+   (blurred backdrop, bright top rim, dim bottom edge, inner depth) but sized
+   for a tile's hero icon. Both sheen tokens + --glass-shadow-inner now
+   actually wired in (the inner-shadow token existed but no selector used it
+   — the missing piece that kept this reading flat rather than "glass"). */
 .hub-tile-icon {
   position: relative; z-index: 1; pointer-events: none;
   width: 60px; height: 60px; border-radius: 50%;
   display: grid; place-items: center; color: var(--text);
   background: var(--glass-veil);
-  backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
   border: 1px solid var(--glass-edge);
-  box-shadow: inset 0 1px 1px var(--glass-sheen-top), 0 3px 10px rgba(0,0,0,.25);
+  box-shadow:
+    inset 0 1px 1px var(--glass-sheen-top),
+    inset 0 -1px 1px var(--glass-sheen-bottom),
+    inset 0 0 8px var(--glass-shadow-inner),
+    0 3px 10px rgba(0,0,0,.25);
 }
 .hub-tile-icon i { font-size: 28px; }
 
 /* Liquid-glass utility icon button — the flat UI glyphs (Tickets, etc.) sit
-   on a frosted glass disc: blurred backdrop, bright top rim, soft shadow. */
+   on a frosted glass disc: blurred backdrop, bright top rim, dim bottom
+   edge, inner depth, soft outer shadow. */
 .glass-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%;
   color: var(--text-2);
   background: var(--glass-veil);
-  backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
   border: 1px solid var(--glass-edge);
-  box-shadow: inset 0 1px 1px var(--glass-sheen-top), 0 2px 8px rgba(0,0,0,.22);
+  box-shadow:
+    inset 0 1px 1px var(--glass-sheen-top),
+    inset 0 -1px 1px var(--glass-sheen-bottom),
+    inset 0 0 6px var(--glass-shadow-inner),
+    0 2px 8px rgba(0,0,0,.22);
   transition: transform .12s cubic-bezier(.25,1,.5,1), color .15s ease, background-color .15s ease;
 }
 .glass-icon-btn:hover { color: var(--text); background: var(--glass-strong); }
@@ -753,9 +765,13 @@ a.cat-circle:active { transform: scale(0.96); }
   width: 46px; height: 46px; border-radius: 50%;
   display: grid; place-items: center; color: var(--text);
   background: var(--glass-veil);
-  backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%);
   border: 1px solid var(--glass-edge);
-  box-shadow: inset 0 1px 1px var(--glass-sheen-top), 0 2px 8px rgba(0,0,0,.22);
+  box-shadow:
+    inset 0 1px 1px var(--glass-sheen-top),
+    inset 0 -1px 1px var(--glass-sheen-bottom),
+    inset 0 0 6px var(--glass-shadow-inner),
+    0 2px 8px rgba(0,0,0,.22);
 }
 .ex-hero-nav-icon i { font-size: 21px; }
 .ex-hero h1 { font: var(--t-hero); letter-spacing: -0.6px; white-space: nowrap; }
@@ -1445,12 +1461,16 @@ a.cat-circle:active { transform: scale(0.96); }
 }
 
 /* ---------- Bottom nav cluster (mobile only) ----------
-   Two floating shapes side by side, matching the reference exactly: a wide
-   pill (Discover/Reserve/Favourites/Tickets) and a separate circular AI
-   button at the same height. Colors stay Weyn's own monochrome-plus-purple-
-   accent system rather than the reference's literal purple(light)/green
-   (dark) accent — CLAUDE.md reserves hue for the ambient glow/AI only, so
-   selection here reads through an ink-toned filled circle instead of a hue. */
+   Two floating shapes side by side, matching the reference: a wide pill
+   (Discover/Reserve/Favourites/Tickets) and a separate circular AI button at
+   the same height. Genuine liquid glass this time — translucent enough to
+   show a hint of what's behind (not a near-opaque frosted disc), a bright
+   top rim + dim bottom edge (light catching real glass), an inner shadow for
+   thickness, and a diagonal sheen sweep for the glossy "liquid" quality.
+   Active-tab selection reads through --ai-accent, the app's one consistent
+   purple (see tokens.css) — not the reference's literal purple(light)/green
+   (dark) split, which reads as an inconsistency once you're looking for it
+   rather than a considered brand color. */
 .bottom-nav-cluster {
   position: fixed; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom));
   z-index: 55;
@@ -1460,16 +1480,34 @@ a.cat-circle:active { transform: scale(0.96); }
 }
 .bottom-pill, .ai-orb-fab { pointer-events: auto; }
 .bottom-pill {
+  position: relative; overflow: hidden;
   flex: 1 1 auto; min-width: 0;
   display: flex; align-items: center; justify-content: space-around;
   height: 66px; padding: 0 6px;
   background: var(--glass-veil);
-  backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
   border: 1px solid var(--glass-edge);
   border-radius: var(--radius-pill);
-  box-shadow: var(--shadow-float);
+  box-shadow:
+    var(--shadow-float),
+    inset 0 1px 1px var(--glass-sheen-top),
+    inset 0 -1px 1px var(--glass-sheen-bottom),
+    inset 0 0 18px var(--glass-shadow-inner);
+}
+/* Diagonal sheen sweep — a static (not animated) highlight catching one
+   corner, the cue that reads "glass" rather than "frosted plastic". Screen
+   blend so it brightens against the dark tint instead of muddying it (dark
+   theme); plain overlay in light mode via --glass-blend. */
+.bottom-pill::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(115deg,
+    rgba(255,255,255,.16) 0%, transparent 30%,
+    transparent 68%, rgba(255,255,255,.06) 100%);
+  mix-blend-mode: var(--glass-blend);
+  pointer-events: none;
 }
 .bottom-pill-item {
+  position: relative; z-index: 1;
   flex: 1 1 0; min-width: 0;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   color: var(--text-3);
@@ -1483,28 +1521,39 @@ a.cat-circle:active { transform: scale(0.96); }
 }
 .bottom-pill-item i { font-size: 20px; line-height: 1; }
 .bottom-pill-label { font-size: 9.5px; font-weight: 600; letter-spacing: .2px; }
-.bottom-pill-item.on { color: var(--text); }
-.bottom-pill-item.on .bottom-pill-icwrap { background: var(--surface-hover); }
+.bottom-pill-item.on { color: var(--ai-accent); }
+.bottom-pill-item.on .bottom-pill-icwrap { background: var(--ai-accent-soft); }
 
-/* AI button — a glowing purple circle at the same height as the pill,
-   sitting right where the reference has its search shortcut (Weyn's search
-   already lives inline in the home search bar, so this slot is AI). */
+/* AI button — same liquid-glass recipe as the pill (consistent chrome), the
+   diamond mark inside carries the purple instead of the button itself. No
+   glow, no pulse — a static, tasteful drop-shadow only. */
 .ai-orb-fab {
-  position: relative; z-index: 1; flex: 0 0 auto;
+  position: relative; z-index: 1; flex: 0 0 auto; overflow: hidden;
   width: 66px; height: 66px; border-radius: 50%;
-  display: grid; place-items: center; color: #fff; font-size: 25px;
-  background: radial-gradient(circle at 50% 32%, #b989ff, #7a2bff 72%);
-  box-shadow: 0 8px 22px rgba(140,60,255,.5), inset 0 1px 1px rgba(255,255,255,.35);
-  animation: orb-breathe 3.4s ease-in-out infinite;
+  display: grid; place-items: center;
+  background: var(--glass-veil);
+  backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid var(--glass-edge);
+  box-shadow:
+    var(--shadow-float),
+    inset 0 1px 1px var(--glass-sheen-top),
+    inset 0 -1px 1px var(--glass-sheen-bottom),
+    inset 0 0 14px var(--glass-shadow-inner);
   transition: transform .14s cubic-bezier(.25,1,.5,1);
 }
-.ai-orb-fab:active { transform: scale(.9); }
-@keyframes orb-breathe {
-  0%, 100% { box-shadow: 0 6px 16px rgba(140,60,255,.42), inset 0 1px 1px rgba(255,255,255,.35); transform: scale(1); }
-  50%      { box-shadow: 0 10px 28px rgba(140,60,255,.72), inset 0 1px 1px rgba(255,255,255,.35); transform: scale(1.05); }
+.ai-orb-fab::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(115deg,
+    rgba(255,255,255,.18) 0%, transparent 32%,
+    transparent 70%, rgba(255,255,255,.07) 100%);
+  mix-blend-mode: var(--glass-blend);
+  pointer-events: none;
 }
-@media (prefers-reduced-motion: reduce) {
-  .ai-orb-fab { animation: none; }
+.ai-orb-fab:active { transform: scale(.9); }
+.ai-diamond-mark {
+  position: relative; z-index: 1;
+  width: 27px; height: 27px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,.3));
 }
 @media (min-width: 900px) {
   .bottom-nav-cluster { display: none; }

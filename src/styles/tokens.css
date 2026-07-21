@@ -107,7 +107,11 @@
      solid enough that white icons always read, and backdrop-filter's own
      blur is what lets the content behind still show through — not the
      background color's transparency. */
-  --glass-veil: color-mix(in srgb, var(--surface) 82%, #fff 6%);
+  /* Nudged down from 82% (documented history: a much lower first attempt
+     lost icon legibility) — 72% is the middle ground: noticeably more
+     see-through than before, still solid enough to read against any content
+     scrolling behind it once backdrop-filter's blur/saturate does its job. */
+  --glass-veil: color-mix(in srgb, var(--surface) 72%, #fff 6%);
   /* Contact-shadow + hotspot blend for the liquid-glass nav (dark theme):
      a soft dark pool under the rim (thickness cue) and 'screen' blending so
      the specular hotspot brightens instead of muddying the dark tint. */
@@ -137,6 +141,16 @@
      .shell[data-ambient="venues"] (components.css) — same shape/alpha as
      the purple default, only the hue differs. */
   --ambient-venues: rgba(24, 180, 200, 0.6);
+  /* Solid-color counterpart to --ambient-top (same hue, no alpha) — for
+     places the AI accent needs to be a real fill/text color, not a glow:
+     the bottom-nav active state, the AI diamond mark. One consistent purple
+     across BOTH themes (not swapped light/dark) — a single deliberate brand
+     hue reads as a considered choice; a hue that flips by theme reads as an
+     inconsistency. Same rgb as --ambient-top so the whole app's "AI purple"
+     traces back to one hue. */
+  --ai-accent: #8C3CFF;
+  --ai-accent-2: #B48CFF;
+  --ai-accent-soft: color-mix(in srgb, var(--ai-accent) 14%, transparent);
 
   /* Tab-switch spark burst (see .tab-spark below) */
   --spark-color-1: var(--primary);
@@ -211,9 +225,9 @@
   --glass-sheen-top: rgba(255,255,255,.75);
   --glass-sheen-bottom: rgba(255,255,255,.1);
   --glass-tint: color-mix(in srgb, var(--surface) 45%, transparent);
-  /* Genuinely opaque, not tint-diluted — see the dark theme's own comment
-     above for why mixing into --glass-tint directly didn't work. */
-  --glass-veil: color-mix(in srgb, var(--surface) 82%, #fff 10%);
+  /* Nudged down from 82% for the same reason as the dark theme — more
+     genuinely see-through, still legible against the blur. */
+  --glass-veil: color-mix(in srgb, var(--surface) 72%, #fff 10%);
   /* Contact shadow reads as a real shadow (not a glow) against a light
      backdrop, so no blend-mode trick is needed here — plain overlay. */
   --glass-shadow-inner: rgba(0,0,0,.1);
@@ -224,6 +238,11 @@
   --ambient-top: rgba(146, 43, 255, 0.30);
   /* Same teal as dark theme, same lower alpha step as --ambient-top gets. */
   --ambient-venues: rgba(24, 180, 200, 0.28);
+  /* Identical to the dark theme's --ai-accent — deliberately not swapped by
+     theme (see that block's comment). */
+  --ai-accent: #8C3CFF;
+  --ai-accent-2: #B48CFF;
+  --ai-accent-soft: color-mix(in srgb, var(--ai-accent) 12%, transparent);
 
   --spark-color-1: var(--primary);
   --spark-color-2: var(--primary-hover);

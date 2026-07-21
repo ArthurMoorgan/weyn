@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import Discover from "./pages/Discover";
+import AiDiamondMark from "./components/AiDiamondMark";
 import Skeleton from "./components/Skeleton";
 import ThemeToggle from "./components/ThemeToggle";
 import CityPill from "./components/CityPill";
@@ -281,7 +282,7 @@ export default function App() {
           onPointerDown={() => { import("./pages/Concierge"); }}
           onMouseEnter={() => { import("./pages/Concierge"); }}
         >
-          <i className="icon-sparkles" />
+          <AiDiamondMark className="ai-diamond-mark" />
         </MotionLink>
       </div>
     </motion.div>
