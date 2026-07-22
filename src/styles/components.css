@@ -554,6 +554,9 @@ a.cat-circle:active { transform: scale(0.96); }
   display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
   padding: 4px 16px; scrollbar-width: none; overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
+  /* Lock the gesture to horizontal so a drag starting on this carousel pans
+     the rail left/right rather than scrolling the page up/down. */
+  touch-action: pan-x;
   /* Same soft edge-fade as the other carousels (.horizontal-rail/.ex-rail). */
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
   mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
@@ -3929,4 +3932,223 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
   height: 100%;
   object-fit: cover;
 }
+
+/* ============================================================
+   ORGANIZER / VENUE DASHBOARD — 2026 redesign
+   Spacious, minimal, monochrome-with-life (Platinumlist/Luma direction).
+   Overrides the older organizer styles above. Chrome is scoped to
+   `.organizer-page`; shared content primitives to `.organizer-content`,
+   so the whole dashboard family (organizer, venue OS, per-event workspace)
+   inherits the uplift while the consumer app + its own `.date-head`/`.stat`
+   call sites stay untouched. Life comes from event photography, soft depth,
+   confident type and micro-motion — not new chrome hues (see CLAUDE.md).
+   ============================================================ */
+
+/* ---- Page chrome ---------------------------------------------------- */
+.organizer-page > .topbar {
+  min-height: 56px;
+  padding: 12px 16px;
+  border-bottom: none;
+}
+.organizer-page > .topbar .brand h1 { letter-spacing: -0.5px; }
+/* The section content breathes on mobile: a wider, calmer gutter than the
+   old 6px, and real space between the compact nav and the first section. */
+.organizer-shell-primary { padding: 8px 16px 40px; }
+.organizer-shell-primary .organizer-nav-compact { margin-bottom: 20px; }
+
+/* ---- Section headers ------------------------------------------------ */
+/* Calmer, roomier headers with a clear count — the rhythm device that
+   separates blocks, replacing hard dividers (Weyn separates with space). */
+.organizer-content .date-head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 4px 2px 12px;
+  margin-top: 28px;
+}
+.organizer-content .date-head:first-child { margin-top: 4px; }
+.organizer-content .date-head h2 {
+  font-size: 15px; font-weight: 600; letter-spacing: -0.2px; color: var(--text);
+}
+.organizer-content .date-head > span {
+  font-size: 12px; font-weight: 600; color: var(--text-3);
+  padding: 2px 8px; border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+}
+
+/* ---- Greeting masthead --------------------------------------------- */
+/* One editorial headline + the single primary metric. No gradient stripe,
+   no tinted hero tile — the KPI row below carries the other numbers, so
+   net revenue appears once, here, with room around it. */
+.organizer-content .dash-banner {
+  flex-direction: column; align-items: flex-start; gap: 18px;
+  padding: 22px 22px 24px; margin: 0 0 8px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.organizer-content .dash-banner::before { display: none; }
+.organizer-content .dash-banner > div:first-child { max-width: 34ch; }
+.organizer-content .dash-banner-eyebrow {
+  font-size: 13px; font-weight: 500; color: var(--text-2); margin-bottom: 6px;
+}
+.organizer-content .dash-banner h2 {
+  font-size: 22px; font-weight: 700; line-height: 1.2; letter-spacing: -0.5px;
+  text-wrap: balance;
+}
+.organizer-content .dash-banner-metric { text-align: left; }
+.organizer-content .dash-banner-metric .k {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 2px;
+}
+.organizer-content .dash-banner-metric .v {
+  font-size: 34px; font-weight: 700; letter-spacing: -1px; line-height: 1;
+  font-feature-settings: "tnum" 1;
+}
+.organizer-content .dash-banner-metric .v small { font-size: 15px; margin-left: 2px; }
+@media (min-width: 560px) {
+  .organizer-content .dash-banner { flex-direction: row; align-items: flex-end; justify-content: space-between; }
+  .organizer-content .dash-banner-metric { text-align: right; }
+}
+
+/* ---- KPI tiles ------------------------------------------------------ */
+/* Equal-weight, quiet tiles — no gradient hero tile, no fabricated deltas.
+   Big honest numbers, a whisper of a label, soft lift on hover. */
+.organizer-content .stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px; padding: 4px 0 0;
+}
+.organizer-content .stat {
+  padding: 16px 18px 18px; border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--card-shadow);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.organizer-content .stat .k {
+  font-size: 12px; font-weight: 500; color: var(--text-2);
+  order: 2;
+}
+.organizer-content .stat .v {
+  font-size: 27px; font-weight: 700; letter-spacing: -0.8px; line-height: 1;
+  margin: 0; order: 1; font-feature-settings: "tnum" 1;
+}
+.organizer-content .stat .v small { font-size: 13px; font-weight: 500; color: var(--text-2); letter-spacing: 0; }
+/* Neutralise the old first-child "hero" gradient tile — every tile is equal. */
+.organizer-content .stat-grid .stat:first-child {
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+.organizer-content .stat-grid .stat:first-child .k { color: var(--text-2); }
+.organizer-content .stat-grid .stat:first-child .v { font-size: 27px; }
+@media (min-width: 480px) { .organizer-content .stat-grid .stat:first-child { grid-column: auto; } }
+
+/* ---- Cards + section spacing --------------------------------------- */
+.organizer-content .dash-card {
+  border-radius: var(--radius); margin-bottom: 14px;
+  background: var(--surface); box-shadow: var(--card-shadow);
+}
+/* Events list stacks with a real gap on mobile too (it's only a 2-col grid
+   at desktop) so cards never touch. Scoped below 900px so it can't override
+   the desktop grid defined earlier. */
+@media (max-width: 899px) {
+  .organizer-events-grid { display: flex; flex-direction: column; gap: 12px; }
+}
+
+/* ---- Attention + list rows ----------------------------------------- */
+.organizer-content .steps { gap: 8px; margin: 0; }
+.organizer-content .steps li {
+  padding: 14px 16px; border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--card-shadow);
+  gap: 13px; align-items: center;
+}
+.organizer-content .steps li [class^="icon-"] { font-size: 18px; color: var(--text-2); }
+.organizer-content .steps li a { font-weight: 600; }
+
+/* Coming-up rows: bigger event photography, calmer meta, slim progress. */
+.organizer-content .dash-row {
+  padding: 12px; border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--card-shadow);
+  margin-bottom: 10px; gap: 14px;
+}
+.organizer-content .dash-row .thumb {
+  width: 56px; height: 56px; border-radius: 14px; font-size: 24px;
+}
+.organizer-content .dash-row .info b { font-size: 14.5px; }
+.organizer-content .dash-row .info > span { font-size: 12.5px; color: var(--text-2); }
+.organizer-content .bar { height: 5px; background: var(--surface-hover); }
+
+/* ---- Status pill ---------------------------------------------------- */
+.organizer-content .status-pill { font-size: 10.5px; font-weight: 600; padding: 4px 9px; letter-spacing: 0.2px; }
+
+/* ---- Revenue chart -------------------------------------------------- */
+/* Taller, calmer bars sitting on a hairline baseline so it reads as a real
+   chart rather than a sparkline. Monochrome gradient fill. */
+.organizer-content .dash-col-chart .dash-card { padding: 18px 20px 16px; }
+.organizer-content .mini-bars {
+  height: 120px !important; gap: 5px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--divider);
+}
+.organizer-content .mini-bar {
+  border-radius: 5px 5px 0 0; min-width: 5px;
+  background: linear-gradient(180deg, var(--text-2), var(--border-strong));
+  transition: filter .15s ease;
+}
+@media (hover: hover) { .organizer-content .mini-bar:hover { filter: brightness(1.4); } }
+
+/* ---- Quick actions -------------------------------------------------- */
+/* Roomier tiles, quieter icon (not full-accent), consistent with the calm
+   monochrome chrome. */
+.organizer-content .quick-actions-grid { gap: 10px; padding: 4px 0 0; }
+.organizer-content .quick-action {
+  padding: 16px 8px; gap: 9px; border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--card-shadow);
+  font-size: 11.5px; font-weight: 600;
+}
+.organizer-content .quick-action [class^="icon-"] { font-size: 19px; color: var(--text); }
+@media (hover: hover) {
+  .organizer-content .quick-action:hover [class^="icon-"] { color: var(--text); }
+}
+
+/* ---- Primary action row -------------------------------------------- */
+.organizer-content .ov-primary-actions { gap: 10px; padding: 0 0 4px; }
+
+/* ---- Desktop: sidebar panel + roomy content ------------------------ */
+@media (min-width: 900px) {
+  .organizer-shell-primary {
+    grid-template-columns: 236px minmax(0, 1fr);
+    gap: 48px;
+    padding: 12px 40px 48px;
+    max-width: 1240px; margin: 0 auto;
+  }
+  .organizer-sidebar {
+    display: flex; flex-direction: column; gap: 2px;
+    position: sticky; top: 20px; align-self: start;
+  }
+  .organizer-sidebar .organizer-nav-desktop {
+    flex-direction: column; flex-wrap: nowrap; gap: 2px;
+    padding: 0; border-bottom: none;
+  }
+  .organizer-sidebar .dash-group-desktop { gap: 2px; }
+  .organizer-sidebar .dash-group-desktop:not(:first-child) {
+    border-top: 1px solid var(--divider); margin-top: 14px; padding-top: 14px;
+  }
+  .organizer-sidebar .profile-tab {
+    width: 100%; justify-content: flex-start;
+    padding: 10px 12px; border-radius: 12px;
+    font-size: 13.5px; font-weight: 550; color: var(--text-2);
+  }
+  .organizer-sidebar .profile-tab [class^="icon-"] { font-size: 17px; }
+  .organizer-sidebar .profile-tab.on { color: var(--text); }
+  .organizer-sidebar .dash-nav-indicator { border-radius: 12px; background: var(--surface-hover); }
+  .organizer-sidebar .dash-group-desktop-label {
+    padding: 0 12px 6px; margin-top: 2px;
+  }
+  .organizer-sidebar-brand { padding: 2px 12px 16px; }
+  /* Roomier desktop KPI row + a touch larger figures with the space. */
+  .organizer-content .stat-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .organizer-content .dash-banner h2 { font-size: 26px; }
+  .organizer-content .dash-banner-metric .v { font-size: 40px; }
+}
+
+/* The one sanctioned hue: the AI Studio nav item carries the brand purple so
+   the AI surface is recognisable at a glance (same accent as the diamond mark). */
+.organizer-sidebar .profile-tab[href$="ai-studio"] [class^="icon-"],
+.organizer-nav-primary .profile-tab[href$="ai-studio"] [class^="icon-"] { color: var(--ai-accent-2); }
 

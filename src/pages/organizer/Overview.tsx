@@ -74,7 +74,6 @@ export default function OrganizerOverview() {
       </div>
 
       <motion.div className="stat-grid is-staggered" {...containerProps}>
-        <motion.div className="stat" {...childProps}><div className="k">Net revenue</div><div className="v">{f ? omr(f.netRevenue) : "—"} <small>OMR</small></div></motion.div>
         <motion.div className="stat" {...childProps}><div className="k">Tickets sold</div><div className="v">{s ? s.totalAttendees.toLocaleString() : "—"}</div></motion.div>
         <motion.div className="stat" {...childProps}><div className="k">Live events</div><div className="v">{s ? s.totalEvents : "—"}</div></motion.div>
         <motion.div className="stat" {...childProps}><div className="k">New today</div><div className="v">{s ? s.newRegistrationsToday : "—"}</div></motion.div>

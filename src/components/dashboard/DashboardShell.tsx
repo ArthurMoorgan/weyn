@@ -126,8 +126,26 @@ export default function DashboardShell({
     }
   };
 
+  // The desktop section nav — grouped when items carry a `group`, flat
+  // otherwise. Extracted so the `primary` variant can nest it inside a single
+  // .organizer-sidebar grid child (brand + nav as one panel), which is also
+  // what keeps the 2-col desktop grid from mis-placing three children into
+  // two columns.
+  const desktopNav = (
+    <nav className={"profile-tabs organizer-nav organizer-nav-desktop" + ((primary || hasGroups) ? " organizer-nav-desktop-only" : "")} aria-label={ariaLabel}>
+      {groupedItems
+        ? Object.entries(groupedItems).map(([groupName, groupItems], index) => (
+            <div key={groupName} className="dash-group-desktop" data-group={groupName}>
+              {index > 0 && <span className="dash-group-desktop-label">{groupLabel(groupName)}</span>}
+              {groupItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator" />)}
+            </div>
+          ))
+        : navItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator" />)}
+    </nav>
+  );
+
   return (
-    <div className="organizer-shell">
+    <div className={"organizer-shell" + (primary ? " organizer-shell-primary" : "")}>
       {primary && (
         <div className="organizer-nav-compact">
           <nav className="organizer-nav-primary" aria-label={ariaLabel}>
@@ -165,26 +183,21 @@ export default function DashboardShell({
           )}
         </div>
       )}
-      {primary && (
-        <div className="organizer-sidebar-brand">
-          <Logo size={22} />
-          <span className="organizer-sidebar-brand-caption">For business</span>
-        </div>
+      {/* Desktop: brand lockup + section nav as one sticky sidebar panel.
+          Hidden below 900px (the `primary` compact strip above takes over).
+          Wrapping brand + nav in a single element also keeps the 2-col
+          desktop grid to exactly two children (sidebar, content). */}
+      {primary ? (
+        <aside className="organizer-sidebar organizer-nav-desktop-only">
+          <div className="organizer-sidebar-brand">
+            <Logo size={22} />
+            <span className="organizer-sidebar-brand-caption">For business</span>
+          </div>
+          {desktopNav}
+        </aside>
+      ) : (
+        desktopNav
       )}
-      {/* Desktop: show all items (with group separators if grouped). Hidden
-          below 900px whenever there's a dedicated mobile nav instead — the
-          `primary` compact strip above, or the grouped collapsible nav
-          below — so mobile never renders two navs at once. */}
-      <nav className={"profile-tabs organizer-nav organizer-nav-desktop" + ((primary || hasGroups) ? " organizer-nav-desktop-only" : "")} aria-label={ariaLabel}>
-        {groupedItems
-          ? Object.entries(groupedItems).map(([groupName, groupItems], index) => (
-              <div key={groupName} className="dash-group-desktop" data-group={groupName}>
-                {index > 0 && <span className="dash-group-desktop-label">{groupLabel(groupName)}</span>}
-                {groupItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator" />)}
-              </div>
-            ))
-          : navItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator" />)}
-      </nav>
 
       {/* Mobile: grouped, collapsible tabs — but only for workspace sub-navs
           (per-event/per-venue). `primary` top-level navs already have their
