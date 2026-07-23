@@ -24,7 +24,11 @@ const MotionLink = motion.create(Link);
 //   rail    — compact vertical card for horizontal-scroll rails.
 //   feature — large hero card (text overlaid on a scrimmed cover) for the
 //             Featured rail / mobile spotlight.
-type Variant = "list" | "card" | "rail" | "feature" | "toprow";
+//   avatar  — circular thumb + title + one meta line, nothing else. Matches
+//             a specific reference design's list-row style exactly (a
+//             round image, "Header", "Subhead") — deliberately sparser than
+//             "list" (no price/badges/distance).
+type Variant = "list" | "card" | "rail" | "feature" | "toprow" | "avatar";
 
 // Monochrome fallback covers: the server still stores a per-event hue in
 // e.color, but the greyscale system ignores it — covers without photos get
@@ -148,6 +152,21 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
             <span className={"ec-dist" + (scarce ? " scarce" : "")}>{scarce ? `${left} left` : `${e.distanceKm} km`}</span>
           )}
           {ticket && <span className="ec-dist">{e.area}</span>}
+        </div>
+      </MotionLink>
+    );
+  }
+
+  // ---- circular thumb + title + one meta line, nothing else ----
+  if (variant === "avatar") {
+    return (
+      <MotionLink to={`/e/${e.id}`} {...preload} {...press} className="ec-avatar-row">
+        <motion.div layoutId={`event-cover-${e.id}`} className="ec-avatar-thumb" style={coverStyle}>
+          {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={22} /></span>}
+        </motion.div>
+        <div className="ec-avatar-text">
+          <h3 className="ec-avatar-title">{e.title}</h3>
+          <span className="ec-avatar-sub">{dayLabel(e)} · {e.venue || e.area}</span>
         </div>
       </MotionLink>
     );

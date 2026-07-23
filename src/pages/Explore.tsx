@@ -547,7 +547,26 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 emptyMessage=""
               />
             )}
-            {S.rest.length > 0 && (
+            {S.rest.length > 0 && embedded && (
+              <section className="ex-section">
+                <div className="ex-head">
+                  <h2>All events</h2>
+                  <span className="ex-sub">{S.rest.length}</span>
+                </div>
+                {/* Circular-thumb + title + one meta line, matching the
+                    reference design's list-row style exactly — replaces the
+                    full editorial card here (that variant stays as-is for
+                    the standalone /explore page below). */}
+                <div className="ex-avatar-list">
+                  {S.rest.map((e) => (
+                    <motion.div key={e.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }}>
+                      <Stub e={e} variant="avatar" />
+                    </motion.div>
+                  ))}
+                </div>
+              </section>
+            )}
+            {S.rest.length > 0 && !embedded && (
               <section className="ex-section">
                 <div className="ex-head">
                   <h2>All events</h2>

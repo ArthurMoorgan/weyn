@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { api, VENUE_CATS, type Venue, type VenueCategory } from "../api";
 import VenueCard from "../components/VenueCard";
 import UserAvatar from "../components/UserAvatar";
+import AiDiamondMark from "../components/AiDiamondMark";
 import { useAccount } from "../store";
 
 // Reservations mirrors Explore's browse pattern (topbar → search → chips →
@@ -139,6 +140,9 @@ export default function Reservations({ embedded = false }: { embedded?: boolean 
             <Link to="/venues" className="seg-btn on">Venues</Link>
           </div>
           <div className="discover-head-actions">
+            <Link to="/concierge" className="discover-head-icon-btn" aria-label="AI concierge">
+              <AiDiamondMark className="discover-head-ai-mark" />
+            </Link>
             <UserAvatar account={account} />
           </div>
         </div>

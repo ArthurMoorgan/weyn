@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import Discover from "./pages/Discover";
-import AiDiamondMark from "./components/AiDiamondMark";
 import { IconHomeFill, IconHeartFill, IconStoreFill, IconTicketFill } from "./components/NavIcons";
 import Skeleton from "./components/Skeleton";
 import ThemeToggle from "./components/ThemeToggle";
@@ -37,21 +36,20 @@ const TABS = [
 // Mobile bottom nav (<900px) — a floating pill again, per a specific later
 // design reference (not a repeat of the earlier floating-pill+separate-
 // AI-circle experiment that read as "weird"/too novel — this is one
-// consistent pill, AI folded in as a normal 5th tab, no separate floating
-// circle, which was the actual part that didn't work before). Same icons as
-// before (kept per direct feedback — "they are good"). "Calendar" (the
-// reference screenshot's 2nd tab) has no Weyn equivalent, so it's swapped
-// for Reserve — Weyn's actual second top-level destination. Every icon is a
-// solid/filled glyph, theme-aware ink color (see .bottom-bar-item in
+// consistent pill this time, matching the reference exactly). AI moved out
+// of here per direct instruction — it now lives at the top next to the
+// profile avatar (see Discover.tsx/Reservations.tsx headers), same reasoning
+// this file already applied to Profile above: "the entry point lives once,
+// at the top, instead of competing in two places." 4 tabs, not 5. Every icon
+// is a solid/filled glyph, theme-aware ink color (see .bottom-bar-item in
 // components.css) — Ikonate's -fill variants for store/ticket, custom
 // simple SVGs (NavIcons.tsx) for compass/heart (no filled Ikonate variant
-// exists), and the same diamond mark for AI.
+// exists).
 const BOTTOM_TABS = [
   { to: "/", end: true, label: "Discover", Glyph: IconHomeFill },
   { to: "/venues", end: false, label: "Reserve", Glyph: IconStoreFill },
   { to: "/saved", end: false, label: "Favourites", Glyph: IconHeartFill },
   { to: "/tickets", end: false, label: "Tickets", Glyph: IconTicketFill },
-  { to: "/concierge", end: false, label: "AI", Glyph: AiDiamondMark },
 ];
 
 // Hosting an event and listing a venue are different setup flows with
