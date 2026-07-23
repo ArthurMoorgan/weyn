@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Weyn for Business — Overview (design exploration)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    /* Monochrome — no hue anywhere in the chrome, matching Weyn's own
+       established design language. Variable NAMES kept stable (--accent
+       etc.) even though the palette is now grayscale, same pattern the
+       real app's tokens.css uses across redesigns. */
+    --paper:#FAFAFA; --paper-2:#F2F2F2; --card:#FFFFFF;
+    --ink:#121212; --ink-2:#5C5C5C; --ink-3:#8C8C8C;
+    --line:#EAEAEA; --line-2:#DDDDDD;
+    --accent:#121212; --accent-2:#2E2E2E; --accent-press:#000000;
+    --accent-soft:rgba(0,0,0,.06); --accent-soft-2:rgba(0,0,0,.1);
+    --on-accent:#FFFFFF; --error:#B3362D;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.04), 0 1px 1px rgba(0,0,0,.03);
+    --shadow-md:0 2px 10px rgba(0,0,0,.05), 0 10px 26px rgba(0,0,0,.06);
+    --shadow-lg:0 10px 28px rgba(0,0,0,.10), 0 24px 60px rgba(0,0,0,.12);
+    --radius:14px; --radius-sm:10px; --radius-lg:22px;
+    --f-display:'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --f-body:'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --sidebar-w:250px;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--paper); color:var(--ink); font-family:var(--f-body);
+    -webkit-font-smoothing:antialiased;
+  }
+  a{ color:inherit; }
+  ::selection{ background:var(--accent-soft-2); color:var(--accent-press); }
+  .num{ font-variant-numeric:tabular-nums; }
+
+  /* ---- shell ---- */
+  .shell{ display:flex; min-height:100vh; }
+  .sidebar{
+    width:var(--sidebar-w); flex:0 0 auto; position:sticky; top:0; height:100vh;
+    display:flex; flex-direction:column; padding:26px 18px; border-right:1px solid var(--line);
+  }
+  .sb-brand{ display:flex; align-items:center; gap:9px; padding:6px 10px 22px; font-family:var(--f-display); font-weight:600; font-size:18px; letter-spacing:-0.2px; }
+  .sb-brand .dot{ width:7px; height:7px; border-radius:50%; background:var(--accent); }
+  .sb-brand small{ display:block; font-family:var(--f-body); font-weight:600; font-size:10px; letter-spacing:0.6px; text-transform:uppercase; color:var(--ink-3); margin-top:2px; }
+  .sb-nav{ display:flex; flex-direction:column; gap:2px; }
+  .sb-item{
+    display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px;
+    font-size:13.5px; font-weight:500; color:var(--ink-2); cursor:pointer; border:none; background:none;
+    text-align:left; width:100%; font-family:inherit; transition:background-color .15s ease, color .15s ease;
+  }
+  .sb-item:hover{ background:var(--paper-2); color:var(--ink); }
+  .sb-item.on{ background:var(--accent-soft); color:var(--accent-press); font-weight:600; }
+  .sb-item svg{ flex:0 0 auto; opacity:.85; }
+  .sb-item.on svg{ opacity:1; }
+  .sb-group-label{ font-size:10.5px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; color:var(--ink-3); padding:16px 12px 6px; }
+  .sb-footer{ margin-top:auto; padding:14px 12px 6px; border-top:1px solid var(--line); display:flex; align-items:center; gap:10px; }
+  .sb-avatar{ width:30px; height:30px; border-radius:50%; background:var(--accent); color:var(--on-accent); display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; font-family:var(--f-display); }
+  .sb-footer .who{ font-size:12.5px; font-weight:600; }
+  .sb-footer .role{ font-size:11px; color:var(--ink-3); }
+
+  .main{ flex:1 1 auto; min-width:0; }
+
+  /* condensing mini-header, docks once you scroll past the greeting */
+  .dock{
+    position:sticky; top:0; z-index:20; display:flex; align-items:center; justify-content:space-between;
+    padding:0 44px; height:0; overflow:hidden; opacity:0;
+    background:color-mix(in srgb, var(--paper) 90%, transparent); backdrop-filter:blur(12px);
+    border-bottom:1px solid transparent;
+    transition:height .28s cubic-bezier(.16,1,.3,1), opacity .22s ease, border-color .22s ease;
+  }
+  .dock.on{ height:60px; opacity:1; border-bottom-color:var(--line); }
+  .dock-title{ font-family:var(--f-display); font-weight:500; font-size:16px; }
+  .dock-actions{ display:flex; gap:8px; }
+
+  .content{ max-width:900px; margin:0 auto; padding:56px 44px 120px; }
+
+  /* ---- greeting ---- */
+  .greet{ display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap; margin-bottom:44px; }
+  .greet-eyebrow{ font-size:13.5px; font-weight:600; color:var(--ink-3); display:block; margin-bottom:8px; }
+  .greet h1{ font-family:var(--f-display); font-weight:500; font-size:36px; letter-spacing:-0.015em; line-height:1.12; margin:0; max-width:16ch; }
+  .greet h1 em{ font-style:italic; color:var(--accent); font-weight:400; }
+  .greet-actions{ display:flex; gap:10px; }
+  .btn{
+    display:inline-flex; align-items:center; gap:8px; padding:11px 18px; border-radius:10px;
+    font-size:13.5px; font-weight:600; border:none; cursor:pointer; font-family:inherit;
+    transition:transform .12s cubic-bezier(.25,1,.5,1), box-shadow .15s ease, background-color .15s ease;
+  }
+  .btn:active{ transform:scale(.96); }
+  .btn-primary{ background:var(--ink); color:var(--paper); }
+  .btn-primary:hover{ background:var(--accent); }
+  .btn-ghost{ background:var(--card); color:var(--ink); box-shadow:var(--shadow-sm), inset 0 0 0 1px var(--line); }
+  .btn-ghost:hover{ box-shadow:var(--shadow-md), inset 0 0 0 1px var(--line-2); }
+
+  /* ---- reveal helper ---- */
+  [data-reveal]{ opacity:0; transform:translateY(20px); transition:opacity .55s cubic-bezier(.16,1,.3,1), transform .55s cubic-bezier(.16,1,.3,1); }
+  [data-reveal].in-view{ opacity:1; transform:translateY(0); }
+
+  /* ---- kpis ---- */
+  .kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .kpi{ background:var(--card); border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow-sm), inset 0 0 0 1px var(--line); }
+  .kpi .k{ font-size:12.5px; color:var(--ink-3); font-weight:500; margin-bottom:8px; }
+  .kpi .v{ font-family:var(--f-display); font-size:27px; font-weight:500; letter-spacing:-0.01em; }
+  .kpi .v small{ font-family:var(--f-body); font-size:13px; font-weight:500; color:var(--ink-3); }
+
+  .section-head{ display:flex; align-items:baseline; justify-content:space-between; margin:40px 0 14px; }
+  .section-head h2{ font-family:var(--f-display); font-weight:500; font-size:18px; letter-spacing:-0.01em; }
+  .section-head span{ font-size:12px; color:var(--ink-3); font-weight:500; }
+
+  /* ---- chart ---- */
+  .chart-card{ background:var(--card); border-radius:var(--radius-lg); padding:26px 26px 22px; box-shadow:var(--shadow-md), inset 0 0 0 1px var(--line); }
+  .chart-figure{ font-family:var(--f-display); font-size:30px; font-weight:500; letter-spacing:-0.01em; margin-bottom:2px; }
+  .chart-figure small{ font-family:var(--f-body); font-size:13px; color:var(--ink-3); font-weight:500; margin-left:4px; }
+  .chart-bars{ display:flex; align-items:flex-end; gap:6px; height:140px; margin-top:20px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+  .bar{ flex:1; min-width:6px; border-radius:5px 5px 2px 2px; background:linear-gradient(180deg, var(--accent-2), var(--accent)); height:0; transition:height 1s cubic-bezier(.16,1,.3,1); position:relative; cursor:pointer; }
+  .bar:hover{ filter:brightness(1.12); }
+  .bar .tip{
+    position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%) translateY(4px);
+    background:var(--ink); color:var(--paper); font-size:11px; font-weight:600; padding:5px 8px; border-radius:6px;
+    white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .15s ease, transform .15s ease;
+  }
+  .bar:hover .tip{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---- two-column lists ---- */
+  .twocol{ display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:8px; }
+  .list{ display:flex; flex-direction:column; gap:10px; }
+  .row-card{
+    display:flex; align-items:center; gap:14px; background:var(--card); border-radius:var(--radius);
+    padding:12px; box-shadow:var(--shadow-sm), inset 0 0 0 1px var(--line);
+    transition:box-shadow .2s ease, transform .2s cubic-bezier(.16,1,.3,1);
+  }
+  .row-card:hover{ box-shadow:var(--shadow-md); transform:translateY(-2px); }
+  .row-thumb{ width:52px; height:52px; border-radius:12px; flex:0 0 auto; background-size:cover; background-position:center; }
+  .row-info{ flex:1; min-width:0; }
+  .row-info b{ display:block; font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .row-info span{ font-size:12px; color:var(--ink-3); }
+  .pill{ font-size:10.5px; font-weight:600; padding:4px 9px; border-radius:99px; white-space:nowrap; }
+  .pill.on{ background:var(--accent-soft); color:var(--accent-press); }
+  .pill.out{ background:var(--ink); color:var(--paper); }
+  .attn-row{ display:flex; align-items:flex-start; gap:12px; background:var(--card); border-radius:var(--radius); padding:13px 14px; box-shadow:var(--shadow-sm), inset 0 0 0 1px var(--line); }
+  .attn-row svg{ flex:0 0 auto; color:var(--accent); margin-top:1px; }
+  .attn-row b{ font-size:13.5px; font-weight:600; display:block; }
+  .attn-row span{ font-size:12px; color:var(--ink-3); }
+
+  /* ---- shortcuts ---- */
+  .shortcuts{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .shortcut{
+    display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 10px;
+    background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow-sm), inset 0 0 0 1px var(--line);
+    font-size:12px; font-weight:600; text-align:center; text-decoration:none; color:var(--ink);
+    transition:transform .15s cubic-bezier(.25,1,.5,1), box-shadow .15s ease;
+  }
+  .shortcut:hover{ transform:translateY(-3px); box-shadow:var(--shadow-md); }
+  .shortcut svg{ color:var(--accent); }
+
+  /* ---- placeholder panel for un-built nav items ---- */
+  .empty-panel{ text-align:center; padding:100px 20px; color:var(--ink-3); }
+  .empty-panel svg{ color:var(--line-2); margin-bottom:16px; }
+  .empty-panel h3{ font-family:var(--f-display); font-size:20px; font-weight:500; color:var(--ink); margin:0 0 8px; }
+  .empty-panel p{ font-size:13.5px; max-width:36ch; margin:0 auto; }
+
+  .view{ display:none; }
+  .view.on{ display:block; }
+
+  @media (max-width:960px){
+    .sidebar{ display:none; }
+    .content{ padding:44px 20px 90px; }
+    .kpis, .shortcuts{ grid-template-columns:repeat(2,1fr); }
+    .twocol{ grid-template-columns:1fr; }
+    .dock{ padding:0 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="sb-brand"><span class="dot"></span><div>Weyn<small>For Business</small></div></div>
+    <nav class="sb-nav" id="sbNav">
+      <button class="sb-item on" data-view="overview">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Overview
+      </button>
+      <button class="sb-item" data-view="events">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 9h18"/></svg>
+        Events
+      </button>
+      <button class="sb-item" data-view="attendees">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Attendees
+      </button>
+      <div class="sb-group-label">Growth</div>
+      <button class="sb-item" data-view="marketing">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg>
+        Marketing
+      </button>
+      <button class="sb-item" data-view="workflows">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
+        Workflows
+      </button>
+      <div class="sb-group-label">Tools</div>
+      <button class="sb-item" data-view="ai">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 5.8L20 10l-6.2 2.2L12 18l-1.8-5.8L4 10l6.2-2.2z"/></svg>
+        AI Studio
+      </button>
+      <button class="sb-item" data-view="settings">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-avatar">D</div>
+      <div><div class="who">Dhairya</div><div class="role">Owner</div></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="dock" id="dock">
+      <div class="dock-title">Overview</div>
+      <div class="dock-actions">
+        <button class="btn btn-ghost"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg> Scan</button>
+        <button class="btn btn-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Create</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- OVERVIEW -->
+      <section class="view on" id="view-overview">
+        <div class="greet">
+          <div>
+            <span class="greet-eyebrow">Good afternoon, Dhairya</span>
+            <h1>Here's how your <em>events</em> are doing.</h1>
+          </div>
+          <div class="greet-actions">
+            <button class="btn btn-ghost"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg> Scan tickets</button>
+            <button class="btn btn-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Create event</button>
+          </div>
+        </div>
+
+        <div class="kpis" data-reveal>
+          <div class="kpi"><div class="k">Net revenue</div><div class="v num" data-count="6597" data-prefix="" data-suffix=" OMR">0</div></div>
+          <div class="kpi"><div class="k">Tickets sold</div><div class="v num" data-count="539">0</div></div>
+          <div class="kpi"><div class="k">Live events</div><div class="v num" data-count="3">0</div></div>
+          <div class="kpi"><div class="k">New today</div><div class="v num" data-count="23">0</div></div>
+        </div>
+
+        <div class="section-head"><h2>Revenue</h2><span>Last 14 days</span></div>
+        <div class="chart-card" data-reveal>
+          <div class="chart-figure num" data-count="6944" data-suffix=" OMR gross">0</div>
+          <div class="chart-bars" id="chartBars"></div>
+        </div>
+
+        <div class="section-head"><h2>Coming up</h2></div>
+        <div class="twocol">
+          <div class="list" data-reveal>
+            <div class="row-card">
+              <div class="row-thumb" style="background-image:url('https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=200&q=70')"></div>
+              <div class="row-info"><b>Muscat Jazz Nights</b><span>Mon · Al Mouj</span></div>
+              <span class="pill on">On sale</span>
+            </div>
+            <div class="row-card">
+              <div class="row-thumb" style="background-image:url('https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=200&q=70')"></div>
+              <div class="row-info"><b>Rooftop Supper Club</b><span>Mon 3 Aug · Shatti</span></div>
+              <span class="pill out">Sold out</span>
+            </div>
+            <div class="row-card">
+              <div class="row-thumb" style="background:linear-gradient(135deg,var(--accent-soft-2),var(--paper-2))"></div>
+              <div class="row-info"><b>Desert Trail Run</b><span>Tue 11 Aug · Bausher</span></div>
+              <span class="pill on">On sale</span>
+            </div>
+          </div>
+
+          <div class="list" data-reveal>
+            <div class="attn-row">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
+              <div><b>Muscat Jazz Nights</b><span>88% sold — 88 tickets left</span></div>
+            </div>
+            <div class="attn-row">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              <div><b>Desert Trail Run</b><span>No sales yet — opens in 20 days</span></div>
+            </div>
+            <div class="attn-row">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg>
+              <div><b>Rooftop Supper Club</b><span>1 team invite still pending</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-head"><h2>Shortcuts</h2></div>
+        <div class="shortcuts" data-reveal>
+          <a class="shortcut" href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New event</a>
+          <a class="shortcut" href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 9h18"/></svg>Events</a>
+          <a class="shortcut" href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>Attendees</a>
+          <a class="shortcut" href="#"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>Venues</a>
+        </div>
+      </section>
+
+      <!-- EVENTS -->
+      <section class="view" id="view-events">
+        <div class="greet">
+          <div><span class="greet-eyebrow">3 events</span><h1>Your <em>events</em>.</h1></div>
+          <div class="greet-actions"><button class="btn btn-primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Create event</button></div>
+        </div>
+        <div class="list" data-reveal style="gap:12px;">
+          <div class="row-card" style="padding:16px;">
+            <div class="row-thumb" style="width:64px;height:64px;background-image:url('https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=200&q=70')"></div>
+            <div class="row-info"><b style="font-size:15.5px;">Muscat Jazz Nights</b><span>Mon · 4:43 PM · Al Mouj — 412/500 sold</span></div>
+            <b class="num" style="font-family:var(--f-display); font-size:17px;">4,944 OMR</b>
+          </div>
+          <div class="row-card" style="padding:16px;">
+            <div class="row-thumb" style="width:64px;height:64px;background-image:url('https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=200&q=70')"></div>
+            <div class="row-info"><b style="font-size:15.5px;">Rooftop Supper Club</b><span>Mon 3 Aug · Shatti — Sold out</span></div>
+            <b class="num" style="font-family:var(--f-display); font-size:17px;">2,000 OMR</b>
+          </div>
+          <div class="row-card" style="padding:16px;">
+            <div class="row-thumb" style="width:64px;height:64px;background:linear-gradient(135deg,var(--accent-soft-2),var(--paper-2))"></div>
+            <div class="row-info"><b style="font-size:15.5px;">Desert Trail Run</b><span>Tue 11 Aug · Bausher — 47/300 sold</span></div>
+            <b class="num" style="font-family:var(--f-display); font-size:17px;">Free</b>
+          </div>
+        </div>
+      </section>
+
+      <!-- generic empty views -->
+      <section class="view" id="view-attendees">
+        <div class="empty-panel"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg><h3>Attendees</h3><p>Not part of this design preview — imagine a searchable, cross-event CRM in the same visual language.</p></div>
+      </section>
+      <section class="view" id="view-marketing">
+        <div class="empty-panel"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg><h3>Marketing</h3><p>Not part of this design preview.</p></div>
+      </section>
+      <section class="view" id="view-workflows">
+        <div class="empty-panel"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg><h3>Workflows</h3><p>Not part of this design preview.</p></div>
+      </section>
+      <section class="view" id="view-ai">
+        <div class="empty-panel"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 2l1.8 5.8L20 10l-6.2 2.2L12 18l-1.8-5.8L4 10l6.2-2.2z"/></svg><h3>AI Studio</h3><p>Not part of this design preview.</p></div>
+      </section>
+      <section class="view" id="view-settings">
+        <div class="empty-panel"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="3"/></svg><h3>Settings</h3><p>Not part of this design preview.</p></div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  // sidebar tab switching
+  const items = document.querySelectorAll('.sb-item');
+  const views = document.querySelectorAll('.view');
+  const dockTitle = document.querySelector('.dock-title');
+  items.forEach(btn => btn.addEventListener('click', () => {
+    items.forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    const target = btn.dataset.view;
+    views.forEach(v => v.classList.toggle('on', v.id === 'view-' + target));
+    dockTitle.textContent = btn.textContent.trim();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }));
+
+  // condensing dock header
+  const dock = document.getElementById('dock');
+  window.addEventListener('scroll', () => dock.classList.toggle('on', window.scrollY > 160), { passive:true });
+
+  // scroll reveal
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); } });
+  }, { threshold:0.15 });
+  document.querySelectorAll('[data-reveal]').forEach(el => io.observe(el));
+
+  // count-up numbers, triggered once their container enters view
+  function countUp(el) {
+    const target = parseFloat(el.dataset.count);
+    const suffix = el.dataset.suffix || '';
+    const dur = 1100;
+    const start = performance.now();
+    function tick(now) {
+      const p = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const val = Math.round(target * eased);
+      el.textContent = val.toLocaleString() + suffix;
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  const countIo = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.num[data-count]').forEach(countUp);
+        countIo.unobserve(e.target);
+      }
+    });
+  }, { threshold:0.3 });
+  document.querySelectorAll('.kpis, .chart-card').forEach(el => countIo.observe(el));
+
+  // revenue chart bars
+  const trend = [120,90,210,180,60,330,410,280,150,470,520,390,610,540];
+  const max = Math.max(...trend);
+  const barsEl = document.getElementById('chartBars');
+  trend.forEach((v, i) => {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.innerHTML = `<span class="tip">${v} OMR</span>`;
+    barsEl.appendChild(bar);
+    const pct = Math.max(4, Math.round((v / max) * 100));
+    const barIo = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          setTimeout(() => { bar.style.height = pct + '%'; }, i * 45);
+          barIo.unobserve(e.target);
+        }
+      });
+    }, { threshold:0.2 });
+    barIo.observe(barsEl);
+  });
+</script>
+</body>
+</html>

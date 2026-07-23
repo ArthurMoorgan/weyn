@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Weyn Discover (design exploration)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#FFFFFF; --surface:#F2F2F2; --surface-2:#EAEAEA; --card:#FFFFFF;
+    --ink:#121212; --ink-2:#5C5C5C; --ink-3:#8C8C8C;
+    --line:#EAEAEA; --line-2:#DDDDDD;
+    --chip:#161616; --on-chip:#FFFFFF;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.04), 0 1px 1px rgba(0,0,0,.03);
+    --shadow-md:0 2px 10px rgba(0,0,0,.05), 0 10px 26px rgba(0,0,0,.06);
+    --shadow-lg:0 10px 28px rgba(0,0,0,.10), 0 24px 60px rgba(0,0,0,.12);
+    --radius:16px; --radius-sm:12px; --radius-lg:22px;
+    --font:'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --maxw:430px;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{ margin:0; background:var(--surface); color:var(--ink); font-family:var(--font); -webkit-font-smoothing:antialiased; }
+  a{ text-decoration:none; color:inherit; }
+  button{ font-family:inherit; }
+  ::selection{ background:rgba(18,18,18,.12); }
+
+  /* This screen is mobile-only by design (per direction) — a fixed phone-
+     width column, centered on wider viewports, rather than a responsive
+     desktop layout. Matches how the real app treats itself as a phone-first
+     PWA even in a browser tab. */
+  .phone{
+    max-width:var(--maxw); margin:0 auto; min-height:100vh; background:var(--bg);
+    box-shadow:0 0 0 1px var(--line); position:relative; padding-bottom:110px;
+  }
+
+  /* ---- top row: segmented toggle + avatar ---- */
+  .top-row{
+    position:sticky; top:0; z-index:30; display:flex; align-items:center; justify-content:space-between;
+    padding:16px 16px 10px; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(10px);
+    transition:padding .25s cubic-bezier(.16,1,.3,1);
+  }
+  .top-row.condensed{ padding:9px 16px 7px; box-shadow:0 1px 0 var(--line); }
+  .seg-toggle{ display:flex; background:var(--surface); border-radius:99px; padding:3px; gap:2px; }
+  .seg{
+    border:none; background:none; padding:7px 16px; border-radius:99px; font-size:13.5px; font-weight:600;
+    color:var(--ink-3); cursor:pointer; transition:background-color .18s ease, color .18s ease;
+  }
+  .seg.on{ background:var(--ink); color:#fff; }
+  .avatar-btn{
+    width:36px; height:36px; border-radius:50%; border:none; background:var(--surface); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; color:var(--ink-2); font-weight:700; font-size:13px;
+  }
+
+  /* ---- search ---- */
+  .searchbar{
+    margin:2px 16px 14px; display:flex; align-items:center; gap:10px; padding:12px 16px;
+    background:var(--surface); border-radius:99px; color:var(--ink-3); font-size:14px;
+  }
+  .searchbar svg{ flex:0 0 auto; }
+  .search-ph{ position:relative; height:1.3em; overflow:hidden; flex:1; }
+  .ph-word{ position:absolute; inset:0; opacity:0; transform:translateY(10px); transition:opacity .4s ease, transform .4s ease; }
+  .ph-word.on{ opacity:1; transform:translateY(0); }
+
+  /* ---- category chips ---- */
+  [data-reveal]{ opacity:0; transform:translateY(18px); transition:opacity .55s cubic-bezier(.16,1,.3,1), transform .55s cubic-bezier(.16,1,.3,1); }
+  [data-reveal].in-view{ opacity:1; transform:translateY(0); }
+
+  .cat-rail{ display:flex; gap:8px; overflow-x:auto; padding:0 16px 18px; scrollbar-width:none; }
+  .cat-rail::-webkit-scrollbar{ display:none; }
+  .cat-chip{
+    flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:9px 14px 9px 11px;
+    background:var(--chip); color:var(--on-chip); border:none; border-radius:99px; font-size:12.5px; font-weight:600;
+    cursor:pointer; transition:transform .15s cubic-bezier(.25,1,.5,1), background-color .15s ease;
+  }
+  .cat-chip svg{ flex:0 0 auto; }
+  .cat-chip.off{ background:var(--surface); color:var(--ink-2); }
+  .cat-chip:active{ transform:scale(.95); }
+
+  /* ---- section heads ---- */
+  .section{ padding:6px 0 22px; }
+  .section-title{ font-size:17px; font-weight:700; letter-spacing:-0.01em; margin:0 0 12px; padding:0 16px; }
+
+  /* ---- spotlight peek carousel ---- */
+  .spot-track{
+    display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none;
+    padding:2px 0;
+  }
+  .spot-track::-webkit-scrollbar{ display:none; }
+  .spot-spacer{ flex:0 0 6%; scroll-snap-align:none; }
+  .spot-card{
+    flex:0 0 78%; scroll-snap-align:center; position:relative; border-radius:var(--radius-lg); overflow:hidden;
+    height:360px; background-size:cover; background-position:center; box-shadow:var(--shadow-md);
+    transition:transform .2s cubic-bezier(.16,1,.3,1);
+  }
+  .spot-card::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,.72)); }
+  .spot-badge{
+    position:absolute; top:14px; left:14px; z-index:1; background:rgba(255,255,255,.94); color:var(--ink);
+    font-size:10.5px; font-weight:700; padding:5px 10px; border-radius:99px;
+  }
+  .spot-body{ position:absolute; left:16px; right:16px; bottom:16px; z-index:1; color:#fff; }
+  .spot-body h3{ font-size:19px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em; }
+  .spot-body .meta{ font-size:12.5px; opacity:.85; margin-bottom:8px; }
+  .spot-body .foot{ display:flex; align-items:center; justify-content:space-between; }
+  .spot-body .price{ font-size:14.5px; font-weight:700; }
+  .spot-dots{ display:flex; justify-content:center; gap:6px; margin-top:14px; }
+  .spot-dot{ width:6px; height:6px; border-radius:50%; background:var(--line-2); transition:background-color .2s ease, width .2s ease; }
+  .spot-dot.on{ background:var(--ink); width:16px; border-radius:99px; }
+
+  /* ---- event list (the "empty space" — real cards below the spotlight) ---- */
+  .event-list{ display:flex; flex-direction:column; gap:10px; padding:0 16px; }
+  .event-row{
+    display:flex; align-items:center; gap:12px; padding:10px; border-radius:var(--radius);
+    background:var(--bg); box-shadow:var(--shadow-sm), inset 0 0 0 1px var(--line);
+    transition:transform .18s cubic-bezier(.16,1,.3,1), box-shadow .18s ease;
+  }
+  .event-row:active{ transform:scale(.985); }
+  .event-thumb{ width:60px; height:60px; border-radius:12px; flex:0 0 auto; background-size:cover; background-position:center; }
+  .event-info{ flex:1; min-width:0; }
+  .event-info b{ display:block; font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .event-info span{ font-size:12px; color:var(--ink-3); }
+  .event-price{ text-align:right; flex:0 0 auto; }
+  .event-price b{ display:block; font-size:13.5px; font-weight:700; }
+  .event-price svg{ color:var(--ink-3); margin-top:4px; }
+
+  /* ---- floating bottom nav ---- */
+  .float-nav{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:40;
+    display:flex; align-items:center; gap:4px; padding:8px 10px;
+    background:rgba(255,255,255,.92); backdrop-filter:blur(16px) saturate(160%);
+    border-radius:99px; box-shadow:var(--shadow-lg);
+    width:calc(100% - 64px); max-width:366px; justify-content:space-between;
+  }
+  .nav-item{
+    display:flex; flex-direction:column; align-items:center; gap:3px; padding:7px 14px;
+    color:var(--ink-3); font-size:10.5px; font-weight:600; border-radius:16px; flex:1;
+    transition:color .18s ease, background-color .18s ease;
+  }
+  .nav-item.on{ color:var(--ink); }
+  .nav-item svg{ transition:transform .18s cubic-bezier(.25,1,.5,1); }
+  .nav-item.on svg{ transform:translateY(-1px); }
+
+  @media (min-width:560px){
+    body{ padding:32px 0; }
+    .phone{ min-height:auto; border-radius:32px; box-shadow:0 1px 2px rgba(0,0,0,.04), 0 30px 70px rgba(0,0,0,.12); }
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <header class="top-row" id="topRow">
+    <div class="seg-toggle">
+      <button class="seg on" data-seg="events">Events</button>
+      <button class="seg" data-seg="venues">Venues</button>
+    </div>
+    <button class="avatar-btn" aria-label="Profile">D</button>
+  </header>
+
+  <div class="searchbar">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+    <span class="search-ph" id="searchPh"></span>
+  </div>
+
+  <div class="cat-rail" data-reveal>
+    <button class="cat-chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Music</button>
+    <button class="cat-chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v20M18 2v20M2 8h20M2 16h20"/></svg>Food</button>
+    <button class="cat-chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Sport</button>
+    <button class="cat-chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>Culture</button>
+    <button class="cat-chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="15" height="12" rx="2"/><path d="M16 10h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg>Cars</button>
+    <button class="cat-chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>Community</button>
+  </div>
+
+  <section class="section">
+    <h2 class="section-title">In the spotlight</h2>
+    <div class="spot-track" id="spotTrack">
+      <div class="spot-spacer"></div>
+      <a class="spot-card" href="#" style="background-image:url('https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=600&q=70')">
+        <span class="spot-badge">Selling fast</span>
+        <div class="spot-body"><h3>Muscat Jazz Nights</h3><div class="meta">The Wave Amphitheatre · Al Mouj</div><div class="foot"><span class="price">12 OMR</span></div></div>
+      </a>
+      <a class="spot-card" href="#" style="background-image:url('https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600&q=70')">
+        <div class="spot-body"><h3>Rooftop Supper Club</h3><div class="meta">Kempinski Rooftop · Shatti</div><div class="foot"><span class="price">25 OMR</span></div></div>
+      </a>
+      <a class="spot-card" href="#" style="background-image:url('https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=70')">
+        <div class="spot-body"><h3>Open-Air Cinema</h3><div class="meta">Qurum Amphitheatre</div><div class="foot"><span class="price">Free</span></div></div>
+      </a>
+      <a class="spot-card" href="#" style="background-image:url('https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=600&q=70')">
+        <div class="spot-body"><h3>Desert Trail Run</h3><div class="meta">Wadi Adai · Bausher</div><div class="foot"><span class="price">Free</span></div></div>
+      </a>
+      <div class="spot-spacer"></div>
+    </div>
+    <div class="spot-dots" id="spotDots"></div>
+  </section>
+
+  <section class="section" data-reveal>
+    <h2 class="section-title">This week</h2>
+    <div class="event-list">
+      <a class="event-row" href="#">
+        <div class="event-thumb" style="background-image:url('https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=200&q=70')"></div>
+        <div class="event-info"><b>Sunset Yoga on the Beach</b><span>Shatti Al Qurum · Tonight, 6 PM</span></div>
+        <div class="event-price"><b>5 OMR</b><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
+      </a>
+      <a class="event-row" href="#">
+        <div class="event-thumb" style="background-image:url('https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&q=70')"></div>
+        <div class="event-info"><b>Traditional Omani Feast</b><span>Old Muscat · Sun, 6 PM</span></div>
+        <div class="event-price"><b>18 OMR</b><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
+      </a>
+      <a class="event-row" href="#">
+        <div class="event-thumb" style="background-image:url('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200&q=70')"></div>
+        <div class="event-info"><b>Craft & Farmers Market</b><span>Al Mouj Marina · Sat, 10 AM</span></div>
+        <div class="event-price"><b>Free</b><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
+      </a>
+      <a class="event-row" href="#">
+        <div class="event-thumb" style="background:var(--surface)"></div>
+        <div class="event-info"><b>Stand-up Comedy Night</b><span>Qurum · Thu, 9 PM</span></div>
+        <div class="event-price"><b>8 OMR</b><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
+      </a>
+      <a class="event-row" href="#">
+        <div class="event-thumb" style="background:var(--surface)"></div>
+        <div class="event-info"><b>Vintage Car Meet</b><span>Al Mouj Marina · Fri, 4 PM</span></div>
+        <div class="event-price"><b>Free</b><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>
+      </a>
+    </div>
+  </section>
+
+  <nav class="float-nav">
+    <a class="nav-item on" href="#"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</a>
+    <a class="nav-item" href="#"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>Reserve</a>
+    <a class="nav-item" href="#"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg>Tickets</a>
+    <a class="nav-item" href="#"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profile</a>
+  </nav>
+</div>
+
+<script>
+  // segmented toggle
+  document.querySelectorAll('.seg').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.seg').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+  }));
+
+  // condensing top row
+  const topRow = document.getElementById('topRow');
+  window.addEventListener('scroll', () => topRow.classList.toggle('condensed', window.scrollY > 16), { passive:true });
+
+  // cycling search placeholder (repurposed from the earlier rotating headline)
+  const phWords = ['Search events, venues…', 'Try "jazz night"', 'Try "rooftop dinner"', 'Try "free this weekend"'];
+  const ph = document.getElementById('searchPh');
+  let phIdx = 0;
+  function showPh(i) {
+    const span = document.createElement('span');
+    span.className = 'ph-word';
+    span.textContent = phWords[i];
+    ph.appendChild(span);
+    requestAnimationFrame(() => requestAnimationFrame(() => span.classList.add('on')));
+    return span;
+  }
+  let curPh = showPh(0);
+  setInterval(() => {
+    phIdx = (phIdx + 1) % phWords.length;
+    curPh.classList.remove('on');
+    const next = showPh(phIdx);
+    setTimeout(() => curPh.remove(), 400);
+    curPh = next;
+  }, 3400);
+
+  // spotlight active-dot tracking, based on which slide sits nearest the
+  // track's center (accounts for the leading/trailing spacers)
+  const track = document.getElementById('spotTrack');
+  const slides = Array.from(track.querySelectorAll('.spot-card'));
+  const dotsEl = document.getElementById('spotDots');
+  slides.forEach((_, i) => {
+    const dot = document.createElement('span');
+    dot.className = 'spot-dot' + (i === 0 ? ' on' : '');
+    dotsEl.appendChild(dot);
+  });
+  const dots = Array.from(dotsEl.children);
+  function updateDots() {
+    const center = track.scrollLeft + track.clientWidth / 2;
+    let closest = 0, min = Infinity;
+    slides.forEach((s, i) => {
+      const mid = s.offsetLeft + s.offsetWidth / 2;
+      const d = Math.abs(mid - center);
+      if (d < min) { min = d; closest = i; }
+    });
+    dots.forEach((d, i) => d.classList.toggle('on', i === closest));
+  }
+  track.addEventListener('scroll', updateDots, { passive:true });
+  updateDots();
+
+  // scroll reveal
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); } });
+  }, { threshold:0.12 });
+  document.querySelectorAll('[data-reveal]').forEach(el => io.observe(el));
+</script>
+</body>
+</html>
