@@ -617,20 +617,21 @@ a.cat-circle:active { transform: scale(0.96); }
   flex: 0 0 auto;
   display: flex; flex-direction: row; align-items: center; justify-content: center;
   gap: 7px; padding: 9px 16px 9px 12px;
-  /* Fixed dark chip regardless of theme (per the reference — confirmed
-     against both a light and a dark screenshot of the same design, the
-     chip stayed dark in both, it doesn't invert like --primary would).
-     Same "deliberately not theme-swapped" pattern as --dock-glass/
-     --ai-accent elsewhere in this file. */
-  background: #232323; border: none;
+  /* Theme-aware surface chip, not a fixed hardcoded dark color — the
+     reference screenshots were both rendered on the app's dark theme, so
+     "stays dark in both" wasn't actually a light-vs-dark comparison. Using
+     --surface-hover reproduces that same dark look in dark mode (its dark
+     value is already #232323) while correctly stepping to a light chip on
+     a light background instead of staying black. */
+  background: var(--surface-hover); border: none;
   border-radius: var(--radius-pill); box-shadow: var(--shadow-sm);
-  transition: transform .15s cubic-bezier(.25,1,.5,1), filter .15s ease;
+  transition: transform .15s cubic-bezier(.25,1,.5,1), filter .15s ease, background-color .15s ease;
 }
 .category-tile:active { transform: scale(.95); }
 @media (hover: hover) {
-  .category-tile:hover { filter: brightness(1.3); }
+  .category-tile:hover { background: var(--border); }
 }
-.category-tile-label { font-size: 12.5px; font-weight: 600; color: #F5F5F5; text-align: center; line-height: 1.2; white-space: nowrap; }
+.category-tile-label { font-size: 12.5px; font-weight: 600; color: var(--text); text-align: center; line-height: 1.2; white-space: nowrap; }
 
 /* ---- "In the spotlight" carousel — a scroll-snap rail of the existing
    .ec-feature cards below, with peek-spacers so the first/last slide also
@@ -1341,7 +1342,12 @@ a.cat-circle:active { transform: scale(0.96); }
    via `fill="currentColor"`/CSS `color` (NavIcons.tsx, Ikonate glyphs), so
    this recolors correctly with no icon-component changes needed. */
 .bottom-bar {
-  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 55;
+  /* --vvb (set by useVisualViewportBottomOffset in App.tsx) is the live gap
+     between the layout viewport and the actually-visible visual viewport on
+     mobile web, where a dynamic browser toolbar can otherwise leave this bar
+     floating far above the real bottom edge; 0px on native/no-toolbar
+     contexts where the two viewports match. */
+  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom) + var(--vvb, 0px)); transform: translateX(-50%); z-index: 55;
   display: flex; align-items: stretch;
   width: calc(100% - 32px); max-width: 420px;
   border-radius: var(--radius-pill);

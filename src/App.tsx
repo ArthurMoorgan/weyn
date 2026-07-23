@@ -84,6 +84,33 @@ const MAIN_TABS: { path: string; Component: React.ComponentType }[] = [
 // the same window the splash lifts off (see splash.ts / index.html) so the
 // handoff reads as one motion. A load with no splash — already dismissed, or
 // reduced motion — goes straight to rest with no entrance.
+// Mobile web (not an installed/native shell) has a dynamic browser toolbar
+// that grows/shrinks the *visual* viewport independently of the *layout*
+// viewport `position: fixed` anchors to. When the toolbar is showing, the
+// layout viewport is taller than what's actually visible, so a plain
+// `bottom: 18px` fixed bar sits 18px above the *layout* bottom — which can
+// be well above the *visible* bottom edge, reading as "floating way too
+// high". This tracks the live gap between the two and feeds it back as a
+// CSS var so `.bottom-bar` (components.css) can add it to its own offset
+// and stay pinned to the actually-visible bottom regardless of toolbar state.
+function useVisualViewportBottomOffset() {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const gap = window.innerHeight - (vv.height + vv.offsetTop);
+      document.documentElement.style.setProperty("--vvb", `${Math.max(0, Math.round(gap))}px`);
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
+}
+
 function useShellEntrance() {
   const reduced = usePrefersReducedMotion();
   // Snapshot at mount: only play the entrance if the splash is actually still
@@ -99,6 +126,7 @@ function useShellEntrance() {
 
 export default function App() {
   const { holds, entered } = useShellEntrance();
+  useVisualViewportBottomOffset();
   const location = useLocation();
   const account = useAccount();
   const activeMainTab = MAIN_TABS.find((t) => t.path === location.pathname);
