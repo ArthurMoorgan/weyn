@@ -92,12 +92,21 @@ export default function OrganizerEvents() {
   async function bulkCancel() {
     if (!confirm(`Cancel ${selected.size} event${selected.size === 1 ? "" : "s"}? They'll disappear from Explore immediately.`)) return;
     setBulkBusy(true);
+    setActionError("");
     try {
       await Promise.all([...selected].map((id) => api.cancelEvent(id)));
       setSelected(new Set());
-      events.reload();
+    } catch (err: any) {
+      // Unlike every single-item action above, this had no catch at all — a
+      // partial failure (one event 404s/409s) threw past setSelected/reload
+      // with no feedback and left the list showing stale state. Leave the
+      // selection as-is on failure (some may have actually succeeded; the
+      // reload below shows the real state so the user can see what's left
+      // to retry) instead of assuming all-or-nothing.
+      setActionError(err.message || "Couldn't cancel all selected events");
     } finally {
       setBulkBusy(false);
+      events.reload();
     }
   }
 
@@ -174,7 +183,7 @@ export default function OrganizerEvents() {
         {filtered.map((e) => {
           const left = ticketsLeft(e);
           const out = isSoldOut(e);
-          const pct = e.capacity >= 9000 ? 0 : Math.min(100, Math.round((e.sold / e.capacity) * 100));
+          const pct = e.capacity >= 9000 || e.capacity <= 0 ? 0 : Math.min(100, Math.round((e.sold / e.capacity) * 100));
           const gross = e.sold * e.price;
           const isDraftRow = e.isDraft && !e.isTemplate;
           const selectable = !isDraftRow && !e.isTemplate;

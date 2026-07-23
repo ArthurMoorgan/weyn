@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { motion } from "motion/react";
 import { settleSpring } from "../../motion";
@@ -111,6 +111,31 @@ export default function DashboardShell({
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(getInitialExpandedGroups());
 
+  // getInitialExpandedGroups() above only runs once, at mount — but this
+  // component persists across tab/route changes (React Router doesn't
+  // remount it for a :tab/:id param-only navigation within the same route
+  // element, e.g. EventWorkspace.tsx switching tabs). Without this, a caller
+  // that derives `active` from its own route param (per the JSDoc above)
+  // could navigate straight into a tab whose group was never expanded,
+  // leaving the mobile accordion collapsed with no visible active-tab
+  // indicator at all. Re-derive whenever the active item changes and expand
+  // that group — merges into the existing set (doesn't collapse anything the
+  // user already opened) and no-ops if the active group is already expanded,
+  // so this never fights a user's manual toggle.
+  useEffect(() => {
+    if (!groupedItems) return;
+    const groupsWithActive = Object.entries(groupedItems)
+      .filter(([, items]) => items.some((item) => item.active === true))
+      .map(([groupName]) => groupName);
+    if (groupsWithActive.length === 0) return;
+    setExpandedGroups((prev) => {
+      const missing = groupsWithActive.filter((g) => !prev.has(g));
+      if (missing.length === 0) return prev;
+      return new Set([...prev, ...missing]);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(navItems.map((i) => [i.to, i.active]))]);
+
   const toggleGroup = (group: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
@@ -219,7 +244,13 @@ export default function DashboardShell({
               </button>
               {expandedGroups.has(groupName) && (
                 <div className="dash-group-items">
-                  {groupItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator" />)}
+                  {/* Distinct indicatorId from the desktop nav above — both are
+                      simultaneously mounted (only CSS media queries hide one),
+                      and two NavLinks sharing one layoutId while both are in
+                      the DOM makes Framer Motion's shared-layout animation
+                      measure against whichever is currently display:none,
+                      producing a jumping/glitching pill on tab switches. */}
+                  {groupItems.map((item) => <NavItem key={item.to} item={item} indicatorId="dash-nav-indicator-mobile-grouped" />)}
                 </div>
               )}
             </div>

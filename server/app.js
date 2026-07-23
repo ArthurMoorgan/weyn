@@ -183,33 +183,44 @@ export async function autoAssignTable(reservation) {
     const size = reservation.partySize;
     const dayStart = new Date(reservation.date); dayStart.setUTCHours(0, 0, 0, 0);
     const dayEnd = new Date(dayStart.getTime() + 24 * 3600e3);
-    const assigned = await prisma.tableAssignmentTable.findMany({
-      where: {
-        tableId: { in: plan.tables.map((t) => t.id) },
-        assignment: { date: { gte: dayStart, lt: dayEnd }, reservation: { status: { in: ["pending", "confirmed", "seated"] } } },
-      },
-      select: { tableId: true },
-    });
-    const takenIds = new Set(assigned.map((a) => a.tableId));
-    const free = plan.tables.filter((t) => t.status === "available" && !takenIds.has(t.id));
 
-    const singleFit = free.filter((t) => t.maxCapacity >= size && t.minCapacity <= size).sort((a, b) => a.maxCapacity - b.maxCapacity)[0];
-    let chosen = singleFit ? [singleFit] : null;
-    if (!chosen) {
-      const combo = [];
-      let total = 0;
-      for (const t of [...free].sort((a, b) => b.maxCapacity - a.maxCapacity)) {
-        combo.push(t); total += t.maxCapacity;
-        if (total >= size) break;
+    // Reading which tables are free, then creating this assignment, is a
+    // read-then-write race if two reservations get auto-assigned concurrently
+    // for the same date — two calls could both see the same table as free and
+    // both assign it. Wrapped in a Serializable transaction so Postgres
+    // detects the conflict instead of double-booking a table; this function
+    // is already best-effort (see comment above), so a conflict here just
+    // falls through to the outer catch and behaves exactly like "nothing
+    // free" already does — nothing throws past this function.
+    return await prisma.$transaction(async (tx) => {
+      const assigned = await tx.tableAssignmentTable.findMany({
+        where: {
+          tableId: { in: plan.tables.map((t) => t.id) },
+          assignment: { date: { gte: dayStart, lt: dayEnd }, reservation: { status: { in: ["pending", "confirmed", "seated"] } } },
+        },
+        select: { tableId: true },
+      });
+      const takenIds = new Set(assigned.map((a) => a.tableId));
+      const free = plan.tables.filter((t) => t.status === "available" && !takenIds.has(t.id));
+
+      const singleFit = free.filter((t) => t.maxCapacity >= size && t.minCapacity <= size).sort((a, b) => a.maxCapacity - b.maxCapacity)[0];
+      let chosen = singleFit ? [singleFit] : null;
+      if (!chosen) {
+        const combo = [];
+        let total = 0;
+        for (const t of [...free].sort((a, b) => b.maxCapacity - a.maxCapacity)) {
+          combo.push(t); total += t.maxCapacity;
+          if (total >= size) break;
+        }
+        if (total >= size && combo.length) chosen = combo;
       }
-      if (total >= size && combo.length) chosen = combo;
-    }
-    if (!chosen) return null;
+      if (!chosen) return null;
 
-    await prisma.tableAssignment.create({
-      data: { reservationId: reservation.id, date: reservation.date, time: reservation.time, partySize: size, tables: { create: chosen.map((t) => ({ tableId: t.id })) } },
-    });
-    return chosen.map((t) => t.label);
+      await tx.tableAssignment.create({
+        data: { reservationId: reservation.id, date: reservation.date, time: reservation.time, partySize: size, tables: { create: chosen.map((t) => ({ tableId: t.id })) } },
+      });
+      return chosen.map((t) => t.label);
+    }, { isolationLevel: "Serializable" });
   } catch (err) {
     captureError(err, { route: "autoAssignTable", reservationId: reservation.id });
     return null;
@@ -2417,39 +2428,67 @@ Only include IDs that exist in the list. Never invent events. If nothing matches
         if (!slot || slot.venueId !== venue.id) {
           return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid slot for this venue" } });
         }
-
-        // Check party-size sum of confirmed+pending reservations against the
-        // slot's capacity for that date, before accepting a new reservation —
-        // rejects with 409 rather than silently overbooking the slot.
-        const requestedDate = new Date(date);
-        const dayStart = new Date(Date.UTC(requestedDate.getUTCFullYear(), requestedDate.getUTCMonth(), requestedDate.getUTCDate()));
-        const dayEnd = new Date(dayStart.getTime() + 24 * 3600e3);
-        const existing = await prisma.reservation.findMany({
-          where: {
-            slotId: slot.id,
-            status: { in: ["pending", "confirmed"] },
-            date: { gte: dayStart, lt: dayEnd },
-          },
-        });
-        const bookedCount = existing.reduce((sum, r) => sum + r.partySize, 0);
-        if (bookedCount + size > slot.capacity) {
-          return res.status(409).json({ error: { code: "CAPACITY_EXCEEDED", message: "This slot doesn't have enough capacity left for that party size" } });
-        }
       }
 
-      const reservation = await prisma.reservation.create({
-        data: {
-          venueId: venue.id,
-          slotId: slot ? slot.id : null,
-          guestName: String(guestName).trim(),
-          guestEmail: String(guestEmail).trim(),
-          guestPhone: guestPhone ? String(guestPhone).trim() : null,
-          partySize: size,
-          date: new Date(date),
-          time: String(time).trim(),
-          notes: notes ? String(notes).trim() : null,
-        },
-      });
+      // Capacity check + reservation creation happen atomically inside a
+      // Serializable transaction. A plain read-then-write here (sum existing
+      // reservations, compare to capacity, then create) is a classic TOCTOU
+      // race — two concurrent guests could both pass the capacity check
+      // before either commits, overbooking the slot with no error to either
+      // caller. This is the same concern claimTierCapacity/claimEventCapacity
+      // (server/db.js) solve for ticket capacity, just via isolation level
+      // instead of an atomic counter-column UPDATE — VenueAvailabilitySlot
+      // tracks capacity by summing Reservation rows, not a dedicated counter,
+      // so there's no single row to conditionally UPDATE. Postgres's
+      // serializable isolation detects the write-skew conflict (Prisma error
+      // P2034) instead of silently letting it through; retried a few times
+      // since a real conflict here is transient, not a permanent failure.
+      let reservation;
+      const MAX_ATTEMPTS = 3;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          reservation = await prisma.$transaction(async (tx) => {
+            if (slot) {
+              const requestedDate = new Date(date);
+              const dayStart = new Date(Date.UTC(requestedDate.getUTCFullYear(), requestedDate.getUTCMonth(), requestedDate.getUTCDate()));
+              const dayEnd = new Date(dayStart.getTime() + 24 * 3600e3);
+              const existing = await tx.reservation.findMany({
+                where: {
+                  slotId: slot.id,
+                  status: { in: ["pending", "confirmed"] },
+                  date: { gte: dayStart, lt: dayEnd },
+                },
+              });
+              const bookedCount = existing.reduce((sum, r) => sum + r.partySize, 0);
+              if (bookedCount + size > slot.capacity) {
+                const capacityErr = new Error("This slot doesn't have enough capacity left for that party size");
+                capacityErr.code = "CAPACITY_EXCEEDED";
+                throw capacityErr;
+              }
+            }
+            return tx.reservation.create({
+              data: {
+                venueId: venue.id,
+                slotId: slot ? slot.id : null,
+                guestName: String(guestName).trim(),
+                guestEmail: String(guestEmail).trim(),
+                guestPhone: guestPhone ? String(guestPhone).trim() : null,
+                partySize: size,
+                date: new Date(date),
+                time: String(time).trim(),
+                notes: notes ? String(notes).trim() : null,
+              },
+            });
+          }, { isolationLevel: "Serializable" });
+          break;
+        } catch (txErr) {
+          if (txErr.code === "CAPACITY_EXCEEDED") {
+            return res.status(409).json({ error: { code: "CAPACITY_EXCEEDED", message: txErr.message } });
+          }
+          if (txErr.code !== "P2034" || attempt === MAX_ATTEMPTS) throw txErr;
+          // P2034: serialization conflict under Serializable isolation — safe to retry.
+        }
+      }
       await autoAssignTable(reservation);
       runVenueWorkflows("reservation_created", reservation).catch(() => {});
       trackEvent(req.user?.id || guestEmail, "reservation_created", { venueId: venue.id, partySize: size });
