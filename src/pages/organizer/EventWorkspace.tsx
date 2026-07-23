@@ -108,12 +108,23 @@ export default function EventWorkspace() {
           active: tab === t.key,
         }))}
       >
-        {/* Cross-fade + slight scale between tabs. Keyed by `tab` so each body
-            swaps as its own presence; mode="wait" lets the old one fade out
-            first. The bodies already unmount/remount on tab change (they were
-            conditionally rendered before), so this adds no extra refetch. */}
+        {/* Cross-fade + slight scale between tabs. Keyed by `event.id}-${tab}`
+            (not just `tab`) so each body remounts as its own presence both on
+            a tab switch AND on an event switch — the key was previously tab-
+            only, so navigating straight from /organizer/events/A/settings to
+            /organizer/events/B/settings (back/forward, or a direct URL edit,
+            with no intervening tab change) kept the same SettingsTab/
+            CheckoutFormBuilder/InviteOnlyPanel/CheckInTab instance mounted.
+            Those seed editable local state straight from `event.*` via a bare
+            useState() initializer with no resync effect, so the form kept
+            showing event A's price/capacity/payment settings while `save()`
+            posted them against event B's id — a real, silent cross-event
+            data-corruption bug. mode="wait" lets the old one fade out first;
+            the bodies already unmount/remount on tab change (they were
+            conditionally rendered before), so this adds no extra refetch
+            beyond the one an actual event switch should already trigger. */}
         <AnimatePresence mode="wait" initial={false}>
-          <motion.div key={tab} variants={tabSwitchVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}>
+          <motion.div key={`${event.id}-${tab}`} variants={tabSwitchVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}>
             {tab === "overview" && <OverviewTab event={event} features={features} reload={events.reload} />}
             {tab === "attendees" && <AttendeesTab event={event} features={features} />}
             {tab === "marketing" && <MarketingTab event={event} features={features} />}
@@ -1432,14 +1443,20 @@ function CheckInTab({ event }: { event: Weyn }) {
   function reloadSummary() {
     api.eventCheckins(event.id).then(setSummary).catch(() => {});
   }
-  useEffect(() => { reloadSummary(); }, [event.id]);
+  useEffect(() => { reloadSummary(); setCheckedInCount(0); }, [event.id]);
 
-  async function submitCode(raw: string) {
+  // `method` is passed explicitly rather than read from the `scanning` state
+  // closure — the QR-decode callback below is registered once inside
+  // startScanner()'s setTimeout and keeps whatever `submitCode` closure
+  // existed at that moment (captured with `scanning` still false, since the
+  // button that calls startScanner only renders while !scanning). Reading
+  // `scanning` here would silently log every camera scan as "manual".
+  async function submitCode(raw: string, method: "qr" | "manual" = "manual") {
     const value = raw.trim();
     if (!value || busy) return;
     setBusy(true); setResult(null);
     try {
-      await api.checkInTicket(value, { method: scanning ? "qr" : "manual", eventId: event.id });
+      await api.checkInTicket(value, { method, eventId: event.id });
       setResult({ ok: true, message: "Checked in ✓" });
       setCheckedInCount((n) => n + 1);
       reloadSummary();
@@ -1460,7 +1477,7 @@ function CheckInTab({ event }: { event: Weyn }) {
         if (!el) return;
         const scanner = new Html5Qrcode("weyn-qr-region");
         scannerRef.current = scanner;
-        await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 220 }, (decoded) => { submitCode(decoded); }, () => {});
+        await scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 220 }, (decoded) => { submitCode(decoded, "qr"); }, () => {});
       } catch {
         setResult({ ok: false, message: "Couldn't access the camera — use manual code entry instead." });
         setScanning(false);

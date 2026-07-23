@@ -200,9 +200,20 @@ export default function EventDetail() {
       } catch (err: any) {
         setBooked(null);
         setBookErr(err.message || "Couldn't book");
+        // A failure here is very often "someone else just took the last
+        // ticket/seat" (e.g. server's SEAT_CONFLICT) — refetch the real
+        // current availability instead of leaving the pre-failure tier/seat
+        // state on screen, which would let the buyer immediately retry
+        // against numbers that are already stale.
+        reload();
+        if (seatMapQuery.data) seatMapQuery.reload();
       }
     }
-    catch (err: any) { setBookErr(err.message || "Couldn't book"); }
+    catch (err: any) {
+      setBookErr(err.message || "Couldn't book");
+      reload();
+      if (seatMapQuery.data) seatMapQuery.reload();
+    }
     finally { setBooking(false); }
   }
 

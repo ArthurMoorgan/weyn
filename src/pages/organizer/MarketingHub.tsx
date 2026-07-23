@@ -501,13 +501,21 @@ function ConnectedAccountsSection({ events, loading, enabled }: { events: Weyn[]
   const { data: marketing } = useAsync(() => (activeId ? api.getMarketing(activeId) : Promise.resolve(null)), [activeId]);
   const { data: posts, reload: reloadPosts } = useAsync(() => (activeId ? api.listSocialPosts(activeId) : Promise.resolve([])), [activeId]);
   const [caption, setCaption] = useState("");
+  const [captionHydratedFor, setCaptionHydratedFor] = useState("");
   const [posting, setPosting] = useState(false);
   const [postErr, setPostErr] = useState("");
 
-  if (!loading && marketing && caption === "" && marketing.instagram) {
-    // hydrate the caption box once from the existing AI-drafted copy so
-    // there's something sensible to post without retyping it
-    setCaption(marketing.instagram);
+  // Hydrate the caption box once per selected event from its AI-drafted
+  // copy, so there's something sensible to post without retyping it — but
+  // re-hydrate whenever the event picker switches to a DIFFERENT event.
+  // The old guard (`caption === ""`) only hydrated the very first time ever
+  // and then never again: switching the event picker updated `activeId`
+  // (the real post target) but left the textbox showing the previous
+  // event's drafted caption, so "Post now" published stale copy under the
+  // newly-selected event.
+  if (!loading && marketing && activeId !== captionHydratedFor) {
+    setCaption(marketing.instagram || "");
+    setCaptionHydratedFor(activeId);
   }
 
   async function disconnect(id: string) {
@@ -523,7 +531,12 @@ function ConnectedAccountsSection({ events, loading, enabled }: { events: Weyn[]
       reloadPosts();
     } catch (e: any) {
       if (e?.error?.code === "ALREADY_POSTED" || e?.code === "ALREADY_POSTED") {
-        if (confirm("This event was already posted to Instagram. Post again anyway?")) return post(true);
+        // Was `return post(true)` with no await — since this recursive call
+        // is never awaited, this function's own `finally` below ran
+        // immediately (re-enabling "Post now") while the confirmed repost
+        // was still actually in flight against the real Instagram API,
+        // opening a real double-submit window.
+        if (confirm("This event was already posted to Instagram. Post again anyway?")) { await post(true); }
       } else {
         setPostErr(e.message || "Couldn't post");
       }
@@ -613,12 +626,23 @@ function EmailListSection({ events, loading, enabled }: { events: Weyn[]; loadin
   const { data: marketing } = useAsync(() => (activeId ? api.getMarketing(activeId) : Promise.resolve(null)), [activeId]);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [bodyHydratedFor, setBodyHydratedFor] = useState("");
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ recipients: number; sent: number } | null>(null);
 
-  if (!loading && marketing && subject === "" && body === "" && marketing.whatsapp) {
-    setSubject(`You're invited: an event you might like`);
-    setBody(marketing.whatsapp);
+  // Same fix as ConnectedAccountsSection's caption above: re-hydrate per
+  // selected event instead of only once ever, so switching the event
+  // picker doesn't leave a previous event's drafted subject/body sitting in
+  // the box while `activeId` (the real send target) has already moved on.
+  if (!loading && marketing && activeId !== bodyHydratedFor) {
+    if (marketing.whatsapp) {
+      setSubject(`You're invited: an event you might like`);
+      setBody(marketing.whatsapp);
+    } else {
+      setSubject("");
+      setBody("");
+    }
+    setBodyHydratedFor(activeId);
   }
 
   const subscribedCount = (contacts as MarketingContact[] | undefined)?.filter((c) => c.subscribed).length ?? 0;
