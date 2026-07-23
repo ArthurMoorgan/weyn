@@ -13,6 +13,12 @@
       "runtimeArgs": ["run", "web"],
       "port": 5174,
       "autoPort": true
+    },
+    {
+      "name": "design-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "5180", "--directory", "design-prototype"],
+      "port": 5180
     }
   ]
 }

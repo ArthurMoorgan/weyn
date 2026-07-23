@@ -4152,3 +4152,54 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .organizer-sidebar .profile-tab[href$="ai-studio"] [class^="icon-"],
 .organizer-nav-primary .profile-tab[href$="ai-studio"] [class^="icon-"] { color: var(--ai-accent-2); }
 
+/* ---- Overview page ------------------------------------------------- */
+/* A light page header on the canvas (no card) — the dashboard opens with
+   air and a clear title, actions to the side, instead of a heavy hero. */
+.ov-header {
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 2px 2px 0; margin-bottom: 22px;
+}
+/* Caps the greeting/title column so it doesn't stretch full-bleed on a wide
+   desktop viewport once .ov-header switches to a row layout below. */
+.ov-header-lead { max-width: 46ch; }
+.ov-eyebrow { display: block; font-size: 13px; font-weight: 500; color: var(--text-2); margin-bottom: 6px; }
+.ov-title { font-size: 23px; font-weight: 700; line-height: 1.15; letter-spacing: -0.6px; text-wrap: balance; }
+.ov-rep {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 10px;
+  font-size: 12.5px; font-weight: 500; color: var(--text-2);
+}
+.ov-rep [class^="icon-"] { font-size: 13px; color: var(--text); }
+.ov-rep-dot { margin: 0 3px; color: var(--text-3); }
+.ov-header-actions { display: flex; gap: 10px; }
+.ov-header-actions .btn { width: auto; flex: 1 1 0; }
+
+/* Promoted revenue chart card. */
+.ov-chart-card { padding: 20px 20px 18px; }
+.ov-chart-figure {
+  font-size: 24px; font-weight: 700; letter-spacing: -0.7px; line-height: 1;
+  margin-bottom: 18px; font-feature-settings: "tnum" 1;
+}
+.ov-chart-figure small { font-size: 12.5px; font-weight: 500; color: var(--text-2); letter-spacing: 0; margin-left: 4px; }
+.ov-chart-card .mini-bars { height: 140px !important; }
+
+/* Paired Coming-up / Needs-attention lists. */
+.ov-lists { margin-top: 4px; }
+.ov-empty {
+  color: var(--text-2); font-size: 13.5px;
+  padding: 16px; border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--card-shadow);
+}
+
+@media (min-width: 560px) {
+  .ov-header { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 24px; }
+  .ov-header-actions { flex: 0 0 auto; }
+  .ov-header-actions .btn { flex: 0 0 auto; }
+}
+@media (min-width: 900px) {
+  .ov-title { font-size: 27px; }
+  /* Lists sit side by side; the shared .dash-2col grid handles the columns,
+     but reset the chart-first ordering it uses on the revenue/coming-up pair. */
+  .ov-lists.dash-2col { grid-template-columns: 1fr 1fr; gap: 24px; }
+  .ov-lists .dash-col-chart { order: 0; }
+}
+

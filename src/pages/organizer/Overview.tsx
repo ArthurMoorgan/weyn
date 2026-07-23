@@ -62,60 +62,66 @@ export default function OrganizerOverview() {
     <>
       {summary.error && <p className="errline">{summary.error}</p>}
 
-      <div className="dash-banner">
-        <div>
-          <span className="dash-banner-eyebrow">{greeting()}{account?.name ? `, ${account.name.split(" ")[0]}` : ""}</span>
-          <h2>Here's how your events are doing.</h2>
+      {/* Page header — sits on the canvas, not in a card, so the dashboard
+          opens with air rather than a heavy hero block. Net revenue moved
+          into the KPI row below (it was duplicated here + there before). */}
+      <header className="ov-header">
+        <div className="ov-header-lead">
+          <span className="ov-eyebrow">{greeting()}{account?.name ? `, ${account.name.split(" ")[0]}` : ""}</span>
+          <h1 className="ov-title">Here's how your events are doing.</h1>
+          {o?.reputationScore && (
+            <span className="ov-rep">
+              {o.reputationScore.avgRating != null && <><i className="icon-star" /> {o.reputationScore.avgRating.toFixed(1)}<span className="ov-rep-dot">·</span></>}
+              Reputation {o.reputationScore.score}/100
+            </span>
+          )}
         </div>
-        <div className="dash-banner-metric">
-          <span className="k">Net revenue</span>
-          <span className="v">{f ? omr(f.netRevenue) : "—"} <small>OMR</small></span>
+        <div className="ov-header-actions">
+          <Link to="/organizer/events" className="btn"><i className="icon-scan" /> Scan tickets</Link>
+          <Link to="/host/events" className="btn glass"><i className="icon-plus" /> Create event</Link>
         </div>
-      </div>
+      </header>
 
       <motion.div className="stat-grid is-staggered" {...containerProps}>
+        <motion.div className="stat" {...childProps}><div className="k">Net revenue</div><div className="v">{f ? omr(f.netRevenue) : "—"} <small>OMR</small></div></motion.div>
         <motion.div className="stat" {...childProps}><div className="k">Tickets sold</div><div className="v">{s ? s.totalAttendees.toLocaleString() : "—"}</div></motion.div>
         <motion.div className="stat" {...childProps}><div className="k">Live events</div><div className="v">{s ? s.totalEvents : "—"}</div></motion.div>
         <motion.div className="stat" {...childProps}><div className="k">New today</div><div className="v">{s ? s.newRegistrationsToday : "—"}</div></motion.div>
-        {o?.reputationScore && <motion.div className="stat" {...childProps}><div className="k">Reputation score</div><div className="v">{o.reputationScore.score} <small>/ 100</small></div></motion.div>}
       </motion.div>
 
-      {/* Editorial handoff's mobile dashboard: a solid black/coral "Scan
-          tickets" CTA + an outline "Create event" button, side by side —
-          was missing entirely; the rest of QuickActions below still covers
-          the other real shortcuts (Attendees, AI Studio, Venues, Team…). */}
-      <div className="ov-primary-actions">
-        <Link to="/organizer/events" className="btn"><i className="icon-scan" /> Scan tickets</Link>
-        <Link to="/host/events" className="btn glass"><i className="icon-plus" /> Create event</Link>
+      {/* Revenue — promoted to a prominent full-width chart card. */}
+      <div className="date-head"><h2>Revenue</h2><span>last 14 days</span></div>
+      <div className="dash-card ov-chart-card">
+        {overview.loading ? (
+          <p className="hint">Loading…</p>
+        ) : o && o.revenueTrend.some((d) => d.revenue > 0) ? (
+          <>
+            <div className="ov-chart-figure">{f ? omr(f.totalRevenue) : "—"} <small>OMR gross</small></div>
+            <div className="mini-bars">
+              {o.revenueTrend.map((d) => (
+                <div key={d.date} className="mini-bar" title={`${d.date}: ${d.revenue.toLocaleString()} OMR`} style={{
+                  height: `${Math.max(4, Math.round((d.revenue / maxTrend) * 100))}%`,
+                }} />
+              ))}
+            </div>
+          </>
+        ) : (
+          <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No sales in the last 14 days yet.</p>
+        )}
+        {f && !f.payoutsLive && (
+          <p className="hint" style={{ margin: "14px 0 0" }}>
+            Payout tracking isn't real yet — these numbers reflect ticket sales, not money actually transferred to you.
+          </p>
+        )}
       </div>
 
-      <QuickActions onShowMore={() => setShowMore(true)} />
-
-      <div className="date-head"><h2>Needs attention</h2>{o && <span>{o.needsAttention.length}</span>}</div>
-      {overview.loading && <p className="hint" style={{ padding: "0 6px" }}>Loading…</p>}
-      {o && o.needsAttention.length === 0 && (
-        <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 6px 8px" }}>Nothing needs your attention right now.</p>
-      )}
-      {o && o.needsAttention.length > 0 && (
-        <ul className="steps">
-          {o.needsAttention.map((item, i) => (
-            <li key={i}>
-              <i className={ATTENTION_ICON[item.type] || "icon-alert-circle"} />
-              <span>
-                <Link to={`/organizer/events/${item.eventId}`}>{item.eventTitle}</Link>
-                <br /><small style={{ color: "var(--text-3)" }}>{item.message}</small>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="dash-2col">
-        <div className="dash-col dash-col-list">
+      {/* Coming up + Needs attention, side by side on desktop. */}
+      <div className="dash-2col ov-lists">
+        <div className="dash-col">
           <div className="date-head"><h2>Coming up</h2></div>
           {overview.loading && <p className="hint" style={{ padding: "0 6px" }}>Loading…</p>}
           {o && o.nextUpcoming.length === 0 && (
-            <p style={{ color: "var(--text-2)", fontSize: 13.5, padding: "0 6px 8px" }}>Nothing scheduled yet.</p>
+            <p className="ov-empty">Nothing scheduled yet.</p>
           )}
           {o && o.nextUpcoming.length > 0 && (
             <motion.div className="is-staggered" {...containerProps}>
@@ -126,8 +132,6 @@ export default function OrganizerOverview() {
                 // percent bar would be meaningless — falls back to a plain count.
                 const hasCapacity = e.capacity > 0 && e.capacity < 9000;
                 const pct = hasCapacity ? Math.min(100, Math.round((e.sold / e.capacity) * 100)) : null;
-                // Real status pill (handoff spec) derived from real sold/capacity —
-                // no "Draft" state here since this summary doesn't carry isDraft.
                 const soldOut = hasCapacity && e.sold >= e.capacity;
                 return (
                   <motion.div key={e.id} {...childProps}>
@@ -151,30 +155,31 @@ export default function OrganizerOverview() {
           )}
         </div>
 
-        <div className="dash-col dash-col-chart">
-          <div className="date-head"><h2>Revenue — last 14 days</h2></div>
-          <div className="dash-card" style={{ padding: "16px 18px" }}>
-            {overview.loading ? (
-              <p className="hint">Loading…</p>
-            ) : o && o.revenueTrend.some((d) => d.revenue > 0) ? (
-              <div className="mini-bars" style={{ height: 90 }}>
-                {o.revenueTrend.map((d) => (
-                  <div key={d.date} className="mini-bar" title={`${d.date}: ${d.revenue.toLocaleString()} OMR`} style={{
-                    height: `${Math.max(6, Math.round((d.revenue / maxTrend) * 90))}px`,
-                  }} />
-                ))}
-              </div>
-            ) : (
-              <p style={{ color: "var(--text-2)", fontSize: 13.5 }}>No sales in the last 14 days yet.</p>
-            )}
-            {f && !f.payoutsLive && (
-              <p className="hint" style={{ margin: "12px 0 0" }}>
-                Payout tracking isn't real yet — these numbers reflect ticket sales, not money actually transferred to you.
-              </p>
-            )}
-          </div>
+        <div className="dash-col">
+          <div className="date-head"><h2>Needs attention</h2>{o && o.needsAttention.length > 0 && <span>{o.needsAttention.length}</span>}</div>
+          {overview.loading && <p className="hint" style={{ padding: "0 6px" }}>Loading…</p>}
+          {o && o.needsAttention.length === 0 && (
+            <p className="ov-empty">You're all caught up.</p>
+          )}
+          {o && o.needsAttention.length > 0 && (
+            <ul className="steps">
+              {o.needsAttention.map((item, i) => (
+                <li key={i}>
+                  <i className={ATTENTION_ICON[item.type] || "icon-alert-circle"} />
+                  <span>
+                    <Link to={`/organizer/events/${item.eventId}`}>{item.eventTitle}</Link>
+                    <br /><small style={{ color: "var(--text-3)" }}>{item.message}</small>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
+
+      {/* Shortcuts — demoted to the bottom, quieter than the primary flow. */}
+      <div className="date-head"><h2>Shortcuts</h2></div>
+      <QuickActions onShowMore={() => setShowMore(true)} />
 
       <button type="button" className="ig-import-toggle" onClick={() => setShowMore((v) => !v)} aria-expanded={showMore} style={{ marginTop: 4 }}>
         <i className="icon-layout-list" /> Revenue by event, goals & expenses
