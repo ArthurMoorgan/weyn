@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
-import { MotionButton } from "../motion";
+import { MotionButton, usePrefersReducedMotion } from "../motion";
 import { api, CATS, type Cat, type Weyn, isToday, isTomorrow, isThisWeekend, isPast } from "../api";
 import { useAsync } from "../hooks";
 import { useAccount } from "../store";
@@ -220,6 +220,23 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
     // sectioning.
     return { mode: "browse" as const, all: catFiltered, rest: catFiltered };
   }, [data, cat, when, q, searching, maxPrice]);
+
+  // The spotlight and the "All events" list must never show the same event
+  // at the same time — both render a Stub with the same `layoutId` on their
+  // cover (the card→hero morph target), and two simultaneously-mounted
+  // elements sharing one layoutId is exactly what caused a spotlighted card
+  // to randomly disappear/jump: Framer Motion was measuring one against the
+  // other instead of treating them as independent. Splitting the same list
+  // into "first 8 → spotlight" / "rest → list" (instead of spotlight being a
+  // carve-out that also stays in the list) fixes that at the root.
+  const spotlightEvents = useMemo(
+    () => (S.mode === "browse" ? S.rest.slice(0, 8) : []),
+    [S]
+  );
+  const restForList = useMemo(
+    () => (S.mode === "browse" ? S.rest.slice(8) : []),
+    [S]
+  );
 
   // Extracted so the embedded home can nest them inside the sticky
   // .home-topstick wrapper while the standalone page renders them flat —
@@ -534,7 +551,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
               </section>
             )}
             {embedded && S.rest.length > 0 && (
-              <FeaturedSpotlight events={S.rest.slice(0, 8)} />
+              <FeaturedSpotlight events={spotlightEvents} />
             )}
             {/* Personalized row — only on the unfiltered home (a category filter
                 is already an explicit intent; don't compete with it) and only
@@ -547,18 +564,20 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 emptyMessage=""
               />
             )}
-            {S.rest.length > 0 && embedded && (
+            {restForList.length > 0 && embedded && (
               <section className="ex-section">
                 <div className="ex-head">
                   <h2>All events</h2>
-                  <span className="ex-sub">{S.rest.length}</span>
+                  <span className="ex-sub">{restForList.length}</span>
                 </div>
                 {/* Circular-thumb + title + one meta line, matching the
                     reference design's list-row style exactly — replaces the
                     full editorial card here (that variant stays as-is for
-                    the standalone /explore page below). */}
+                    the standalone /explore page below). Excludes whatever's
+                    already up in the spotlight above (see spotlightEvents/
+                    restForList) so no event is mounted twice at once. */}
                 <div className="ex-avatar-list">
-                  {S.rest.map((e) => (
+                  {restForList.map((e) => (
                     <motion.div key={e.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }}>
                       <Stub e={e} variant="avatar" />
                     </motion.div>
@@ -604,9 +623,18 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
 // interior card gets for free from flex gap — without them, scroll-snap has
 // nothing to center the edge cards against and they'd sit flush to the
 // screen edge with no peek.
+// Coverflow-style: the centered card reads full-strength, its two neighbors
+// sit faded/scaled back so the "one in focus, more coming on each side" shape
+// is visible even before anything moves. Auto-advances one card at a time on
+// a loop (pausing the moment the user actually touches/scrolls it, resuming
+// a few seconds after they let go) — a timer fighting an in-progress swipe is
+// exactly what used to read as the rail "randomly" jumping around.
 function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  const reduced = usePrefersReducedMotion();
+  const pausedRef = useRef(false);
+  const resumeTimerRef = useRef<number>();
 
   useEffect(() => {
     const track = trackRef.current;
@@ -628,6 +656,46 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
     return () => track.removeEventListener("scroll", updateActive);
   }, [events]);
 
+  // Any real user interaction pauses autoplay for a few seconds — swiping,
+  // dragging a scrollbar, or a trackpad/wheel nudge all count.
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    function pause() {
+      pausedRef.current = true;
+      window.clearTimeout(resumeTimerRef.current);
+      resumeTimerRef.current = window.setTimeout(() => { pausedRef.current = false; }, 4000);
+    }
+    track.addEventListener("pointerdown", pause);
+    track.addEventListener("wheel", pause, { passive: true });
+    return () => {
+      track.removeEventListener("pointerdown", pause);
+      track.removeEventListener("wheel", pause);
+      window.clearTimeout(resumeTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (reduced || events.length <= 1) return;
+    const id = window.setInterval(() => {
+      const track = trackRef.current;
+      if (!track || pausedRef.current) return;
+      const cards = Array.from(track.querySelectorAll<HTMLElement>("[data-spot-card]"));
+      if (cards.length === 0) return;
+      const center = track.scrollLeft + track.clientWidth / 2;
+      let current = 0, min = Infinity;
+      cards.forEach((c, i) => {
+        const mid = c.offsetLeft + c.offsetWidth / 2;
+        const d = Math.abs(mid - center);
+        if (d < min) { min = d; current = i; }
+      });
+      const next = (current + 1) % cards.length;
+      const target = cards[next];
+      track.scrollTo({ left: target.offsetLeft + target.offsetWidth / 2 - track.clientWidth / 2, behavior: "smooth" });
+    }, 3500);
+    return () => window.clearInterval(id);
+  }, [events, reduced]);
+
   return (
     <section className="ex-section">
       <div className="ex-head">
@@ -636,11 +704,21 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
       </div>
       <div className="ex-spotlight-rail" ref={trackRef}>
         <div className="ex-spotlight-spacer" aria-hidden="true" />
-        {events.map((e) => (
-          <div key={e.id} data-spot-card>
-            <Stub e={e} variant="feature" />
-          </div>
-        ))}
+        {events.map((e, i) => {
+          const distance = Math.abs(i - active);
+          return (
+            <div
+              key={e.id}
+              data-spot-card
+              style={{
+                opacity: distance === 0 ? 1 : distance === 1 ? 0.5 : 0.28,
+                transform: distance === 0 ? "scale(1)" : "scale(0.92)",
+              }}
+            >
+              <Stub e={e} variant="feature" />
+            </div>
+          );
+        })}
         <div className="ex-spotlight-spacer" aria-hidden="true" />
       </div>
       {events.length > 1 && (
