@@ -691,9 +691,15 @@ a.cat-circle:active { transform: scale(0.96); }
    hook) rather than being a direct flex child of the rail itself, so it
    doesn't get flexbox's automatic blockification and would otherwise keep
    its native <a> `display:inline`, which ignores the width rule entirely. */
-.ec-feature { display: block; flex: 0 0 auto; width: min(85vw, 360px); }
+/* Narrow portrait card, not a near-full-width landscape one — per the
+   reference wireframe the center card only takes ~48% of the screen width
+   with both neighbors clearly peeking in at full height on either side
+   (measured from the wireframe: ~177px card in a ~375px viewport, height
+   roughly 1.85x the width). The old 85vw/4:3 read as one dominant card
+   with barely any neighbor visible, not a real carousel. */
+.ec-feature { display: block; flex: 0 0 auto; width: min(48vw, 200px); }
 .ec-feature-cover {
-  aspect-ratio: 4/3; border-radius: 16px; overflow: hidden; position: relative;
+  aspect-ratio: 9/16; border-radius: 16px; overflow: hidden; position: relative;
   background-size: cover; background-position: center; background-color: var(--card-bg);
   display: grid; place-items: center;
 }
