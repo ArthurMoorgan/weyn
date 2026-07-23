@@ -7,7 +7,7 @@ import { useAsync } from "../hooks";
 import { useAccount } from "../store";
 import { addRecentSearch, getRecentSearches, clearRecentSearches } from "../hooks/useRecentSearches";
 import Stub from "../components/Stub";
-import Icon3D from "../components/Icon3D";
+import CategoryIcon from "../components/CategoryIcon";
 import HorizontalRail from "../components/HorizontalRail";
 import { useRecommendations } from "../hooks/useRecommendations";
 import { dismissSplash } from "../splash";
@@ -543,7 +543,7 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 <div className="ex-rail">
                   {CATS.filter((c) => c.key !== "all").map((c) => (
                     <Link key={c.key} to={`/explore?cat=${c.key}`} className="category-tile">
-                      <Icon3D name={c.key} size={18} />
+                      <CategoryIcon name={c.key} size={18} />
                       <span className="category-tile-label">{c.label}</span>
                     </Link>
                   ))}

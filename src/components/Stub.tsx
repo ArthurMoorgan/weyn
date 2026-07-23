@@ -4,7 +4,7 @@ import { type Weyn, ticketsLeft, isSoldOut, isTonight, dayLabel, timeLabel } fro
 import { isSaved, toggleSave, useSaved } from "../store";
 import { preloadEventDetail } from "../eventDetailChunk";
 import { usePrefersReducedMotion, pressSpring } from "../motion";
-import Icon3D from "./Icon3D";
+import CategoryIcon from "./CategoryIcon";
 
 // The whole card is tappable, so the card itself is the press target — a
 // subtle shrink-on-press (much gentler than a button's 0.94, since a big
@@ -133,7 +133,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
   if (variant === "list") {
     return (
       <MotionLink to={`/e/${e.id}`} {...preload} {...press} className={"ec-row" + (ticket ? " ticket" : "")}>
-        <motion.div layoutId={`event-cover-${e.id}`} className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={48} /></span>}</motion.div>
+        <motion.div layoutId={`event-cover-${e.id}`} className="ec-thumb" style={coverStyle}>{!e.image && <span className="ec-glyph"><CategoryIcon name={e.cat} size={48} /></span>}</motion.div>
         <div className="ec-main">
           <div className="ec-top">
             <span className="ec-when">{dayLabel(e)} · {timeLabel(e)}</span>
@@ -162,7 +162,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
     return (
       <MotionLink to={`/e/${e.id}`} {...preload} {...press} className="ec-avatar-row">
         <motion.div layoutId={`event-cover-${e.id}`} className="ec-avatar-thumb" style={coverStyle}>
-          {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={22} /></span>}
+          {!e.image && <span className="ec-glyph"><CategoryIcon name={e.cat} size={22} /></span>}
         </motion.div>
         <div className="ec-avatar-text">
           <h3 className="ec-avatar-title">{e.title}</h3>
@@ -179,7 +179,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
         <motion.div layoutId={`event-cover-${e.id}`} className="ec-card-cover" style={coverStyle}>
           {coverBadges}
           <SaveHeart id={e.id} />
-          {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={76} /></span>}
+          {!e.image && <span className="ec-glyph big"><CategoryIcon name={e.cat} size={76} /></span>}
           {scarce && <span className="ec-card-scarce">{left} left</span>}
         </motion.div>
         <div className="ec-card-body">
@@ -203,7 +203,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
         <motion.div layoutId={`event-cover-${e.id}`} className="ec-rail-cover" style={coverStyle}>
           {coverBadges}
           <SaveHeart id={e.id} />
-          {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={48} /></span>}
+          {!e.image && <span className="ec-glyph"><CategoryIcon name={e.cat} size={48} /></span>}
         </motion.div>
         <h3 className="ec-title">{e.title}</h3>
         <div className="ec-meta">
@@ -225,7 +225,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
     return (
       <MotionLink to={`/e/${e.id}`} {...preload} {...press} className="ec-toprow">
         <motion.div layoutId={`event-cover-${e.id}`} className="ec-toprow-cover" style={coverStyle}>
-          {!e.image && <span className="ec-glyph"><Icon3D name={e.cat} size={44} /></span>}
+          {!e.image && <span className="ec-glyph"><CategoryIcon name={e.cat} size={44} /></span>}
         </motion.div>
         <div className="ec-toprow-body">
           <div className="ec-toprow-top">
@@ -246,7 +246,7 @@ export default function Stub({ e, ticket = false, variant = "list" }: { e: Weyn;
       <motion.div layoutId={`event-cover-${e.id}`} className="ec-feature-cover" style={coverStyle}>
         {coverBadges}
         <SaveHeart id={e.id} className="ec-save-lg" />
-        {!e.image && <span className="ec-glyph big"><Icon3D name={e.cat} size={76} /></span>}
+        {!e.image && <span className="ec-glyph big"><CategoryIcon name={e.cat} size={76} /></span>}
         <div className="ec-feature-body">
           <div className="ec-feature-toprow">
             <span className="ec-feature-organizer">{e.organizer}</span>
