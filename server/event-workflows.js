@@ -18,6 +18,32 @@ export const EVENT_TRIGGERS = ["ticket_sold", "low_inventory", "event_published"
 export const EVENT_CONDITION_FIELDS = ["ticketTier", "quantityRemaining", "attendeeEmailDomain"];
 export const EVENT_ACTIONS = ["notify_team", "send_campaign", "apply_promo_code", "add_to_waitlist_priority"];
 
+// Three-color DFS cycle check. A graph edge looping back to an ancestor
+// (e.g. an action's output wired back into an earlier condition) would
+// otherwise pass every other check here cleanly and only surface at
+// runtime as an infinite walk() recursion — reject it at save time instead,
+// with a clear message, rather than let it silently never finish later.
+function hasCycle(nodes, edges) {
+  const childrenOf = new Map();
+  for (const e of edges) {
+    if (!childrenOf.has(e.source)) childrenOf.set(e.source, []);
+    childrenOf.get(e.source).push(e.target);
+  }
+  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const color = new Map(nodes.map((n) => [n.id, WHITE]));
+  function dfs(id) {
+    color.set(id, GRAY);
+    for (const childId of childrenOf.get(id) || []) {
+      const c = color.get(childId);
+      if (c === GRAY) return true;
+      if (c === WHITE && dfs(childId)) return true;
+    }
+    color.set(id, BLACK);
+    return false;
+  }
+  return nodes.some((n) => color.get(n.id) === WHITE && dfs(n.id));
+}
+
 // Validates a graph's shape at save time — exactly one trigger node, every
 // edge references a real node, node `data` matches its type's expected
 // fields. Doesn't reject unreachable nodes (a work-in-progress graph with a
@@ -35,6 +61,7 @@ export function validateEventWorkflowGraph(nodes, edges) {
     if (n.type === "condition" && !EVENT_CONDITION_FIELDS.includes(n.data?.field)) return "Invalid condition field";
     if (n.type === "action" && !EVENT_ACTIONS.includes(n.data?.action)) return "Invalid action type";
   }
+  if (hasCycle(nodes, edges)) return "This workflow loops back on itself — a node's output can't lead back to an earlier node";
   return null;
 }
 
@@ -138,17 +165,29 @@ async function runActionNode(node, ctx, event) {
 // server/venue-workflows.js's walk(): a failing condition prunes its whole
 // branch, an action always runs and its children continue after it (so
 // actions can chain).
-async function walk(node, byId, childrenOf, ctx, event, matched) {
+//
+// `visited` guards against two things a hand-built graph can accidentally
+// contain (validateEventWorkflowGraph only checks edges reference real
+// nodes, not that the graph is acyclic): a cycle, which would otherwise
+// recurse forever (never resolving the caller's await, silently repeating
+// every email/promo-code/waitlist action on each pass); and an action node
+// reachable via two different branches (e.g. two conditions both pointing
+// at the same action — a natural "OR" wiring), which would otherwise run
+// twice. Skipping any node already in `visited` fixes both: a cycle's
+// repeat visit is a no-op, and a fan-in action only ever fires once per run.
+async function walk(node, byId, childrenOf, ctx, event, matched, visited) {
   const children = childrenOf.get(node.id) || [];
   for (const childId of children) {
+    if (visited.has(childId)) continue;
     const child = byId.get(childId);
     if (!child) continue;
+    visited.add(childId);
     if (child.type === "condition") {
       if (!evaluateCondition(child, ctx)) continue;
-      await walk(child, byId, childrenOf, ctx, event, matched);
+      await walk(child, byId, childrenOf, ctx, event, matched, visited);
     } else if (child.type === "action") {
       matched.push(await runActionNode(child, ctx, event));
-      await walk(child, byId, childrenOf, ctx, event, matched);
+      await walk(child, byId, childrenOf, ctx, event, matched, visited);
     }
   }
 }
@@ -165,7 +204,7 @@ export async function runEventWorkflowGraph(workflow, ctx, event) {
   const trigger = nodes.find((n) => n.type === "trigger");
   if (!trigger) return null;
   const matched = [];
-  await walk(trigger, byId, childrenOf, ctx, event, matched);
+  await walk(trigger, byId, childrenOf, ctx, event, matched, new Set([trigger.id]));
   const status = matched.length === 0 ? "success" : matched.every((m) => m.ok) ? "success" : matched.some((m) => m.ok) ? "partial" : "failed";
   return { matched, status };
 }
