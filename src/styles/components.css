@@ -644,11 +644,15 @@ a.cat-circle:active { transform: scale(0.96); }
   display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
   padding: 2px 0 4px; scrollbar-width: none;
   scroll-padding: 0 16px;
-  overscroll-behavior: contain;
-  /* Pin the gesture to the horizontal axis only — without this a swipe that
-     starts even slightly off-axis can get captured as a page scroll instead
-     of a rail scroll, which is what read as "it scrolls vertically to???". */
-  touch-action: pan-x;
+  /* x-only: contains horizontal scroll-chaining to a parent scroller without
+     touching the vertical axis. A previous pass added `touch-action: pan-x`
+     here too, meaning to stop off-axis swipes from being read as a page
+     scroll — but pan-x actively BLOCKS vertical panning starting on this
+     element instead of deferring to the page, which broke scrolling the rest
+     of the page whenever a gesture started over the (large) spotlight rail.
+     The default touch-action already lets the browser's own scroll-direction
+     heuristic hand a vertical gesture to the page — nothing extra needed. */
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
 }
 .ex-spotlight-rail::-webkit-scrollbar { display: none; }

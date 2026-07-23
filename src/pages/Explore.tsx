@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion, MotionConfig } from "motion/react";
 import { MotionButton, usePrefersReducedMotion } from "../motion";
@@ -124,9 +124,6 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
   const stickSentinelRef = useRef<HTMLDivElement>(null);
   const { data, loading, error, reload } = useAsync(() => api.listEvents(), [], { cacheKey: "events:all" });
   const searching = q.trim().length > 0;
-  // Personalized "for you" row — derived client-side from saved + recently
-  // viewed (see useRecommendations). Re-ranks live as the user saves events.
-  const recs = useRecommendations(data);
 
   // Explore is the app's root route, so the initial-content-loading period
   // here is exactly what the first-launch splash should cover.
@@ -221,22 +218,69 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
     return { mode: "browse" as const, all: catFiltered, rest: catFiltered };
   }, [data, cat, when, q, searching, maxPrice]);
 
-  // The spotlight and the "All events" list must never show the same event
-  // at the same time — both render a Stub with the same `layoutId` on their
-  // cover (the card→hero morph target), and two simultaneously-mounted
-  // elements sharing one layoutId is exactly what caused a spotlighted card
-  // to randomly disappear/jump: Framer Motion was measuring one against the
-  // other instead of treating them as independent. Splitting the same list
-  // into "first 8 → spotlight" / "rest → list" (instead of spotlight being a
-  // carve-out that also stays in the list) fixes that at the root.
-  const spotlightEvents = useMemo(
-    () => (S.mode === "browse" ? S.rest.slice(0, 8) : []),
-    [S]
+  // The home feed is a stack of curated rows (spotlight, Today, Tomorrow,
+  // Recommended for you, Near you, then everything else) carved out of the
+  // same one `S.rest` list, in that priority order — every row's Stub cover
+  // shares a `layoutId` keyed only by event id (the card→hero morph target),
+  // so the same event mounted in two rows at once is exactly what caused a
+  // spotlighted card to randomly disappear/jump: Framer Motion was measuring
+  // one against the other instead of treating them as independent. Each row
+  // below draws from what the previous rows didn't already claim, so every
+  // event appears in at most one row on screen at a time.
+  // Featured events first (both keep their existing chronological order
+  // among themselves — S.rest is already soonest-first), then fill any
+  // remaining slots with whatever's next up. Plain "first 8 soonest" meant
+  // the spotlight — a section literally badged "Featured" on some cards —
+  // was really just "today's earliest events," which also silently ate the
+  // entire Today row on any day with 8+ things happening.
+  const spotlightEvents = useMemo(() => {
+    if (S.mode !== "browse") return [];
+    const featured = S.rest.filter((e) => e.featured);
+    const rest = S.rest.filter((e) => !e.featured);
+    return [...featured, ...rest].slice(0, 8);
+  }, [S]);
+  const afterSpotlight = useMemo(() => {
+    if (S.mode !== "browse") return [];
+    const ids = new Set(spotlightEvents.map((e) => e.id));
+    return S.rest.filter((e) => !ids.has(e.id));
+  }, [S, spotlightEvents]);
+
+  const todayEvents = useMemo(() => afterSpotlight.filter(isToday).slice(0, 10), [afterSpotlight]);
+  const afterToday = useMemo(() => {
+    if (todayEvents.length === 0) return afterSpotlight;
+    const ids = new Set(todayEvents.map((e) => e.id));
+    return afterSpotlight.filter((e) => !ids.has(e.id));
+  }, [afterSpotlight, todayEvents]);
+
+  const tomorrowEvents = useMemo(() => afterToday.filter(isTomorrow).slice(0, 10), [afterToday]);
+  const afterTomorrow = useMemo(() => {
+    if (tomorrowEvents.length === 0) return afterToday;
+    const ids = new Set(tomorrowEvents.map((e) => e.id));
+    return afterToday.filter((e) => !ids.has(e.id));
+  }, [afterToday, tomorrowEvents]);
+
+  // Personalized "for you" row — derived client-side from saved + recently
+  // viewed (see useRecommendations), scoped to whatever Today/Tomorrow didn't
+  // already claim. Re-ranks live as the user saves events.
+  const recs = useRecommendations(afterTomorrow);
+  const afterRecs = useMemo(() => {
+    if (!recs.hasSignal || recs.events.length === 0) return afterTomorrow;
+    const ids = new Set(recs.events.map((e) => e.id));
+    return afterTomorrow.filter((e) => !ids.has(e.id));
+  }, [afterTomorrow, recs]);
+
+  // "Near you" — same distanceKm the list rows already surface (see Stub's
+  // "list" variant), just sorted instead of filtered. No separate geolocation
+  // request: distanceKm already reflects the visitor's location server-side.
+  const nearYouEvents = useMemo(
+    () => [...afterRecs].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 10),
+    [afterRecs]
   );
-  const restForList = useMemo(
-    () => (S.mode === "browse" ? S.rest.slice(8) : []),
-    [S]
-  );
+  const restForList = useMemo(() => {
+    if (nearYouEvents.length === 0) return afterRecs;
+    const ids = new Set(nearYouEvents.map((e) => e.id));
+    return afterRecs.filter((e) => !ids.has(e.id));
+  }, [afterRecs, nearYouEvents]);
 
   // Extracted so the embedded home can nest them inside the sticky
   // .home-topstick wrapper while the standalone page renders them flat —
@@ -553,6 +597,12 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
             {embedded && S.rest.length > 0 && (
               <FeaturedSpotlight events={spotlightEvents} />
             )}
+            {embedded && todayEvents.length > 0 && (
+              <HorizontalRail title="Today" events={todayEvents} emptyMessage="" />
+            )}
+            {embedded && tomorrowEvents.length > 0 && (
+              <HorizontalRail title="Tomorrow" events={tomorrowEvents} emptyMessage="" />
+            )}
             {/* Personalized row — only on the unfiltered home (a category filter
                 is already an explicit intent; don't compete with it) and only
                 once there's enough saved/viewed signal to be genuinely personal
@@ -563,6 +613,9 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
                 events={recs.events}
                 emptyMessage=""
               />
+            )}
+            {embedded && nearYouEvents.length > 0 && (
+              <HorizontalRail title="Near you" events={nearYouEvents} emptyMessage="" />
             )}
             {restForList.length > 0 && embedded && (
               <section className="ex-section">
@@ -631,10 +684,50 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
 // exactly what used to read as the rail "randomly" jumping around.
 function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const leadRef = useRef<HTMLDivElement>(null);
+  const tailRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  const activeRef = useRef(0);
   const reduced = usePrefersReducedMotion();
   const pausedRef = useRef(false);
   const resumeTimerRef = useRef<number>();
+
+  useEffect(() => { activeRef.current = active; }, [active]);
+
+  // Shared by the initial layout, resize, and autoplay-advance paths so
+  // "centered" always means the same thing: card i sits exactly in the
+  // middle of the rail, not flush to an edge.
+  const centerOn = (index: number, smooth: boolean) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const cards = Array.from(track.querySelectorAll<HTMLElement>("[data-spot-card]"));
+    const target = cards[index];
+    if (!target) return;
+    track.scrollTo({
+      left: target.offsetLeft + target.offsetWidth / 2 - track.clientWidth / 2,
+      behavior: smooth ? "smooth" : "auto",
+    });
+  };
+
+  // Size the leading/trailing spacers so the FIRST and LAST card can each
+  // reach dead-center with equal peek on both sides — a fixed small "peek"
+  // spacer left the first card flush against the screen edge on load
+  // instead of centered like every other card once scrolled to.
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    const firstCard = track?.querySelector<HTMLElement>("[data-spot-card]");
+    if (!track || !firstCard) return;
+    function size() {
+      const spacer = Math.max(0, (track!.clientWidth - firstCard!.offsetWidth) / 2);
+      if (leadRef.current) leadRef.current.style.flexBasis = `${spacer}px`;
+      if (tailRef.current) tailRef.current.style.flexBasis = `${spacer}px`;
+      centerOn(activeRef.current, false);
+    }
+    size();
+    window.addEventListener("resize", size);
+    return () => window.removeEventListener("resize", size);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events.length]);
 
   useEffect(() => {
     const track = trackRef.current;
@@ -678,20 +771,13 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
   useEffect(() => {
     if (reduced || events.length <= 1) return;
     const id = window.setInterval(() => {
+      if (pausedRef.current) return;
       const track = trackRef.current;
-      if (!track || pausedRef.current) return;
+      if (!track) return;
       const cards = Array.from(track.querySelectorAll<HTMLElement>("[data-spot-card]"));
       if (cards.length === 0) return;
-      const center = track.scrollLeft + track.clientWidth / 2;
-      let current = 0, min = Infinity;
-      cards.forEach((c, i) => {
-        const mid = c.offsetLeft + c.offsetWidth / 2;
-        const d = Math.abs(mid - center);
-        if (d < min) { min = d; current = i; }
-      });
-      const next = (current + 1) % cards.length;
-      const target = cards[next];
-      track.scrollTo({ left: target.offsetLeft + target.offsetWidth / 2 - track.clientWidth / 2, behavior: "smooth" });
+      const next = (activeRef.current + 1) % cards.length;
+      centerOn(next, true);
     }, 3500);
     return () => window.clearInterval(id);
   }, [events, reduced]);
@@ -703,7 +789,7 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
         <Link to="/explore" className="ex-see-all">See all <i className="icon-arrow-right" /></Link>
       </div>
       <div className="ex-spotlight-rail" ref={trackRef}>
-        <div className="ex-spotlight-spacer" aria-hidden="true" />
+        <div className="ex-spotlight-spacer" ref={leadRef} aria-hidden="true" />
         {events.map((e, i) => {
           const distance = Math.abs(i - active);
           return (
@@ -711,15 +797,15 @@ function FeaturedSpotlight({ events }: { events: Weyn[] }) {
               key={e.id}
               data-spot-card
               style={{
-                opacity: distance === 0 ? 1 : distance === 1 ? 0.5 : 0.28,
-                transform: distance === 0 ? "scale(1)" : "scale(0.92)",
+                opacity: distance === 0 ? 1 : distance === 1 ? 0.45 : 0.22,
+                transform: distance === 0 ? "scale(1.08)" : distance === 1 ? "scale(0.82)" : "scale(0.75)",
               }}
             >
               <Stub e={e} variant="feature" />
             </div>
           );
         })}
-        <div className="ex-spotlight-spacer" aria-hidden="true" />
+        <div className="ex-spotlight-spacer" ref={tailRef} aria-hidden="true" />
       </div>
       {events.length > 1 && (
         <div className="ex-spotlight-dots">
