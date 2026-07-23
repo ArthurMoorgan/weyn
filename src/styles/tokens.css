@@ -255,17 +255,8 @@
   --surface-lit-gradient: var(--surface-hover);
 }
 
-/* Editorial handoff typeface — self-hosted variable Geist fonts (see
-   public/fonts/, copied from the `geist` npm package's raw woff2 files
-   since that package's JS exports are Next.js `next/font`-only and don't
-   work in this Vite app). Fallback stack matches the handoff spec exactly
-   for browsers where the font fails to load. */
-@font-face {
-  font-family: "Geist";
-  font-display: swap;
-  font-weight: 100 900;
-  src: url('/fonts/Geist-Variable.woff2') format('woff2');
-}
+/* Geist Mono stays — still used for --f-mono (tabular/data text), untouched
+   by the display-font revert below. */
 @font-face {
   font-family: "Geist Mono";
   font-display: swap;
@@ -279,7 +270,12 @@
   --fw-semibold: 600;  /* card titles, buttons, labels */
   --fw-bold:    700;   /* hero + section headings only */
 
-  --f-display: "Geist", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  /* Reverted from self-hosted Geist back to Plus Jakarta Sans (loaded via
+     Google Fonts, see index.html) — this app used it before Geist, per
+     direct design direction. Loaded via <link>, not @font-face, following
+     the same progressive-loading pattern already used for Noto Naskh
+     Arabic below. */
+  --f-display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --f-mono:    "Geist Mono", ui-monospace, "SF Mono", monospace;
 
   /* Tightened one notch across the board (density pass): page titles and

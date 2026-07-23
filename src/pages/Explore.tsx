@@ -517,32 +517,24 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
           <div className="empty"><div className="ic"><i className="icon-calendar-off" /></div><p>Nothing on in this category yet.</p></div>
         ) : (
           <>
-            {/* Top events + Categories are home-screen sections — the
+            {/* Categories + In the spotlight are home-screen sections — the
                 standalone /explore page already has its own When/category
                 chip filters, so these would just duplicate that there. */}
-            {embedded && S.rest.length > 0 && (
-              <section className="ex-section">
-                <div className="ex-head">
-                  <h2>Top events</h2>
-                  <Link to="/explore" className="ex-see-all">See all <i className="icon-arrow-right" /></Link>
-                </div>
-                <div className="ec-toprow-rail">
-                  {S.rest.slice(0, 8).map((e) => <Stub key={e.id} e={e} variant="toprow" />)}
-                </div>
-              </section>
-            )}
             {embedded && (
               <section className="ex-section">
                 <div className="ex-head"><h2>Categories</h2></div>
                 <div className="ex-rail">
                   {CATS.filter((c) => c.key !== "all").map((c) => (
                     <Link key={c.key} to={`/explore?cat=${c.key}`} className="category-tile">
-                      <Icon3D name={c.key} size={44} />
+                      <Icon3D name={c.key} size={18} />
                       <span className="category-tile-label">{c.label}</span>
                     </Link>
                   ))}
                 </div>
               </section>
+            )}
+            {embedded && S.rest.length > 0 && (
+              <FeaturedSpotlight events={S.rest.slice(0, 8)} />
             )}
             {/* Personalized row — only on the unfiltered home (a category filter
                 is already an explicit intent; don't compete with it) and only
@@ -579,5 +571,64 @@ export default function Explore({ embedded = false }: { embedded?: boolean }) {
       )}
     </>
     </MotionConfig>
+  );
+}
+
+// "In the spotlight" — replaces the old "Top events" peek-row with a real
+// center-dominant carousel (reuses Stub's existing default/.ec-feature
+// variant — already sized for exactly this, "min(85vw, 360px)"). Deliberately
+// plain CSS scroll-snap, not a drag/spring carousel — an earlier
+// spring-physics spotlight was pulled for being "too glitchy" (see git
+// history); this is the same robust mechanism used elsewhere in the app
+// (.ex-rail/.horizontal-rail) applied to a bigger card. Leading/trailing
+// spacers give the FIRST and LAST card the same both-side peek every
+// interior card gets for free from flex gap — without them, scroll-snap has
+// nothing to center the edge cards against and they'd sit flush to the
+// screen edge with no peek.
+function FeaturedSpotlight({ events }: { events: Weyn[] }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const cards = Array.from(track.querySelectorAll<HTMLElement>("[data-spot-card]"));
+    function updateActive() {
+      if (!track || cards.length === 0) return;
+      const center = track.scrollLeft + track.clientWidth / 2;
+      let closest = 0, min = Infinity;
+      cards.forEach((c, i) => {
+        const mid = c.offsetLeft + c.offsetWidth / 2;
+        const d = Math.abs(mid - center);
+        if (d < min) { min = d; closest = i; }
+      });
+      setActive(closest);
+    }
+    track.addEventListener("scroll", updateActive, { passive: true });
+    updateActive();
+    return () => track.removeEventListener("scroll", updateActive);
+  }, [events]);
+
+  return (
+    <section className="ex-section">
+      <div className="ex-head">
+        <h2>In the spotlight</h2>
+        <Link to="/explore" className="ex-see-all">See all <i className="icon-arrow-right" /></Link>
+      </div>
+      <div className="ex-spotlight-rail" ref={trackRef}>
+        <div className="ex-spotlight-spacer" aria-hidden="true" />
+        {events.map((e) => (
+          <div key={e.id} data-spot-card>
+            <Stub e={e} variant="feature" />
+          </div>
+        ))}
+        <div className="ex-spotlight-spacer" aria-hidden="true" />
+      </div>
+      {events.length > 1 && (
+        <div className="ex-spotlight-dots">
+          {events.map((_, i) => <span key={i} className={"ex-spotlight-dot" + (i === active ? " on" : "")} />)}
+        </div>
+      )}
+    </section>
   );
 }

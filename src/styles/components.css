@@ -54,11 +54,10 @@
    affordance. The .tabs nav stays for desktop (>=900px), where it's a top
    bar. Reclaim the bottom padding the old bar reserved. */
 @media (max-width: 899px) {
-  /* Clear the docked bottom bar (its own height + a little breathing room)
-     so the last card scrolls fully above it. Flush to the edge now, not
-     floating with a margin, so this is just the bar's height, not extra
-     offset on top of it. */
-  .shell { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
+  /* Clear the floating bottom pill (its own ~62px height + 18px bottom
+     margin + a little breathing room) so the last card scrolls fully above
+     it, not just up to its top edge. */
+  .shell { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
   /* .tabs is hidden on mobile below (after its base rule at .tabs{}), not
      here — placing the override before the base rule loses the cascade. */
 }
@@ -606,26 +605,57 @@ a.cat-circle:active { transform: scale(0.96); }
    proven, no new asset style to invent) after a brief photo-tile detour.
    Square surface tile, icon centered, label below. Tap filters into the
    standalone Events page (?cat=). ---- */
+/* Restyled from a square vertical tile to a small dark horizontal pill chip
+   (icon + label inline) per the reference design — Icon3D's real per-category
+   color rides inside the monochrome-ink pill, matching CLAUDE.md's rule that
+   hue is sanctioned in category imagery/icons even though the chrome stays
+   grayscale. */
 .category-tile {
-  flex: 0 0 auto; width: 96px; min-height: 96px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 8px; padding: 12px 8px;
-  background: var(--surface); border: 1px solid var(--card-border);
-  border-radius: var(--radius-lg); box-shadow: var(--card-shadow);
-  transition: transform .15s cubic-bezier(.25,1,.5,1), background-color .15s ease, box-shadow .2s ease;
+  flex: 0 0 auto;
+  display: flex; flex-direction: row; align-items: center; justify-content: center;
+  gap: 7px; padding: 9px 16px 9px 12px;
+  background: var(--primary); border: none;
+  border-radius: var(--radius-pill); box-shadow: var(--shadow-sm);
+  transition: transform .15s cubic-bezier(.25,1,.5,1), filter .15s ease;
 }
 .category-tile:active { transform: scale(.95); }
 @media (hover: hover) {
-  .category-tile:hover { background: var(--surface-hover); box-shadow: var(--shadow-md); }
+  .category-tile:hover { filter: brightness(1.15); }
 }
-.category-tile-label { font-size: 12.5px; font-weight: 600; color: var(--text); text-align: center; line-height: 1.2; }
+.category-tile-label { font-size: 12.5px; font-weight: 600; color: var(--on-primary); text-align: center; line-height: 1.2; white-space: nowrap; }
+
+/* ---- "In the spotlight" carousel — a scroll-snap rail of the existing
+   .ec-feature cards below, with peek-spacers so the first/last slide also
+   shows both-side peek (not just interior slides — see the spacer note on
+   .spot-spacer). Deliberately plain CSS scroll-snap, no drag-physics/spring
+   carousel library — an earlier spring-based spotlight was pulled for being
+   "too glitchy"; this reuses the same robust mechanism the reference design
+   itself used. ---- */
+.ex-spotlight-rail {
+  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: 2px 0 4px; scrollbar-width: none;
+  scroll-padding: 0 16px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.ex-spotlight-rail::-webkit-scrollbar { display: none; }
+.ex-spotlight-rail [data-spot-card] { flex: 0 0 auto; scroll-snap-align: center; }
+.ex-spotlight-spacer { flex: 0 0 16px; scroll-snap-align: none; }
+.ex-spotlight-dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+.ex-spotlight-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); transition: background-color .2s ease, width .2s ease; }
+.ex-spotlight-dot.on { background: var(--text); width: 16px; border-radius: 99px; }
 
 /* ---- large featured hero card ---- */
 /* Sized to dominate the screen on mobile (min(85vw,...) instead of a fixed
    300px) — the featured card is the app's one big "look at this" moment,
    and a card that leaves 90px of a second card peeking read as timid next
    to the reference design's near-full-bleed hero card. */
-.ec-feature { flex: 0 0 auto; width: min(85vw, 360px); }
+/* display:block is required here, not just flex:0 0 auto — this card is
+   wrapped in a [data-spot-card] div (the spotlight carousel's scroll-anchor
+   hook) rather than being a direct flex child of the rail itself, so it
+   doesn't get flexbox's automatic blockification and would otherwise keep
+   its native <a> `display:inline`, which ignores the width rule entirely. */
+.ec-feature { display: block; flex: 0 0 auto; width: min(85vw, 360px); }
 .ec-feature-cover {
   aspect-ratio: 4/3; border-radius: 16px; overflow: hidden; position: relative;
   background-size: cover; background-position: center; background-color: var(--card-bg);
@@ -1258,34 +1288,42 @@ a.cat-circle:active { transform: scale(0.96); }
 }
 
 /* ---------- Bottom bar (mobile only) ----------
-   A normal, full-width, edge-docked bar — back from the floating-pill
-   experiment per direct feedback ("remove the floating bar and make it a
-   normal one"). Same 5 icons (kept as-is — "they are good"): Discover,
-   Reserve, Favourites, Tickets, AI (the diamond mark, folded in as a normal
-   tab instead of a separate floating circle). Fixed dark glass (--dock-glass,
-   not the theme-swapping --glass-veil) since the icons are always solid
-   white — needs to stay dark enough for contrast in light mode too. */
+   Floating pill again — an earlier floating-pill experiment was reverted
+   per direct feedback ("remove the floating bar and make it a normal one");
+   this is a deliberate, later re-adoption per a specific reference design,
+   not a repeat of that same experiment (single consistent pill, no separate
+   floating AI circle this time — that combination was the specific part
+   that read as "weird" before). Same 5 icons (kept as-is — "they are
+   good"): Discover, Reserve, Favourites, Tickets, AI. */
+/* Floating pill (per the reference design) — margin from both edges and the
+   bottom, not full-width/edge-docked. Theme-aware ink surface + icon color
+   now (was a fixed-dark-glass-with-always-white-icons bar, a deliberate
+   choice for the old edge-docked shape); every icon below already renders
+   via `fill="currentColor"`/CSS `color` (NavIcons.tsx, Ikonate glyphs), so
+   this recolors correctly with no icon-component changes needed. */
 .bottom-bar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 55;
+  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 55;
   display: flex; align-items: stretch;
-  padding-bottom: env(safe-area-inset-bottom);
-  background: var(--dock-glass);
+  width: calc(100% - 32px); max-width: 420px;
+  border-radius: var(--radius-pill);
+  background: var(--card-bg);
   backdrop-filter: blur(24px) saturate(190%); -webkit-backdrop-filter: blur(24px) saturate(190%);
-  border-top: 1px solid var(--dock-glass-edge);
-  box-shadow: 0 -2px 20px rgba(0,0,0,.25);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-float);
+  padding: 4px;
 }
 .bottom-bar-item {
   flex: 1 1 0; min-width: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3px; padding: 10px 4px 8px;
-  color: rgba(255,255,255,.55);
+  gap: 3px; padding: 8px 4px 7px; border-radius: var(--radius-pill);
+  color: var(--text-3);
   transition: color .16s ease;
 }
 .bottom-bar-item:active { transform: scale(.92); }
 .bottom-bar-icwrap { display: grid; place-items: center; width: 24px; height: 24px; }
 .bottom-bar-svg { font-size: 22px; width: 22px; height: 22px; line-height: 1; }
 .bottom-bar-label { font-size: 10px; font-weight: 600; letter-spacing: .2px; }
-.bottom-bar-item.on { color: #fff; }
+.bottom-bar-item.on { color: var(--text); }
 @media (min-width: 900px) {
   .bottom-bar { display: none; }
 }

@@ -34,16 +34,18 @@ const TABS = [
   { to: "/concierge", icon: "sparkles", label: "AI", filled: true },
 ];
 
-// Mobile bottom nav (<900px) — a normal, full-width, edge-docked bar (back
-// from the floating pill+separate-AI-circle experiment, which read as
-// "weird"/too novel). Same icons as before (kept per direct feedback —
-// "they are good"), AI folded in as a normal 5th tab instead of a separate
-// floating circle. "Calendar" (the reference screenshot's 2nd tab) has no
-// Weyn equivalent, so it's swapped for Reserve — Weyn's actual second
-// top-level destination. Every icon is a solid/filled glyph, always white —
-// Ikonate's -fill variants for store/ticket, custom simple SVGs (NavIcons.tsx)
-// for compass/heart (no filled Ikonate variant exists), and the same diamond
-// mark for AI.
+// Mobile bottom nav (<900px) — a floating pill again, per a specific later
+// design reference (not a repeat of the earlier floating-pill+separate-
+// AI-circle experiment that read as "weird"/too novel — this is one
+// consistent pill, AI folded in as a normal 5th tab, no separate floating
+// circle, which was the actual part that didn't work before). Same icons as
+// before (kept per direct feedback — "they are good"). "Calendar" (the
+// reference screenshot's 2nd tab) has no Weyn equivalent, so it's swapped
+// for Reserve — Weyn's actual second top-level destination. Every icon is a
+// solid/filled glyph, theme-aware ink color (see .bottom-bar-item in
+// components.css) — Ikonate's -fill variants for store/ticket, custom
+// simple SVGs (NavIcons.tsx) for compass/heart (no filled Ikonate variant
+// exists), and the same diamond mark for AI.
 const BOTTOM_TABS = [
   { to: "/", end: true, label: "Discover", Glyph: IconHomeFill },
   { to: "/venues", end: false, label: "Reserve", Glyph: IconStoreFill },

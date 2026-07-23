@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { api, VENUE_CATS, type Venue, type VenueCategory } from "../api";
 import VenueCard from "../components/VenueCard";
+import UserAvatar from "../components/UserAvatar";
+import { useAccount } from "../store";
 
 // Reservations mirrors Explore's browse pattern (topbar → search → chips →
 // grid/list → loading/empty states) but for venues instead of events, and
@@ -31,6 +34,7 @@ function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): num
 }
 
 export default function Reservations({ embedded = false }: { embedded?: boolean }) {
+  const account = useAccount();
   const [cat, setCat] = useState<VenueCategory | "all">("all");
   const [q, setQ] = useState("");
   const [qDebounced, setQDebounced] = useState("");
@@ -123,15 +127,21 @@ export default function Reservations({ embedded = false }: { embedded?: boolean 
 
   return (
     <>
-      {/* Hero suppressed when embedded in Discover (Venues mode) — the
-          Discover shell's segmented toggle is the header there. */}
+      {/* Same segmented toggle + avatar as Discover.tsx's header, Venues
+          active this time — so switching between Events/Venues works from
+          either side. Suppressed when embedded (Discover already renders
+          its own copy of this header above <Explore embedded />). */}
       {!embedded && (
-        <section className="ex-hero">
-          {/* No home-hub tile to morph from anymore (Events/Reserve tiles
-              were removed) — just a plain header icon now. */}
-          <span className="ex-hero-nav-icon" aria-hidden="true"><i className="icon-store-fill" /></span>
-          <h1>Reserve a table</h1>
-        </section>
+        <div className="discover-head">
+          <div className="seg-toggle">
+            <span className="seg-toggle-thumb slot-2" />
+            <Link to="/" className="seg-btn">Events</Link>
+            <Link to="/venues" className="seg-btn on">Venues</Link>
+          </div>
+          <div className="discover-head-actions">
+            <UserAvatar account={account} />
+          </div>
+        </div>
       )}
 
       <div className="search-wrap">

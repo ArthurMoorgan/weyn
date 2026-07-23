@@ -196,19 +196,20 @@
          URL already means text doesn't wait on the font file itself — this
          only stops the *CSS* fetch from blocking. Falls back to a plain
          stylesheet if JS is disabled. -->
-    <!-- Plus Jakarta Sans / IBM Plex Mono dropped in favor of self-hosted Geist
-         (see src/styles/tokens.css @font-face) — Noto Naskh Arabic (bilingual
-         Arabic text) still loads from Google Fonts. -->
+    <!-- Plus Jakarta Sans reverted back in (was dropped in favor of
+         self-hosted Geist, see src/styles/tokens.css) — per direct design
+         direction. Noto Naskh Arabic (bilingual Arabic text) loads
+         alongside it, same non-render-blocking pattern for both. -->
     <link
       rel="preload"
       as="style"
-      href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@500;600&display=swap"
       onload="this.onload=null;this.rel='stylesheet'"
     />
     <noscript>
       <link
         rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@500;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@500;600&display=swap"
       />
     </noscript>
     <!-- Icons: Lucide webfont, self-hosted from /public/fonts (see src/lucide.css).
